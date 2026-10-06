@@ -1,0 +1,3 @@
+/* Repository paths outside docs/ rendered by docs/_ext/crevice_docs.py */
+.crevice-repo-path .crevice-path-label { font-size: 0.85em; opacity: 0.75; }
+.crevice-repo-path code { font-size: 0.8em; }

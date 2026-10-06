@@ -1,0 +1,54 @@
+name: Bug report
+description: CREVICE crashed, produced malformed output, or behaved differently from its documentation.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please give enough detail for someone else to reproduce the problem.
+        If you think a *scientific result* is wrong (e.g. a radius or volume), that is welcome too:
+        say what you expected and why, and which parameters you used.
+  - type: input
+    id: version
+    attributes:
+      label: CREVICE version or commit
+      description: Output of `python -c "import crevice; print(crevice.__version__)"`, or the Git commit.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Python version, and `python -m pip freeze` (or at least NumPy, SciPy, MDAnalysis, Matplotlib and Gemmi versions).
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command or code
+      description: The complete command line or a minimal Python snippet.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Input
+      description: PDB accession, or how to obtain the structure/trajectory. Attach a minimal file if it can be shared.
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened
+      description: Full error traceback or the unexpected output.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true

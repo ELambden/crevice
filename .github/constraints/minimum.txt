@@ -1,0 +1,9 @@
+# Oldest supported releases of CREVICE's required runtime libraries.
+# Used by the CI "minimum-versions" job: pip install -c this-file '.[test]'.
+# Keep in sync with [project].dependencies lower bounds in pyproject.toml
+# (tests/test_packaging.py enforces this).
+numpy==1.26.4
+scipy==1.11.4
+MDAnalysis==2.7.0
+matplotlib==3.8.0
+scikit-image==0.22.0

@@ -1,0 +1,17 @@
+# Python and tooling caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+/dist/
+
+# Local environments
+/.venv/
+/.venv-*/
+
+# CREVICE's default structure cache (--cache-dir) and local viewer toolchains
+/.crevice/
+
+# Output written by the examples and quick-start commands
+/results/

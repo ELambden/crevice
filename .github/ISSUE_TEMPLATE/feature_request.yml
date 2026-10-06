@@ -1,0 +1,31 @@
+name: Feature or method request
+description: Suggest a new analysis, option, output or documentation improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Scientific or practical problem
+      description: What question are you trying to answer, and what is missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: Commands, parameters or outputs you would like. Mention related tools (HOLE, HOLLOW, CAVER, MDAnalysis, ...) if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: How could it be checked?
+      description: Analytic controls, reference data or comparators that would show the feature works. It is fine to say you do not know.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you like to help implement it?
+      options:
+        - "Not at this time"
+        - "Yes, with guidance"
+        - "Yes, I can open a pull request"

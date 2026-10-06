@@ -1,0 +1,3 @@
+# Sphinx build output and autosummary stubs (regenerated on every build)
+_build/
+api/generated/

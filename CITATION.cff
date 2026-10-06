@@ -1,0 +1,44 @@
+# Citation metadata for CREVICE (https://citation-file-format.github.io/).
+cff-version: 1.2.0
+message: "If you use CREVICE, please cite it using the metadata below."
+title: "CREVICE: Cavity and Residue Environment Visualisation, Interaction and Connectivity Evaluation"
+abstract: >-
+  CREVICE is a Python package for protein cavity, pore, tunnel, channel and
+  residue-interaction analysis in static structures and molecular dynamics
+  trajectories.
+type: software
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/ELambden/crevice"
+url: "https://github.com/ELambden/crevice"
+authors:
+  - given-names: Edward
+    family-names: Lambden
+    affiliation: "King's College London; The Francis Crick Institute"
+    orcid: "https://orcid.org/0000-0002-9170-1077"
+    email: edward.lambden@kcl.ac.uk
+keywords:
+  - molecular dynamics
+  - membrane proteins
+  - ion channels
+  - cavities
+  - tunnels
+  - structural biology
+# The paper is in preparation; add its journal, DOI and date when known.
+preferred-citation:
+  type: article
+  status: in-preparation
+  title: "CREVICE: Analysis and Visualisation of Protein Cavities, Channels, and Residue Interaction Networks"
+  authors:
+    - given-names: Edward
+      family-names: Lambden
+      affiliation: "King's College London; The Francis Crick Institute"
+      orcid: "https://orcid.org/0000-0002-9170-1077"
+    - given-names: Heather
+      family-names: Findlay
+      affiliation: "King's College London; The Francis Crick Institute"
+      orcid: "https://orcid.org/0000-0002-7511-2192"
+    - given-names: Paula J.
+      family-names: Booth
+      affiliation: "King's College London; The Francis Crick Institute"
+      orcid: "https://orcid.org/0000-0003-3893-360X"
