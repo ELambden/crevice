@@ -227,7 +227,7 @@ DISTRIBUTION_COLUMNS = {"coordinate": "coordinate_A", "mean_radius": "mean_radiu
 
 
 def write_profile_distribution_csv(distribution: dict, path: str | Path) -> None:
-    """Write the ``rows`` of a :func:`profile_distribution` result to CSV.
+    """Write the ``rows`` of a :func:`~crevice.ensemble.profile_distribution` result to CSV.
 
     Columns follow the keys of the first row, with the unit appended to every
     length (``coordinate_A``, ``mean_radius_A``, ``median_radius_A``,

@@ -62,6 +62,30 @@ python -m twine check --strict dist/*
 python scripts/check_wheel.py dist/crevice-*.whl --report dist/wheel-check.json
 ```
 
+## Building the documentation
+
+The Read the Docs site is built with Sphinx from `docs/` (MyST Markdown). Use a
+separate environment so the documentation tools do not change your test
+environment:
+
+```bash
+python -m venv .venv-docs
+.venv-docs/bin/python -m pip install . -r docs/requirements.txt
+rm -rf docs/api/generated                 # autosummary never deletes stale stubs
+.venv-docs/bin/python -m sphinx -W --keep-going -b html docs docs/_build/html
+.venv-docs/bin/python -m sphinx -n -W --keep-going -b html docs docs/_build/html-nitpicky
+.venv-docs/bin/python -m sphinx -b linkcheck docs docs/_build/linkcheck
+```
+
+`-W` turns warnings into errors, and intersphinx needs network access. Only
+pages matched by `include_patterns` in `docs/conf.py` are built, so add a new
+page there as well as to a toctree. The local extension
+`docs/_ext/crevice_docs.py` fails the build when a `crevice` submodule is
+missing from `docs/api/modules.rst` or a command has no page under
+`docs/reference/cli/`, and it renders those command pages from
+`crevice.cli.build_parser()`. Worked examples are pre-rendered: their pages
+are not executed during the build.
+
 ## Dependency policy
 
 - Required: NumPy, SciPy, MDAnalysis, Matplotlib and scikit-image. Code may
@@ -133,8 +157,9 @@ CREVICE follows [Semantic Versioning 2.0.0](https://semver.org/).
   API or default outputs; a PATCH bump (0.y.**z**) is for fixes that do not
   change documented behaviour. Any change to numerical results of an existing
   analysis must be called out in the changelog regardless of the bump.
-- Release steps are in `docs/development/releasing.md`: bump the version,
-  update the changelog, push to `main`, then publish a GitHub Release tagged
-  `vX.Y.Z`; the release workflow tests, builds and uploads it to PyPI.
+- To release: bump the version, update the changelog, push to `main`, then
+  publish a GitHub Release tagged `vX.Y.Z`; the release workflow
+  (`.github/workflows/release.yml`) tests, builds and uploads it to PyPI with
+  Trusted Publishing.
 - Pre-releases use SemVer suffixes in the tag (e.g. `v0.2.0-rc.1`) and the
   matching PEP 440 form in `__version__` (`0.2.0rc1`).

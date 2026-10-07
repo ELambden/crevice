@@ -1182,6 +1182,8 @@ def write_static_publication_bundle(
     smooth: float | None = None,
     annotate: bool | None = None,
     radii: RadiusSet | str | None = None,
+    entry_end: str = "auto",
+    lining_cutoff: float = 3.3,
 ) -> dict[str, str]:
     """Write the complete static-structure bundle of ``crevice publish``.
 
@@ -1286,6 +1288,13 @@ def write_static_publication_bundle(
         Rolling-probe radius (Å) defining bulk solvent for lateral exits.
     exit_spacing : float, default 0.5
         Lattice spacing (Å) of the lateral-exit path search.
+    entry_end : {"auto", "start", "end"}, default "auto"
+        Which end of a resolved channel is labelled ENTRY
+        (:func:`crevice.cast_segments.segment_roles`; CLI ``--entry-end``).
+        Geometric labels only, not a transport direction.
+    lining_cutoff : float, default 3.3
+        Atom centre to segment grid node distance (Å) for lining residues
+        (:func:`crevice.cast_segments.lining_residues`; CLI ``--lining-cutoff``).
     annotate : bool, optional
         Draw titles, value call-outs, mouth labels and residue landmark names in
         the figures (the viewer scenes of this bundle contain no text).
@@ -1346,6 +1355,13 @@ def write_static_publication_bundle(
     PREFIX_scene.json, PREFIX_volume_metadata.json, PREFIX_geometry_reference.npz, PREFIX_mouths.bild : scene data
         Camera, display definitions, reference points and mouth guides read by
         the viewer scripts.
+    PREFIX_cast_segments.csv, PREFIX_lining_residues.csv : tables
+        Channel casts only: one row per ENTRY/LUMEN/EXIT segment
+        (:func:`crevice.cast_segments.write_segments_csv`) and one row per
+        segment and lining residue (:func:`crevice.cast_segments.write_lining_csv`).
+    PREFIX_<segment>_cast.dx, PREFIX_<segment>_display.dx, PREFIX_<segment>_display_local.dx : grids
+        Channel casts only: measured binary grid of each entry/exit segment
+        (the lumen's is ``PREFIX_volume.dx``) and each segment's display field.
     PREFIX_profile_radius.png : figure
         :func:`plot_profile_radius`.
     PREFIX_profile_radius_annotated.png : figure
@@ -1386,7 +1402,23 @@ def write_static_publication_bundle(
     ``metadata["lateral_exit_casts"]`` in ``PREFIX_void_cast.json`` and the
     manifest, one ``lateral_exit`` row per leg in ``PREFIX_void_cast.csv``,
     ``profile_status.lateral_exit_cast_volumes_A3`` and ``PREFIX_exit_casts.dx``.
-    The scenes draw them joined to the channel cast.
+
+    Cast segments are written for every resolved, uncropped channel cast
+    (:mod:`crevice.cast_segments`). The measured cast is the LUMEN; the
+    space-filling vestibule beyond each mouth, out to the bulk-solvent boundary
+    (rolling probe of ``exit_bulk_radius``, an outer boundary and not a width
+    limit), is an ENTRY or EXIT segment (an open axial mouth gives one, a capped
+    mouth one per lateral exit leg). Labels follow ``entry_end`` and are
+    geometric only. Outputs: ``metadata["cast_segments"]`` (with
+    ``segments_total_volume_A3``; ``total_volume`` stays the lumen) in
+    ``PREFIX_void_cast.json`` and the manifest,
+    ``profile_status.cast_segment_volumes_A3``, ``PREFIX_cast_segments.csv``,
+    ``PREFIX_<segment>_cast.dx`` per entry/exit, ``PREFIX_lining_residues.csv``
+    (residues with an atom centre within ``lining_cutoff`` of each segment's
+    grid nodes) and ``lumen_lining``/``lining_segments`` columns appended to
+    ``PREFIX_residue_contacts.csv`` and ``PREFIX_network_nodes.csv``. Not
+    applied to rolling-probe casts or the unresolved-profile fallback, which
+    have no channel axis or mouths, nor to focus-cropped casts.
 
     Every PNG embeds its description (``Title``, ``Description``) as metadata;
     read it with :func:`crevice.presentation.figure_description`.
@@ -1403,8 +1435,15 @@ def write_static_publication_bundle(
     * Channel mouths: no guide by default; orange rings (``[0.90, 0.52, 0.12]``)
       with mouth guides (:func:`crevice.presentation.display_guides`, CLI
       ``--mouth-guides``). Positions are always in the JSON outputs.
-    * Lateral exit legs (``lateral_exits``): drawn as cast surfaces joined to
-      the channel cast at the capped mouth, in the channel colour. Thin blue
+    * Channel cast segments: one surface object each, PyMOL/VMD/ChimeraX
+      ``crevice_entry_N`` yellow (``[0.941, 0.831, 0.227]``, ``#f0d43a``),
+      ``crevice_lumen`` teal and ``crevice_exit_N`` rust
+      (``[0.761, 0.255, 0.047]``, ``#c2410c``); lateral exit legs are EXIT
+      (or ENTRY) segments. Lining residues: stick objects
+      ``crevice_<segment>_lining`` (carbons in the segment colour) and
+      selections ``crevice_<segment>_lining_sel``, hidden by default; PyMOL
+      ``crevice_lining lumen``, VMD ``crevice_lining lumen on``, ChimeraX named
+      selection ``crevice_lumen_lining``. No labels. Thin blue
       centre-line tubes (RGB ``[0.16, 0.47, 0.84]``, radius 0.12 Å, PyMOL object
       ``crevice_exits``; VMD colour 23; ChimeraX cylinders in
       ``PREFIX_mouths.bild``) only with ``--exit-centre-lines``.
@@ -1412,6 +1451,10 @@ def write_static_publication_bundle(
     from .volume_export import resolve_display_smoothing
     from .sections import LEGACY_ENCLOSURE_RADIUS
     resolve_display_smoothing(smooth, surface_smoothing)
+    if entry_end not in (None, "auto", "start", "end"):
+        raise ValueError("entry_end must be 'auto', 'start' or 'end'")
+    if not math.isfinite(lining_cutoff) or lining_cutoff <= 0:
+        raise ValueError("lining_cutoff must be finite and positive")
     # Rolling-probe casts need a number; the automatic choice applies to the
     # channel profile only.
     cast_probe = LEGACY_ENCLOSURE_RADIUS if enclosure_radius is None else enclosure_radius
@@ -1542,6 +1585,27 @@ def write_static_publication_bundle(
                                            "lateral_exit_casts": exit_cast_summary(exit_casts),
                                            "lateral_exit_cast_definition": EXIT_CAST_DEFINITION,
                                            "lateral_exit_casts_note": "separate volumes; not part of total_volume"})
+    segments, lining, segment_rows = None, [], []
+    if cast.mode == "channel" and cast.metadata.get("export_mode") == "connected_section_fill" and not cast_focus_points:
+        # ENTRY / LUMEN / EXIT: the lumen is the cast above, unchanged; the
+        # vestibules beyond each mouth are separate segments.
+        from .cast_segments import (LABEL_RULE_DEFINITION, LINING_DEFINITION, SEGMENT_DEFINITION, lining_residues,
+                                    segment_casts, segment_roles, segment_summary)
+        segment_roles(profile, entry_end)
+        segments = segment_casts(frame, profile, cast, entry_end=entry_end, bulk_radius=exit_bulk_radius,
+                                 lateral_casts=exit_casts)
+        segment_rows = segment_summary(cast, segments)
+        lining = lining_residues(frame, cast, segments, cutoff=lining_cutoff)
+        cast = replace(cast, metadata={**cast.metadata, "cast_segments": segment_rows,
+                                       "cast_segment_definition": SEGMENT_DEFINITION,
+                                       "segment_label_rule": {"entry_end": entry_end or "auto",
+                                                              "rule": segment_roles(profile, entry_end)[1],
+                                                              "definition": LABEL_RULE_DEFINITION},
+                                       "segment_bulk_radius_A": exit_bulk_radius,
+                                       "segments_total_volume_A3": sum(r["volume_A3"] for r in segment_rows),
+                                       "segments_total_note": "lumen + every entry and exit segment; "
+                                                              "total_volume stays the lumen only",
+                                       "lining_cutoff_A": lining_cutoff, "lining_definition": LINING_DEFINITION})
     if cast_focus_points is not None or cast_mode in {"cavity", "all"}:
         from .models import VoidComponent
         cast_points = tuple(p for c in cast.components for p in c.points)
@@ -1597,7 +1661,7 @@ def write_static_publication_bundle(
         manifest.update(write_volume_viewer_bundle(cast, structure_path=structure_copy,
                         output_dir=root, prefix=prefix, frame=frame, profile=profile,
                         cast_extension=cast_extension, surface_smoothing=surface_smoothing, smooth=smooth,
-                        exit_casts=exit_casts))
+                        exit_casts=exit_casts, segments=segments, lining=lining or None))
         if profile.method == "axial-connected":
             # The primary pore-cast scene must show the measured full grid.
             # Retain the dummy-atom representation separately for compatibility.
@@ -1622,6 +1686,16 @@ def write_static_publication_bundle(
         _write_network_outputs(frame, region, contacts, root, prefix, manifest,
                                dpi=dpi, residue_groups=residue_groups)
 
+    if segments is not None:
+        from .cast_segments import add_lining_columns, write_lining_csv, write_segments_csv
+        manifest["cast_segments_csv"] = str(root / f"{prefix}_cast_segments.csv")
+        manifest["lining_residues_csv"] = str(root / f"{prefix}_lining_residues.csv")
+        write_segments_csv(segment_rows, manifest["cast_segments_csv"])
+        write_lining_csv(lining, manifest["lining_residues_csv"])
+        for key in ("residue_contacts_csv", "network_nodes_csv"):
+            if key in manifest and Path(manifest[key]).is_file():
+                add_lining_columns(manifest[key], lining)
+
     manifest_path = root / f"{prefix}_manifest.json"
     _write_json({"files": manifest, "dpi": dpi, "prefix": prefix, "void_cast": cast.to_dict(), **radii_fields(),
                  "profile_status": {"status": "resolved", "method": profile.method,
@@ -1634,6 +1708,12 @@ def write_static_publication_bundle(
                                                                          for c in exit_casts},
                                         "lateral_exit_cast_note": "separate from void_cast.total_volume (axial channel only)"}
                                        if exit_casts else {}),
+                                    **({"cast_segment_volumes_A3": {r["segment"]: r["volume_A3"] for r in segment_rows},
+                                        "segment_label_rule": cast.metadata["segment_label_rule"]["rule"],
+                                        "lining_residue_counts": {r["segment"]: sum(1 for x in lining if x["segment"] == r["segment"])
+                                                                  for r in segment_rows},
+                                        "cast_segment_note": "lumen = void_cast.total_volume; entry/exit volumes separate"}
+                                       if segments is not None else {}),
                                     **({"enclosure_probe": {
                                         "mode": "auto",
                                         "chosen_A": profile.metadata["enclosure_probe_selection"]["chosen_A"],

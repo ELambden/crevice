@@ -25,6 +25,13 @@
    every importable ``crevice`` submodule is compared with that list and a warning
    (an error under ``-W``) is emitted for any undocumented or stale module, so a
    new module cannot silently drop out of the API reference.
+
+6. ``crevice-cli`` and ``crevice-cli-options`` directives render the command
+   line reference from ``crevice.cli.build_parser()``: one compact page per
+   command (its own arguments and options as tables) plus one shared page for
+   the option families that many commands accept (structure input, atomic
+   radii, figure text, channel-profile and hydration settings).  A build check
+   warns when a command has no page under ``reference/cli/``.
 """
 
 from __future__ import annotations
@@ -35,6 +42,7 @@ import re
 from pathlib import Path, PurePosixPath
 
 from docutils import nodes
+from docutils.parsers.rst import Directive
 from sphinx import addnodes
 from sphinx.application import Sphinx
 from sphinx.util import logging
@@ -235,7 +243,249 @@ def _move_tuple_defaults(app: Sphinx, what, name, obj, options, lines: list[str]
     lines[:] = result
 
 
+# -- Command-line reference ---------------------------------------------------
+
+#: Option families documented once on the shared-options page. A command's
+#: option is shown there instead of on the command's own page when its help
+#: text is the family's canonical text and the command has at least
+#: ``min_members`` options of the family.
+CLI_FAMILIES = {
+    "structure-input": ("Structure input", 3, ["cache_dir", "input_format", "assembly", "offline", "refetch",
+                                              "timeout", "model", "parser", "md_selection", "chain_ids"]),
+    "radii": ("Atomic radii", 1, ["radii", "allow_radii_mismatch"]),
+    "figures": ("Figures and viewer scenes", 1, ["annotate", "mouth_guides", "exit_centre_lines", "smooth",
+                                                 "surface_smoothing"]),
+    "channel-profile": ("Channel profile settings", 5, ["axis", "origin", "section_spacing", "enclosure_radius",
+                                                         "lateral_exits", "exit_bulk_radius", "exit_spacing",
+                                                         "samples", "padding", "search_radius", "refinement_steps",
+                                                         "probe_radius", "include_hydrogen", "exclude_hetero"]),
+    "hydration": ("Hydration settings", 3, ["hydration_cutoff", "hydration_probe", "hydration_sasa_points",
+                                            "water_density_spacing", "water_density_smoothing",
+                                            "water_density_level", "skip_water_density", "skip_interactions",
+                                            "skip_analysis_views", "skip_hydration"]),
+}
+
+
+def _cli_commands():
+    """Return ``{name: (subparser, one-line help)}`` for every ``crevice`` subcommand, in parser order."""
+    import argparse
+
+    from crevice.cli import build_parser
+
+    parser = build_parser()
+    sub = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    helps = {a.dest: a.help for a in sub._choices_actions}
+    return {name: (p, helps.get(name, "")) for name, p in sub.choices.items()}
+
+
+def _cli_options(subparser):
+    return [a for a in subparser._actions if a.option_strings and a.dest != "help"]
+
+
+def _canonical_help() -> dict[str, str]:
+    """The most common help text of each family option across all commands."""
+    from collections import Counter
+
+    counts: dict[str, Counter] = {}
+    for parser, _ in _cli_commands().values():
+        for action in _cli_options(parser):
+            counts.setdefault(action.dest, Counter())[action.help or ""] += 1
+    return {dest: c.most_common(1)[0][0] for dest, c in counts.items()}
+
+
+def _shared_families(subparser) -> dict[str, list]:
+    """Map family key to the command's actions documented on the shared page."""
+    canonical = _canonical_help()
+    options = _cli_options(subparser)
+    found: dict[str, list] = {}
+    for key, (_, min_members, dests) in CLI_FAMILIES.items():
+        members = [a for a in options if a.dest in dests and (a.help or "") == canonical.get(a.dest)]
+        if len(members) >= min_members:
+            found[key] = members
+    return found
+
+
+def _option_label(action) -> str:
+    import argparse
+
+    label = ", ".join(action.option_strings)
+    takes_value = not isinstance(action, (argparse._StoreTrueAction, argparse._StoreFalseAction,
+                                          argparse._StoreConstAction, argparse._CountAction))
+    if takes_value:
+        metavar = action.metavar or (None if action.choices else _plain_metavar(action))
+        if metavar is None:
+            metavar = "{" + ",".join(str(c) for c in action.choices) + "}"
+        label += f" {metavar}"
+    return label
+
+
+_PATH_DEST = re.compile(r"(output|csv|pdb|png|json|pymol|dx|dir|npz|file|path|definition|scene)$")
+
+
+def _plain_metavar(action) -> str:
+    """A short, readable placeholder for an option value without a declared metavar."""
+    if action.type is int:
+        return "N"
+    if action.type is float:
+        return "X"
+    if _PATH_DEST.search(action.dest):
+        return "PATH"
+    return action.dest.upper()
+
+
+_OPTION_TOKEN = re.compile(r"(?<![\w-])(--?[A-Za-z][\w-]*)")
+
+
+def _help_nodes(text: str) -> list[nodes.Node]:
+    """Help text with option names as literals (also keeps ``--`` out of smart-dash conversion)."""
+    result: list[nodes.Node] = []
+    for i, part in enumerate(_OPTION_TOKEN.split(text)):
+        if part:
+            result.append(nodes.literal("", part) if i % 2 else nodes.Text(part))
+    return result
+
+
+def _default_text(action) -> str:
+    import argparse
+
+    if action.required:
+        return "required"
+    if isinstance(action, (argparse._StoreTrueAction, argparse._StoreFalseAction)):
+        return "off"
+    if action.default is None or action.default is argparse.SUPPRESS:
+        return "\u2013"
+    return str(action.default)
+
+
+def _doc_link(target: str, text: str, *, literal: bool = False, ref: bool = False) -> nodes.Node:
+    content = nodes.literal("", text) if literal else nodes.inline("", text)
+    return addnodes.pending_xref("", content, refdomain="std", reftype="ref" if ref else "doc",
+                                 reftarget=target, refexplicit=True, refwarn=True)
+
+
+def _table(headers: list[str], rows: list[list[nodes.Node]], widths: list[int], classes: list[str]) -> nodes.table:
+    table = nodes.table(classes=["crevice-cli-table", *classes])
+    group = nodes.tgroup(cols=len(headers))
+    table += group
+    for width in widths:
+        group += nodes.colspec(colwidth=width)
+    head = nodes.thead()
+    group += head
+    row = nodes.row()
+    for title in headers:
+        row += nodes.entry("", nodes.paragraph("", title))
+    head += row
+    body = nodes.tbody()
+    group += body
+    for cells in rows:
+        row = nodes.row()
+        for cell in cells:
+            row += nodes.entry("", cell if isinstance(cell, nodes.paragraph) else nodes.paragraph("", "", cell))
+        body += row
+    return table
+
+
+def _option_rows(actions) -> list[list[nodes.Node]]:
+    rows = []
+    for action in actions:
+        help_text = (action.help or "").strip()
+        if action.choices and action.metavar is None and not help_text.lower().startswith("choices"):
+            help_text = f"{help_text} (choices: {', '.join(str(c) for c in action.choices)})".strip()
+        rows.append([nodes.literal("", _option_label(action)), nodes.Text(_default_text(action)),
+                     nodes.paragraph("", "", *_help_nodes(help_text))])
+    return rows
+
+
+class CreviceCliDirective(Directive):
+    """Render one ``crevice`` subcommand: usage, arguments and its own options."""
+
+    required_arguments = 1
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        name = self.arguments[0]
+        commands = _cli_commands()
+        if name not in commands:
+            raise self.error(f"crevice has no command {name!r}")
+        parser, _summary = commands[name]
+        positionals = [a for a in parser._actions if not a.option_strings]
+        shared = _shared_families(parser)
+        shared_ids = {id(a) for members in shared.values() for a in members}
+        own = [a for a in _cli_options(parser) if id(a) not in shared_ids]
+
+        usage_parts = ["crevice", name]
+        for action in positionals:
+            meta = (action.metavar or action.dest).upper()
+            usage_parts.append(f"{meta} ..." if action.nargs in ("+", "*") else meta)
+        usage_parts.append("[options]")
+        result: list[nodes.Node] = [nodes.literal_block("", " ".join(usage_parts), language="text",
+                                                        classes=["crevice-cli-usage"])]
+        if positionals:
+            rows = [[nodes.literal("", (a.metavar or a.dest).upper()),
+                     nodes.paragraph("", "", *_help_nodes((a.help or "").strip()))]
+                    for a in positionals]
+            result.append(nodes.rubric("", "Arguments"))
+            result.append(_table(["Argument", "Description"], rows, [25, 75], ["crevice-cli-args"]))
+        if own:
+            result.append(nodes.rubric("", "Options"))
+            result.append(_table(["Option", "Default", "Description"], _option_rows(own), [30, 12, 58],
+                                 ["crevice-cli-options"]))
+        if shared:
+            para = nodes.paragraph(classes=["crevice-cli-shared"])
+            para += nodes.strong("", "Shared options: ")
+            for i, key in enumerate(shared):
+                if i:
+                    para += nodes.Text(", ")
+                para += _doc_link(f"cli-{key}", CLI_FAMILIES[key][0].lower(), ref=True)
+            para += nodes.Text(". These are described once, on the shared options page.")
+            result.append(para)
+        return result
+
+
+class CreviceCliOptionsDirective(Directive):
+    """Render one shared option family and the commands that accept it."""
+
+    required_arguments = 1
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        key = self.arguments[0]
+        if key not in CLI_FAMILIES:
+            raise self.error(f"unknown option family {key!r}")
+        dests = CLI_FAMILIES[key][2]
+        users: list[str] = []
+        actions: dict[str, object] = {}
+        for name, (parser, _) in _cli_commands().items():
+            members = _shared_families(parser).get(key)
+            if members:
+                users.append(name)
+                for action in members:
+                    actions.setdefault(action.dest, action)
+        ordered = [actions[d] for d in dests if d in actions]
+        para = nodes.paragraph(classes=["crevice-cli-users"])
+        para += nodes.strong("", "Accepted by: ")
+        for i, name in enumerate(users):
+            if i:
+                para += nodes.Text(", ")
+            para += _doc_link(f"/reference/cli/{name}", name, literal=True)
+        return [para, _table(["Option", "Default", "Description"], _option_rows(ordered), [30, 12, 58],
+                             ["crevice-cli-options"])]
+
+
+def _check_cli_pages(app: Sphinx) -> None:
+    folder = Path(app.srcdir) / "reference" / "cli"
+    pages = {p.stem for p in folder.glob("*.md")} - {"index", "common-options"}
+    names = set(_cli_commands())
+    for name in sorted(names - pages):
+        logger.warning(f"crevice command {name!r} has no page reference/cli/{name}.md", type="crevice", subtype="cli")
+    for name in sorted(pages - names):
+        logger.warning(f"reference/cli/{name}.md documents no crevice command", type="crevice", subtype="cli")
+
+
 def setup(app: Sphinx) -> dict:
+    app.add_directive("crevice-cli", CreviceCliDirective)
+    app.add_directive("crevice-cli-options", CreviceCliOptionsDirective)
+    app.connect("builder-inited", _check_cli_pages)
     app.add_config_value("crevice_repository_url", "", "env")
     # Run before Sphinx's download-file collector (default priority 500) so
     # repository files outside docs/ are never copied into the build.

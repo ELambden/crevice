@@ -1,6 +1,8 @@
 # CLI or Python?
 
-CREVICE has two entry points to the same calculations.
+You can use CREVICE from the command line or from Python; both run the same
+calculations. This page helps you choose, shows which function sits behind
+each command, and lists the few defaults that differ.
 
 | | Command line (`crevice ...`) | Python (`import crevice`) |
 |---|---|---|

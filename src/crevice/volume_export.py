@@ -539,7 +539,8 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
                               cast_extension: float = 2.0, regions=None, surface_smoothing: float | None = None,
                               smooth: float | None = None, smooth_supersample: int | None = None,
                               exit_casts=None, mouth_guides: bool | None = None,
-                              exit_centre_lines: bool | None = None, cast_color=None) -> dict[str, str]:
+                              exit_centre_lines: bool | None = None, cast_color=None,
+                              segments=None, lining=None) -> dict[str, str]:
     """Write PyMOL, VMD and ChimeraX scenes of a cast inside its protein.
 
     The measured binary grid is written unchanged to ``PREFIX_volume.dx``. A
@@ -580,10 +581,10 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         Display supersampling factor for ``smooth`` (default 2).
     exit_casts : sequence of VoidComponent, optional
         Lateral exit leg casts on the cast's lattice
-        (:func:`crevice.channel_exits.lateral_exit_casts`). They are added to
-        the display surface, where they join the channel cast at its mouth, and
-        written separately as ``PREFIX_exit_casts.dx``; ``PREFIX_volume.dx`` and
-        the measured volume stay those of ``cast``.
+        (:func:`crevice.channel_exits.lateral_exit_casts`), written as
+        ``PREFIX_exit_casts.dx``. Without ``segments`` each leg is drawn as an
+        EXIT segment (``crevice_exit_N``); ``PREFIX_volume.dx`` and the
+        measured volume stay those of ``cast``.
     mouth_guides : bool, optional
         Draw the channel-mouth rings. ``None`` (default) follows
         :func:`crevice.presentation.mouth_guides_enabled` (off unless
@@ -596,6 +597,17 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         Cast surface RGB (0-1). Default
         :func:`crevice.presentation.cast_rgb`: teal for a channel cast, violet
         for every other cast.
+    segments : sequence of VoidComponent, optional
+        ENTRY/EXIT segment casts on the cast's lattice
+        (:func:`crevice.cast_segments.segment_casts`; metadata ``segment``).
+        When given (even empty) the scene draws ``cast`` as ``crevice_lumen``
+        and each segment as its own object instead of ``crevice_volume``;
+        display extension nodes beyond a mouth that has a segment are dropped.
+        Cannot be combined with ``regions``.
+    lining : sequence of dict, optional
+        Rows of :func:`crevice.cast_segments.lining_residues` (needs
+        ``structure_path`` to be the :func:`crevice.presentation.write_viewer_structure`
+        copy of ``frame``); adds hidden lining-residue objects and selections.
 
     Returns
     -------
@@ -619,6 +631,10 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         colour line); opened by the ChimeraX scene only when it has guides.
     PREFIX_exit_casts.dx : DX
         Only with ``exit_casts``: the measured binary grid of the exit leg casts.
+    PREFIX_<segment>_cast.dx, PREFIX_<segment>_display.dx, PREFIX_<segment>_display_local.dx : DX
+        Segmented scenes only: the measured grid of each entry/exit segment (the
+        lumen's is ``PREFIX_volume.dx``) and each object's display field in the
+        world and orthogonal local frames.
     PREFIX_region_NNN.dx, PREFIX_region_NNN_local.dx, PREFIX_display_regions.json : regions
         Only with ``regions``.
 
@@ -631,8 +647,19 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
       (``[0.659, 0.333, 0.969]``, ``#a855f7``) for every other cast (cavity,
       rolling-probe and dominant-region casts, the unresolved-profile
       fallback); see :data:`crevice.presentation.NON_CHANNEL_CAST_RGB`.
-    * Lateral exit leg casts (``exit_casts``): part of the same surface and
-      colour as the channel cast, joined to it at the capped mouth.
+    * Channel cast segments (``segments``, or ``exit_casts`` alone): one opaque
+      surface object each, PyMOL object / VMD molecule / ChimeraX model
+      ``crevice_entry_N`` yellow (``[0.941, 0.831, 0.227]``, ``#f0d43a``),
+      ``crevice_lumen`` in the cast colour (teal) and ``crevice_exit_N`` rust
+      (``[0.761, 0.255, 0.047]``, ``#c2410c``); each can be recoloured or
+      hidden on its own. Separately smoothed surfaces meet at the mouth planes.
+    * Lining residues (``lining``): stick objects ``crevice_<segment>_lining``
+      (carbons in the segment colour, heteroatoms by element, radius 0.2 Å),
+      disabled by default, and selections ``crevice_<segment>_lining_sel``
+      (PyMOL; ``crevice_lining SEGMENT [on|off|toggle]``); VMD Licorice
+      representations hidden by default (colour ids 10 lumen, 26 entry, 27
+      exit; ``crevice_lining SEGMENT on|off``); ChimeraX named selections
+      ``crevice_<segment>_lining``. No labels.
     * Channel mouths: no guide by default. With ``mouth_guides``: orange rings
       of 0.065 Å cylinders (``[0.90, 0.52, 0.12]``), PyMOL object
       ``crevice_mouths``.
@@ -664,17 +691,47 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     dx = write_void_cast_dx(cast, root / f"{prefix}_volume.dx")
     display = extend_channel_cast(cast, frame, cast_extension) if frame is not None else cast
     channel_display = display
+    from dataclasses import replace as _replace
+    if segments is None and exit_casts:
+        # Older callers pass only the lateral exit legs: each is an EXIT segment.
+        segments = tuple(_replace(c, metadata={**c.metadata, "segment": f"exit_{i}", "segment_type": "exit",
+                                               "segment_index": i})
+                         for i, c in enumerate(exit_casts, 1))
+    segment_mode = segments is not None
+    segments = tuple(segments or ())
+    if segment_mode and regions:
+        raise ValueError("Cast segments and display regions cannot be combined")
     if exit_casts:
-        from dataclasses import replace as _replace
         exit_cast = _replace(cast, components=exit_casts, points=tuple(p for c in exit_casts for p in c.points))
         manifest_exit_dx = write_void_cast_dx(exit_cast, root / f"{prefix}_exit_casts.dx")
-        # The display extension may already hold some leg nodes beyond the mouth.
-        shown = {tuple(round(v, 6) for v in p.position) for c in display.components for p in c.points}
-        legs = tuple(_replace(c, points=tuple(p for p in c.points
-                                             if tuple(round(v, 6) for v in p.position) not in shown))
-                     for c in exit_casts)
-        display = _replace(display, components=display.components+tuple(c for c in legs if c.points),
-                           points=display.points+tuple(p for c in legs for p in c.points),
+    lumen_display = display
+    if segments:
+        # Segment nodes beyond a mouth replace any display extension there; the
+        # lumen object keeps the rest of the display continuation.
+        def _key(point):
+            return tuple(round(v, 6) for v in point.position)
+        taken = {_key(p) for c in segments for p in c.points}
+        ends = {c.metadata.get("end") for c in segments}
+        meta = cast.metadata
+        if {"grid_origin", "grid_basis", "grid_dimensions"} <= set(meta):
+            import numpy as _np
+            _origin, _basis = _np.asarray(meta["grid_origin"], float), _np.asarray(meta["grid_basis"], float)
+            _last = int(meta["grid_dimensions"][2])-1
+
+            def _beyond_segment_mouth(point):
+                k = int(round(float((_np.asarray(point.position)-_origin) @ _basis[2])/cast.spacing))
+                return (k < 0 and "lower" in ends) or (k > _last and "upper" in ends)
+        else:
+            def _beyond_segment_mouth(point):
+                return False
+        # The display continuation beyond a mouth is dropped where a segment
+        # fills that end, so the segment object is not hidden inside it.
+        kept = tuple(c for c in (_replace(c, points=tuple(p for p in c.points if _key(p) not in taken
+                                                          and not _beyond_segment_mouth(p)))
+                                 for c in display.components) if c.points)
+        lumen_display = _replace(display, components=kept, points=tuple(p for c in kept for p in c.points))
+        display = _replace(display, components=kept+segments,
+                           points=lumen_display.points+tuple(p for c in segments for p in c.points),
                            metadata={**display.metadata, "display_only": True})
     shown_dx = write_void_cast_dx(display, root / f"{prefix}_display.dx", smoothing=smoothing)
     local_dx = write_void_cast_dx(orthogonal_map_cast(display), root / f"{prefix}_pymol_local.dx", smoothing=smoothing)
@@ -694,7 +751,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
                         protein_coords=np.asarray([a.coord for a in frame.atoms]) if frame else np.empty((0,3)))
     geometry = scene_geometry(display, frame, profile)
-    if exit_casts:
+    if segments:
         # Mouth rings come from the channel cast alone; the camera frames everything.
         geometry['mouth_rings'] = scene_geometry(channel_display, frame, profile)['mouth_rings']
     geometry['mouth_rings_drawn'] = draw_rings and bool(geometry['mouth_rings'])
@@ -721,7 +778,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         mesh_arrays[key+'_normals'] = normals
         return verts @ part_basis + origin
     union_vertices = expected_surface(display, 'volume')
-    expected_surfaces = [] if regions else [union_vertices]
+    expected_surfaces = [] if (regions or segment_mode) else [union_vertices]
     region_rows, region_pml, region_tcl = [], [], ['set crevice_region_molecules {}']
     if regions:
         from dataclasses import replace
@@ -760,6 +817,66 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         region_manifest = root/f'{prefix}_display_regions.json'
         region_manifest.write_text(json.dumps(region_rows,indent=2)+'\n')
         manifest['display_regions_json'] = str(region_manifest)
+    segment_rows = []
+    from .cast_segments import SEGMENT_RGB
+    if segment_mode:
+        parts = [("lumen", lumen_display, None)] + [
+            (c.metadata["segment"], _replace(display, components=(c,), points=tuple(c.points)), c) for c in segments]
+        for name, part, component in parts:
+            if not part.points:
+                continue
+            kind = name.split("_")[0]
+            rgb = color if kind == "lumen" else tuple(SEGMENT_RGB[kind])
+            expected_surfaces.append(expected_surface(part, name))
+            world_path = write_void_cast_dx(part, root/f'{prefix}_{name}_display.dx', smoothing=smoothing)
+            local_path = write_void_cast_dx(orthogonal_map_cast(part), root/f'{prefix}_{name}_display_local.dx',
+                                            smoothing=smoothing)
+            if component is None:
+                measured_path, volume = dx, cast.total_volume
+            else:
+                measured_path = write_void_cast_dx(_replace(cast, components=(component,),
+                                                            points=tuple(component.points)),
+                                                   root/f'{prefix}_{name}_cast.dx')
+                volume = component.volume
+            segment_rows.append({'segment': name, 'segment_type': kind, 'pymol_object': f'crevice_{name}',
+                                 'vmd_molecule': f'crevice_{name}', 'chimerax_model': f'crevice_{name}',
+                                 'pymol_mesh_key': name, 'color_rgb': list(rgb),
+                                 'color_hex': '#'+''.join(f'{round(v*255):02x}' for v in rgb),
+                                 'display_points': len(part.points), 'measured_volume_A3': volume,
+                                 'measured_dx': str(measured_path), 'display_dx': str(world_path),
+                                 'display_local_dx': str(local_path)})
+            manifest[f'segment_{name}_display_dx'] = str(world_path)
+            manifest[f'segment_{name}_display_local_dx'] = str(local_path)
+            if component is not None:
+                manifest[f'segment_{name}_dx'] = str(measured_path)
+    lining_groups = {}
+    for row in (lining or ()):
+        group = lining_groups.setdefault(row['segment'], {'residues': [], 'by_chain': {}})
+        group['residues'].append(row['residue'])
+        group['by_chain'].setdefault(row['viewer_chain'], []).append(int(row['viewer_resid']))
+    lining_rows = []
+    for name, group in lining_groups.items():
+        kind = name.split('_')[0]
+        rgb = color if kind == 'lumen' else tuple(SEGMENT_RGB[kind])
+        lining_rows.append({'segment': name, 'residue_count': len(group['residues']),
+                            'residues': group['residues'],
+                            'pymol_object': f'crevice_{name}_lining', 'pymol_selection': f'crevice_{name}_lining_sel',
+                            'chimerax_name': f'crevice_{name}_lining', 'vmd_representation': f'crevice_lining {name}',
+                            'pymol_spec': ' or '.join(f'(chain {c} and resi {"+".join(map(str, r))})'
+                                                      for c, r in group['by_chain'].items()),
+                            'vmd_spec': ' or '.join(f'(chain {c} and resid {" ".join(map(str, r))})'
+                                                    for c, r in group['by_chain'].items()),
+                            'chimerax_spec': '#1'+''.join(f'/{c}:{",".join(map(str, r))}'
+                                                         for c, r in group['by_chain'].items()),
+                            'color_rgb': list(rgb), 'shown_by_default': False})
+    if segment_mode or lining_rows:
+        geometry['cast_segments'] = [{k: r[k] for k in ('segment', 'segment_type', 'pymol_object', 'color_rgb',
+                                                     'color_hex', 'display_points', 'measured_volume_A3')}
+                                         for r in segment_rows]
+        geometry['lining_selections'] = [{k: r[k] for k in ('segment', 'residue_count', 'pymol_object',
+                                                             'pymol_selection', 'chimerax_name', 'shown_by_default')}
+                                         for r in lining_rows]
+        geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
     np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
                         surface_vertices=np.concatenate(expected_surfaces),
                         protein_coords=np.asarray([a.coord for a in frame.atoms]) if frame else np.empty((0,3)))
@@ -767,6 +884,38 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     np.savez_compressed(mesh_path, **mesh_arrays)
     manifest['pymol_mesh_npz'] = str(mesh_path)
     pml = root / f"{prefix}_volume.pml"
+    if segment_mode:
+        cast_load_pml = ['cmd.delete("crevice_lumen*")', 'cmd.delete("crevice_entry_*")', 'cmd.delete("crevice_exit_*")']
+        cast_color_pml = []
+        for row in segment_rows:
+            obj = row['pymol_object']
+            cast_load_pml.append(f'crevice_surface({obj!r}, {row["pymol_mesh_key"]!r})')
+            cast_color_pml += [f'cmd.set_color("{obj}_color", {row["color_rgb"]!r})', f'cmd.color("{obj}_color", {obj!r})',
+                               f'cmd.set("cgo_transparency", 0.0, {obj!r})']
+    else:
+        cast_load_pml = ['crevice_surface("crevice_volume", "volume")']
+        cast_color_pml = ['cmd.set_color("crevice_cast_color", '+repr(list(color))+')',
+                          'cmd.color("crevice_cast_color", "crevice_volume")',
+                          'cmd.set("cgo_transparency", 0.0, "crevice_volume")']
+    lining_pml = []
+    if lining_rows:
+        lining_pml = ['# Lining residues: one stick object per segment, hidden by default (no labels).',
+                      '# Toggle: crevice_lining lumen (or entry_1, exit_1, ...; on|off|toggle);',
+                      '# highlight in place: color red, crevice_lumen_lining_sel; show sticks, crevice_lumen_lining_sel']
+        for row in lining_rows:
+            obj, sel = row['pymol_object'], row['pymol_selection']
+            lining_pml += [f'cmd.select({sel!r}, "crevice_protein and ({row["pymol_spec"]})", enable=0)',
+                           f'cmd.create({obj!r}, {sel!r}, zoom=0)',
+                           f'cmd.hide("everything", {obj!r})', f'cmd.show("sticks", {obj!r} + " and not hydro")',
+                           f'cmd.set_color("{obj}_color", {row["color_rgb"]!r})',
+                           f'cmd.color("{obj}_color", {obj!r} + " and elem C")',
+                           f'cmd.color("atomic", {obj!r} + " and not elem C")',
+                           f'cmd.set("stick_radius", 0.2, {obj!r})', f'cmd.disable({obj!r})']
+        lining_pml += ['def crevice_lining(segment="lumen", state="toggle"):',
+                       '    name = "crevice_%s_lining" % segment',
+                       '    shown = name in cmd.get_names("objects", enabled_only=1)',
+                       '    (cmd.enable if state == "on" or (state == "toggle" and not shown) else cmd.disable)(name)',
+                       'cmd.extend("crevice_lining", crevice_lining)']
     # Capped channel ends: lateral exit legs as thin blue centre-line tubes.
     exit_pml = ''
     if geometry['exit_paths_drawn']:
@@ -811,7 +960,7 @@ def crevice_surface(name, key):
     body[:, :, 5:8] = crevice_mesh[key+"_vertices"][faces]
     cmd.load_cgo([BEGIN, TRIANGLES, *body.ravel().tolist(), END], name, state=1, zoom=0)
     cmd.set_object_ttt(name, {matrix!r})
-crevice_surface("crevice_volume", "volume")
+{chr(10).join(cast_load_pml)}
 cmd.hide("everything", "crevice_protein")
 cmd.dss("crevice_protein")
 cmd.show("cartoon", "crevice_protein")
@@ -829,10 +978,8 @@ cmd.set("cartoon_flat_sheets", 1, "crevice_protein")
 cmd.set("cartoon_loop_radius", 0.18, "crevice_protein")
 cmd.set("cartoon_oval_length", 1.25, "crevice_protein")
 cmd.set("cartoon_oval_width", 0.24, "crevice_protein")
-cmd.set_color("crevice_cast_color", {list(color)!r})
-cmd.color("crevice_cast_color", "crevice_volume")
-cmd.set("cgo_transparency", 0.0, "crevice_volume")
-{chr(10).join(region_pml)}
+{chr(10).join(cast_color_pml)}
+{chr(10).join(region_pml + lining_pml)}
 crevice_mesh.close()
 cmd.set("two_sided_lighting", 1)
 cmd.bg_color("white")
@@ -896,6 +1043,37 @@ python end
                 aa, bb = ('{'+' '.join(f'{v:.9g}' for v in p)+'}' for p in (a,b))
                 ring_tcl.append(f'graphics $crevice_protein cylinder {aa} {bb} radius 0.12 resolution 16 filled yes')
     tcl = root / f"{prefix}_volume.tcl"
+    vmd_main_dx = Path(segment_rows[0]['display_dx']) if segment_rows and segment_rows[0]['segment'] == 'lumen' else shown_dx
+    segment_tcl, segment_list = [], ''
+    if segment_mode:
+        # Colour ids: 10 lumen (cast colour), 26 entry, 27 exit.
+        segment_tcl = ['set crevice_segment_molecules {}', 'array set crevice_lining_rep {}',
+                       'color change rgb 26 '+' '.join(f'{v:.6g}' for v in SEGMENT_RGB['entry']),
+                       'color change rgb 27 '+' '.join(f'{v:.6g}' for v in SEGMENT_RGB['exit'])]
+        for row in segment_rows:
+            if row['segment'] == 'lumen':
+                segment_tcl.append('mol rename $crevice_volume crevice_lumen')
+                continue
+            color_id = 26 if row['segment_type'] == 'entry' else 27
+            segment_tcl += [f'set crevice_segment [mol new [file join $crevice_root {_tcl_word(Path(row["display_dx"]).name)}] type dx waitfor all]',
+                            'mol delrep 0 $crevice_segment', 'mol representation Isosurface 0.5 0 0 0 1 1',
+                            f'mol color ColorID {color_id}', 'mol material CREVICECast', 'mol addrep $crevice_segment',
+                            f'mol rename $crevice_segment {row["vmd_molecule"]}',
+                            'lappend crevice_segment_molecules $crevice_segment']
+        for row in lining_rows:
+            kind = row['segment'].split('_')[0]
+            color_id = {'lumen': 10, 'entry': 26, 'exit': 27}[kind]
+            segment_tcl += ['mol representation Licorice 0.2 12 12', f'mol selection {{{row["vmd_spec"]}}}',
+                            f'mol color ColorID {color_id}', 'mol material Opaque', 'mol addrep $crevice_protein',
+                            f'set crevice_lining_rep({row["segment"]}) [expr {{[molinfo $crevice_protein get numreps]-1}}]',
+                            f'mol showrep $crevice_protein $crevice_lining_rep({row["segment"]}) off']
+        if lining_rows:
+            segment_tcl += ['# Lining residues (hidden by default): crevice_lining lumen on|off (or entry_1, exit_1, ...)',
+                            'proc crevice_lining {{segment lumen} {state on}} {',
+                            '    global crevice_protein crevice_lining_rep',
+                            '    mol showrep $crevice_protein $crevice_lining_rep($segment) [expr {$state eq "on"}]',
+                            '}']
+        segment_list = ' $crevice_segment_molecules'
     tcl.write_text(f'''# Measured grid: {dx.name}; display-only continuation: {shown_dx.name}
 set crevice_root [file dirname [file normalize [info script]]]
 set crevice_structure [file join $crevice_root {_tcl_word(structure.name)}]
@@ -912,7 +1090,7 @@ mol selection all
 mol color ColorID 2
 mol material CREVICEContext
 mol addrep $crevice_protein
-set crevice_volume [mol new [file join $crevice_root {_tcl_word(shown_dx.name)}] type dx waitfor all]
+set crevice_volume [mol new [file join $crevice_root {_tcl_word(vmd_main_dx.name)}] type dx waitfor all]
 mol delrep 0 $crevice_volume
 mol selection all
 mol representation Isosurface 0.5 0 0 0 1 1
@@ -929,7 +1107,7 @@ color change rgb 10 {' '.join(f'{v:.6g}' for v in color)}
 color change rgb 2 0.56 0.63 0.70
 color change rgb 3 0.90 0.52 0.12
 {chr(10).join(ring_tcl)}
-{chr(10).join(region_tcl)}
+{chr(10).join(region_tcl + segment_tcl)}
 color Display Background white
 display projection Orthographic
 display depthcue off
@@ -940,7 +1118,7 @@ display aoambient 0.8
 display aodirect 0.4
 axes location Off
 display resetview
-foreach crevice_molecule [concat [list $crevice_protein $crevice_volume] $crevice_region_molecules] {{
+foreach crevice_molecule [concat [list $crevice_protein $crevice_volume] $crevice_region_molecules{segment_list}] {{
     molinfo $crevice_molecule set center_matrix [list {center_tcl}]
     molinfo $crevice_molecule set rotate_matrix [list {rot_tcl}]
     molinfo $crevice_molecule set scale_matrix [list {scale_tcl}]
@@ -980,7 +1158,7 @@ proc crevice_render {{}} {{
     # Its APBS/OpenDX reader ignores off-diagonal delta directions. Load the
     # orthogonal local map and explicitly place each model in input coordinates.
     commands = [f"open {json.dumps(structure.name if structure.parent == root else str(structure))} id #1",
-                f"open {json.dumps(local_dx.name)} id #2",
+                f"open {json.dumps(Path(segment_rows[0]['display_local_dx']).name if segment_rows and segment_rows[0]['segment'] == 'lumen' else local_dx.name)} id #2",
                 "view matrix models #2,"+",".join(f"{v:.12g}" for v in matrix[:12]),
                 "hide #1 atoms", "cartoon #1", "color #1 #8fa1b3",
                 "transparency #1 25 target c",
@@ -999,6 +1177,20 @@ proc crevice_render {{}} {{
                          f'view matrix models #{index},'+",".join(f"{v:.12g}" for v in matrix[:12]),
                          f'volume #{index} style surface level 0.5 step 1 surfaceSmoothing false',
                          f'color #{index} {color}', f'transparency #{index} {100*(1-row["opacity"]):g}']
+    for index, row in enumerate(segment_rows, 10):
+        if row['segment'] == 'lumen':
+            commands.append('rename #2 crevice_lumen')
+            continue
+        commands += [f'open {json.dumps(Path(row["display_local_dx"]).name)} id #{index}',
+                     f'view matrix models #{index},'+",".join(f"{v:.12g}" for v in matrix[:12]),
+                     f'volume #{index} style surface level 0.5 step 1 surfaceSmoothing false',
+                     f'color #{index} {row["color_hex"]}', f'transparency #{index} 0',
+                     f'rename #{index} {row["chimerax_model"]}']
+    for row in lining_rows:
+        commands.append(f'name frozen {row["chimerax_name"]} {row["chimerax_spec"]}')
+    if lining_rows:
+        commands.append('# Lining residues (hidden by default): show crevice_lumen_lining atoms; '
+                        'style crevice_lumen_lining stick; hide crevice_lumen_lining atoms')
     commands += ["windowsize 900 675", "view matrix camera "+','.join(f'{v:.12g}' for v in camera_matrix), "view", "zoom 0.9"]
     cxc.write_text("\n".join(commands) + "\n")
     manifest["volume_cxc"] = str(cxc)
@@ -1033,8 +1225,13 @@ proc crevice_render {{}} {{
                   "mouth_guides_drawn": geometry['mouth_rings_drawn'],
                   "exit_centre_lines_drawn": geometry['exit_paths_drawn'],
                   **({"lateral_exit_casts": exit_cast_summary(exit_casts),
-                      "lateral_exit_casts_display": "joined to the channel display surface; volumes separate from measured_volume_A3"}
+                      "lateral_exit_casts_display": "separate EXIT segment objects (crevice_exit_N); volumes separate from measured_volume_A3"}
                      if exit_casts else {}),
+                  **({"cast_segments": segment_rows,
+                      "cast_segments_display": "one object per segment (crevice_entry_N, crevice_lumen, crevice_exit_N); "
+                                               "measured_volume_A3 is the LUMEN only"}
+                     if segment_mode else {}),
+                  **({"lining_selections": lining_rows} if lining_rows else {}),
                   "representation": "voxel boundary approximation, not electron density",
                   "boundary_validation": "not_continuously_validated",
                   "connectivity": cast.metadata.get("connectivity"),

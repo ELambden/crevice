@@ -1,4 +1,4 @@
-"""CAVER-like access tunnels on a clearance grid.
+"""Widest-path access tunnels on a clearance grid.
 
 A tunnel here is a path on a regular grid from a start point (for example a
 buried active site) to the edge of the padded bounding box, along which a

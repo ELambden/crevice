@@ -17,6 +17,7 @@ CLI on import) is deliberately excluded.
    crevice.analysis_scene_templates
    crevice.analysis_viewers
    crevice.benchmarks
+   crevice.cast_segments
    crevice.cavities
    crevice.cavity_obstacles
    crevice.cavity_reports
@@ -27,6 +28,7 @@ CLI on import) is deliberately excluded.
    crevice.cli
    crevice.connectivity
    crevice.ensemble
+   crevice.examples
    crevice.figures
    crevice.geometry
    crevice.grid

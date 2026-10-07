@@ -1,4 +1,4 @@
-"""HOLLOW-like detection of buried cavities on a clearance grid.
+"""Detection of buried cavities by flood-filling a clearance grid.
 
 A *cavity* here is a connected set of grid points where a probe of radius
 ``min_radius`` fits between atoms (atom-surface clearance at least

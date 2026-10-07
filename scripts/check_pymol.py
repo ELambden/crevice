@@ -59,14 +59,18 @@ from pymol import cmd
 cmd.set("max_threads", 4)
 cmd.rebuild()
 objects = cmd.get_names('objects')
-result = {{'version': cmd.get_version()[0], 'atom_count': cmd.count_atoms('crevice_protein'),
+# Segmented channel casts show crevice_lumen (+ entry/exit objects) instead of crevice_volume.
+main_object = 'crevice_volume' if 'crevice_volume' in objects else 'crevice_lumen'
+cast_objects = [name for name in objects if name.startswith('crevice_volume') or name == 'crevice_lumen'
+                or ((name.startswith('crevice_entry_') or name.startswith('crevice_exit_')) and not name.endswith('_lining'))]
+result = {{'cast_objects': cast_objects, 'version': cmd.get_version()[0], 'atom_count': cmd.count_atoms('crevice_protein'),
           'objects': objects, 'object_types': {{name:cmd.get_type(name) for name in objects}},
           'helper_grid_objects': [name for name in objects if name == 'crevice_grid' or name.startswith('crevice_region_grid')],
           'protein_representation_atoms': {{rep:cmd.count_atoms('crevice_protein and rep '+rep) for rep in ['cartoon','sticks','lines','spheres','surface'] }},
           'cartoon_transparency': cmd.get_setting_float('cartoon_transparency','crevice_protein'),
           'camera_rotation': np.asarray(cmd.get_view()[:9]).reshape(3,3,order='F').tolist(),
-          'volume_extent': cmd.get_extent('crevice_volume'),
-          'volume_matrix': cmd.get_object_ttt('crevice_volume'),
+          'volume_extent': cmd.get_extent(main_object),
+          'volume_matrix': cmd.get_object_ttt(main_object),
           'protein_extent': cmd.get_extent('crevice_protein')}}
 if {bool(overlay)!r}:
     colors = []
@@ -91,7 +95,7 @@ view = cmd.get_view()
 enabled = cmd.get_names('objects', enabled_only=1)
 cmd.disable('all')
 for name in enabled:
-    if name.startswith('crevice_volume'):
+    if name in cast_objects:
         cmd.enable(name)
 cmd.set_view([1,0,0,0,1,0,0,0,1,0,0,-100,0,0,0,1,200,1])
 _, obj = cmd.get_mtl_obj()
@@ -175,7 +179,7 @@ cmd.quit()
                 if standalone:
                     mesh_path = scene.parent/Path(metadata['files']['pymol_mesh_npz']).name
                     with np.load(mesh_path,allow_pickle=False) as mesh:
-                        corners = mesh['volume_vertices']
+                        corners = mesh['lumen_vertices' if metadata.get('cast_segments') else 'volume_vertices']
                     result['grid_data_origin'] = 'source DX; no live PyMOL map'
                     presentation_ok = (not result['helper_grid_objects']
                         and result['protein_representation_atoms']['cartoon'] > 0

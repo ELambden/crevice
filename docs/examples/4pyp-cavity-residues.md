@@ -112,9 +112,11 @@ PyMOL and VMD versions were not opened for this page.
 `--stick-residues A:TRP388,A:GLN161` or `@ids.txt` draws a chosen list; the
 tables and the bar chart do not change.
 
-## What was checked
+:::{admonition} Interpreting the results
+:class: crevice-interpret
 
-The commands were run with CREVICE 0.1.0 on the downloaded entry; values and
-file names are copied from that run. Boundary area and contacts are geometric
-evidence: they identify candidates for follow-up, not residues shown to
-control transport.
+The values come from a CREVICE 0.1.0 run on the downloaded entry. The wall
+area and partner contacts are geometric evidence: they point to residues worth
+following up, for example by mutagenesis, not to residues shown to control
+transport.
+:::

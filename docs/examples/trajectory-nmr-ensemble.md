@@ -120,9 +120,11 @@ crevice cavity-trajectory system.gro run.xtc --reference-volume-dx pocket_volume
 These commands need explicit water and periodic-cell information, which the
 NMR ensemble does not have, so they are not run on this page.
 
-## What was checked
+:::{admonition} Interpreting the results
+:class: crevice-interpret
 
-The commands above were run with CREVICE 0.1.0 and the values are copied from
-that run. The Python block was run on the same file and gave the resolved-frame
-pattern shown. These are software demonstrations on public coordinates, not
-statements about gramicidin dynamics.
+The values come from a CREVICE 0.1.0 run, and the Python block gave the same
+pattern of resolved frames. NMR models aren't a time series, so this is a
+demonstration of the workflow on public coordinates, not a statement about
+gramicidin dynamics.
+:::

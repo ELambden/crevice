@@ -1,8 +1,9 @@
 # Inputs and selections
 
-A geometric result depends on which atoms count as walls. Before trusting a
-number, check which atoms a run actually used. Every command records that
-choice in its input report or manifest.
+CREVICE measures the space between atoms, so which atoms count as walls is
+part of every result. This page covers the files CREVICE reads, how to choose
+atoms, and how trajectories are read and aligned. Whatever you choose, each
+run records it in its input report or manifest, so you can always check.
 
 ## Supported inputs
 

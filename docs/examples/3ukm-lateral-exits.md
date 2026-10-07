@@ -84,7 +84,7 @@ crevice publish 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-r
 ```
 
 ```text
-publish files=32 out_dir=3UKM_bundle profile=resolved
+publish files=46 out_dir=3UKM_bundle profile=resolved
 ```
 
 Passing the chosen probe explicitly skips the ladder (a minute instead of
@@ -92,45 +92,67 @@ seven); the `--skip-*` options keep the bundle to the profile, the cast and the
 residue contacts. The manifest records `profile_status.path_type`,
 `exit_types` and `exit_leg_counts`.
 
-Each exit leg is also cast: the grid points beyond the capped mouth plane and
-outside bulk solvent that lie inside the free spheres of the leg's samples,
-swept by the enclosure probe and connected to the leg's centre line. The leg
-casts show how the space widens from the mouth towards each portal. Their
-volumes are reported separately and never added to the axial cast:
+The cast is split into ENTRY, LUMEN and EXIT segments. The LUMEN is the axial
+channel cast between the mouths. Each exit leg is cast: the grid points beyond
+the capped mouth plane and outside bulk solvent that lie inside the free
+spheres of the leg's samples, swept by the enclosure probe and connected to
+the leg's centre line. The open axial end gets the same treatment along a
+straight centre line continuing the axis. Bulk (a rolling 6 Å probe,
+`--exit-bulk-radius`) is the outer boundary of every segment, not a width
+limit: up to that boundary each segment fills the probe-accessible space. Because one end is
+capped with lateral exits, those legs are the EXITs and the open axial end is
+the ENTRY (`--entry-end` overrides this; the labels are geometric, not a
+transport direction). Volumes are reported separately and never added to the
+axial cast:
 
-| Cast | Kind | Volume (Å³, 0.5 Å grid) |
-|---|---|---:|
-| axial channel between the mouths | `section_channel` | 186.6 |
-| lower end, leg 1 | `lateral_exit` | 445.8 |
-| lower end, leg 2 | `lateral_exit` | 593.5 |
+| Segment | Source | Volume (Å³, 0.5 Å grid) | Lining residues (3.3 Å) |
+|---|---|---:|---:|
+| `entry_1` (upper end) | `axial_vestibule` | 1513.8 | 30 |
+| `lumen` | axial channel cast (`total_volume`) | 186.6 | 33 |
+| `exit_1` (lower end, leg 1) | `lateral_exit` | 445.8 | 14 |
+| `exit_2` (lower end, leg 2) | `lateral_exit` | 593.5 | 18 |
+
+The lumen-lining residues are the filter and pore-helix residues
+S116–V124 and S224–V232 of both subunits (plus B:TYR231); the entry is lined
+by, among others, T117, L146, T150, T225, L257–L264, C268 and R277 of each
+subunit. The full table is `3UKM_lining_residues.csv`
+(segment, residue, closest atom, minimum distance), and
+`3UKM_residue_contacts.csv` gains `lumen_lining` and `lining_segments`
+columns. The segment volumes are in `3UKM_cast_segments.csv` and
+`metadata.cast_segments`; each entry/exit segment also has a measured map
+(`3UKM_entry_1_cast.dx`, `3UKM_exit_1_cast.dx`, ...).
 
 They are in `metadata.lateral_exit_casts` of `3UKM_void_cast.json` and the
 manifest, as `lateral_exit_lower_1`/`_2` rows of `3UKM_void_cast.csv`, in
 `profile_status.lateral_exit_cast_volumes_A3`, and as the binary map
-`3UKM_exit_casts.dx`. A leg volume depends on the bulk definition
+`3UKM_exit_casts.dx`. A segment volume depends on the bulk definition
 (`--exit-bulk-radius`) as well as the grid, so treat it as a description of
 the portal region under these settings, not as a measured permeation volume.
 The scene file `3UKM_scene.json` still holds one `exit_paths` centre line per
 leg; `--exit-centre-lines` draws them as thin blue tubes.
 
 ```{figure} images/3ukm_cast_exits_chimerax.png
-:alt: ChimeraX render of the 3UKM channel cast joined to two exit-leg casts
+:alt: ChimeraX render of the 3UKM entry vestibule, channel lumen and two exit-leg casts as separate objects
 :width: 65%
 
 `3UKM_volume.cxc` rendered by ChimeraX 1.12 (headless,
-`scripts/check_chimerax.py --xvfb`). Teal: the cast of the enclosed channel
-between its mouths (186.6 Å³ on the default 0.5 Å grid) joined at the capped
-mouth to the casts of the two exit legs, which widen towards the portals.
-Grey-blue cartoon: the protein. No mouth rings or centre lines are drawn by
-default. The check confirmed the surface (within 8 × 10⁻⁶ Å of the reference
-mesh) and the camera. The PyMOL version of this scene was also rendered and
-checked during development; the VMD version was not opened for this page.
+`scripts/check_chimerax.py --xvfb`). Teal: the LUMEN (`crevice_lumen`,
+186.6 Å³ on the default 0.5 Å grid). Rust: the two EXIT legs
+(`crevice_exit_1`, `crevice_exit_2`), which widen towards the portals. Yellow:
+the ENTRY vestibule beyond the open axial end (`crevice_entry_1`). Each is a
+separate model with its own colour. Grey-blue cartoon: the protein. No mouth
+rings, centre lines, lining sticks or labels are drawn by default. The check
+confirmed the surfaces (within 8 × 10⁻⁶ Å of the reference meshes) and the
+camera. The PyMOL and VMD versions of this scene were also run and checked
+during development, including switching on the lumen-lining sticks
+(`crevice_lining lumen`; 33 residues, 230 atoms in both viewers).
 ```
 
-## What was checked
+:::{admonition} Interpreting the results
+:class: crevice-interpret
 
-The commands were run with CREVICE 0.1.0 on the downloaded assembly and the
-values are copied from that run. The axis was chosen automatically, not taken
-from a curated reference; the two-portal result is a geometric observation
-under these settings (probe, grids, `--exit-bulk-radius 6`,
-`--exit-spacing 0.5`), not a validated permeation pathway.
+These values come from a CREVICE 0.1.0 run on the downloaded assembly. The
+axis was found automatically, and the two portals are a geometric result with
+these settings (probe, grids, `--exit-bulk-radius 6`, `--exit-spacing 0.5`),
+not a demonstrated permeation pathway.
+:::

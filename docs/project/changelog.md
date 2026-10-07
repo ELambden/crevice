@@ -1,26 +1,25 @@
 # Changelog
 
-The authoritative changelog is [CHANGELOG.md](../../CHANGELOG.md) at the
-repository root, in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
-format.
+What changed in each release. The complete list, including known limitations,
+is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
 ## 0.1.0
 
-The first public release. It provides:
+The first public release, with:
 
-- structure intake (PDB, mmCIF, GRO) with RCSB download, provenance and cache
-  verification, and MD trajectory intake through MDAnalysis;
-- channel radius profiles, 3D cavity casts, cavity and tunnel searches, residue
-  annotation and residue interaction networks;
-- measured-boundary residue evidence with configurable viewer sticks
-  (`residue-evidence --stick-residues`);
-- trajectory profile statistics, all-frame cavity statistics and named-region
-  workflows;
-- residue hydration, water density, typed interactions and instantaneous-cavity
-  water membership (`--water-membership`);
-- a one-command `publish` bundle, including an explicit fallback when no
-  through-profile resolves;
-- constrained display smoothing (`--smooth X`) that never changes measurements;
-- PyMOL, VMD and ChimeraX scene scripts, and this documentation site.
-
-See the repository changelog for the complete list and known limitations.
+- reading PDB, mmCIF and GRO files, downloading from the RCSB PDB and
+  AlphaFold DB with provenance and cache checks, and reading MD trajectories
+  through MDAnalysis;
+- channel radius profiles, 3D cavity casts, cavity and tunnel searches,
+  lining residues and residue interaction networks;
+- the residues that form a measured cavity wall and their partners, with a
+  choice of which residues are drawn as sticks (`residue-evidence
+  --stick-residues`);
+- channel profiles and cavity statistics over trajectories, and named,
+  versioned regions;
+- residue hydration, water density, typed interactions and water inside
+  cavities frame by frame (`--water-membership`);
+- the one-command `publish` bundle, including a clear fallback when no channel
+  resolves;
+- display smoothing (`--smooth X`) that never changes measurements;
+- PyMOL, VMD and ChimeraX scenes, and this documentation site.

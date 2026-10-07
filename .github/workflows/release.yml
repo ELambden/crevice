@@ -5,7 +5,7 @@ name: Release to PyPI
 # Running the workflow manually ("Run workflow") uploads the current commit's
 # build to TestPyPI instead, as a dry run. Uploads use PyPI Trusted Publishing
 # (OpenID Connect), so no API token is stored in the repository; see
-# docs/development/releasing.md for the one-time PyPI and TestPyPI setup.
+# https://docs.pypi.org/trusted-publishers/ for the one-time PyPI and TestPyPI setup.
 
 on:
   release:

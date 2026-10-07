@@ -12,13 +12,74 @@ biological results.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-07
+
 ### Added
+
+- Example data: `crevice fetch-example NAME` / `crevice.examples.fetch_example` download
+  hash-verified, cached example datasets. `glut1-excerpt` is a 21-frame all-atom
+  excerpt (0–100 ns, every 5 ns) of a GLUT1 N45Q/E329Q/N411Q membrane simulation
+  (CHARMM36, GROMACS 2021.5; Tris omitted), licensed CC-BY-4.0, with a ready-made
+  region definition. A new tutorial walks through a region trajectory with water
+  membership on it.
+- Channel casts are split into ENTRY, LUMEN and EXIT segments
+  (`crevice.cast_segments`). The LUMEN is the existing axial cast between the
+  mouths (unchanged `total_volume`, `*_volume.dx`, profile); each ENTRY/EXIT is
+  the space-filling, probe-swept vestibule beyond a mouth out to the
+  bulk-solvent boundary set by `--exit-bulk-radius` (an outer boundary, not a
+  width limit): one per open axial mouth, one per lateral exit leg at a capped
+  mouth. Labels: with one capped end, its legs are EXITs and the open end is
+  the ENTRY; otherwise the axis start is the ENTRY. `publish --entry-end
+  start|end` (Python `entry_end`) overrides; the labels are geometric, not a
+  transport direction. Segment volumes are reported separately:
+  `metadata.cast_segments` and `segments_total_volume_A3` in the cast JSON and
+  manifest, `profile_status.cast_segment_volumes_A3`, `*_cast_segments.csv`,
+  `*_<segment>_cast.dx`. Not applied to rolling-probe casts or the
+  unresolved-profile fallback (no axis or mouths).
+- Lining residues per segment: residues with any atom centre within
+  `--lining-cutoff` (default 3.3 Å) of the segment's grid points, in
+  `*_lining_residues.csv`, as `lumen_lining`/`lining_segments` columns of
+  `*_residue_contacts.csv` and `*_network_nodes.csv`, and as hidden-by-default
+  stick objects `crevice_<segment>_lining` plus selections
+  `crevice_<segment>_lining_sel` (PyMOL), representations toggled by
+  `crevice_lining` (PyMOL, VMD) and ChimeraX named selections. No labels.
+
+### Changed
+
+- Documentation site reorganised into Home, Installation, Basic usage,
+  Analysis tools (grouped by task), Tutorials, command-line reference, API
+  reference, Citing and Changelog, rewritten in a plainer, friendlier voice,
+  with one "Interpreting results" note per tool and tutorial. New Furo theme
+  colours from CREVICE's cast palette, a logo, and card thumbnails on the home,
+  tools and tutorials pages. The releasing, documentation and contributing
+  pages are no longer part of the site (contributor and documentation-build
+  notes are in `CONTRIBUTING.md`).
+- Command-line reference: an index of commands grouped by task, one compact
+  page per command generated from the parser, and shared option families
+  (structure input, atomic radii, figures, channel-profile and hydration
+  settings) documented once. sphinx-argparse is no longer a documentation
+  dependency.
+- API reference grouped by topic; its summary tables now show the linked
+  name of each function or class (the name column was empty because MyST
+  parsed autosummary's reStructuredText name cells as Markdown).
+- `crevice profile`, `cavities` and `tunnels` help text and the
+  `crevice.channels`, `crevice.cavities` and `crevice.tunnels` module
+  summaries now describe CREVICE's own methods instead of naming other
+  programs. Behaviour is unchanged.
+
+- Viewer scenes of a channel cast draw each segment as its own object with its
+  own colour: `crevice_entry_N` yellow `#f0d43a`, `crevice_lumen` teal,
+  `crevice_exit_N` rust `#c2410c` (PyMOL objects, VMD molecules, ChimeraX
+  models). Lateral exit legs are therefore no longer joined to the channel
+  surface in the channel colour. The display continuation (`--cast-extension`)
+  is dropped at an end that has a segment. `scripts/check_pymol.py` accepts the
+  segmented scenes.
 
 - Lateral exit legs (`--lateral-exits`) are cast: each leg gets a probe-swept
   cast of kind `lateral_exit` (`crevice.channel_exits.lateral_exit_casts`),
   bounded by the capped mouth plane and by bulk solvent, drawn in the viewer
-  scenes joined to the channel cast so the widening towards each portal is
-  visible. Leg volumes are reported separately (`metadata.lateral_exit_casts`
+  scenes so the widening towards each portal is visible (as separate EXIT
+  segment objects, see below). Leg volumes are reported separately (`metadata.lateral_exit_casts`
   in the cast JSON and manifest, `lateral_exit_<end>_<leg>` rows in
   `*_void_cast.csv`, `profile_status.lateral_exit_cast_volumes_A3`,
   `*_exit_casts.dx`); the axial channel volume and profile are unchanged.

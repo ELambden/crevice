@@ -106,8 +106,10 @@ Title: CREVICE pore radius profile
 writes figures or viewer scenes; in the scenes it adds the colour key, captions
 and residue labels.
 
-## What was checked
+:::{admonition} Interpreting the results
+:class: crevice-interpret
 
-All commands and the Python snippets were run with CREVICE 0.1.0 and the
-values above are copied from that run. They show how settings change a
-measurement; none of them is a validated biological value.
+The numbers above were produced with CREVICE 0.1.0. They show how much a
+setting can move a measurement, which is exactly why the radius set belongs in
+your methods section; none of them is a biological reference value.
+:::

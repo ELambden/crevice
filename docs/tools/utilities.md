@@ -1,112 +1,84 @@
 # Utility and batch commands
 
-## `fetch`
+A handful of commands help you get structures, run several analyses at once,
+export features and run CREVICE across a set of structures.
 
-Downloads structures from RCSB into a local cache. Each download is checked and
-gets a provenance sidecar. See
-[Inputs and selections](../getting-started/inputs-and-selections.md#fetching-structures).
-`crevice fetch --list` prints the configured benchmark systems with their
-`curation_status`.
+## Downloading structures: `fetch`
 
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: fetch
+```bash
+crevice fetch 1GRM 4PYP AF-P02920-F1 --cache-dir .crevice/pdb
 ```
 
-## `analyze`
+`fetch` downloads entries from the RCSB PDB, and models from AlphaFold DB by
+their `AF-` identifier, into a local cache. Each download is checked and gets
+a provenance record next to it. You rarely need it on its own, because every
+command fetches what it needs, but it is handy before working offline. See
+[fetching structures](../getting-started/inputs-and-selections.md#fetching-structures).
+`crevice fetch --list` prints the bundled benchmark systems.
+[All options](../reference/cli/fetch.md).
 
-Runs any mix of `profile`, `residues`, `cavities`, `tunnels`, `network` and
-`features` on one structure. It writes a manifest naming the outputs, the input
-provenance and the parser report. Tables are CSV: `*_profile.csv`,
-`*_residues.csv`, `*_cavities.csv`, `*_tunnels.csv`, `*_tunnel_points.csv`,
-`*_network_nodes.csv`, `*_network_edges.csv` and `*_features.csv` (`feature`,
-`value`, `unit`); the profile, cavity, tunnel and network JSON records are kept
-beside them. `--png` adds figures for the profile, residues, cavities and
-network (tunnels have tables only). The cavity and tunnel grid caps
-(`--cavity-max-grid-points`, `--tunnel-max-grid-points`) **coarsen the requested
-spacing** to stay under the cap. Raise the caps to keep a fine spacing.
+## Several analyses at once: `analyze`
 
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: analyze
+```bash
+crevice analyze 1GRM --analysis profile --analysis residues --analysis network \
+    --out-dir results/1GRM_analyze --png
 ```
 
-## `features`
+`analyze` runs any mix of `profile`, `residues`, `cavities`, `tunnels`,
+`network` and `features` on one structure (repeat `--analysis` for each; the
+default is profile and residues), writing each as CSV (with the JSON
+records beside them) plus a manifest. `--png` adds figures for the profile,
+residues, cavities and network. Unlike the standalone commands, its cavity
+and tunnel grid caps (`--cavity-max-grid-points`, `--tunnel-max-grid-points`)
+coarsen the spacing to stay under the cap, so raise them if you need a fine
+grid. [All options](../reference/cli/analyze.md).
 
-Exports numerical profile and residue features as JSON (with the profile and
-top residues) and as `<stem>.csv` (`feature`, `value`, `unit`) for clustering
-or machine-learning experiments (see {mod}`crevice.ml`). The features are
-descriptive. No trained model ships with CREVICE.
+## Feature tables: `features`
 
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: features
+```bash
+crevice features 1GRM -o 1GRM_features.json
 ```
 
-`analyze` and `features` accept `--radii` (atomic radius set; default the standard table, see [Atomic radii](../methods/atomic-radii.md)).
+`features` exports numerical descriptors of a profile and its residues as JSON
+and as `<stem>.csv` (`feature`, `value`, `unit`), ready for clustering or
+your own machine-learning experiments (see {mod}`crevice.ml`). The features
+describe geometry; CREVICE ships no trained model.
+[All options](../reference/cli/features.md).
 
-## `benchmark` and `static-suite`
+## Batch runs: `benchmark` and `static-suite`
 
-Run quick checks (`benchmark`) or full publication bundles (`static-suite`) on
-the configured benchmark systems (1GRM, 6MVY, 1AF6, 4PYP, 2CHB).
+`benchmark` runs quick checks, and `static-suite` full `publish`-style
+bundles, on the bundled benchmark systems (1GRM, 6MVY, 1AF6, 4PYP, 2CHB) or the
+ones you name.
 
-:::{warning}
-The benchmark labels are provisional configuration, not curated biological
-classifications. `crevice.benchmarks.curated_benchmark_ids()` returns an empty
-tuple, and every summary carries a `curation_status` column. 4PYP is human
-GLUT1 and has no assigned cavity mode (`unassigned`). 2CHB (cholera toxin
-B-pentamer) is set aside. A suite run is a
-software regression and presentation check. It is not validation against
-reference geometry.
+```bash
+crevice benchmark --fetch --output benchmark.json
+crevice static-suite 1GRM 4PYP --fetch --out-dir suite
+```
+
+`benchmark --output b.json` also writes `b.csv`, one row per system with the
+profile radii, top cavity volume and any error. `static-suite` writes
+`static_benchmark_summary.csv` and `.json` and one bundle per system, with the
+same tables as `publish` plus `*_profile_sensitivity.csv`. Both choose the
+enclosure probe automatically for each system and record it
+(`enclosure_radius_A`, `enclosure_probe_mode`); a system where no probe gives
+a stable channel becomes an error row naming the probes tried. Pass a number,
+such as `--enclosure-radius 0.8`, to use one probe everywhere.
+
+The sensitivity rows of `static-suite` vary the *measurement* probe
+(`--probe-radius`: 0, 1.0 and 1.4 Å by default) and keep each system's
+enclosure probe. A measurement probe too wide for the channel (1.4 Å in 1GRM,
+whose narrowest radius is about 1.33 Å) gives an `unresolved` row rather than
+failing the system. Options: [`benchmark`](../reference/cli/benchmark.md),
+[`static-suite`](../reference/cli/static-suite.md).
+
+:::{admonition} Interpreting results
+:class: crevice-interpret
+
+The benchmark labels are provisional settings, not curated biological
+classifications: `crevice.benchmarks.curated_benchmark_ids()` is empty, every
+summary has a `curation_status` column, 4PYP (human GLUT1) has no assigned
+cavity mode and 2CHB is set aside. A suite run checks that the software and
+its outputs behave consistently; it isn't validation against reference
+geometry.
 :::
-
-`benchmark --output b.json` also writes `b.csv` (one row per system:
-`profile_min_radius_A`, `profile_mean_radius_A`, `top_cavity_volume_A3`, ...,
-`error`). `static-suite` writes `static_benchmark_summary.csv` (units in the
-column names, an `error` column for failed systems), the suite record
-`static_benchmark_summary.json` and one bundle per system with the same CSV
-tables as `publish` plus `*_profile_sensitivity.csv` (one row per probe
-radius). No tunnel figure is written.
-Both accept `--radii` (atomic radius set); a chosen set is recorded in the
-summary JSON and in each system manifest.
-
-Both commands use the automatic enclosure probe by default
-(`--enclosure-radius auto`; see
-[`profile`](profile.md#choosing-the-enclosure-probe---enclosure-radius-auto)),
-chosen separately for each system. The chosen probe is recorded per system:
-`enclosure_radius_A` and `enclosure_probe_mode` (`auto`, `explicit`, or
-`not_used` with `--search-radius 0`) in both CSVs, plus
-`enclosure_probe_reason` in the `benchmark` rows and the full `enclosure_probe`
-record (with the selection) in the `static-suite` system summaries. If no
-probe gives a stable channel, the system is an error row naming the probes
-tried. A number (`--enclosure-radius 0.8` reproduces the outputs recorded
-before 1 October 2026) runs that probe for every system.
-
-In `static-suite`, the sensitivity rows vary the **measurement** probe
-(`--probe-radius`, default 0, 1.0 and 1.4 Å, subtracted from each radius)
-and keep the system's enclosure probe (`enclosure_radius_A` column). A
-measurement probe that does not fit through the channel (for example 1.4 Å in
-1GRM, whose narrowest radius is about 1.33 Å) gives a row with
-`status: unresolved` and the reason, listed in
-`profile_sensitivity_unresolved_probe_radii`; before 1 October 2026 such a row
-made the whole system fail.
-
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: benchmark
-```
-
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: static-suite
-```

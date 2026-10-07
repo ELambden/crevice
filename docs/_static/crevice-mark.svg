@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CREVICE">
+  <path d="M14 6c10 8 10 18 4 26s-6 18 4 26h-8C4 50 4 40 10 32s6-18-4-26z" fill="#64748b"/>
+  <path d="M50 6c-10 8-10 18-4 26s6 18-4 26h8c10-8 10-18 4-26s-6-18 4-26z" fill="#64748b"/>
+  <ellipse cx="32" cy="10" rx="9" ry="5" fill="#f0d43a"/>
+  <rect x="25" y="14" width="14" height="36" rx="7" fill="#1494a1"/>
+  <ellipse cx="32" cy="55" rx="9" ry="5" fill="#c2410c"/>
+</svg>

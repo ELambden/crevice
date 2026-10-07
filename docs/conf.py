@@ -5,8 +5,9 @@ The Sphinx source directory is ``docs/`` itself, so the Markdown method notes
 than copied.  Site-specific pages live in subdirectories.  Only the files matched
 by ``include_patterns`` below are part of the site.
 
-Build locally (see ``docs/development/documentation.md``)::
+Build locally (CONTRIBUTING.md has the full checklist)::
 
+    python -m pip install . -r docs/requirements.txt
     python -m sphinx -W --keep-going -b html docs docs/_build/html
 """
 
@@ -51,7 +52,6 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
     "sphinx.ext.viewcode",
-    "sphinxarg.ext",
     "sphinx_copybutton",
     "crevice_docs",  # local helpers: docs/_ext/crevice_docs.py
 ]
@@ -66,11 +66,10 @@ include_patterns = [
     "tools/*.md",
     "methods/*.md",
     "examples/*.md",
-    "reference/*.md",
+    "reference/cli/*.md",
     "api/*.md",
     "api/*.rst",
     "api/generated/*.rst",
-    "development/*.md",
     "project/*.md",
     "BIOLOGICAL_REGIONS.md",
     "CAVITY_OBSTACLES.md",
@@ -88,8 +87,8 @@ templates_path = ["_templates"]
 # anchors so the existing method notes can be linked section by section.
 myst_enable_extensions = ["colon_fence", "deflist", "fieldlist", "substitution"]
 myst_heading_anchors = 3
-# sphinx-argparse registers a domain without `resolve_any_xref`; restrict the
-# domains MyST searches for bare Markdown links to avoid spurious warnings.
+# Restrict the domains MyST searches for bare Markdown links to the ones the
+# site uses, which keeps unresolved-link warnings specific.
 myst_ref_domains = ["std", "py"]
 myst_substitutions = {
     "version": release,
@@ -167,11 +166,47 @@ intersphinx_timeout = 20
 
 # -- HTML output -------------------------------------------------------------
 
+# Furo: a clean sidebar layout with light and dark modes built in, themed with
+# CREVICE's cast colours (teal lumen, yellow entry, rust exit, violet
+# non-channel) through CSS variables here and in _static/crevice.css.
 html_theme = "furo"
-html_title = f"CREVICE {release}"
+html_title = "CREVICE"
+html_short_title = "CREVICE"
 html_static_path = ["_static"]
-html_css_files = ["crevice.css"]
-html_theme_options = {}
+html_css_files = [
+    "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",
+    "crevice.css",
+]
+html_favicon = "_static/crevice-mark.svg"
+html_theme_options = {
+    "light_logo": "crevice-logo.svg",
+    "dark_logo": "crevice-logo-dark.svg",
+    "sidebar_hide_name": True,
+    "navigation_with_keys": True,
+    "light_css_variables": {
+        "color-brand-primary": "#0b6e78",
+        "color-brand-content": "#0b6e78",
+        "color-brand-visited": "#7e22ce",
+        "color-sidebar-background": "#f2f9f8",
+        "color-sidebar-item-background--hover": "#dff1ef",
+        "color-sidebar-item-background--current": "#d3ece9",
+        "color-highlighted-background": "#fdf3c4",
+        "color-admonition-title--note": "#1494a1",
+        "color-admonition-title-background--note": "rgba(20, 148, 161, 0.12)",
+        "font-stack": "'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#5cc8d3",
+        "color-brand-content": "#5cc8d3",
+        "color-brand-visited": "#c9a4fb",
+        "color-sidebar-background": "#132325",
+        "color-sidebar-item-background--hover": "#1b3335",
+        "color-sidebar-item-background--current": "#1f3d40",
+        "color-highlighted-background": "#4a4113",
+        "color-admonition-title--note": "#5cc8d3",
+        "color-admonition-title-background--note": "rgba(92, 200, 211, 0.14)",
+    },
+}
 if CREVICE_REPOSITORY_URL:
     html_theme_options.update(
         {"source_repository": CREVICE_REPOSITORY_URL, "source_branch": "main", "source_directory": "docs/"}

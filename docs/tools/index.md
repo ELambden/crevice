@@ -1,55 +1,181 @@
-# Tool guide
+# Analysis tools
 
-There is one page for each CREVICE command or command family. Every page has the
-same layout:
+CREVICE's tools are grouped by the question you are asking. Each page explains
+what the tool measures and how, the options you are most likely to change,
+what it writes and how to read the results. The complete option list for every
+command is in the [command-line reference](../reference/cli/index.md).
 
-1. **Scientific question**: what the tool measures, and what it does not.
-2. **Method**: how the measurement is made.
-3. **Assumptions**: conditions the result depends on.
-4. **Key parameters and units**.
-5. **Outputs**.
-6. **Python equivalent**.
-7. **Testing and validation status**: labelled with the levels below.
-8. **Known limitations**.
-9. **Command-line options**: generated from the `crevice` argument parser, so it
-   always matches the code the site was built from.
+## Pores and channels
+
+::::{container} crevice-cards
+
+:::{container} crevice-card
+![](../examples/images/1grm_profile.png)
+
+**[Pore radius profiles](profile.md)**
+
+How wide a channel is along its length, and where it is narrowest.
+
+`crevice profile`
+:::
+
+:::{container} crevice-card
+![](../examples/images/1grm_cast_chimerax.png)
+
+**[Cavity and channel casts](cast.md)**
+
+The 3D shape and volume of a pocket, cavity or channel.
+
+`crevice cast`
+:::
+
+::::
+
+## Cavities and tunnels
+
+Casts also handle cavities and pockets, on a finer grid and with more control. The two grid searches here are quick, coarse overviews.
+
+::::{container} crevice-cards
+
+:::{container} crevice-card crevice-violet
+**[Buried cavities](cavities.md)**
+
+Enclosed empty spaces inside the protein.
+
+`crevice cavities`
+:::
+
+:::{container} crevice-card crevice-violet
+**[Access tunnels](tunnels.md)**
+
+The widest routes from a site to the outside.
+
+`crevice tunnels`
+:::
+
+::::
+
+## Residues and networks
+
+::::{container} crevice-cards
+
+:::{container} crevice-card crevice-entry
+![](../examples/images/1grm_profile_residues.png)
+
+**[Lining residues](residues.md)**
+
+Which residues line a channel, and which one makes the bottleneck.
+
+`crevice residues`
+:::
+
+:::{container} crevice-card crevice-entry
+![](../examples/images/4pyp_residue_evidence.png)
+
+**[Boundary residues and their partners](residue-evidence.md)**
+
+Which residues form the wall of a cast, and which other residues touch them.
+
+`crevice residue-evidence`
+:::
+
+:::{container} crevice-card crevice-entry
+**[Residue networks](network.md)**
+
+Which residues contact each other and the channel or cavity.
+
+`crevice network`
+:::
+
+::::
+
+## Hydration
+
+::::{container} crevice-cards
+
+:::{container} crevice-card
+**[Hydration](hydration.md)**
+
+Where the waters are, how exposed each residue is, and which waters sit inside a cavity.
+
+`crevice hydration`
+:::
+
+::::
+
+## Trajectories and regions
+
+::::{container} crevice-cards
+
+:::{container} crevice-card crevice-exit
+![](../examples/images/1grm_nmr_profiles.png)
+
+**[Channel profiles over a trajectory](trajectory.md)**
+
+How a channel's width and lining change from frame to frame.
+
+`crevice trajectory`
+:::
+
+:::{container} crevice-card crevice-exit
+**[Cavities over a trajectory](cavity-trajectory.md)**
+
+A cavity's volume, width and wall residues through a simulation.
+
+`crevice cavity-trajectory`
+:::
+
+:::{container} crevice-card crevice-exit
+**[Named regions](regions.md)**
+
+Define a region once, review it, and compare it fairly across runs.
+
+`crevice region-*`
+:::
+
+::::
+
+## Visualisation and outputs
+
+::::{container} crevice-cards
+
+:::{container} crevice-card
+![](../examples/images/3ukm_cast_exits_chimerax.png)
+
+**[One-command output bundle](publish.md)**
+
+Every table, figure and viewer scene for a structure in one run.
+
+`crevice publish`
+:::
+
+:::{container} crevice-card
+**[Utility and batch commands](utilities.md)**
+
+Downloads, several analyses at once, feature tables and batch runs.
+
+`crevice fetch, analyze, features, benchmark, static-suite`
+:::
+
+::::
+
+## Methods in more depth
+
+The [method notes](../methods/index.md) give the full definitions behind the
+tools: atomic radii, hydration statistics, trajectory cavities, obstacles,
+named regions and display smoothing.
 
 (validation-levels)=
-## Validation levels
+## How far to trust the numbers
 
-CREVICE records evidence at four separate levels. A tool can be strong at one
-level and have no evidence at another.
-
-| Level | Meaning | Example |
-|---|---|---|
-| **Software / synthetic** | Unit and contract tests, analytic controls and mathematical atom walls with known answers | continuous-path clearance checks on synthetic walls |
-| **Real-input observation** | The tool ran on a real structure or trajectory with stated settings, and the output was inspected | 1GRM profile and cast on 0.25 Å grids |
-| **Native viewer check** | The generated PyMOL/VMD/ChimeraX scene was opened in that viewer, and its geometry, colours and camera were checked | representative 1GRM and 4PYP scenes |
-| **Biological / functional validation** | Agreement with curated anatomy, independent data or experiments | **not established for any CREVICE result** |
-
-CREVICE's benchmark registry has no curated entries. Channel axes and regions are
-chosen by the analysis or by the user, not taken from reviewed references. A
-cavity count, volume or radius from a real protein is therefore a measurement
-under stated settings, not a validated biological result. Each tool page ends
-with a **Testing and validation status** section that uses these levels.
-
-## Commands
-
-| Command | Question | Page |
-|---|---|---|
-| `profile` | How wide is a through-channel along its axis? | [profile](profile.md) |
-| `cast` | What 3D space does a pocket, cavity or channel occupy? | [cast](cast.md) |
-| `cavities` | Are there enclosed grid voids? | [cavities](cavities.md) |
-| `tunnels` | Which widest grid paths lead from a point to the outside? | [tunnels](tunnels.md) |
-| `residues` | Which residues line a sampled profile? | [residues](residues.md) |
-| `network` | Which residues touch each other and the channel? | [network](network.md) |
-| `residue-evidence` | Which residues form a measured cavity boundary, and which residues contact them? | [residue-evidence](residue-evidence.md) |
-| `hydration` | Where are explicit waters, and how exposed are residues? | [hydration](hydration.md) |
-| `trajectory` | How do through-channel profiles and contacts vary across frames? | [trajectory](trajectory.md) |
-| `cavity-trajectory` | How do a cavity's volume, widths and boundary residues change over an MD run? | [cavity-trajectory](cavity-trajectory.md) |
-| `region-init`, `region-prepare`, `region-trajectory`, `region-compare` | How do named, versioned regions behave over identical frames? | [regions](regions.md) |
-| `publish` | Can I get a complete static-structure bundle in one run? | [publish](publish.md) |
-| `fetch`, `analyze`, `features`, `benchmark`, `static-suite` | Utility and batch commands | [utilities](utilities.md) |
+Everything CREVICE reports is a geometric measurement made with the settings
+you chose. The software is tested on synthetic structures with known answers,
+and its examples were run on real proteins, but its benchmark structures are
+not curated references: channel axes and regions are chosen by the analysis
+or by you. Treat a radius, volume or residue list as a well-defined
+measurement, and as a starting point for biological interpretation that still
+needs independent evidence, such as mutagenesis, functional data or other
+structures.
 
 ```{toctree}
 :maxdepth: 1
@@ -60,12 +186,13 @@ cast
 cavities
 tunnels
 residues
-network
 residue-evidence
+network
 hydration
 trajectory
 cavity-trajectory
 regions
 publish
 utilities
+../methods/index
 ```

@@ -246,7 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     cast.add_argument("--dpi", type=int, default=250, help="Resolution of the hydration/analysis figures written with the cast (the cast itself has no Matplotlib figure; use the viewer scenes)")
     cast.set_defaults(func=_cmd_cast)
 
-    profile = subparsers.add_parser("profile", help="Compute a HOLE-like pore radius profile")
+    profile = subparsers.add_parser("profile", help="Measure the radius profile of a channel that runs through the protein")
     _add_structure_arg(profile)
     _add_profile_args(profile)
     profile.add_argument("-o", "--output", required=True,
@@ -271,7 +271,7 @@ def build_parser() -> argparse.ArgumentParser:
     residues.add_argument("--cutoff", type=float, default=4.5, help="Residue surface-distance cutoff")
     residues.set_defaults(func=_cmd_residues)
 
-    cavities = subparsers.add_parser("cavities", help="Detect HOLLOW-like cavity candidates")
+    cavities = subparsers.add_parser("cavities", help="Find buried cavities on a clearance grid")
     _add_structure_arg(cavities)
     cavities.add_argument("-o", "--output", required=True,
                           help="Output JSON path; the cavity table is also written as <stem>.csv beside it")
@@ -285,7 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
     cavities.add_argument("--include-hetero", action="store_true", help="Include HETATM records")
     cavities.set_defaults(func=_cmd_cavities)
 
-    tunnels = subparsers.add_parser("tunnels", help="Find CAVER-like access tunnels")
+    tunnels = subparsers.add_parser("tunnels", help="Find the widest access tunnels from a start point to the outside")
     _add_structure_arg(tunnels)
     tunnels.add_argument("-o", "--output", required=True,
                          help="Output JSON path; tunnel and path-node tables are also written as <stem>.csv and <stem>_points.csv")
@@ -430,6 +430,14 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--skip-cavities", action="store_true", help="Do not run cavity detection for the bundle")
     publish.add_argument("--skip-tunnels", action="store_true", help="Do not run tunnel detection for the bundle")
     publish.add_argument("--skip-network", action="store_true", help="Do not build the residue/channel network for the bundle")
+    publish.add_argument("--entry-end", choices=["auto", "start", "end"], default="auto",
+                         help="Which channel end is labelled ENTRY for the cast segments (ENTRY, LUMEN, EXIT). auto: "
+                              "if exactly one end is capped with lateral exits, those legs are EXITs and the open end "
+                              "is the ENTRY; otherwise the axis start. Geometric labels, not a transport direction")
+    publish.add_argument("--lining-cutoff", type=float, default=3.3,
+                         help="Lining residues: atom centre within this distance (Å) of a segment's measured grid "
+                              "nodes (default 3.3, a hydrogen-bond distance); written per segment to "
+                              "PREFIX_lining_residues.csv and as hidden viewer selections")
     publish.set_defaults(func=_cmd_publish)
 
     fetch = subparsers.add_parser("fetch", help="Fetch structures from RCSB by accession, or AlphaFold DB models by AF- identifier")
@@ -446,6 +454,16 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--list", action="store_true", help="List configured benchmark systems without downloading")
     fetch.add_argument("--json", help="Optional path for the download provenance records")
     fetch.set_defaults(func=_cmd_fetch)
+
+    fetch_example = subparsers.add_parser("fetch-example", help="Download an example dataset by name into a local cache, verifying SHA-256 hashes")
+    fetch_example.add_argument("name", nargs="?", help="Dataset name, e.g. glut1-excerpt (see --list)")
+    fetch_example.add_argument("--cache-dir", help="Cache root; files go in CACHE_DIR/NAME (default: $CREVICE_EXAMPLE_CACHE_DIR or ~/.cache/crevice/examples)")
+    fetch_example.add_argument("--base-url", help="URL prefix of the assets (default: $CREVICE_EXAMPLE_BASE_URL or the v0.1.1 GitHub Release)")
+    fetch_example.add_argument("--source-dir", help="Local directory holding the asset files, for offline use (default: $CREVICE_EXAMPLE_SOURCE_DIR)")
+    fetch_example.add_argument("--overwrite", action="store_true", help="Fetch every file again even if a verified copy is cached")
+    fetch_example.add_argument("--timeout", type=float, default=60.0, help="Network timeout in seconds per file")
+    fetch_example.add_argument("--list", action="store_true", help="List the available datasets and their files without downloading")
+    fetch_example.set_defaults(func=_cmd_fetch_example)
 
     analyze = subparsers.add_parser("analyze", help="Run selected analyses on one structure")
     _add_structure_arg(analyze)
@@ -736,8 +754,10 @@ def _add_profile_args(parser: argparse.ArgumentParser) -> None:
                         help="Accept a capped end (blocked straight axial exit) if a lateral exit to bulk exists; "
                              "every distinct exit leg is reported separately (see docs: profile, capped channels)")
     parser.add_argument("--exit-bulk-radius", type=float, default=6.0,
-                        help="With --lateral-exits: rolling probe radius (Å) that defines bulk solvent; exit legs "
-                             "whose exit points are more than twice this apart are reported as distinct")
+                        help="Rolling probe radius (Å) that defines bulk solvent: the outer boundary of the lateral "
+                             "exit legs (--lateral-exits) and, in publish, of every ENTRY/EXIT cast segment. Not a width "
+                             "limit: inside the boundary a segment fills all probe-accessible space. Exit legs whose exit "
+                             "points are more than twice this apart are reported as distinct")
     parser.add_argument("--exit-spacing", type=float, default=0.5,
                         help="With --lateral-exits: lattice spacing (Å) of the exit-path search")
     parser.add_argument("--samples", type=int, default=81,
@@ -1136,6 +1156,8 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         cast_min_component_volume=args.min_component_volume,
         cast_max_component_volume=args.max_component_volume,
         residue_groups=json.loads(Path(args.residue_groups).read_text()) if args.residue_groups else None,
+        entry_end=args.entry_end,
+        lining_cutoff=args.lining_cutoff,
     )
     input_report_path = Path(args.out_dir) / f"{prefix}_input_report.json"
     _write_json({"source": source.to_dict(), "intake": _report}, input_report_path)
@@ -1174,6 +1196,22 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
         print(f"{record.path}\t{record.source}\t{record.byte_count} bytes\t{identity}")
     if args.json:
         _write_json({"downloads": [record.to_dict() for record in records]}, args.json)
+
+
+def _cmd_fetch_example(args: argparse.Namespace) -> None:
+    from .examples import fetch_example, list_examples
+    if args.list or not args.name:
+        for dataset in list_examples():
+            print(f"{dataset.name}\t{dataset.description}\t{dataset.licence}")
+            for item in dataset.files:
+                print(f"  {item.name}\t{item.size} bytes\t{item.description}")
+        return
+    fetched = fetch_example(args.name, cache_dir=args.cache_dir, base_url=args.base_url, source_dir=args.source_dir,
+                            overwrite=args.overwrite, timeout=args.timeout)
+    for name, path in fetched.paths.items():
+        state = "fetched" if name in fetched.downloaded else "cached"
+        print(f"{path}\t{state}\tsha256 verified")
+    print(f"example directory={fetched.directory}")
 
 
 def _cmd_analyze(args: argparse.Namespace) -> None:

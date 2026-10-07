@@ -569,7 +569,8 @@ for role, color in [("partners", "crevice_partner_evidence"), ("lining", "crevic
         cmd.set("stick_transparency", 0.0, crevice_selected)
 cmd.set("stick_quality", 24, "crevice_protein")
 for crevice_object in cmd.get_names("objects"):
-    if crevice_object.startswith("crevice_volume"):
+    if (crevice_object.startswith(("crevice_volume", "crevice_lumen", "crevice_entry_", "crevice_exit_"))
+            and not crevice_object.endswith("_lining")):
         cmd.set("cgo_transparency", 0.45, crevice_object)
 python end
 """

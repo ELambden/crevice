@@ -1,88 +1,19 @@
-# `network`: residue contact networks
+# Residue networks
 
-## Scientific question
+`crevice network` builds a map of which residues touch each other in a
+structure. By default it adds the channel itself as a node, so you can see how
+the residues lining the channel connect to the rest of the protein. It can also
+trace the shortest contact paths outwards from the lining residues.
 
-Which residues touch each other, and how do the residues that line a channel
-connect to the rest of the protein? `network` builds a residue contact graph
-from one static structure. By default it adds a pseudo-node for the channel
-profile.
+## Quick start
 
-## Method
-
-- **Nodes** are residues. With `--region profile` (the default), a channel
-  pseudo-node is added, and `region_lining` / `region_bottleneck` edges join it
-  to residues from [`residues`](residues.md). This needs a resolved profile. Use
-  `--region none` for a residue-only graph.
-- **Edges** join residue pairs within `--cutoff` (4.5 Å). The CLI uses the
-  minimum heavy-atom **centre** distance by default (`--contact-metric
-  center`). `surface` uses the van der Waals surface gap.
-- **Edge labels** are simple distance and residue-type categories:
-  `salt_bridge_candidate` (charged atoms ≤ 4.0 Å),
-  `oppositely_charged_residue_contact`, `hydrophobic_residue_contact`,
-  `polar_residue_contact` and `distance_contact`. These labels do not assign
-  hydrogen bonds or energies. Directional explicit-H chemistry is part of the
-  [hydration workflow](hydration.md).
-- `--residue-groups groups.json` maps residue IDs to helix or strand names so
-  the graph can be summarised by group. `--connectivity-json` and
-  `--connectivity-png` find weighted graph paths from lining residues. These
-  need NetworkX. `--remove-residue` repeats the path search with a residue
-  removed.
-
-## Assumptions
-
-- A contact is proximity in one structure. It does not show a persistent or
-  energetically favourable interaction. For persistence across frames, see
-  [`trajectory`](trajectory.md) and [`cavity-trajectory`](cavity-trajectory.md).
-- Graph paths and centrality are **associations**. They do not show signal
-  transmission, allostery or causal information flow.
-
-## Key parameters and units
-
-| Option | Default | Unit | Meaning |
-|---|---:|---|---|
-| `--cutoff` | 4.5 | Å | contact distance |
-| `--contact-metric` | `center` | | `center` (heavy-atom centres) or `surface` (VDW gap) |
-| `--region` | `profile` | | `profile` adds the channel pseudo-node; `none` omits it |
-| `--radii` | standard table | set | atomic radius set: `bondi`, `hole`, `charmm_like` or a JSON/CSV/HOLE `.rad` file; see [Atomic radii](../methods/atomic-radii.md) |
-
-## Outputs
-
-- `-o network.json`: nodes, edges with labels and distances, and simple graph
-  metrics (`density`, degree summaries).
-- `network_nodes.csv`, `network_edges.csv` (beside `-o`, same stem plus
-  `_nodes`/`_edges`): one row per node (`node_id`, `kind`, residue identity,
-  `group`, `properties`, centroid `x_A`/`y_A`/`z_A`, `degree` counting all
-  edges and `residue_degree` counting residue-residue edges only) and one row
-  per edge (`source`, `target`, `interaction`, `distance_A`,
-  `distance_metric`, `cutoff_A`, `weight`, closest atoms, centre and surface
-  distances, charged atom pairs, sequence separation).
-- `--png`: the 20 residues with most residue-residue contacts, as horizontal
-  bars stacked by contact class (purple salt-bridge candidate, orange
-  oppositely charged, green hydrophobic, teal polar, grey other distance
-  contact; legend below the axes). The x axis states the metric, for example
-  "Residue contacts (degree: residues with atom-centre distance ≤ 4.5 Å)". The
-  region pseudo-node and its edges are not counted here: `degree` in the node
-  table includes them, and the [`residues`](residues.md) figure ranks the
-  residues lining the region.
-- `--chord-png`: chord diagram of the 24 highest-degree nodes: region node red,
-  residues blue, node names around the circle; edges coloured by interaction
-  class (red channel/cavity contact, purple salt-bridge candidate, orange
-  oppositely charged, green hydrophobic, teal polar, grey other distance
-  contact), with a legend of the classes drawn, width scaled by weight.
-- `--connectivity-json`, `--connectivity-png`: weighted lining-residue paths
-  (the tables are also written beside the JSON as `<stem>.csv` and
-  `<stem>_groups.csv`);
-  the figure places residues in columns by contact hops from the lining
-  (squares = lining residues), coloured by `--residue-groups` group, with
-  residue names beside the markers.
-
-Figures have no titles unless `--annotate` is given.
-
-## Python equivalent
+```bash
+crevice network 1GRM -o 1GRM_network.json --png 1GRM_network.png --chord-png 1GRM_chord.png
+```
 
 ```python
 from crevice import (annotate_residues, build_cavity_network, load_structure,
-                   network_metrics, pore_profile)
+                     network_metrics, pore_profile)
 
 frame = load_structure(".crevice/pdb/1GRM.cif")
 profile = pore_profile(frame, axis="auto")
@@ -92,45 +23,71 @@ network = build_cavity_network(frame, profile, contacts=contacts,
 print(network_metrics(network)["density"])
 ```
 
-The low-level defaults are `distance_metric="surface"` and
-`include_hetero=False`. Pass the values above to match `crevice network`.
+The Python functions default to the surface-gap distance and leave
+heteroatoms out, so pass `distance_metric="center", include_hetero=True` as
+above to match the command.
 
-:::{warning}
-The networks written by `publish` and `analyze` use the low-level defaults
-(surface gap, heteroatoms excluded), not the `crevice network` defaults.
-Compare networks only when they were produced with the same metric and
-obstacle set. Unifying these defaults is an open interface-design decision;
-until it is made, the difference is intentional and recorded in each network's
-`metadata` (`distance_metric`, `include_hetero`).
+## How it works
+
+- **Nodes** are residues. With `--region profile` (the default) the channel is
+  added as a node and linked to the residues that line it or form its
+  bottleneck, as found by [`residues`](residues.md). This needs a resolved
+  profile; `--region none` gives a residue-only network.
+- **Edges** join residues within `--cutoff` (4.5 Å). The command measures the
+  closest heavy-atom centres by default (`--contact-metric center`); `surface`
+  measures the gap between atom surfaces instead.
+- **Edge labels** sort contacts into simple classes by distance and residue
+  type: `salt_bridge_candidate` (charged atoms within 4.0 Å),
+  `oppositely_charged_residue_contact`, `hydrophobic_residue_contact`,
+  `polar_residue_contact` and `distance_contact`. They don't assign hydrogen
+  bonds or energies; for typed chemical interactions, see
+  [Hydration](hydration.md).
+- **Paths.** `--connectivity-json` and `--connectivity-png` find weighted
+  paths outwards from the lining residues (needs the `networks` extra).
+  `--remove-residue` repeats the search without a residue, and
+  `--residue-groups groups.json` lets you summarise by helix or strand.
+
+In Python, the region you pass to {func}`crevice.build_cavity_network`
+decides which points residues are measured against: a profile or tunnel gives
+its path points, a cast {class}`~crevice.models.VoidComponent` its sample
+points, and a {class}`~crevice.models.Cavity` only its centre.
+
+## Options you'll use most
+
+| Option | Default | What it does |
+|---|---|---|
+| `--cutoff` | 4.5 Å | contact distance |
+| `--contact-metric` | `center` | `center` (heavy-atom centres) or `surface` (gap between atom surfaces) |
+| `--region` | `profile` | add the channel as a node, or `none` |
+| `--png`, `--chord-png` | none | contact bar chart and chord diagram |
+| `--connectivity-json`, `--connectivity-png` | none | paths from the lining residues |
+
+All options are listed under [`crevice network`](../reference/cli/network.md).
+
+## What you get
+
+- **`-o network.json`** with **`network_nodes.csv`** and
+  **`network_edges.csv`** beside it: every residue with its position, group and
+  number of contacts, and every contact with its class, distance and closest
+  atoms.
+- **`--png`**: the 20 most-connected residues, with bars split by contact
+  class (purple salt-bridge candidate, orange oppositely charged, green
+  hydrophobic, teal polar, grey other). The channel node isn't counted here.
+- **`--chord-png`**: a chord diagram of the 24 most-connected nodes, with the
+  channel in red and residues in blue, and edges coloured by class.
+- **`--connectivity-json`/`--connectivity-png`**: the paths as tables, and a
+  figure placing residues in columns by how many contacts away from the lining
+  they are.
+
+:::{admonition} Interpreting results
+:class: crevice-interpret
+
+A contact means two residues are close in this one structure; it doesn't show
+that the interaction is stable or favourable (follow it over a
+[trajectory](trajectory.md) for that). Network paths and centrality are
+associations, not evidence of signalling or allostery. One practical catch:
+networks written by `publish` and `analyze` use the Python defaults (surface
+gap, no heteroatoms), not the `crevice network` defaults, so compare networks
+only when they were built the same way. Each network records its settings in
+`metadata`.
 :::
-
-In Python, the region passed to {func}`crevice.build_cavity_network` sets the
-contact points: a profile or tunnel contributes its path points with their
-clearance spheres, a cast {class}`~crevice.models.VoidComponent` its sample
-points, and a {class}`~crevice.models.Cavity` only its centre point (so only
-residues within the cutoff of the centre are linked).
-
-## Testing and validation status
-
-- **Software / synthetic:** contact metrics, label rules and path removal are
-  covered by unit tests.
-- **Example observation (public entries):** explicit 4.5 Å centre-contact
-  networks were built for 1GRM and 4PYP; 4PYP had seven typed salt-bridge
-  candidates in the separate typed-interaction analysis.
-- **Biological / functional:** not established.
-
-## Known limitations
-
-- The sequence-separation and nonlocal rules used elsewhere (for example in
-  `residue-evidence`) are not applied here.
-- Group labels are user-supplied. Secondary structure is not assigned
-  automatically by this command.
-
-## Command-line options
-
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: network
-```

@@ -623,14 +623,52 @@ def lateral_exit_casts(frame, profile, cast):
     >>> lateral_exit_casts(None, PoreProfile((0, 0, 0), (0, 0, 1), ()), None)
     ()
     """
+    exits = profile.metadata.get("exits") or {}
+    legs = [(label, leg) for label in ("lower", "upper") if (exits.get(label) or {}).get("type") == "lateral"
+            for leg in exits[label].get("legs", ())]
+    return probe_swept_leg_casts(frame, profile, cast, legs, kind="lateral_exit", definition=EXIT_CAST_DEFINITION)
+
+
+def probe_swept_leg_casts(frame, profile, cast, legs, *, kind, definition, first_id=None):
+    """Probe-swept casts around centre-line legs beyond the channel mouths.
+
+    The shared engine of :func:`lateral_exit_casts` and of the axial
+    vestibule segments of :func:`crevice.cast_segments.segment_casts`; the
+    rules (lattice, bulk exclusion, core, sweep, connectivity, shared nodes)
+    are those listed in :func:`lateral_exit_casts`.
+
+    Parameters
+    ----------
+    frame : StructureFrame
+        Structure of the profile and cast.
+    profile : PoreProfile
+        Resolved profile; its first and last samples give the mouth planes.
+    cast : VoidCast
+        Connected channel cast of ``profile``.
+    legs : sequence of (str, dict)
+        ``(end, leg)`` pairs; ``end`` is ``"lower"`` or ``"upper"`` and ``leg``
+        has ``points`` and ``raw_clearances_A`` (centre-line samples and their
+        atom-surface clearances, Å), optionally ``leg``, ``bulk_radius_A``,
+        ``bulk_grid_spacing_A``, ``bottleneck_radius_A`` and ``length_A``.
+    kind : str
+        ``VoidComponent.kind`` of the results.
+    definition : str
+        Stored in each component's ``metadata["definition"]``.
+    first_id : int, optional
+        Id of the first component; default one more than the cast's largest id.
+
+    Returns
+    -------
+    tuple of VoidComponent
+        One component per leg with at least one node, in ``legs`` order.
+        Empty when ``legs`` is empty, the cast is missing, not a connected
+        channel cast, or focus-cropped.
+    """
     import numpy as np
     from .grid import GridConnectivity
     from .models import ChannelPoint, VoidComponent
     from .spatial import SpatialIndex
     from .voids import _cluster_point_indices
-    exits = profile.metadata.get("exits") or {}
-    legs = [(label, leg) for label in ("lower", "upper") if (exits.get(label) or {}).get("type") == "lateral"
-            for leg in exits[label].get("legs", ())]
     if (not legs or cast is None or cast.metadata.get("export_mode") != "connected_section_fill"
             or cast.metadata.get("focus_points")):
         return ()
@@ -715,7 +753,7 @@ def lateral_exit_casts(frame, profile, cast):
             else:
                 owner[idx] = rank
     components = []
-    next_id = max((c.id for c in cast.components), default=0)+1
+    next_id = first_id if first_id is not None else max((c.id for c in cast.components), default=0)+1
     for rank, ((label, leg), (core, _)) in enumerate(zip(legs, per_leg)):
         nodes = {idx for idx, o in owner.items() if o == rank}
         clusters = _cluster_point_indices(nodes, edge_allowed=lambda a, b: connectivity.allows(
@@ -730,9 +768,9 @@ def lateral_exit_casts(frame, profile, cast):
                                        atom.serial, atom.residue_key.label))
         centre = tuple(float(v) for v in np.mean([p.position for p in points], axis=0))
         components.append(VoidComponent(
-            next_id, "lateral_exit", centre, len(points)*spacing**3, tuple(points),
+            next_id, kind, centre, len(points)*spacing**3, tuple(points),
             nearest_residues=tuple(sorted({p.nearest_residue for p in points})),
-            metadata={"end": label, "leg": leg.get("leg", rank+1), "definition": EXIT_CAST_DEFINITION,
+            metadata={"end": label, "leg": leg.get("leg", rank+1), "definition": definition,
                       "core_point_count": len(core & set(kept)), "enclosure_radius_A": q,
                       "probe_sweep_radius_A": sweep, "grid_origin": tuple(origin.tolist()),
                       "grid_basis": tuple(map(tuple, basis.tolist())), "grid_spacing": spacing,

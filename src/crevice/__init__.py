@@ -277,7 +277,7 @@ __all__ = [
 from .rolling import rolling_probe_cast
 __all__.append("rolling_probe_cast")
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .residue_evidence import boundary_residue_evidence,read_binary_dx,write_residue_evidence_bundle
 from .residue_dynamics import ResidueDynamics,write_dynamics_summary

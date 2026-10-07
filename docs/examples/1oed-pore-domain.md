@@ -73,10 +73,12 @@ and wider than the defaults used above) the automatic rule chooses 1.6 Å and
 the narrowest radius is 3.26 Å. Report the probe and the grid settings with any
 1OED number, and compare settings before interpreting small differences.
 
-## What was checked
+:::{admonition} Interpreting the results
+:class: crevice-interpret
 
-The commands on this page were run with CREVICE 0.1.0 on the downloaded entry,
-and the printed values are copied from that run (the 0.25 Å result is from the
-development record of the same version). The pore axis was found automatically,
-not taken from a curated reference. These are measurements with stated
-settings, not validated biological values.
+The values come from a CREVICE 0.1.0 run on the downloaded entry (the 0.25 Å
+result from the development record of the same version). The pore axis was
+found automatically. An isolated pore domain lacks the rest of the receptor and
+its membrane, so read these radii as a measurement of this model with these
+settings.
+:::

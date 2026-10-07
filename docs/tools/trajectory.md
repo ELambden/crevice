@@ -1,123 +1,21 @@
-# `trajectory`: profiles and contacts across frames
+# Channel profiles over a trajectory
 
-## Scientific question
+`crevice trajectory` follows a channel through a molecular-dynamics run, or
+through any set of structures such as an NMR ensemble. It aligns the frames,
+measures the [profile](profile.md) in each one, and tells you how the radius
+varies, how well the mean is known, which residue contacts persist and how
+residues move together.
 
-How does a through-channel profile vary across MD frames (or a set of static
-structures)? How precisely is its mean known? Which residue contacts persist,
-and how do residues move together? `trajectory` runs the static analyses frame
-by frame after alignment and summarises them.
+For pockets and cavities that don't run right through the protein, use
+[cavities over a trajectory](cavity-trajectory.md).
 
-For one-sided pockets and cavities without two open ends, use
-[`cavity-trajectory`](cavity-trajectory.md).
+## Quick start
 
-## Method
-
-- **Reading.** Either one trajectory file with `--topology`, or several static
-  files, one per frame. `--selection` (MDAnalysis syntax) filters atoms while
-  reading. `--start/--stop/--stride` choose frames, and `--max-frames` (default
-  500) guards against loading too much. `--inspect` prints frame, atom and
-  residue counts to the terminal without loading any frames; it needs no `-o`
-  (every analysis run does), and `--report-json` also saves the counts.
-- **Alignment and periodicity.** Matching CA atoms are fitted to the first
-  frame (turn this off with `--no-align`). A scaffold can be predeclared with
-  `--alignment-residue` or `--alignment-residues-json`. `--pbc check|unwrap|none`
-  controls the split-bond screen. See
-  [Inputs and selections](../getting-started/inputs-and-selections.md#trajectories-frames-alignment-and-periodic-boundaries).
-- **Profiles.** All frames share the reference axis and seed. `--samples`
-  (default 81) is a minimum for connected profiles: more points are used where
-  needed to keep axial steps at or below 0.75 Å, and the profile metadata
-  records `requested_samples` and `samples`. With `--enclosure-radius auto`
-  (the default) the enclosure probe is chosen **once**, on the first
-  (reference) frame, by the rule of
-  [`profile`](profile.md#choosing-the-enclosure-probe---enclosure-radius-auto),
-  and that value is *pinned*: it is passed explicitly for every frame, so all
-  frames share one definition of the wall. The command prints the chosen
-  probe; the output JSON records it in `metadata.enclosure_probe` (`mode`,
-  `chosen_A`, `reason`, and the full reference-frame `selection` record). A
-  number (for example `--enclosure-radius 0.8`) runs that probe for every
-  frame and records `mode: explicit`. The choice costs one reference-frame
-  profile per ladder probe (up to 21), not one per frame.
-- **Per-frame fallback.** A pinned probe can fail on a frame whose own
-  resolving window does not contain it (the wall moved). With the automatic
-  probe, such a frame is then profiled again with the automatic choice made on
-  that frame alone (same axis and origin). Each frame records which probe it
-  used: `<stem>_frames.csv` has `enclosure_radius_A` (the frame's effective
-  probe) and `enclosure_probe_source` (`pinned`, `fallback`, or `none` when
-  neither resolved it); the JSON has `frames[].metadata.enclosure_probe`
-  (`source`, `radius_A`, `pinned_A`, the pinned failure and the fallback's
-  reason or failure), and `metadata.enclosure_probe.fallback` counts pinned,
-  fallback and unresolved frames and lists the fallback probe of each
-  fallback frame. The command prints the counts. An explicit probe stays
-  strict: a frame it cannot resolve is unresolved unless you add
-  `--probe-fallback`; `--no-probe-fallback` disables the fallback for the
-  automatic probe. A fallback frame's wall is defined by a different probe.
-  Inside a channel's resolving window the measured radii barely depend on the
-  probe, but its mouths, and so its axial extent, can move; distributions pool
-  fallback frames with the others and record how many there were
-  (`enclosure_probe_fallback_frame_count`, `enclosure_radii_A`). Each fallback
-  costs up to 21 extra profiles of that frame.
-- **Unresolved frames.** A frame that does
-  not resolve is recorded as missing (`--profile-errors record`). If the
-  reference frame does not resolve (including when no probe gives a stable
-  channel), later profiles are marked not attempted, `enclosure_probe` records
-  `chosen_A: null` with the reason, and other analyses continue.
-  `cavity-trajectory` and `region-trajectory` do not build channel profiles and
-  have no enclosure probe; their `--probe-radius` is the rolling-probe radius
-  of the cast (see [`cast`](cast.md#why-the-probe-radius-is-fixed)).
-- **Distributions.** Radii are interpolated onto a shared axial grid without
-  extrapolation. A light band shows frame quantiles (`--quantiles`, default
-  10th–90th percentile). A dark band shows an approximate confidence interval
-  for the **mean**, from a jointly resampled contiguous-batch bootstrap
-  (`--confidence`, `--block-length`, `--bootstrap-replicates`). The interval is
-  withheld when fewer than eight effective batches exist or coverage is
-  incomplete.
-- **Residue dynamics** (`--network-json`). Physical contact occupancy (heavy-atom
-  centres, `--contact-cutoff` 4.5 Å, persistent threshold `--occupancy` 0.75),
-  pooled across chemical labels. Also aligned residue-centroid RMSF and a
-  dynamic cross-correlation matrix (DCCM) with split-half diagnostics. With
-  `--lining-evidence`, lining membership comes from a reference
-  [`residue-evidence`](residue-evidence.md) JSON of the **same** structure.
-
-## Assumptions
-
-- Sampling is stationary and representative, and the batch length captures
-  the time correlation. Neither is established automatically.
-- Molecules are whole before fitting. CREVICE does not repair periodic images.
-- The default all-CA fit is a convenience. It does not claim that those atoms
-  form a rigid biological core.
-
-`--radii` selects the atomic radius set for every geometric measurement (default: the standard table); see [Atomic radii](../methods/atomic-radii.md).
-
-## Outputs
-
-- `-o trajectory.json`: per-frame results, reader provenance, fit diagnostics
-  and profile status.
-- `<stem>_frames.csv` (beside `-o`): one row per frame: `frame_index`,
-  `source_index`, `time_ps`, `profile_status`, `profile_reason`,
-  `min_radius_A`, `mean_radius_A`, `max_radius_A`,
-  `bottleneck_axis_position_A`, `bottleneck_residue`, `profile_point_count`,
-  `enclosure_radius_A`, `enclosure_probe_source`, counts, alignment
-  RMSD (`_A`) and `feature_*` columns.
-- `<stem>_profiles.csv`: every profile sample of every frame (`frame_index`,
-  `time_ps` and the [`profile`](profile.md#outputs) CSV columns).
-- `--png`: radius distribution (`--view distribution`: light-teal frame
-  quantile band, darker teal approximate mean confidence band, teal mean, with
-  a legend, and frame coverage below) or time series (`--view timeseries`:
-  red minimum, blue mean, grey maximum radius per frame, with a legend). The
-  status title (resolved/total frames) and the "mean confidence unavailable"
-  note are drawn only with `--annotate`; both are in the PNG metadata.
-  `--distribution-csv`: radius statistics and frame counts at each coordinate
-  (`coordinate_A`, `mean_radius_A`, `median_radius_A`, quantile and interval
-  columns, all in Å even when `--profile-quantity diameter` doubles the
-  plotted values); the interval method record is written beside it as
-  `<stem>.json`.
-- `--network-json`: compact residue-dynamics report, with companion
-  `<stem>_contacts.csv`, `<stem>_residues.csv` (`centroid_rmsf_A`, lining
-  partners) and partner plot (blue-grey occupancy bars; magenta dots and bars for the
-  whole-trajectory and half-trajectory motion correlations).
-- `--report-json`: reader provenance.
-
-## Python equivalent
+```bash
+crevice trajectory run.xtc --topology system.gro --inspect          # count frames and atoms first
+crevice trajectory run.xtc --topology system.gro --stride 10 \
+    -o traj.json --png traj_radius.png --distribution-csv traj_distribution.csv
+```
 
 ```python
 from crevice import analyze_trajectory, load_trajectory, profile_distribution
@@ -128,58 +26,112 @@ analysis = analyze_trajectory(traj, analyses=("profile",), align=True)
 stats = profile_distribution(analysis, confidence=0.95, assume_aligned=True)
 ```
 
-Python and command-line defaults differ in three places; pass them explicitly
-to reproduce a command:
+```{figure} ../examples/images/1grm_nmr_profiles.png
+:alt: Radius distribution of the gramicidin A channel across its NMR models.
+:width: 520px
 
-- **Confidence band.** `crevice trajectory` requests a 0.95 mean band
-  (`--confidence`, 0 disables it); {func}`crevice.profile_distribution`
-  computes none unless `confidence=` is given.
-- **Alignment.** Both fit CA atoms to the first frame by default
-  (`--align` / `align=True`). {func}`crevice.profile_distribution` trusts the
-  `aligned_to_first_frame` record of a `TrajectoryAnalysis`; for a plain list
-  of frames a confidence band needs `assume_aligned=True`.
-- **Residue contacts.** `crevice trajectory` uses heavy-atom centre distances
-  (`--contact-metric center`); `analyze_trajectory` passes `network_kwargs` to
-  {func}`crevice.build_cavity_network`, whose default is the surface gap with
-  heteroatoms excluded. Pass `network_kwargs={"distance_metric": "center"}` to
-  match the command.
-
-## Testing and validation status
-
-- **Software / synthetic:** coverage checks of the correlated-data estimator,
-  and fit, PBC-screen and identity contracts.
-- **Per-frame fallback (software and one real ensemble):** synthetic tests check
-  that a frame the pinned probe cannot resolve is rescued and recorded, that an
-  explicit probe stays strict unless `--probe-fallback` is given, and that the
-  distribution counts fallback frames. On the five NMR models of 1GRM read as
-  a five-frame trajectory, the automatic probe (0.75 Å, chosen on model 1)
-  resolves models 1, 3 and 4; the fallback rescues model 5 (0.80 Å, chosen on
-  that model); model 2 resolves at none of the probes tried with that model's
-  axis and origin. This shows the bookkeeping on real coordinates; it is not a
-  validation of any model.
-- **Real-input use:** an all-atom membrane-transporter MD trajectory is read and
-  aligned, but its reference does **not** give a monotone two-ended channel, so
-  its profiles are recorded as unresolved, not as zero. All 64 rigidly
-  transformed copies of 1GRM coordinates resolve; that is a positive control on
-  real coordinates, not an MD test.
-- **Biological / functional:** not established. Contact networks and DCCM are
-  associations, not causal pathways.
-
-Method note: [Trajectory profiles and residue evidence](../TRAJECTORY_RESIDUE_METHODS.md).
-
-## Known limitations
-
-- Short or strongly correlated trajectories often give no mean interval, or
-  intervals whose nominal coverage is not guaranteed.
-- DCCM has no uncertainty estimate.
-- The confidence bands leave out force-field error, unsampled states, grid and
-  probe error, and wrong channel assignment.
-
-## Command-line options
-
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: trajectory
+The five NMR models of 1GRM read as a short trajectory: the frame range, the
+interval for the mean and the mean radius along the channel.
 ```
+
+## How it works
+
+- **Reading frames.** Give one trajectory with `--topology`, or several
+  structure files, one per frame. `--selection` (MDAnalysis syntax) chooses the
+  atoms, `--start`, `--stop` and `--stride` choose the frames, and
+  `--max-frames` (500) stops you loading more than you meant to. `--inspect`
+  prints the frame, atom and residue counts without loading anything.
+- **Alignment.** Matching CA atoms are fitted to the first frame (turn this
+  off with `--no-align`, or choose the fitting residues with
+  `--alignment-residue` or `--alignment-residues-json`). `--pbc` controls the
+  check for molecules split across the periodic box; see
+  [Inputs and selections](../getting-started/inputs-and-selections.md#trajectories-frames-alignment-and-periodic-boundaries).
+- **Profiles.** Every frame uses the reference frame's axis and seed. The
+  enclosure probe is chosen once, on the reference frame, and then used for
+  every frame, so all frames share one definition of the wall
+  (`metadata.enclosure_probe`). A number such as `--enclosure-radius 0.8`
+  fixes it instead.
+- **When a frame doesn't fit.** If the wall moves so that the shared probe
+  can't resolve a frame, that frame is profiled again with a probe chosen on
+  the frame itself. Each frame records which probe it used
+  (`enclosure_radius_A` and `enclosure_probe_source` in the frames table:
+  `pinned`, `fallback` or `none`), and the command prints the counts. A
+  fixed probe stays strict unless you add `--probe-fallback`;
+  `--no-probe-fallback` turns the rescue off. Frames that still don't resolve
+  are recorded as missing, never as zero. If the reference frame itself doesn't
+  resolve, the later profiles are skipped and the other analyses carry on.
+- **Distributions.** Radii are put on a shared axial grid. A light band shows
+  the spread across frames (`--quantiles`, 10th to 90th percentile by
+  default), and a darker band an approximate confidence interval for the
+  **mean**, from a block bootstrap that respects time correlation
+  (`--confidence`, `--block-length`, `--bootstrap-replicates`). The interval is
+  withheld when there are fewer than eight effective blocks.
+- **Residue dynamics** (`--network-json`). How often residue pairs are in
+  contact (heavy-atom centres within 4.5 Å; persistent above 75 % of frames),
+  how much each residue moves (RMSF) and which residues move together (a
+  dynamic cross-correlation matrix with split-half checks). With
+  `--lining-evidence`, the lining residues come from a
+  [`residue-evidence`](residue-evidence.md) report of the same structure.
+
+## Options you'll use most
+
+| Option | Default | What it does |
+|---|---|---|
+| `--topology` | none | topology for a trajectory file |
+| `--selection` | `protein` | MDAnalysis selection of the atoms to read |
+| `--start`, `--stop`, `--stride`, `--max-frames` | 0, end, 1, 500 | which frames to analyse |
+| `--no-align` | aligned | skip fitting to the first frame |
+| `--view` | `distribution` | plot the distribution or a `timeseries` |
+| `--confidence` | 0.95 | level of the mean interval; `0` turns it off |
+| `--network-json` | none | write the residue-dynamics report |
+
+Channel profile settings, atomic radii and figure text are
+[shared options](../reference/cli/common-options.md); everything is listed
+under [`crevice trajectory`](../reference/cli/trajectory.md).
+
+## What you get
+
+- **`-o trajectory.json`**: every frame's results, how the frames were read
+  and fitted, and the profile status of each.
+- **`<stem>_frames.csv`**: one row per frame with its time, profile status,
+  minimum, mean and maximum radius, bottleneck position and residue, probe
+  used and alignment RMSD.
+- **`<stem>_profiles.csv`**: every profile point of every frame.
+- **`--png`**: the radius distribution (teal bands and mean, with frame
+  coverage below) or, with `--view timeseries`, the minimum (red), mean (blue)
+  and maximum (grey) radius per frame.
+- **`--distribution-csv`**: the radius statistics at each position along the
+  channel, in Å.
+- **`--network-json`**: the residue-dynamics report, with contact and
+  residue tables and a partner plot.
+
+## Matching the command in Python
+
+Three defaults differ between the command and the Python functions:
+
+- `crevice trajectory` adds a 0.95 mean interval;
+  {func}`crevice.profile_distribution` adds none unless you pass
+  `confidence=`.
+- Both align by default, but for a plain list of frames (rather than a
+  `TrajectoryAnalysis`) the interval needs `assume_aligned=True`.
+- The command measures residue contacts between heavy-atom centres; pass
+  `network_kwargs={"distance_metric": "center"}` to
+  {func}`crevice.analyze_trajectory` to match.
+
+:::{admonition} Interpreting results
+:class: crevice-interpret
+
+The mean interval assumes your sampling is stationary and representative and
+that the blocks are long enough to capture the time correlation; CREVICE can't
+check either for you. Short or strongly correlated runs often get no interval,
+and the interval never includes force-field error, unsampled states, grid
+error or a wrong channel choice. Molecules must be whole before fitting, and
+the default CA fit is a convenience, not a claim about a rigid core. Frames
+rescued with their own probe pool with the rest, but their mouths can sit
+slightly differently. Contact networks and correlated motion are associations,
+not pathways. The detailed method is in
+[Trajectory profiles and residue evidence](../TRAJECTORY_RESIDUE_METHODS.md).
+:::
+
+The [NMR ensemble tutorial](../examples/trajectory-nmr-ensemble.md) runs all
+of this on a small public example.

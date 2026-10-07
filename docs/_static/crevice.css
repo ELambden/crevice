@@ -1,3 +1,262 @@
+/* CREVICE documentation theme on top of Furo.
+ * Palette: the cast colours CREVICE uses in its own figures and scenes.
+ *   teal lumen #1494a1, yellow entry #f0d43a, rust exit #c2410c,
+ *   violet non-channel #a855f7.
+ * Text-coloured accents use darker (light mode) or lighter (dark mode) tints
+ * so that they keep at least 4.5:1 contrast with the page background.
+ */
+
+:root {
+  --crevice-teal: #1494a1;
+  --crevice-yellow: #f0d43a;
+  --crevice-rust: #c2410c;
+  --crevice-violet: #a855f7;
+  --crevice-accent-text: #0b6e78;
+  --crevice-rust-text: #b03a0b;
+  --crevice-tint: #eef8f7;
+  --crevice-tint-strong: #d9efec;
+  --crevice-warm-tint: #fdf8e1;
+  --crevice-card-border: #d5e6e4;
+  --crevice-card-shadow: 0 1px 2px rgba(15, 52, 58, 0.06), 0 4px 14px rgba(15, 52, 58, 0.07);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not([data-theme="light"]) {
+    --crevice-accent-text: #5cc8d3;
+    --crevice-rust-text: #f08a5d;
+    --crevice-tint: #142a2c;
+    --crevice-tint-strong: #1b3a3d;
+    --crevice-warm-tint: #2b2712;
+    --crevice-card-border: #2a4447;
+    --crevice-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.25);
+  }
+}
+
+body[data-theme="dark"] {
+  --crevice-accent-text: #5cc8d3;
+  --crevice-rust-text: #f08a5d;
+  --crevice-tint: #142a2c;
+  --crevice-tint-strong: #1b3a3d;
+  --crevice-warm-tint: #2b2712;
+  --crevice-card-border: #2a4447;
+  --crevice-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+/* -- Headings ------------------------------------------------------------- */
+
+.content h1 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding-bottom: 0.35em;
+  background-image: linear-gradient(90deg, var(--crevice-yellow) 0 12%, var(--crevice-teal) 12% 82%, var(--crevice-rust) 82% 100%);
+  background-size: 7rem 4px;
+  background-repeat: no-repeat;
+  background-position: left bottom;
+}
+
+.content h2 {
+  font-weight: 650;
+  margin-top: 2.2rem;
+}
+
+.content h3 {
+  font-weight: 600;
+}
+
+/* -- Landing page hero ------------------------------------------------------ */
+
+.content div.crevice-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.75rem;
+  align-items: center;
+  margin: 1rem 0 2rem;
+  padding: 1.5rem !important;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--crevice-tint) 0%, var(--crevice-warm-tint) 100%);
+  border: 1px solid var(--crevice-card-border);
+}
+
+.crevice-hero > .container:first-child > p:first-child {
+  font-size: 1.15rem;
+  line-height: 1.55;
+  margin-top: 0;
+}
+
+.crevice-hero img {
+  width: 100%;
+  height: auto;
+  border-radius: 10px;
+  box-shadow: var(--crevice-card-shadow);
+  background: #ffffff;
+}
+
+.crevice-hero .highlight {
+  margin-bottom: 0;
+}
+
+@media (max-width: 52em) {
+  .content div.crevice-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem !important;
+  }
+}
+
+/* -- Card grids (landing page, tutorials, tool guide) ---------------------- */
+
+.crevice-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 1rem 0 1.75rem;
+}
+
+.content div.crevice-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--crevice-card-border);
+  border-top: 4px solid var(--crevice-teal);
+  border-radius: 12px;
+  padding: 0.9rem 1rem 0.6rem !important;
+  background: var(--color-background-primary);
+  box-shadow: var(--crevice-card-shadow);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.crevice-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(15, 52, 58, 0.08), 0 10px 24px rgba(15, 52, 58, 0.12);
+}
+
+.content div.crevice-card.crevice-entry { border-top-color: var(--crevice-yellow); }
+.content div.crevice-card.crevice-exit { border-top-color: var(--crevice-rust); }
+.content div.crevice-card.crevice-violet { border-top-color: var(--crevice-violet); }
+
+.crevice-card p {
+  margin: 0 0 0.45rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.crevice-card p:first-child img {
+  display: block;
+  width: 100%;
+  height: 8.5rem;
+  object-fit: contain;
+  background: #ffffff;
+  border-radius: 8px;
+  margin-bottom: 0.3rem;
+}
+
+.crevice-card strong a,
+.crevice-card a.reference:first-of-type {
+  font-weight: 650;
+}
+
+/* The first link of a card makes the whole card clickable. */
+.crevice-card strong a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+
+.crevice-card a:focus-visible {
+  outline: 2px solid var(--crevice-accent-text);
+  outline-offset: 2px;
+}
+
+/* -- Admonitions ------------------------------------------------------------ */
+
+.admonition.crevice-interpret {
+  border-left-color: var(--crevice-yellow);
+  background: var(--crevice-warm-tint);
+}
+
+.admonition.crevice-interpret > .admonition-title {
+  background: transparent;
+  font-weight: 650;
+}
+
+.admonition.crevice-interpret > .admonition-title::before {
+  background-color: #b08d00;
+}
+
+/* -- Tables ------------------------------------------------------------------ */
+
+.content table.docutils {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--crevice-card-border);
+  box-shadow: none;
+}
+
+.content table.docutils th {
+  background: var(--crevice-tint-strong);
+  border-color: var(--crevice-card-border);
+}
+
+.content table.docutils td {
+  border-color: var(--crevice-card-border);
+}
+
+/* API summaries: the linked name, then its one-line summary. */
+table.autosummary {
+  width: 100%;
+}
+
+table.autosummary td:first-child {
+  white-space: nowrap;
+  width: 1%;
+  padding-right: 1.25rem;
+}
+
+table.autosummary td:first-child code {
+  font-weight: 600;
+}
+
+/* Command-line tables */
+table.crevice-cli-table {
+  width: 100%;
+}
+
+table.crevice-cli-table td:first-child code {
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--crevice-accent-text);
+  background: transparent;
+  border: 0;
+}
+
+table.crevice-cli-options td:nth-child(2) {
+  white-space: nowrap;
+  color: var(--color-foreground-secondary);
+  font-size: 0.88em;
+}
+
+.crevice-cli-usage pre {
+  border-left: 4px solid var(--crevice-teal);
+}
+
+p.crevice-cli-shared,
+p.crevice-cli-users {
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  background: var(--crevice-tint);
+}
+
+/* -- Figures ----------------------------------------------------------------- */
+
+.content figure img,
+.content img.crevice-figure {
+  border-radius: 8px;
+}
+
 /* Repository paths outside docs/ rendered by docs/_ext/crevice_docs.py */
 .crevice-repo-path .crevice-path-label { font-size: 0.85em; opacity: 0.75; }
 .crevice-repo-path code { font-size: 0.8em; }
+
+table.crevice-cli-table td code {
+  white-space: nowrap;
+}

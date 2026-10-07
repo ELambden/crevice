@@ -1,5 +1,8 @@
 # Outputs and unresolved results
 
+This page explains what CREVICE writes, how to read the tables, and what it
+means when an analysis comes back unresolved.
+
 ## What a run writes
 
 The low-level commands (`profile`, `residues`, `cavities`, `tunnels`, `network`,
@@ -100,7 +103,7 @@ requested cavity, tunnel and network analyses still run.
 `<prefix>_profile_status.json` and the manifest's `profile_status` and
 `fallback_analyses` entries record what was completed, what was skipped on
 request and what could not be completed. See
-[`publish`](../tools/publish.md#when-no-through-profile-resolves).
+[`publish`](../tools/publish.md#when-no-channel-resolves).
 
 ## Figure and scene text (`--annotate`)
 
@@ -137,7 +140,7 @@ Channel-mouth guides are also off by default: viewer scenes draw no mouth rings
 and radius plots no orange mouth bands or lines. `--mouth-guides` (Python:
 {func}`crevice.presentation.display_guides` with `mouth_guides=True`, or
 `mouth_guides=True` on {func}`crevice.volume_export.write_volume_viewer_bundle`)
-draws them. With `--lateral-exits`, exit legs are drawn as casts;
+draws them. With `--lateral-exits`, exit legs are drawn as EXIT segment casts;
 `--exit-centre-lines` adds their thin centre-line tubes. Mouth positions and
 leg centre lines are always written to the JSON outputs.
 
@@ -151,6 +154,16 @@ vision deficiency, from the channel teal and profile blue, the exit-leg green
 (`#009e73`), the orange member-water and interval colours and both ends of the
 red-to-blue hydration scale.
 
+A resolved channel cast is split into separate objects (see
+{doc}`publish <../tools/publish>`, "Cast segments"): `crevice_entry_N` yellow
+(`#f0d43a`), `crevice_lumen` teal and `crevice_exit_N` rust (`#c2410c`), each
+recolourable and hideable on its own. "Entry" and "exit" are geometric labels,
+not a transport direction. Residues lining each segment (atom centre within
+3.3 Å of the segment's grid points, `--lining-cutoff`) are written to
+`*_lining_residues.csv`, flagged in the residue and network tables
+(`lumen_lining`, `lining_segments`) and included in the scenes as stick objects
+`crevice_<segment>_lining` that are hidden until switched on.
+
 The colours and representations of every figure and scene are listed in the
 {doc}`tool pages <../tools/index>` and in the API documentation of each writer.
 
@@ -162,11 +175,11 @@ together, because scripts refer to companion meshes, maps, PDB files and
 identity sidecars by relative path. `crevice_render` (PyMOL/VMD) and `*_render.cxc`
 (ChimeraX) make high-resolution images.
 
-A generated script has **not** been checked in a viewer just because CREVICE
-wrote it. Open it in the viewer and inspect the result before relying on it.
-The source repository's `scripts/check_pymol.py`, `check_vmd.py` and
-`check_chimerax.py` helpers run a scene headlessly and check its coordinates,
-colours and surfaces (see [Contributing](../development/contributing.md)).
+Always open a scene and have a look before you use it in a figure: a script
+that CREVICE wrote has not been checked in the viewer on your machine. The
+source repository also has `scripts/check_pymol.py`, `check_vmd.py` and
+`check_chimerax.py`, which run a scene headlessly and check its coordinates,
+colours and surfaces.
 
 ## Measured maps versus display surfaces
 

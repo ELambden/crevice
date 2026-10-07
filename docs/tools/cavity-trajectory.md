@@ -1,112 +1,26 @@
-# `cavity-trajectory`: all-frame cavity statistics
+# Cavities over a trajectory
 
-## Scientific question
+`crevice cavity-trajectory` follows a cavity through every frame of a
+simulation. It tells you how the cavity's volume and widths change, which
+residues form its wall and how often, and how precisely the averages are
+known. It works on pockets and one-sided cavities, so the cavity doesn't need
+to run right through the protein.
 
-How do a cavity's volume, cross-sectional widths and boundary residues change
-over an aligned MD trajectory? How precisely are their means known? The command
-works on one-sided pockets and cavities and does **not** need a through-channel.
+## Quick start
 
-## Method
+You need a reference: a measured cast map of the cavity in the coordinates of
+the first frame, for example from [`cast`](cast.md) run on that frame, or from
+a prepared [named region](regions.md).
 
-The reference is a measured binary cavity map (`--reference-volume-dx`) in the
-**first frame's** coordinates, for example from [`cast`](cast.md) or a prepared
-[region](regions.md). Each frame is aligned to the first with matching CA atoms.
-Two geometric observables are available:
-
-- `--geometry-mode rolling` (default) recomputes global rolling-probe
-  components on a fixed reference lattice in every frame. The component that
-  best matches the reference is chosen by an overlap score. A match needs a
-  score ≥ `--minimum-overlap` (0.1). The frame is **ambiguous** when a second
-  candidate scores ≥ `--ambiguity-ratio` (0.8) times the best. An absent or
-  ambiguous match is recorded as missing, never as zero volume.
-- `--geometry-mode reference-region` measures a declared local region. It keeps
-  every probe-centre component that touches the reference, within
-  `--region-margin` (2 Å) of the occupied reference samples, and clips the
-  result to that domain. A zero means no free space was measured in that region.
-  It does not show that transport is closed.
-
-For each frame, CREVICE records the volume, area-equivalent and local atom-clear
-sphere widths along a fixed axis, per-residue boundary area (nearest-VDW
-attribution within `--lining-distance` 1.5 Å, excluding crop faces), nonlocal
-partners, and all physical contact pairs. Scalar series get mean, SD, empirical
-frame range and, when estimable, approximate batch-bootstrap mean intervals.
-
-`--water-membership` also counts, in every frame, the water oxygens inside the
-region measured in that frame, paired with the fixed-reference count. It is
-computed inside the geometry worker because the per-frame grid is not saved.
-See [instantaneous-cavity membership](hydration.md#fixed-reference-counts-and-instantaneous-cavity-membership).
-
-`--obstacle-selection` keeps chosen non-protein atoms (for example lipids) as
-walls in `reference-region` mode, with periodic images enumerated. See
-[Physical obstacles and numerical sensitivity](../CAVITY_OBSTACLES.md).
-
-## Assumptions
-
-- The reference map is binary, not a smoothed display map, and is in frame-0
-  coordinates.
-- Geometry uses protein heavy atoms unless `--obstacle-selection` is given.
-  Leaving out membrane and ligands can open space that is physically blocked.
-- The lattice basis, origin and phase are fixed after alignment. Changing
-  `--spacing`, `--axis` or `--grid-phase` resamples the geometry.
-- Mean intervals assume representative, stationary sampling.
-
-## Key parameters and units
-
-| Option | Default | Unit |
-|---|---:|---|
-| `--geometry-mode` | `rolling` | `rolling` or `reference-region` |
-| `--spacing` | from the reference map | Å |
-| `--probe-radius` | 0.8 | Å |
-| `--outer-radius` | 6.0 | Å |
-| `--region-margin` | 2.0 | Å (reference-region only) |
-| `--axis` | third direction of the map | `x,y,z` |
-| `--contact-cutoff` | 4.5 | Å |
-| `--max-frames` | 500 | frames (a guard, not a stride) |
-| `--workers` | 1 | processes |
-| `--water-membership` | off | adds instantaneous-cavity water counts |
-| `--radii` | standard table | radius set: `bondi`, `hole`, `charmm_like` or a JSON/CSV/HOLE `.rad` file ([Atomic radii](../methods/atomic-radii.md)) |
-
-## Outputs
-
-CSV tables: `*_cavity_frames.csv` (one row per frame: `time_ps`,
-`volume_A3`, `alignment_rmsd_A`, matching scores, axial extent),
-`*_cavity_section_frames.csv` (per frame and axis position: section areas
-`_A2`, diameters `_A`, component count), `*_cavity_residue_frames.csv` (per
-frame and boundary residue: `boundary_area_A2`, fractions, partner flag),
-`*_cavity_width_profile.csv`, `*_cavity_section_statistics.csv`,
-`*_cavity_free_sphere_statistics.csv`, `*_cavity_residues.csv`,
-`*_cavity_contacts.csv`, `*_cavity_partner_statistics.csv`,
-`*_cavity_contact_statistics.csv` and `*_cavity_statistics_summary.csv` (every
-interval statistic of `*_cavity_statistics.json` on one row: the volume, each
-residue's boundary area, fraction and lining occupancy, each contact's
-occupancy, and the volume correlations; columns as in
-{func}`crevice.io.summary_statistics_rows`). The same arrays are in
-`*_cavity_frames.npz`; `*_cavity_statistics.json` and
-`*_cavity_profile_statistics.json` are the structured reports read by
-`hydration --cavity-results` and `region-compare`, and
-`*_cavity_frame_diagnostics.json` keeps the full per-frame alignment and
-matching provenance. Figures: shaded width profiles, time–position and residue-area heatmaps, and
-partner and motion summaries. In the width profiles a violet band (`#a855f7`, the
-non-channel cast colour) is the observed 2.5–97.5% frame range, the violet line
-the mean and an orange band the
-pointwise mean interval (legends name them); heatmaps use `viridis` (width) and
-`cividis` (boundary area) with labelled colour bars, grey = unresolved. Frame
-counts, interval status and interpretation reminders are drawn as titles only
-with `--annotate`; they are always in the PNG metadata. Standard hydration outputs are appended unless
-`--skip-hydration`. With `--water-membership`, the
-`PREFIX_water_membership.{json,png}`, `_frames.{csv,npz}`, `_axial.csv`,
-`_summary.csv` and `_strata.csv` files
-are added; without it no membership file is written and the other outputs are
-unchanged. The statistics JSON can later be reused by
-[`hydration --cavity-results`](hydration.md) and
-[`region-compare`](regions.md).
-
-## Python equivalent
+```bash
+crevice cavity-trajectory system.gro run.xtc \
+    --reference-volume-dx reference_volume.dx --out-dir cavity --workers 4
+```
 
 ```python
 from crevice import load_trajectory
 from crevice.cavity_trajectory import (CavityReference, analyze_cavity_trajectory,
-                                     write_cavity_trajectory_bundle)
+                                       write_cavity_trajectory_bundle)
 
 traj = load_trajectory("system.gro", "run.xtc",
                        selection="protein and not name H*", stop=5)
@@ -114,48 +28,85 @@ reference = CavityReference.from_dx("reference_volume.dx")
 analysis = analyze_cavity_trajectory(traj, reference)
 ```
 
-Instantaneous-cavity membership is requested with
-`analyze_cavity_trajectory(..., waters=WaterSource(...))` and written with
-{func}`crevice.water_membership.write_water_membership_bundle`; the CLI flag
-assembles the `WaterSource` from the same topology, trajectory and frame range.
+In Python the geometry settings go in one dictionary (`geometry=`), unlike the
+keyword arguments of the static functions.
 
-This workflow is reached through {mod}`crevice.cavity_trajectory`. Its geometry
-settings are passed as a dictionary (`geometry=`), unlike the keyword arguments
-used by the static functions. See [CLI or Python?](../getting-started/cli-vs-python.md).
+## How it works
 
-## Testing and validation status
+Each frame is aligned to the first on matching CA atoms, and the cavity is
+measured on a lattice fixed to the reference. There are two ways to measure
+it:
 
-- **Software / synthetic:** matching and ambiguity rules, reference-region
-  clipping, crop-face exclusion, periodic obstacle imaging and statistical
-  suppression rules are covered by tests. Instantaneous-cavity membership has
-  its own synthetic controls (`tests/test_water_membership.py`).
-- **Real-input use:** the workflow has been run on an all-atom membrane-protein
-  MD trajectory, where the regional volume depended on every geometric setting
-  (region margin, probe, grid spacing and phase). Check sensitivity on your own
-  system ([how](../CAVITY_OBSTACLES.md#checking-numerical-sensitivity)).
-- **Native viewer check:** scenes of this kind were opened and checked in
-  PyMOL, VMD and ChimeraX for representative cases during development. A newly
-  generated scene is not checked automatically; inspect it in the viewer.
-- **Biological / functional:** not established. A reference pocket is an
-  anatomical **candidate** until it is curated, and one simulation is not a
-  replica set.
+- **`--geometry-mode rolling`** (the default) casts the whole protein in each
+  frame and picks the region that best overlaps the reference. A match needs
+  an overlap score of at least `--minimum-overlap` (0.1), and a frame is
+  *ambiguous* if a second region scores at least `--ambiguity-ratio` (0.8)
+  times the best. Missing or ambiguous matches are recorded as missing, never
+  as zero volume.
+- **`--geometry-mode reference-region`** measures a fixed local region: every
+  bit of free space that touches the reference, within `--region-margin`
+  (2 Å) of it. Here a zero means no free space was found in that region.
 
-Method note: [Cavity trajectories: measurement and interpretation](../CAVITY_TRAJECTORY_METHODS.md).
+In every frame CREVICE records the volume, the widths along a fixed axis, each
+wall residue's share of the boundary (as in
+[boundary residues](residue-evidence.md)), the partner residues and all residue
+contacts. Each series gets a mean, spread, frame range and, where it can be
+estimated, an approximate interval for the mean.
 
-## Known limitations
+Two options are worth knowing about:
 
-- Split, merge and expansion events can break the match in rolling mode.
-- Default volumes are not converged with respect to grid spacing, and domain
-  and probe choices change what is measured.
-- Independent replicas, anatomical review and finer convergence are still
-  needed.
-- `--obstacle-selection` works only in `reference-region` mode.
+- **`--water-membership`** also counts the waters inside the cavity as
+  measured in each frame, next to the fixed-reference count; see
+  [water in the cavity](hydration.md#water-in-the-cavity-two-ways-to-count).
+- **`--obstacle-selection`** keeps chosen non-protein atoms, such as lipids,
+  as walls (reference-region mode only), including their periodic images; see
+  [Physical obstacles and numerical sensitivity](../CAVITY_OBSTACLES.md).
 
-## Command-line options
+## Options you'll use most
 
-```{argparse}
-:module: crevice.cli
-:func: build_parser
-:prog: crevice
-:path: cavity-trajectory
-```
+| Option | Default | What it does |
+|---|---|---|
+| `--reference-volume-dx` | required | the measured reference map, in frame-0 coordinates |
+| `--geometry-mode` | `rolling` | `rolling` or `reference-region` |
+| `--spacing` | from the reference | grid spacing in Å |
+| `--probe-radius`, `--outer-radius` | 0.8, 6.0 Å | the cast probes |
+| `--region-margin` | 2.0 Å | how far around the reference to look (reference-region) |
+| `--axis` | from the map | the axis for widths, `x,y,z` |
+| `--max-frames`, `--workers` | 500, 1 | frame guard and parallel processes |
+| `--water-membership` | off | count waters inside the cavity in each frame |
+
+Everything is listed under
+[`crevice cavity-trajectory`](../reference/cli/cavity-trajectory.md).
+
+## What you get
+
+- **Per frame**: `*_cavity_frames.csv` (time, volume, alignment RMSD, match
+  scores, axial extent), `*_cavity_section_frames.csv` (widths along the
+  axis) and `*_cavity_residue_frames.csv` (each wall residue's area).
+- **Summaries**: width profiles, section and free-sphere statistics, residue,
+  partner and contact tables, and `*_cavity_statistics_summary.csv`, which puts
+  every summary statistic on its own row.
+- **`*_cavity_statistics.json`**: the structured report, which
+  [`hydration --cavity-results`](hydration.md) and
+  [`region-compare`](regions.md) read later.
+- **Figures**: width profiles (a violet band for the frame range, a violet
+  line for the mean and an orange band for the mean interval),
+  time-by-position and residue-area heatmaps (unresolved frames in grey), and
+  partner and motion summaries.
+- Standard hydration outputs unless `--skip-hydration`, and the water
+  membership files with `--water-membership`.
+
+:::{admonition} Interpreting results
+:class: crevice-interpret
+
+Cavity volumes over a trajectory depend on every geometric choice: in our own
+membrane-protein run the regional volume changed with the margin, probe, grid
+spacing and grid phase, so check sensitivity on your system
+([how](../CAVITY_OBSTACLES.md#checking-numerical-sensitivity)). Leaving out
+membrane and ligands can open space that is really blocked. In rolling mode,
+cavities that split, merge or grow can break the match. Mean intervals assume
+stationary, representative sampling, and one simulation is not a replica set.
+A reference pocket is a candidate until it has been reviewed, and a zero
+volume in a region doesn't show that transport is closed. The method is
+described in [Cavity trajectories](../CAVITY_TRAJECTORY_METHODS.md).
+:::

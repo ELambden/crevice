@@ -1,4 +1,4 @@
-"""HOLE-like channel radius profiles.
+"""Channel radius profiles along a connected, laterally enclosed path.
 
 A channel profile answers: along a pore, how large a sphere fits between the
 atoms at each position? CREVICE samples points along the channel and records,
@@ -196,7 +196,7 @@ def pore_profile(frame: StructureFrame, *, radii: RadiusSet | str | None = None,
 
 @radii_option
 def trace_centerline(frame: StructureFrame, *, radii: RadiusSet | str | None = None, **kwargs) -> tuple[Coord, ...]:
-    """Return the channel centre-line positions found by :func:`pore_profile`.
+    """Return the channel centre-line positions found by :func:`~crevice.channels.pore_profile`.
 
     Parameters
     ----------

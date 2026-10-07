@@ -1,7 +1,7 @@
 # Method notes
 
 These notes give the detailed definitions, algorithms, parameters, units,
-assumptions and limitations behind the [tool guide](../tools/index.md).
+assumptions and limitations behind the [analysis tools](../tools/index.md).
 
 | Note | Covers |
 |---|---|
