@@ -11,7 +11,7 @@ excerpt; this page is not executed when the documentation is built.
 
 ## Download the excerpt
 
-The full simulation is 1001 frames over 100 ns (465 MB). The example uses
+The full simulation is 1001 frames over 100 ns. The example uses
 every 50th frame, 21 frames 5 ns apart, with the protein, lipids, water and
 ions (about 12 MB to download):
 
@@ -32,8 +32,7 @@ The output (paths shortened):
 example directory=~/.cache/crevice/examples/glut1-excerpt
 ```
 
-Every file is checked against a SHA-256 hash before it is used, and a second
-call reuses the verified copies. `--cache-dir` puts the files somewhere else,
+`--cache-dir` puts the files somewhere else,
 and `--source-dir DIR` copies them from a local folder instead of the network.
 The same thing from Python:
 
@@ -70,11 +69,7 @@ segment_ids	['SYSTEM']
 ```
 
 The topology uses CHARMM names (`TIP3` water, `SOD`/`CLA` ions, DOPC, DOPE,
-DOPS and cholesterol lipids) and has no element column or chain IDs, which is
-typical of a GROMACS run. Residues are therefore written as `SYSTEM:GLN282`
-and so on. The full simulation also contains 29 Tris molecules (`TRI`,
-551 atoms); they are left out of the excerpt. The simulation protocol
-(CHARMM36, 310 K, 150 mM NaCl, GROMACS 2021.5) is in
+DOPS and cholesterol lipids). The simulation protocol is in
 `glut1_excerpt_README.md`.
 
 ## The region
@@ -206,17 +201,3 @@ waters (bottom) in each frame.
 The site holds roughly 18 to 25 waters throughout, and the count tends to
 rise and fall with the volume (`glut1_site_candidate_water_membership_summary.csv`
 reports a correlation of 0.65 over these 21 frames).
-
-## Interpreting results
-
-These are observations of one candidate region, chosen from literature
-landmarks, in one simulation of a mutant; they are not a validated
-measurement of the GLUT1 binding site, and the region boundary is an analysis
-choice. With 21 frames 5 ns apart the summary intervals are marked
-`insufficient_independent_blocks`, so treat the means as descriptive. The
-excerpt's per-frame volumes and member-water counts are the same as those of
-the full 1001-frame run at the same frames; quantities pooled over the run
-(for example which residues count as lining the region) depend on which
-frames were analysed. Because the excerpt omits the Tris molecules, a few
-per-residue solvent-accessible areas of surface residues that Tris touched
-differ slightly from the full simulation.
