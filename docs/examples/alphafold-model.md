@@ -3,8 +3,7 @@
 CREVICE accepts AlphaFold DB identifiers wherever it accepts a structure.
 This example fetches the AlphaFold model of *E. coli* lactose permease (LacY,
 UniProt P02920) and fills its interior with the default rolling-probe cast.
-It takes under a minute, but it needs network access to `alphafold.ebi.ac.uk`,
-so, like every tutorial, it isn't run when the documentation is built.
+It takes under a minute, but it needs network access to `alphafold.ebi.ac.uk`.
 
 ```bash
 crevice fetch AF-P02920-F1 --format pdb --cache-dir .crevice/pdb
