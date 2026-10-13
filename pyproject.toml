@@ -81,7 +81,7 @@ test = [
 [project.urls]
 Homepage = "https://github.com/ELambden/crevice"
 Source = "https://github.com/ELambden/crevice"
-Documentation = "https://github.com/ELambden/crevice/tree/main/docs"
+Documentation = "https://crevice.readthedocs.io"
 Issues = "https://github.com/ELambden/crevice/issues"
 Changelog = "https://github.com/ELambden/crevice/blob/main/CHANGELOG.md"
 

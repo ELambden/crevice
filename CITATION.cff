@@ -7,11 +7,23 @@ abstract: >-
   residue-interaction analysis in static structures and molecular dynamics
   trajectories.
 type: software
-version: 0.1.1
-date-released: "2026-10-07"
+version: 0.1.2
+date-released: "2026-10-13"
 license: MIT
+# Concept DOI: always resolves to the latest archived version on Zenodo.
+doi: 10.5281/zenodo.23215587
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.23215587
+    description: "Concept DOI for all versions of CREVICE (Zenodo)"
+  - type: doi
+    value: 10.5281/zenodo.23222597
+    description: "Version DOI for CREVICE 0.1.1 (Zenodo)"
+  - type: url
+    value: "https://crevice.readthedocs.io"
+    description: "Documentation"
 repository-code: "https://github.com/ELambden/crevice"
-url: "https://github.com/ELambden/crevice"
+url: "https://crevice.readthedocs.io"
 authors:
   - given-names: Edward
     family-names: Lambden

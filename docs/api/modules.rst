@@ -47,6 +47,7 @@ CLI on import) is deliberately excluded.
    crevice.parser
    crevice.pdb
    crevice.presentation
+   crevice.progress
    crevice.radii
    crevice.region_comparison
    crevice.region_definition

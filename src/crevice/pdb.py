@@ -55,7 +55,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
@@ -912,8 +912,45 @@ def _download(url: str, accession: str, *, timeout: float, max_bytes: int) -> by
                     )
                 chunks.append(chunk)
     except (URLError, OSError) as exc:
-        raise RuntimeError(f"Could not fetch {accession} from {url}: {exc}") from exc
+        raise RuntimeError(download_error_message(accession, url, exc)) from exc
     return b"".join(chunks)
+
+
+def download_error_message(what: str, url: str, exc: BaseException) -> str:
+    """Explain a failed structure download in one line, with the likely cause.
+
+    Parameters
+    ----------
+    what : str
+        The identifier that was requested, such as ``1GRM`` or ``AF-P02920-F1``.
+    url : str
+        The URL that failed.
+    exc : BaseException
+        The error raised by :func:`urllib.request.urlopen` or while reading.
+
+    Returns
+    -------
+    str
+        ``Could not fetch WHAT from URL: CAUSE; ADVICE``. An HTTP 404 asks the
+        user to check the identifier (and ``--format``/``--assembly`` for
+        RCSB); a network failure suggests a local file or ``--offline`` with
+        a cached copy.
+    """
+    alphafold = "alphafold" in (urlsplit(url).hostname or "")
+    if isinstance(exc, HTTPError):
+        if exc.code == 404:
+            if alphafold:
+                advice = ("AlphaFold DB has no such model; check the UniProt accession and fragment "
+                          "(for example AF-P02920-F1)")
+            else:
+                advice = ("RCSB has no such file; check the identifier, and that the entry offers this "
+                          "--format (large structures have no PDB-format file) and --assembly")
+            return f"Could not fetch {what} from {url}: HTTP 404 Not Found. {advice}"
+        return (f"Could not fetch {what} from {url}: HTTP {exc.code} {exc.reason}. The server refused or "
+                "failed the request; try again later, or pass a local structure file")
+    reason = exc.reason if isinstance(exc, URLError) else exc
+    return (f"Could not fetch {what} from {url}: {reason}. Check the network connection; when offline, pass "
+            "a local structure file, or use --offline with a copy already in --cache-dir")
 
 
 def validate_payload(payload: bytes, fmt: str, accession: str, url: str) -> str:

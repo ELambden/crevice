@@ -6,9 +6,14 @@ Thank you for using CREVICE! A paper describing it is in preparation:
 > Visualisation of Protein Cavities, Channels, and Residue Interaction
 > Networks.* In preparation.
 
-Until it is published, please cite the software itself using
-[CITATION.cff](../../CITATION.cff) (GitHub shows it as "Cite this
-repository"), and say which CREVICE version you used. CREVICE's results depend
+Until it is published, please cite the software itself. Every released
+version is archived on Zenodo under the concept DOI
+[10.5281/zenodo.23215587](https://doi.org/10.5281/zenodo.23215587), which covers all
+versions and always resolves to the latest one; the Zenodo page also lists a
+DOI for each individual version, which you can cite to pin the exact release
+you used. The same metadata is in [CITATION.cff](../../CITATION.cff) (GitHub
+shows it as "Cite this repository"). Please say which CREVICE version you
+used. CREVICE's results depend
 on grid spacing, probe radii and atom selection, so please report the commands
 and settings too; every run records them in its manifest.
 

@@ -58,7 +58,7 @@ def sectional_statistics(values, positions, **options):
 
 @annotate_option
 def write_additional_cavity_reports(report,arrays,output_dir,*,prefix='crevice',confidence=.95,
-                                   block_length=None,replicates=2000,seed=20260913,dpi=240,annotate=None):
+                                   block_length=None,replicates=2000,seed=20260913,dpi=200,annotate=None):
     """Write sectional-width, free-sphere, dynamic-partner and residue-heatmap reports.
 
     Everything is computed from the saved all-frame arrays of a cavity
@@ -89,8 +89,8 @@ def write_additional_cavity_reports(report,arrays,output_dir,*,prefix='crevice',
         Bootstrap replicates.
     seed : int, default 20260913
         Bootstrap random seed.
-    dpi : int, default 240
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw panel titles, figure titles, the "mean intervals unavailable" note
         and the second line of the motion-correlation axis label. ``None``

@@ -164,7 +164,7 @@ class ResidueDynamics:
 
 
 @annotate_option
-def write_dynamics_summary(report,prefix,*,dpi=300,annotate=None):
+def write_dynamics_summary(report,prefix,*,dpi=200,annotate=None):
     """Write the persistent lining-partner contact table and figure.
 
     ``report`` (the ``residue_dynamics`` result of
@@ -182,8 +182,8 @@ def write_dynamics_summary(report,prefix,*,dpi=300,annotate=None):
         Residue-dynamics report with a ``contacts`` list.
     prefix : str or Path
         Output path stem; ``_contacts.csv``, ``_residues.csv`` and ``_partners.png`` are appended.
-    dpi : int, default 300
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw the figure title and the second line of the correlation axis label.
         ``None`` (default) inherits the surrounding setting.

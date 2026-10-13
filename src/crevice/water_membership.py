@@ -726,7 +726,7 @@ def summarize_water_membership(analysis, *, confidence=.95, block_length=None, r
 
 @annotate_option
 def write_water_membership_bundle(analysis, output_dir, *, prefix='crevice', confidence=.95, block_length=None,
-                                  replicates=2000, seed=20260925, dpi=240, axial_bin_A=1., hydration_region_counts=None,
+                                  replicates=2000, seed=20260925, dpi=200, axial_bin_A=1., hydration_region_counts=None,
                                   annotate=None):
     """Write instantaneous-cavity water-membership statistics, tables and a figure.
 
@@ -753,8 +753,8 @@ def write_water_membership_bundle(analysis, output_dir, *, prefix='crevice', con
         Bootstrap replicates.
     seed : int, default 20260925
         Bootstrap random seed.
-    dpi : int, default 240
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     axial_bin_A : float, default 1.0
         Axial bin width (Å) of the axial table and figure panel.
     hydration_region_counts : array_like, optional

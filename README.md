@@ -1,5 +1,10 @@
 # CREVICE
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23215587.svg)](https://doi.org/10.5281/zenodo.23215587)
+[![PyPI](https://img.shields.io/pypi/v/crevice.svg)](https://pypi.org/project/crevice/)
+[![Documentation](https://readthedocs.org/projects/crevice/badge/?version=latest)](https://crevice.readthedocs.io)
+[![Tests](https://github.com/ELambden/crevice/actions/workflows/tests.yml/badge.svg)](https://github.com/ELambden/crevice/actions/workflows/tests.yml)
+
 **Cavity and Residue Environment Visualisation, Interaction and Connectivity
 Evaluation**
 
@@ -136,8 +141,8 @@ file, the input provenance and the parser that ran. Typical outputs are:
   and residue attribution is computed, and separate smoothed display maps and
   meshes (`--smooth X`, default 0.4 Å, changes the picture only);
 - figures (radius profiles, residue contacts with a contact-role legend,
-  network summaries and chords, trajectory distributions; 400 dpi in
-  publication bundles), clean by default (`--annotate` adds titles and labels);
+  network summaries and chords, trajectory distributions; 200 dpi by default,
+  `--dpi 400` for print), clean by default (`--annotate` adds titles and labels);
 - PyMOL (`.pml`), VMD (`.vmd`/`.tcl`) and ChimeraX (`.cxc`) scenes that share
   one viewer PDB, with `crevice_render` / `*_render.cxc` for high-resolution
   images. Keep the whole output directory together. No HTML is written.
@@ -175,8 +180,8 @@ outputs, testing status and known limitations.
 ## Documentation
 
 The full documentation (installation, quick start, one page per tool, method
-notes, CLI and Python API reference) is built from [`docs/`](docs/index.md).
-To build it locally:
+notes, CLI and Python API reference) is at <https://crevice.readthedocs.io>.
+Its sources are in [`docs/`](docs/index.md); to build them locally:
 
 ```bash
 python -m pip install . -r docs/requirements.txt

@@ -204,7 +204,7 @@ def lining_connectivity(network: ResidueInteractionNetwork, *,
 @annotate_option
 def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
                              lining_residues=None, max_hops: int = 3, max_nodes: int = 50,
-                             dpi: int = 400, annotate: bool | None = None):
+                             dpi: int = 200, annotate: bool | None = None):
     """Draw residues in columns by contact-graph distance from the pore lining.
 
     :func:`lining_connectivity` computes, for every residue, the minimum number
@@ -226,8 +226,8 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
         Largest graph distance shown (columns 0..max_hops).
     max_nodes : int, default 50
         Maximum residues shown.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Also draw the title "Pore-lining connectivity (N residues shown)".
         ``None`` (default) inherits the surrounding setting.

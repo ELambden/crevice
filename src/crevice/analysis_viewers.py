@@ -264,7 +264,7 @@ def write_analysis_assets(analysis, report, output_dir, prefix):
 
 
 @annotate_option
-def write_analysis_views(output_dir,prefix,files,*,dpi=240,annotate=None):
+def write_analysis_views(output_dir,prefix,files,*,dpi=200,annotate=None):
     """Write the native viewer scripts, evidence table and overview figures for a scene definition.
 
     Calls :func:`crevice.analysis_scene_templates.write_scene_scripts` and
@@ -279,8 +279,8 @@ def write_analysis_views(output_dir,prefix,files,*,dpi=240,annotate=None):
         File-name prefix.
     files : dict of str to str
         Files written so far; used to find optional interaction and density records.
-    dpi : int, default 240
-        Resolution of the overview figures.
+    dpi : int, default 200
+        Resolution of the overview figures. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw the scene legend, captions and banners and the figure titles.
         ``None`` (default) inherits the surrounding setting, which is off unless

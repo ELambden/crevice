@@ -9,7 +9,7 @@ EDGE_COLORS={'hydrogen_bond':'#d49c1f','water_bridge_hbond':'#0da896','salt_brid
 
 
 @annotate_option
-def write_analysis_report(output_dir,prefix,files,*,dpi=240,annotate=None):
+def write_analysis_report(output_dir,prefix,files,*,dpi=200,annotate=None):
     """Write the coordinated evidence table and overview figures.
 
     Reads the scene definition, hydration report, per-frame hydration arrays
@@ -32,8 +32,8 @@ def write_analysis_report(output_dir,prefix,files,*,dpi=240,annotate=None):
         File-name prefix.
     files : dict of str to str
         Files written so far; used to find the optional inputs.
-    dpi : int, default 240
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw panel titles, the figure title and the colour-scale title in the
         PNGs. ``None`` (default) inherits the surrounding setting.

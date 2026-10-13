@@ -15,7 +15,7 @@ def hydration_dependencies():
 @radii_option
 @annotate_option
 def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None,volume_path=None,residue_ids=None,roles=None,
-                            cutoff=3.5,sasa_probe=1.4,sasa_samples=256,dpi=240,analysis_options=None,annotate=None,
+                            cutoff=3.5,sasa_probe=1.4,sasa_samples=256,dpi=200,analysis_options=None,annotate=None,
                             radii: RadiusSet | str | None = None):
     """Measure and write hydration for one structure (``crevice hydration`` without a trajectory).
 
@@ -51,8 +51,8 @@ def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None
         SASA probe radius (Å).
     sasa_samples : int, default 256
         Quadrature points per atom.
-    dpi : int, default 240
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     analysis_options : dict, optional
         Density spacing/smoothing/level and skip flags (see
         :func:`analysis_options_from_args`).

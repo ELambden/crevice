@@ -12,6 +12,47 @@ biological results.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-13
+
+### Changed
+
+- Default figure resolution is now 200 dpi for every command and Python
+  writer (it was 400 dpi for `profile`, `residues`, `cavities`, `network`,
+  `trajectory`, `publish`, `analyze` and `static-suite`, and 240-300 dpi
+  elsewhere): runs are quicker and files smaller. Use `--dpi 400` (Python
+  `dpi=400`) for print or publication figures. The PyMOL `cmd.png` call in
+  generated profile scripts records the same DPI as metadata only; the fixed
+  3200x2400 `crevice_render` helpers are unchanged. Measurements are unchanged.
+- Failed downloads now say what failed and why: `fetch-example` names the file,
+  its URL and, for HTTP 404, that the asset is probably not attached to the
+  GitHub release (suggesting `--base-url` or `--source-dir`); structure and
+  AlphaFold DB fetches ask you to check the identifier on HTTP 404 and suggest
+  a local file or `--offline` on network errors.
+- Errors print as one `crevice: error: ...` line (no longer quoted for unknown
+  example names), followed for common cases by a `crevice: hint: ...` line;
+  when no through-channel resolves, the hint suggests `--axis`/`--origin`,
+  `--lateral-exits`, `--enclosure-radius`, or `cast`/`cavities` for spaces
+  that are not channels. An unresolved `publish` or `trajectory` run prints the
+  same advice as a note on standard error. Ctrl-C exits with status 130.
+- The periodic `cavity frames completed=...` and `hydration frames
+  completed=...` lines on standard output are replaced by the progress
+  display below.
+
+### Added
+
+- Progress on standard error for long runs: the frames of `trajectory`,
+  `cavity-trajectory`, `region-trajectory` and `hydration --trajectory`, and
+  the automatic enclosure-probe ladder. It is shown only while standard error
+  is a terminal, never in files or pipes unless `CREVICE_PROGRESS=1` (plain
+  lines every 10%); `-q/--quiet` or `CREVICE_PROGRESS=0` turns it off. Built in
+  (`crevice.progress`), no new dependency; worker processes never print.
+- `--debug` (or `CREVICE_DEBUG=1`) on every command prints the full traceback
+  of an error.
+- Documentation, citation and package metadata point to
+  <https://crevice.readthedocs.io> and the Zenodo concept DOI
+  [10.5281/zenodo.23215587](https://doi.org/10.5281/zenodo.23215587); the
+  README has DOI, PyPI, documentation and test badges.
+
 ## [0.1.1] - 2026-10-07
 
 ### Added

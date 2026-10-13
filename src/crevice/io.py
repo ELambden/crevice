@@ -825,7 +825,7 @@ def export_pymol_script(
     output_png: str | Path | None = None,
     width: int = 2400,
     height: int = 1800,
-    dpi: int = 400,
+    dpi: int = 200,
 ) -> None:
     """Write a PyMOL script showing profile dummy atoms inside the protein.
 
@@ -849,8 +849,9 @@ def export_pymol_script(
         When given, the script ray-traces this PNG.
     width, height : int, default 2400, 1800
         Rendered image size in pixels.
-    dpi : int, default 400
-        DPI recorded in the rendered PNG.
+    dpi : int, default 200
+        DPI recorded in the rendered PNG (PyMOL metadata only; the pixel size is the
+        viewer window size).
 
     Outputs
     -------

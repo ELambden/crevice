@@ -144,7 +144,7 @@ def plot_profile_radius(
     profile: PoreProfile,
     path: str | Path,
     *,
-    dpi: int = 400,
+    dpi: int = 200,
     title: str | None = None,
     show_bottleneck: bool = True,
     annotate: bool | None = None,
@@ -169,8 +169,8 @@ def plot_profile_radius(
     path : str or Path
         Output image; parent directories are created. The suffix selects the
         format (PNG recommended; PNG, PDF and SVG carry the description metadata).
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title is
         drawn unless annotating, when "CREVICE pore radius profile" is used.
@@ -259,7 +259,7 @@ def plot_profile_radius_with_residues(
     profile: PoreProfile,
     path: str | Path,
     *,
-    dpi: int = 400,
+    dpi: int = 200,
     title: str | None = None,
     label_every: int = 5,
     max_labels: int = 28,
@@ -283,8 +283,8 @@ def plot_profile_radius_with_residues(
         A resolved channel profile with nearest-residue assignments.
     path : str or Path
         Output image; parent directories are created.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title is
         drawn unless annotating ("CREVICE pore radius profile with residue landmarks").
@@ -407,7 +407,7 @@ def plot_residue_contacts(
     path: str | Path,
     *,
     top_n: int = 20,
-    dpi: int = 400,
+    dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
 ) -> Path:
@@ -426,8 +426,8 @@ def plot_residue_contacts(
         Output image; parent directories are created.
     top_n : int, default 20
         Number of residues shown.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title unless
         annotating ("CREVICE residue contacts").
@@ -501,7 +501,7 @@ def plot_cavity_summary(
     path: str | Path,
     *,
     top_n: int = 10,
-    dpi: int = 400,
+    dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
 ) -> Path:
@@ -520,8 +520,8 @@ def plot_cavity_summary(
         Output image; parent directories are created.
     top_n : int, default 10
         Number of cavities shown.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title unless
         annotating ("CREVICE cavity summary").
@@ -577,7 +577,7 @@ def plot_network_summary(
     path: str | Path,
     *,
     top_n: int = 20,
-    dpi: int = 400,
+    dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
 ) -> Path:
@@ -604,8 +604,8 @@ def plot_network_summary(
         Output image; parent directories are created.
     top_n : int, default 20
         Number of residues shown.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title unless
         annotating ("CREVICE residue-interaction network").
@@ -693,7 +693,7 @@ def plot_network_chord(
     *,
     top_n: int = 24,
     max_edges: int = 90,
-    dpi: int = 400,
+    dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
 ) -> Path:
@@ -716,8 +716,8 @@ def plot_network_chord(
         Number of nodes placed on the circle.
     max_edges : int, default 90
         Maximum number of edges drawn.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title unless
         annotating ("CREVICE residue interaction chord diagram").
@@ -847,7 +847,7 @@ def plot_network_chord(
 
 @annotate_option
 def plot_trajectory_profiles(
-    trajectory, path, *, dpi=400,title=None,view="distribution",quantiles=(.1,.9),
+    trajectory, path, *, dpi=200,title=None,view="distribution",quantiles=(.1,.9),
     coordinate_grid=None,samples=101,confidence=None,block_length=None,
     bootstrap_replicates=2000,seed=20260911,distribution=None,quantity="radius",
     annotate=None,
@@ -870,8 +870,8 @@ def plot_trajectory_profiles(
         Per-frame results, for example from :func:`crevice.trajectory.analyze_trajectory`.
     path : str or Path
         Output image; parent directories are created.
-    dpi : int, default 400
-        Raster resolution in dots per inch.
+    dpi : int, default 200
+        Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
         Caller-supplied title; always drawn when given. Otherwise no title unless
         annotating, when a status title with the resolved/total frame count is used.
@@ -989,7 +989,7 @@ def write_publication_pymol_script(
     output_png: str | Path | None = None,
     width: int = 2400,
     height: int = 1800,
-    dpi: int = 400,
+    dpi: int = 200,
     structure_object: str = "crevice_cartoon",
     pore_object: str = "crevice_pore_cast",
     pore_fill_object: str = "crevice_pore_fill",
@@ -1022,8 +1022,9 @@ def write_publication_pymol_script(
         When given, the script ray-traces a ``width`` x ``height`` PNG at ``dpi``.
     width, height : int, default 2400, 1800
         Rendered image size in pixels.
-    dpi : int, default 400
-        DPI recorded in the rendered PNG.
+    dpi : int, default 200
+        DPI recorded in the rendered PNG (PyMOL metadata only; the pixel size is the
+        viewer window size).
     structure_object, pore_object, pore_fill_object : str
         PyMOL object names (defaults ``crevice_cartoon``, ``crevice_pore_cast``,
         ``crevice_pore_fill``).
@@ -1158,7 +1159,7 @@ def write_static_publication_bundle(
     search_radius: float = 6.0,
     refinement_steps: int = 4,
     probe_radius: float = 0.0,
-    dpi: int = 400,
+    dpi: int = 200,
     include_cavities: bool = True,
     include_tunnels: bool = True,
     include_network: bool = True,
@@ -1238,8 +1239,9 @@ def write_static_publication_bundle(
         Centre-refinement iterations.
     probe_radius : float, default 0.0
         Radius (Å) subtracted from reported clearances.
-    dpi : int, default 400
-        Resolution of every Matplotlib figure and of rendered viewer images.
+    dpi : int, default 200
+        Resolution of every Matplotlib figure and the DPI recorded in rendered PyMOL
+        images. The default suits screens; use 400 or more for print.
     include_cavities, include_tunnels, include_network : bool, default True
         Run the cavity search, tunnel search and residue network (CLI
         ``--skip-cavities``/``--skip-tunnels``/``--skip-network``).
@@ -1859,7 +1861,7 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
                                enclosure_fraction=.9, min_depth=0.,
                                min_component_volume=50., max_components=1,
                                selection_mode="dominant", core_fraction=.08, surface_smoothing=None,
-                               max_grid_points=16_000_000, selection="protein", dpi=250, seed=None, seed_tolerance=.75,
+                               max_grid_points=16_000_000, selection="protein", dpi=200, seed=None, seed_tolerance=.75,
                                smooth=None, annotate=None,
                                radii: RadiusSet | str | None = None):
     """Write the 3D rolling-probe cast bundle of ``crevice cast``.
@@ -1907,7 +1909,7 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
         Grid allocation guard.
     selection : {"protein", "all"}, default "protein"
         Obstacles: protein heavy atoms, or all atoms including HETATM records.
-    dpi : int, default 250
+    dpi : int, default 200
         Accepted for a uniform bundle signature; this bundle writes no
         Matplotlib figure (the viewer scenes are the visual output of a cast).
     seed : tuple of float, optional

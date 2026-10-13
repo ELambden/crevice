@@ -707,7 +707,7 @@ def summarize_cavity_trajectory(analysis,*,confidence=.95,block_length=None,repl
 
 @annotate_option
 def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95,
-                                   block_length=None,replicates=2000,seed=20260913,dpi=240,annotate=None):
+                                   block_length=None,replicates=2000,seed=20260913,dpi=200,annotate=None):
     """Write the statistics, tables and figures of ``crevice cavity-trajectory``.
 
     ``analysis`` (from :func:`analyze_cavity_trajectory`) holds, for every
@@ -735,8 +735,8 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
         Bootstrap replicates.
     seed : int, default 20260913
         Bootstrap random seed.
-    dpi : int, default 240
-        Resolution of every figure.
+    dpi : int, default 200
+        Resolution of every figure. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw panel titles and figure titles (frame counts, mean-interval status
         and interpretation reminders) in the figures. ``None`` (default) inherits

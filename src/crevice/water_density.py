@@ -288,7 +288,7 @@ class WaterDensity:
 
 
 @annotate_option
-def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=240, annotate=None):
+def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=200, annotate=None):
     """Write aligned water-oxygen density maps, projections and metadata.
 
     ``result`` (from :meth:`WaterDensity.result`) bins aligned water-oxygen
@@ -311,8 +311,8 @@ def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=240, anno
         File-name prefix.
     level : float, default 0.05
         Display isovalue (water oxygens per Å³) of the viewer surface; must be positive.
-    dpi : int, default 240
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw the figure title. ``None`` (default) inherits the surrounding setting.
 

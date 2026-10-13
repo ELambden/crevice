@@ -42,6 +42,9 @@ version = release
 # Set CREVICE_REPOSITORY_URL (for example in the Read the Docs project settings)
 # to enable "view source" links and repository links for files outside docs/.
 CREVICE_REPOSITORY_URL = os.environ.get("CREVICE_REPOSITORY_URL", "https://github.com/ELambden/crevice")
+# Zenodo concept DOI: covers every released version and resolves to the latest.
+CREVICE_CONCEPT_DOI = "10.5281/zenodo.23215587"
+CREVICE_DOCS_URL = "https://crevice.readthedocs.io"
 
 # -- General configuration ---------------------------------------------------
 
@@ -93,6 +96,7 @@ myst_ref_domains = ["std", "py"]
 myst_substitutions = {
     "version": release,
     "full_name": full_name,
+    "concept_doi": CREVICE_CONCEPT_DOI,
 }
 
 # -- Autodoc / autosummary ---------------------------------------------------
@@ -207,9 +211,16 @@ html_theme_options = {
         "color-admonition-title-background--note": "rgba(92, 200, 211, 0.14)",
     },
 }
+html_baseurl = CREVICE_DOCS_URL + "/"
+html_theme_options["footer_icons"] = [
+    {"name": "Zenodo DOI", "url": f"https://doi.org/{CREVICE_CONCEPT_DOI}", "html": "DOI", "class": ""},
+]
 if CREVICE_REPOSITORY_URL:
     html_theme_options.update(
         {"source_repository": CREVICE_REPOSITORY_URL, "source_branch": "main", "source_directory": "docs/"}
+    )
+    html_theme_options["footer_icons"].insert(
+        0, {"name": "GitHub", "url": CREVICE_REPOSITORY_URL, "html": "GitHub", "class": ""}
     )
 
 # -- Link checking -----------------------------------------------------------

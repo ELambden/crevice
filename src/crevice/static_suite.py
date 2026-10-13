@@ -69,7 +69,7 @@ def run_static_benchmark_suite(
     include_cavities: bool = True,
     include_tunnels: bool = True,
     include_network: bool = True,
-    dpi: int = 400,
+    dpi: int = 200,
     annotate: bool | None = None,
     enclosure_radius: float | None = None,
     radii: RadiusSet | str | None = None,
@@ -118,8 +118,8 @@ def run_static_benchmark_suite(
         Grid allocation guards for the cast and for cavity/tunnel searches.
     include_cavities, include_tunnels, include_network : bool, default True
         Optional analyses.
-    dpi : int, default 400
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     annotate : bool, optional
         Draw titles, value call-outs and residue landmark names in every figure.
         ``None`` (default) inherits the surrounding setting, which is off unless

@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import re
 import os
 import shutil
 import tempfile
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -245,6 +247,33 @@ def _retrieve(source: str, target: Path, timeout: float) -> None:
             os.unlink(temporary)
 
 
+def _release_tag(url: str) -> str | None:
+    """Return the release tag of a GitHub ``releases/download/TAG/`` URL, if it is one."""
+    match = re.search(r"/releases/download/([^/]+)/", url)
+    return urllib.parse.unquote(match.group(1)) if match else None
+
+
+def _retrieve_error_message(name: str, source: str, exc: OSError, local: bool) -> str:
+    """One-line explanation of a failed example-asset copy or download."""
+    if local:
+        if isinstance(exc, FileNotFoundError):
+            return (f"Example file {name} is not in the source directory ({source} does not exist); "
+                    "put the release assets there or drop --source-dir to download them")
+        return f"Could not copy example file {name} from {source}: {exc}"
+    if isinstance(exc, urllib.error.HTTPError):
+        if exc.code == 404:
+            tag = _release_tag(source)
+            where = f"the GitHub release {tag}" if tag else "the base URL"
+            return (f"Example file {name} was not found at {source} (HTTP 404). The asset is probably not "
+                    f"attached to {where}; check --base-url (or ${BASE_URL_ENV}), or download the assets "
+                    "yourself and pass --source-dir DIR")
+        return (f"Could not download example file {name} from {source}: HTTP {exc.code} {exc.reason}; "
+                "try again later or pass --source-dir DIR with a local copy")
+    reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
+    return (f"Could not download example file {name} from {source}: {reason}. Check the network "
+            "connection; when offline, pass --source-dir DIR with a local copy of the assets")
+
+
 def fetch_example(
     name: str,
     cache_dir: str | os.PathLike | None = None,
@@ -290,6 +319,11 @@ def fetch_example(
     ValueError
         If a fetched or decompressed file does not have the expected hash; the
         bad file is removed.
+    RuntimeError
+        If a file cannot be copied or downloaded. The message names the file,
+        the source and the likely cause (for an HTTP 404, an asset missing from
+        the GitHub release; for a network error, being offline and the
+        ``source_dir`` alternative).
     """
     if name not in EXAMPLES:
         raise KeyError(f"Unknown example dataset {name!r}; available: {', '.join(sorted(EXAMPLES))}")
@@ -306,7 +340,10 @@ def fetch_example(
         target = directory / item.name
         if overwrite or not _matches(target, item.sha256):
             source = str(Path(local).expanduser() / item.name) if local else prefix + urllib.parse.quote(item.name)
-            _retrieve(source, target, timeout)
+            try:
+                _retrieve(source, target, timeout)
+            except OSError as exc:  # URLError and HTTPError are OSError subclasses
+                raise RuntimeError(_retrieve_error_message(item.name, source, exc, local is not None)) from exc
             result.downloaded.append(item.name)
             actual = sha256_file(target)
             if actual != item.sha256:

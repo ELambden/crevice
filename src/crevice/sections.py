@@ -413,8 +413,11 @@ def _auto_enclosure_profile(atoms, *, probe_radius, origin, **kwargs):
         results[probe] = profile
         return profile
 
-    for probe in ladder:
-        attempt(probe, "ladder")
+    from .progress import ProgressBar
+    with ProgressBar(len(ladder), "automatic enclosure probe ladder") as bar:
+        for probe in ladder:
+            attempt(probe, "ladder")
+            bar.update()
 
     def grouped():
         groups = []

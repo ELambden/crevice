@@ -57,6 +57,26 @@ Commands that analyse explicit water share these settings; see
 ```{crevice-cli-options} hydration
 ```
 
+(cli-progress-errors)=
+## Progress and errors
+
+Every command accepts `-q/--quiet` and `--debug`, before or after the command
+name.
+
+- Long runs (the frames of `trajectory`, `cavity-trajectory`,
+  `region-trajectory` and `hydration --trajectory`, and the automatic
+  enclosure-probe ladder) show progress on standard error while it is a
+  terminal. Nothing is printed when standard error is redirected to a file or
+  a pipe, or with `--quiet`; set `CREVICE_PROGRESS=1` to log plain progress
+  lines (every 10%) to a file, or `CREVICE_PROGRESS=0` to silence progress
+  everywhere. Progress never changes standard output or any output file.
+- An expected failure (a missing file, an unknown accession, a failed
+  download, a channel that cannot be resolved) is reported as one
+  `crevice: error: ...` line, followed for common cases by a
+  `crevice: hint: ...` line with what to try, and the command exits with
+  status 2. `--debug` (or `CREVICE_DEBUG=1`) also prints the full Python
+  traceback, which is useful in a bug report.
+
 (cli-output-files)=
 ## Output files
 
@@ -66,7 +86,10 @@ command page, but they follow the same pattern:
 - `-o/--output` names the main JSON result. Tables are written as CSV beside
   it (`<stem>.csv`) unless the command says otherwise.
 - `--png`, `--pdb` and `--pymol` add a figure, a dummy-atom trace and a PyMOL
-  script. `--dpi` sets the figure resolution.
+  script. `--dpi` sets the figure resolution: 200 dots per inch by default,
+  which is quick and keeps files small; use `--dpi 400` (Python `dpi=400`)
+  for print or publication figures. Native-viewer renders are sized
+  separately (see the `crevice_render` helpers).
 - Commands that write a whole set of files, such as `publish`, `cast` and the
   trajectory commands, take `--out-dir` and record what they wrote, with the
   settings used, in a `*_manifest.json`.

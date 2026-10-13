@@ -15,7 +15,7 @@ LIMITATIONS = [
 
 
 @annotate_option
-def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95,block_length=None,replicates=2000,seed=20260914,dpi=240,roles=None,annotate=None):
+def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95,block_length=None,replicates=2000,seed=20260914,dpi=200,roles=None,annotate=None):
     """Write the statistics, tables, figures and scenes of ``crevice hydration``.
 
     For every focused residue and frame, ``analysis`` holds the unique explicit
@@ -46,8 +46,8 @@ def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95
         Bootstrap replicates (at least 200 when intervals are requested).
     seed : int, default 20260914
         Bootstrap random seed.
-    dpi : int, default 240
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     roles : dict of str to str, optional
         Residue role labels (for example ``boundary_lining``) for static input.
     annotate : bool, optional

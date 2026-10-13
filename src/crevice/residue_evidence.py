@@ -391,7 +391,7 @@ def select_stick_residues(report,stick_residues=STICK_RESIDUE_DEFAULT):
 
 
 @annotate_option
-def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',scene_path=None,volume_path=None,dpi=300,
+def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',scene_path=None,volume_path=None,dpi=200,
                                   stick_residues=STICK_RESIDUE_DEFAULT,annotate=None):
     """Write the tables, figure and viewer overlays of ``crevice residue-evidence``.
 
@@ -421,8 +421,8 @@ def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',sce
         Existing CREVICE volume scene (``*_volume.pml`` etc.) to overlay.
     volume_path : str or Path, optional
         Binary DX used to build a scene when ``scene_path`` is not given.
-    dpi : int, default 300
-        Figure resolution.
+    dpi : int, default 200
+        Figure resolution. The default suits screens; use 400 or more for print.
     stick_residues : str, default "top:12"
         Overlay membership: ``top:N`` per role, ``all``, comma-separated IDs or
         ``@FILE`` (see :func:`select_stick_residues`). The bar chart and tables
