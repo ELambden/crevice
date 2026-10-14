@@ -43,12 +43,12 @@ installed:
 | `ml` | scikit-learn | PCA in {func}`crevice.ml.reduce_dimensions` | column truncation, which is not PCA |
 | `view` | py3Dmol | interactive 3D views in Jupyter ({func}`crevice.view`, `.show()`) | `.show()` raises an error naming the extra; `crevice view` and `.save_html()` still work |
 | `science` | Gemmi, MDTraj, NetworkX and scikit-learn | every optional scientific library (not `view`) | — |
-| `test` | pytest, Gemmi, NetworkX, MDTraj (and `tomli` on Python 3.10) | running the regression suite | — |
+| `test` | pytest, pytest-xdist, Gemmi, NetworkX, MDTraj (and `tomli` on Python 3.10) | running the regression suite, in parallel with `-n auto` | — |
 
 To get everything at once:
 
 ```bash
-python -m pip install "crevice[science]"
+python -m pip install "crevice[science,view]"
 ```
 
 ## Installing from source
@@ -66,8 +66,19 @@ python -m pip install -e ".[science,test]"   # plus every optional library and p
 ```
 
 Either way you get the `crevice` command (`python -m crevice` works too) and
-the `crevice` Python package. `CONTRIBUTING.md` in the repository explains how
-to run the tests.
+the `crevice` Python package.
+
+The `test` extra also installs pytest-xdist, so the full test suite can run in
+parallel; a fast subset leaves out the slowest tests:
+
+```bash
+python -m pytest -n auto tests                # the full suite, on every CPU core
+python -m pytest -m "not slow" -n auto tests  # the quick subset
+```
+
+[CONTRIBUTING.md](https://github.com/ELambden/crevice/blob/main/CONTRIBUTING.md)
+explains the test markers, the optional real-data and viewer tests, and how
+to propose a change.
 
 ## Molecular viewers (optional)
 

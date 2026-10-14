@@ -154,9 +154,19 @@ Define a region once, review it, and compare it fairly across runs.
 
 **[One-command output bundle](publish.md)**
 
-Every table, figure and viewer scene for a structure in one run.
+Every table, figure and viewer scene for a structure in one run, with an optional pore fingerprint.
 
 `crevice publish`
+:::
+
+:::{container} crevice-card crevice-violet
+![](../examples/images/3ukm_interactive_view_thumb.png)
+
+**[Interactive 3D views](view.md)**
+
+Look at any result in Jupyter or one offline HTML file, with a checkbox per layer.
+
+`crevice view`
 :::
 
 :::{container} crevice-card
@@ -172,8 +182,9 @@ Downloads, several analyses at once, feature tables and batch runs.
 ## Methods in more depth
 
 The [method notes](../methods/index.md) give the full definitions behind the
-tools: atomic radii, hydration statistics, trajectory cavities, obstacles,
-named regions and display smoothing.
+tools: atomic radii, pore fingerprints, hydration statistics, trajectory
+cavities, obstacles, named regions, display smoothing and the interactive view
+surfaces.
 
 (validation-levels)=
 ## How far to trust the numbers
@@ -204,6 +215,7 @@ trajectory
 cavity-trajectory
 regions
 publish
+view
 utilities
 ../methods/index
 ```

@@ -22,7 +22,7 @@ crevice publish 1GRM --out-dir results/1GRM
 {{ full_name }} is a Python package and a command-line tool. Everything it
 does can be run as a `crevice` command or called from Python, and every result
 comes as tables you can analyse, figures you can publish and scenes you can
-open in PyMOL, VMD or ChimeraX.
+open in PyMOL, VMD or ChimeraX, or explore in your web browser.
 
 ## Your first analysis
 
@@ -89,16 +89,50 @@ Which residues form a boundary, and who they talk to.
 Follow a channel, a cavity or its water through every frame of a simulation.
 :::
 
+:::{container} crevice-card
+![](examples/images/3ukm_fingerprint.png)
+
+**[Pore fingerprints](tools/fingerprint.md)**
+
+Radius, lining hydrophobicity, chemistry and water along one channel, with a
+rough conductance estimate.
+:::
+
+:::{container} crevice-card crevice-violet
+![](examples/images/3ukm_interactive_view_thumb.png)
+
+**[Interactive 3D views](tools/view.md)**
+
+Turn any result into a 3D view in Jupyter or one offline HTML file you can
+share.
+:::
+
 ::::
 
 Browse all of them in [Analysis tools](tools/index.md), or learn by example in
 the [Tutorials](examples/index.md).
 
+:::{admonition} New in 0.2.0
+:class: tip
+
+- **Interactive views.** `crevice view OUTDIR` writes a self-contained HTML
+  viewer, and {func}`crevice.view` shows the same scene in Jupyter.
+- **Pore fingerprints.** `crevice fingerprint` (or `publish --fingerprint`)
+  puts the radius, lining hydrophobicity and chemistry, water and a geometric
+  conductance estimate on one coordinate along the channel.
+- **Faster runs, same numbers.** Channel profiles are several times faster with
+  bit-identical results, and cavity and region trajectories use several CPU
+  cores by default.
+
+The [changelog](project/changelog.md) has the details.
+:::
+
 ## Install
 
 ```bash
 pip install crevice              # the core package
-pip install "crevice[science]"   # plus every optional extra
+pip install "crevice[view]"      # plus interactive 3D views in Jupyter
+pip install "crevice[science]"   # plus every optional scientific library
 ```
 
 CREVICE needs Python 3.10 or newer. [Installation](getting-started/installation.md)

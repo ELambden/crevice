@@ -45,6 +45,9 @@ exits in rust.
    [tunnels](tunnels.md) and a [network](network.md), unless you pass
    `--skip-cavities`, `--skip-tunnels` or `--skip-network`.
 4. [Hydration](hydration.md), unless you pass `--skip-hydration`.
+5. A [pore fingerprint](fingerprint.md), if you add `--fingerprint` and the
+   channel resolves: the same `*_fingerprint.csv`, `.json` and `.png` that
+   `crevice fingerprint` writes.
 
 A channel cast fills all the free space in each slice, not just the largest
 sphere. For display, it extends 2 Å beyond each mouth (`--cast-extension`);
@@ -129,6 +132,7 @@ hydrogens) fail instead of switching silently.
 | `--entry-end` | `auto` | which end is the entry |
 | `--lining-cutoff` | 3.3 Å | distance for lining residues |
 | `--skip-cavities`, `--skip-tunnels`, `--skip-network`, `--skip-hydration` | off | leave parts out |
+| `--fingerprint` | off | add a [pore fingerprint](fingerprint.md) of the resolved channel |
 
 Profile settings, atomic radii, figure text, mouth guides and smoothing are
 [shared options](../reference/cli/common-options.md); every option is listed
@@ -166,6 +170,9 @@ unresolved at every probe, and its fallback cast still measures a large
 cavity. Segment labels are geometry, not transport direction. Open the scenes
 and check them before using them in a figure.
 :::
+
+To look around a bundle in 3D without a molecular viewer, run
+[`crevice view`](view.md) on its directory.
 
 Worked bundles: the [1GRM](../examples/1grm-profile-cast.md) and
 [3UKM](../examples/3ukm-lateral-exits.md) tutorials.

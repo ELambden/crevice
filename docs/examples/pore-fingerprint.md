@@ -75,3 +75,22 @@ Water oxygens appear along both exit legs but never in the lumen. The spike
 at the far end is the bulk-facing sample, where the free sphere is large.
 These are observations of a narrow geometric route under one probe setting.
 They say nothing about substrate transport.
+
+:::{admonition} Interpreting the results
+:class: crevice-interpret
+
+The three fingerprints are readings of geometry and residue identity under
+the settings shown, not functional results. Gramicidin A's lumen is lined by
+backbone carbonyls of residues the scale calls hydrophobic, so the
+hydrophobicity curve there describes side chains, not the wall water sees.
+The conductance values are order-of-magnitude geometric estimates, about
+10–40 times above gramicidin A's measured conductance, and GLUT1's numbers
+depend on the fixed 0.55 Å probe. The
+[method note](../methods/fingerprint.md) lists every definition and
+limitation.
+:::
+
+To get a fingerprint with every other output of a structure, add
+`--fingerprint` to [`crevice publish`](../tools/publish.md); to look at the
+same channel in 3D, run [`crevice view`](../tools/view.md) on the output
+directory.

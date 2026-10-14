@@ -15,14 +15,6 @@ downloaded from the RCSB PDB or AlphaFold DB the first time you run a command.
 Measure the gramicidin A channel, then write the full bundle with its 3D cast. *About 1 min.*
 :::
 
-:::{container} crevice-card
-![](images/1grm_fingerprint.png)
-
-**[Pore fingerprints: 1GRM, 3UKM and GLUT1](pore-fingerprint.md)**
-
-Radius, lining hydrophobicity, chemistry, water and a geometric conductance estimate along a channel. *About 10 min.*
-:::
-
 :::{container} crevice-card crevice-exit
 ![](images/3ukm_cast_exits_chimerax.png)
 
@@ -77,13 +69,20 @@ Fetch a predicted structure by its identifier and cast its interior. *Under 1 mi
 Download a short excerpt of a GLUT1 membrane simulation, measure a named region in every frame, and count the waters inside it. *About 2 min, plus an 11.8 MB download.*
 :::
 
-
 :::{container} crevice-card crevice-entry
-![](images/3ukm_interactive_view.png)
+![](images/3ukm_interactive_view_thumb.png)
 
 **[Explore results interactively](explore-interactively.md)**
 
 Turn any output directory into a 3D view with layer checkboxes, in Jupyter or as one offline HTML file. *Under 1 min.*
+:::
+
+:::{container} crevice-card
+![](images/1grm_fingerprint.png)
+
+**[Pore fingerprints: 1GRM, 3UKM and GLUT1](pore-fingerprint.md)**
+
+Radius, lining hydrophobicity, chemistry, water and a geometric conductance estimate along a channel. *About 10 min.*
 :::
 
 ::::
@@ -93,7 +92,7 @@ numbers were copied from that run; viewer images were rendered in the viewer
 named in the caption. The pages aren't executed when the documentation is
 built, so your numbers may differ slightly with a newer version or different
 settings, and that's part of the lesson: the settings are part of the result.
-Times are for one CPU core of a desktop computer.
+Times are rough guides, for one CPU core of a desktop computer.
 
 
 ## Running all the tutorials yourself

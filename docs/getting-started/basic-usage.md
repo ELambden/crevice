@@ -67,7 +67,30 @@ crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
 `publish` runs the profile, cast, lining residues, cavities, tunnels, residue
 network and hydration in one go and writes the tables, figures and viewer
 scenes (about 85 files for 1GRM). Use the `--skip-*` options to leave out
-what you don't need.
+what you don't need, or add `--fingerprint` for a
+[pore fingerprint](../tools/fingerprint.md) of the channel.
+
+### Look at your results interactively
+
+```bash
+crevice view results/1GRM --open
+```
+
+`view` turns an output directory into one HTML file that opens in your web
+browser: the protein, the cast, the lining residues and the centre line, each
+with a checkbox. It works offline and needs no molecular viewer, so it is also
+an easy way to share a result. In a Jupyter notebook, `crevice.view("results/1GRM")`
+shows the same scene (install `crevice[view]` first). See
+[Interactive 3D views](../tools/view.md).
+
+### Progress, quiet runs and errors
+
+Long runs, such as trajectories and the automatic choice of the enclosure
+probe, show a progress bar while you watch them in a terminal. Add `--quiet`
+(`-q`) to hide it; nothing is shown when the output goes to a file anyway. If a
+command fails, CREVICE prints one `crevice: error:` line, often with a hint;
+add `--debug` to see the full Python traceback, which is handy in a bug report.
+See [Progress and errors](../reference/cli/common-options.md#progress-and-errors).
 
 ## In Python
 
@@ -106,9 +129,38 @@ topology and trajectory through MDAnalysis, and
   radii, atom selection and atomic radius set. CREVICE records all of them in
   its output; report them alongside your numbers.
 - **Figures are clean by default.** Add `--annotate` (or `annotate=True`) for
-  titles, labels and legends.
+  titles, labels and legends. They are written at 200 dpi; use `--dpi 400` for
+  print.
 - **CLI and Python defaults occasionally differ.** The differences are listed
   in [CLI or Python?](cli-vs-python.md#defaults-that-differ-between-the-cli-and-python).
+
+## Performance tips
+
+Most single-structure commands take seconds to a minute. A few settings make a
+big difference when you run many structures or long trajectories:
+
+- **Trajectories use several cores.** `cavity-trajectory` and
+  `region-trajectory` start up to four worker processes by default (fewer with
+  few CPUs, few frames or little free memory). Set `--workers N` to choose;
+  the results are the same for any worker count.
+- **Fix the enclosure probe once you know it.** With `--enclosure-radius auto`
+  CREVICE tries a ladder of probes until the channel resolves, and prints the
+  one it chose. Passing that value, for example `--enclosure-radius 0.75`,
+  skips the ladder.
+- **Fewer samples for a first look.** `--samples` sets the minimum number of
+  points along a profile (81 by default); a smaller number is quicker while you
+  explore. The section and cast spacings have a larger effect on run time, so
+  keep them coarse (0.5 Å) until you need the detail.
+- **Figures at 200 dpi.** Figures are written at 200 dots per inch by default,
+  which is quick and keeps files small; use `--dpi 400` for print, or skip a
+  figure you don't need.
+
+As an example on one 8-core desktop shared with other jobs (single-threaded
+maths libraries, a fixed axis and 0.25 Å sections), a 1GRM profile took about
+2.6 s with the automatic probe and about 0.6 s with `--enclosure-radius 0.8`;
+a 3UKM profile with `--lateral-exits` took about 40 s; and a five-frame GLUT1
+`region-trajectory --water-membership` took about 24 s with the default
+workers. Your times will differ.
 
 ## Where next?
 

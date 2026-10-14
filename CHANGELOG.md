@@ -12,6 +12,16 @@ biological results.
 
 ## [Unreleased]
 
+### Changed
+
+- Documentation: the site presents 0.2.0 as one release. New tool page for
+  interactive views (`crevice view`), method notes for the pore fingerprint
+  definitions and the interactive view surfaces, performance tips, progress,
+  `--quiet` and `--debug` in Basic usage, the `view` extra and parallel tests
+  (`pytest -n auto`) in Installation, cross-links between `profile`,
+  `fingerprint`, `publish --fingerprint` and `view`, and a changelog page
+  covering 0.1.1 to 0.2.0. No code or output changes.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added

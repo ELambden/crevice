@@ -184,7 +184,10 @@ Every option is listed under [`crevice profile`](../reference/cli/profile.md).
   with spheres coloured blue (narrow) to red (wide) inside a cartoon.
 
 `profile` writes no cast. [`publish`](publish.md) casts the same channel and
-splits it into entry, lumen and exit segments.
+splits it into entry, lumen and exit segments,
+[`fingerprint`](fingerprint.md) adds lining hydrophobicity, chemistry, water
+and a conductance estimate along the same channel, and
+[`crevice view`](view.md) shows the centre line and cast in 3D.
 
 :::{admonition} Interpreting results
 :class: crevice-interpret

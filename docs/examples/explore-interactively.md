@@ -157,3 +157,18 @@ can look coarser than those of a `publish` bundle (which uses a 0.5 Å grid).
 Nothing is written into the 3D picture: no labels, titles or legends. The
 layer names appear only as checkbox labels beside it, so *Save PNG* gives a
 clean image.
+
+:::{admonition} Interpreting the results
+:class: crevice-interpret
+
+An interactive view shows the same display surfaces as the native scenes, so
+it is a way to look and to share, not a new measurement: read volumes and
+radii from the tables. The region and density surfaces are drawn more opaque
+than in the native scenes, and the member waters are one saved frame's
+geometric assignment, not evidence of binding.
+:::
+
+[Interactive 3D views](../tools/view.md) summarises the options, and the
+[method note](../methods/interactive-view.md) defines what is drawn. For the
+same channel as a set of curves along its length, try a
+[pore fingerprint](pore-fingerprint.md).
