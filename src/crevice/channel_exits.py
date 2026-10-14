@@ -286,6 +286,8 @@ DISTINCT_EXIT_DEFINITION = (
     "parts of the two routes farther than route_separation_A from the start (default the bulk probe "
     "radius) never come within route_separation_A of each other")
 
+#: Edge of the lattice blocks whose clearances the exit search computes together.
+_BLOCK = 4
 _STEPS = tuple((i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1) if (i, j, k) != (0, 0, 0))
 
 
@@ -403,9 +405,14 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     origin = start.center
     w = scale(axis, sign)
 
+    positions = {}
+
     def position(node):
-        i, j, k = node
-        return add(origin, add(scale(u, i*spacing), add(scale(v, j*spacing), scale(w, k*spacing))))
+        p = positions.get(node)
+        if p is None:
+            i, j, k = node
+            p = positions[node] = add(origin, add(scale(u, i*spacing), add(scale(v, j*spacing), scale(w, k*spacing))))
+        return p
 
     clear = {}
 
@@ -452,11 +459,25 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
                 raise ValueError(f"Lateral-exit search exceeded {max_nodes} lattice nodes; increase exit_spacing")
             info["search_truncated"] = True
             break
-        for step in _STEPS:
-            other = (node[0]+step[0], node[1]+step[1], node[2]+step[2])
-            if other[2] < 0:
-                continue
-            c = clearance(other)
+        # Batched, exact: the clearances of all new neighbours, then the
+        # segment clearances the bound test asks for, each in one call.
+        neighbours = [(step, (node[0]+step[0], node[1]+step[1], node[2]+step[2])) for step in _STEPS]
+        neighbours = [(step, other) for step, other in neighbours if other[2] >= 0]
+        missing = [other for _, other in neighbours if other not in clear]
+        if missing:
+            # Fill whole lattice blocks at once (values are per node, so this
+            # only amortises the batched query).
+            block = []
+            for key in {(o[0]//_BLOCK, o[1]//_BLOCK, o[2]//_BLOCK) for o in missing}:
+                block += [q for q in ((key[0]*_BLOCK+a, key[1]*_BLOCK+b, key[2]*_BLOCK+c)
+                                      for a in range(_BLOCK) for b in range(_BLOCK) for c in range(_BLOCK))
+                          if q not in clear]
+            clear.update(zip(block, spatial.nearest_surface_values(
+                [add(origin, add(scale(u, q[0]*spacing), add(scale(v, q[1]*spacing), scale(w, q[2]*spacing))))
+                 for q in block]).tolist()))
+        plan = []
+        for step, other in neighbours:
+            c = clear[other]
             if c <= probe:
                 continue
             length = spacing*math.sqrt(step[0]**2+step[1]**2+step[2]**2)
@@ -464,8 +485,12 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
             new = current if inside else min(current, c)
             # (clear[node]+c-length)/2 is a lower bound on the segment clearance.
             bound = (clear[node]+c-length)/2
-            if (bound <= probe) if inside else (bound < new):
-                segment = spatial.segment_clearance(p, position(other))
+            plan.append((other, length, inside, new, (bound <= probe) if inside else (bound < new)))
+        tested = [position(other) for other, _, _, _, test in plan if test]
+        segments = iter(spatial.segment_clearances([p]*len(tested), tested).tolist() if tested else ())
+        for other, length, inside, new, test in plan:
+            if test:
+                segment = next(segments)
                 if segment <= probe:
                     continue
                 if not inside:
@@ -494,7 +519,7 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
         route.reverse()
         route[0] = origin
         outer = [q for q in route if distance(q, origin) > route_separation]
-        if not outer or any(min(distance(q, r) for q in outer for r in other_outer) <= route_separation
+        if not outer or any(_min_pair_distance(outer, other_outer) <= route_separation
                             for _, other_outer in accepted if other_outer):
             continue
         if len(legs) >= max_legs:
@@ -510,6 +535,22 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
         legs.append(leg)
         accepted.append((p, outer))
     return legs, info
+
+
+def _min_pair_distance(first, second):
+    """``min(distance(q, r) for q in first for r in second)``, batched and bit-identical."""
+    import numpy as np
+    a = np.asarray(first, dtype=float).reshape(-1, 3)
+    b = np.asarray(second, dtype=float).reshape(-1, 3)
+    best = math.inf
+    chunk = max(1, 1_000_000 // max(1, len(b)))
+    for k in range(0, len(a), chunk):
+        q = a[k:k+chunk, None, :]
+        dx = q[..., 0] - b[None, :, 0]
+        dy = q[..., 1] - b[None, :, 1]
+        dz = q[..., 2] - b[None, :, 2]
+        best = min(best, float(np.sqrt(dx*dx + dy*dy + dz*dz).min()))
+    return best
 
 
 def _leg_from_route(spatial, nodes, end, root_clearance, explored, origin, axis, *, spacing, bulk_radius,
@@ -533,12 +574,13 @@ def _leg_from_route(spatial, nodes, end, root_clearance, explored, origin, axis,
         samples += [add(a, scale(sub(b, a), s/n)) for s in range(1, n+1)]
     segment_clearances = [spatial.segment_clearance(a, b) for a, b in zip(kept, kept[1:])]
     exact = min(segment_clearances) if segment_clearances else root_clearance
-    worst = min(range(len(samples)), key=lambda s: spatial.nearest_surface(samples[s])[0])
+    sample_clearances = tuple(spatial.nearest_surface_values(samples).tolist())
+    worst = min(range(len(samples)), key=lambda s: sample_clearances[s])
     length = sum(distance(a, b) for a, b in zip(kept, kept[1:]))
     arc = [0.0]
     for a, b in zip(samples, samples[1:]):
         arc.append(arc[-1]+distance(a, b))
-    return ExitLeg(end, tuple(samples), tuple(spatial.nearest_surface(p)[0] for p in samples), exact,
+    return ExitLeg(end, tuple(samples), sample_clearances, exact,
                    samples[worst], length, explored,
                    metadata={"leg": rank,
                              "bottleneck_arc_length_from_start_A": arc[worst],

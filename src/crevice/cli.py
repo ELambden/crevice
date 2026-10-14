@@ -152,7 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
     region_md = subparsers.add_parser("region-trajectory", help="Run geometry and hydration using a prepared, versioned region definition")
     region_md.add_argument("definition", help="Prepared region definition JSON from region-prepare")
     region_md.add_argument("--out-dir", required=True, help="Output directory")
-    region_md.add_argument("--workers", type=int, default=1, help="Worker processes for the per-frame geometry; results do not depend on it")
+    region_md.add_argument("--workers", type=int, default=None, help="Worker processes for the per-frame geometry (default: automatic, min(4, available CPUs, frames), reduced if available memory is short); results do not depend on it")
     region_md.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this")
     region_md.add_argument("--stop", type=int, help="Stop before this trajectory frame (default: all frames)")
     region_md.add_argument("--confidence", type=float, default=.95, help="Nominal level of the approximate mean intervals; 0 gives descriptive statistics only")
@@ -196,7 +196,7 @@ def build_parser() -> argparse.ArgumentParser:
     cavity_md.add_argument("--pbc", choices=['check','none','unwrap'], default='check', help="check: screen for split molecules and use cell dimensions; none: no periodic handling; unwrap: make the selection whole (refused with --water-membership)")
     cavity_md.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this")
     cavity_md.add_argument("--stop", type=int, help="Stop before this trajectory frame (default: all frames)")
-    cavity_md.add_argument("--workers", type=int, default=1, help="Worker processes for the per-frame geometry; results do not depend on it")
+    cavity_md.add_argument("--workers", type=int, default=None, help="Worker processes for the per-frame geometry (default: automatic, min(4, available CPUs, frames), reduced if available memory is short); results do not depend on it")
     cavity_md.add_argument("--max-grid-points", type=int, default=2_000_000, help="Explicit per-frame grid allocation guard; no automatic coarsening")
     cavity_md.add_argument("--spacing", type=float, help="Fixed lattice spacing in Å; default the reference map's own spacing")
     cavity_md.add_argument("--axis", type=parse_coord, help="Fixed analysis direction x,y,z in the reference frame; default measured-map third direction")
@@ -440,7 +440,50 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Lining residues: atom centre within this distance (Å) of a segment's measured grid "
                               "nodes (default 3.3, a hydrogen-bond distance); written per segment to "
                               "PREFIX_lining_residues.csv and as hidden viewer selections")
+    publish.add_argument("--fingerprint", action="store_true",
+                         help="Also write the pore fingerprint (PREFIX_fingerprint.csv/.json/.png: radius, lining "
+                              "hydrophobicity, chemistry and a geometric conductance estimate along the path; see "
+                              "crevice fingerprint) for a resolved channel")
     publish.set_defaults(func=_cmd_publish)
+
+    fingerprint = subparsers.add_parser(
+        "fingerprint", help="Pore fingerprint along a channel: radius, lining hydrophobicity and chemistry, "
+                            "ENTRY/LUMEN/EXIT segments, water along the path (MD) and a geometric conductance estimate")
+    _add_structure_arg(fingerprint)
+    _add_profile_args(fingerprint)
+    fingerprint.add_argument("--out-dir", required=True, help="Output directory")
+    fingerprint.add_argument("--prefix", help="Output filename prefix; defaults to the structure stem")
+    fingerprint.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200)")
+    fingerprint.add_argument("--entry-end", choices=["auto", "start", "end"], default="auto",
+                             help="Which channel end is labelled ENTRY (as publish); geometric labels, not a transport direction")
+    fingerprint.add_argument("--hydrophobicity-bandwidth", type=float, default=3.0,
+                             help="Gaussian kernel standard deviation (Å) along the path for the lining hydrophobicity "
+                                  "(Wimley-White octanol scale) profile (default 3.0)")
+    fingerprint.add_argument("--lining-shell", type=float, default=1.4,
+                             help="An atom lines a path sample when its vdW surface is within this distance (Å) of the "
+                                  "sample's free sphere (default 1.4, one water-probe radius)")
+    fingerprint.add_argument("--electrolyte", choices=["kcl-150mm", "nacl-150mm", "kcl-1m", "nacl-1m"], default="kcl-150mm",
+                             help="Bulk electrolyte whose resistivity enters the conductance estimate (default kcl-150mm, "
+                                  "0.532 Ohm m at 25 °C)")
+    fingerprint.add_argument("--resistivity", type=float,
+                             help="Explicit bulk resistivity (Ohm m); overrides --electrolyte")
+    fingerprint.add_argument("--trajectory", help="MD trajectory (.xtc, .dcd ...); the structure argument is then its "
+                                                 "topology (.gro, .pdb, .psf, .tpr)")
+    fingerprint.add_argument("--selection", default="protein",
+                             help="With --trajectory: MDAnalysis selection of the protein atoms (the geometry)")
+    fingerprint.add_argument("--water-selection",
+                             help="With --trajectory: MDAnalysis water selection (default: common water residue names)")
+    fingerprint.add_argument("--no-water", action="store_true", help="With --trajectory: do not count water along the path")
+    fingerprint.add_argument("--start", type=int, default=0, help="With --trajectory: first frame to read")
+    fingerprint.add_argument("--stop", type=int, help="With --trajectory: stop before this frame")
+    fingerprint.add_argument("--stride", type=int, default=1, help="With --trajectory: read every Nth frame")
+    fingerprint.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES,
+                             help="With --trajectory: refuse to load more frames than this; 0 disables the guard")
+    fingerprint.add_argument("--pbc", choices=["check", "none"], default="check",
+                             help="With --trajectory: periodic handling (check: use cell dimensions and minimum imaging)")
+    fingerprint.add_argument("--quantiles", type=float, nargs=2, default=(0.1, 0.9),
+                             help="With --trajectory: lower and upper frame quantiles of the radius band")
+    fingerprint.set_defaults(func=_cmd_fingerprint)
 
     fetch = subparsers.add_parser("fetch", help="Fetch structures from RCSB by accession, or AlphaFold DB models by AF- identifier")
     fetch.add_argument(
@@ -466,6 +509,23 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_example.add_argument("--timeout", type=float, default=60.0, help="Network timeout in seconds per file")
     fetch_example.add_argument("--list", action="store_true", help="List the available datasets and their files without downloading")
     fetch_example.set_defaults(func=_cmd_fetch_example)
+
+    view = subparsers.add_parser("view", help="Write a self-contained interactive 3D HTML viewer of an output directory")
+    view.add_argument("outdir", help="Output directory (or its manifest/scene JSON) of publish, cast, region-trajectory, "
+                                     "cavity-trajectory or hydration")
+    view.add_argument("-o", "--output", help="HTML file to write (default: OUTDIR/PREFIX_view.html)")
+    view.add_argument("--open", action="store_true", help="Open the written file in the default web browser")
+    view.add_argument("--kind", choices=["auto", "cast", "region"], default="auto",
+                      help="Which output to show: the cast/publish scene or the hydration (region) scene; auto prefers the cast")
+    view.add_argument("--snapshot", type=int, default=0,
+                      help="Hydration outputs: index of the saved snapshot to show with its member waters (default 0, the first)")
+    view.add_argument("--show", action="append", default=[], metavar="LAYER",
+                      help="Show a layer that is hidden by default, e.g. lining_lumen, lining, centre_line (repeatable)")
+    view.add_argument("--hide", action="append", default=[], metavar="LAYER",
+                      help="Hide a layer that is shown by default, e.g. protein, entry (repeatable)")
+    view.add_argument("--cdn", action="store_true",
+                      help="Load 3Dmol.js from the jsDelivr CDN instead of inlining it (smaller file; needs network to open)")
+    view.set_defaults(func=_cmd_view)
 
     analyze = subparsers.add_parser("analyze", help="Run selected analyses on one structure")
     _add_structure_arg(analyze)
@@ -554,12 +614,12 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument('--skip-interactions', action='store_true', help='Skip typed chemical interactions and residue conformation measurements')
         command.add_argument('--skip-analysis-views', action='store_true', help='Keep numerical analyses but omit the unified molecular scenes, evidence table and overview figures')
     for command in [region_prepare, region_compare, region_md, hydration, cavity_md, cast, profile, residues, cavities,
-                    network, evidence, trajectory, publish, analyze, static_suite]:
+                    network, evidence, trajectory, publish, analyze, static_suite, fingerprint]:
         _add_annotate_arg(command)
     for command in [cast, profile, trajectory, publish, analyze, static_suite]:
         _add_display_guide_args(command)
     for command in [region_prepare, region_md, hydration, cavity_md, cast, profile, residues, cavities, tunnels,
-                    network, evidence, features, trajectory, publish, analyze, benchmark, static_suite]:
+                    network, evidence, features, trajectory, publish, analyze, benchmark, static_suite, fingerprint]:
         _add_radii_arg(command)
     for command in [region_prepare, region_md, hydration, region_compare]:
         command.add_argument(
@@ -1275,6 +1335,7 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         residue_groups=json.loads(Path(args.residue_groups).read_text()) if args.residue_groups else None,
         entry_end=args.entry_end,
         lining_cutoff=args.lining_cutoff,
+        fingerprint=args.fingerprint,
     )
     input_report_path = Path(args.out_dir) / f"{prefix}_input_report.json"
     _write_json({"source": source.to_dict(), "intake": _report}, input_report_path)
@@ -1288,6 +1349,40 @@ def _cmd_publish(args: argparse.Namespace) -> None:
     if profile_status == "unresolved":
         print(f"crevice: note: the files describe the space without a channel profile ({Path(manifest['profile_status_json']).name} "
               f"says why); {UNRESOLVED_CHANNEL_HINT}", file=sys.stderr)
+
+
+def _cmd_fingerprint(args: argparse.Namespace) -> None:
+    from .fingerprint import fingerprint_structure, fingerprint_trajectory, write_fingerprint_bundle
+    profile_kwargs = dict(axis=_profile_axis(args.axis), origin=args.origin, section_spacing=args.section_spacing,
+                          enclosure_radius=args.enclosure_radius, lateral_exits=args.lateral_exits,
+                          exit_bulk_radius=args.exit_bulk_radius, exit_spacing=args.exit_spacing, samples=args.samples,
+                          padding=args.padding, search_radius=args.search_radius,
+                          refinement_steps=args.refinement_steps, probe_radius=args.probe_radius,
+                          include_hydrogen=args.include_hydrogen, include_hetero=not args.exclude_hetero)
+    options = dict(entry_end=args.entry_end, bulk_radius=args.exit_bulk_radius,
+                   hydrophobicity_bandwidth=args.hydrophobicity_bandwidth, lining_shell=args.lining_shell,
+                   electrolyte=args.electrolyte, resistivity=args.resistivity)
+    if args.trajectory:
+        source = _resolve_input(args)
+        prefix = args.prefix or source.path.stem
+        fp = fingerprint_trajectory(source.path, args.trajectory, selection=args.selection, start=args.start,
+                                    stop=args.stop, stride=args.stride, max_frames=args.max_frames or None,
+                                    pbc=args.pbc, water_selection=args.water_selection,
+                                    include_water=not args.no_water, quantiles=tuple(args.quantiles),
+                                    **options, **profile_kwargs)
+    else:
+        frame, source, _report = _load_input(args)
+        prefix = args.prefix or source.path.stem
+        _profile, _cast, fp = fingerprint_structure(frame, **options, **profile_kwargs)
+    files = write_fingerprint_bundle(fp, args.out_dir, prefix, dpi=args.dpi)
+    g = fp.conductance
+    line = (f"fingerprint samples={len(fp.samples)} lining_residues={len(fp.lining)} "
+            f"segments={','.join(s['segment'] for s in fp.segments)} g_macro_pS={g['g_macro_pS']:.3g} "
+            f"({g['electrolyte']}; geometric estimate)")
+    if fp.frames:
+        line += f" frames={len(fp.frames)} g_macro_median_pS={g['per_frame_g_macro_pS']['median']:.3g}"
+    print(line)
+    print(f"wrote {', '.join(Path(v).name for v in files.values())} to {args.out_dir}")
 
 
 def _cmd_fetch(args: argparse.Namespace) -> None:
@@ -1332,6 +1427,26 @@ def _cmd_fetch_example(args: argparse.Namespace) -> None:
         state = "fetched" if name in fetched.downloaded else "cached"
         print(f"{path}\t{state}\tsha256 verified")
     print(f"example directory={fetched.directory}")
+
+
+def _cmd_view(args: argparse.Namespace) -> None:
+    from .viewer import view
+    scene = view(args.outdir, kind=args.kind, snapshot=args.snapshot)
+    for name in args.show:
+        scene.toggle(name, True)
+    for name in args.hide:
+        scene.toggle(name, False)
+    if args.output:
+        output = Path(args.output)
+    else:
+        source = Path(scene.source)
+        stem = source.name.removesuffix("_analysis_scene.json").removesuffix("_manifest.json")
+        output = source.parent / f"{stem}_view.html"
+    path = scene.save_html(output, inline_js=not args.cdn)
+    print(f"view file={path} layers={','.join(scene.layer_names)} size_MB={path.stat().st_size/1e6:.2f}")
+    if args.open:
+        import webbrowser
+        webbrowser.open(path.resolve().as_uri())
 
 
 def _cmd_analyze(args: argparse.Namespace) -> None:
@@ -1587,7 +1702,7 @@ def _cmd_residue_evidence(args):
 
 
 def _cmd_cavity_trajectory(args):
-    from .cavity_trajectory import CavityReference,analyze_cavity_trajectory,write_cavity_trajectory_bundle
+    from .cavity_trajectory import CavityReference,analyze_cavity_trajectory,auto_workers,write_cavity_trajectory_bundle
     if args.obstacle_selection and args.geometry_mode!="reference-region":
         raise ValueError("--obstacle-selection requires --geometry-mode reference-region")
     trajectory,reader=load_trajectory_report(args.topology,args.trajectory,selection=args.selection,
@@ -1619,7 +1734,7 @@ def _cmd_cavity_trajectory(args):
     try:
         analysis=analyze_cavity_trajectory(trajectory,reference,geometry=geometry,alignment_residues=scaffold,
               minimum_overlap=args.minimum_overlap,ambiguity_ratio=args.ambiguity_ratio,lining_distance=args.lining_distance,
-              contact_cutoff=args.contact_cutoff,workers=args.workers,progress_callback=progress,geometry_mode=args.geometry_mode,region_margin=args.region_margin,obstacles=obstacles,waters=waters)
+              contact_cutoff=args.contact_cutoff,workers=args.workers if args.workers is not None else auto_workers(len(trajectory.frames),max_grid_points=args.max_grid_points),progress_callback=progress,geometry_mode=args.geometry_mode,region_margin=args.region_margin,obstacles=obstacles,waters=waters)
     finally:
         frame_progress.close()
     if getattr(args,'region_definition_metadata',None):

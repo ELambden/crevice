@@ -144,7 +144,7 @@ napoleon_type_aliases = {
 # shapes of NumPy-style types ("array_like, shape (n, 3)"). They are plain
 # descriptions, so they are exempt from nitpicky reference checking.
 nitpick_ignore_regex = [
-    (r"py:(class|obj)", r"(JSON|DX|PNG|BILD|VMD|ChimeraX|ChimeraX script|PyMOL|PyMOL script|image|figures?|tables?|"
+    (r"py:(class|obj)", r"(JSON|HTML|DX|PNG|BILD|VMD|ChimeraX|ChimeraX script|PyMOL|PyMOL script|image|figures?|tables?|"
                         r"arrays|grids|scenes?|scene data|structures?|network|tunnels|cavities|connectivity|profile|"
                         r"density|interactions|trajectory tables|volume scene|display|regions|data|text|CSV|NPZ|PDB|"
                         r"script|bundle|evidence table|member waters|snapshots|per frame|definition|review)"),

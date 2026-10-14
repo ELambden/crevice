@@ -515,11 +515,17 @@ def _element_names(selected_atoms) -> list[str]:
     supplied = _optional_attribute(selected_atoms, "elements")
     names = [str(value) for value in selected_atoms.names]
     resnames = [str(value) for value in selected_atoms.resnames]
-    return [
-        infer_element(names[index], supplied[index] if index < len(supplied) else "",
-                      resnames[index])
-        for index in range(len(names))
-    ]
+    # infer_element is a pure function of its three strings; an MD topology
+    # repeats a few thousand distinct triples, so infer each once.
+    memo: dict[tuple[str, str, str], str] = {}
+    result = []
+    for index in range(len(names)):
+        key = (names[index], supplied[index] if index < len(supplied) else "", resnames[index])
+        element = memo.get(key)
+        if element is None:
+            element = memo[key] = infer_element(*key)
+        result.append(element)
+    return result
 
 
 def _require_radii(names, resnames, elements, selection, source) -> None:

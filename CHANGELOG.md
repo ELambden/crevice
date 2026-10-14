@@ -12,6 +12,71 @@ biological results.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-14
+
+### Added
+
+- Interactive 3D views. `crevice.view(OUTDIR)` (or in-memory results:
+  `frame`, `cast`, `segments`, `profile`, `lining`, `waters`) returns a
+  `CreviceView` with the protein cartoon, the ENTRY/LUMEN/EXIT (or single)
+  cast surfaces, hidden lining-residue sticks, a hidden profile centre line
+  and, for `region-trajectory --water-membership` outputs, the member waters
+  of a chosen saved frame; each is a layer with a checkbox. `.show()` displays
+  it in Jupyter through py3Dmol (new optional extra `crevice[view]`),
+  `.toggle(name)` changes layers and `.save_html(path)` writes one
+  self-contained HTML file. New command `crevice view OUTDIR [-o FILE]
+  [--open] [--show LAYER] [--hide LAYER] [--snapshot N] [--cdn]`. Surfaces are
+  the 0.5 isosurfaces of the display fields already written for the native
+  viewers, so they match the PyMOL/VMD/ChimeraX display surfaces. HTML is
+  written only on request; no analysis command writes it.
+- The 3Dmol.js 2.5.5 build (BSD-3-Clause) is vendored in
+  `crevice/_viewer_assets/` with its licence; HTML viewers inline it (about
+  0.54 MB) and work offline, or load it from a CDN with `--cdn`.
+- Test markers `slow`, `native` and `realdata` (assigned in
+  `tests/conftest.py`), a fast suite (`pytest -m "not slow"`), pytest-xdist
+  in the `test` extra, and a fast pull-request CI job. The full suite stays
+  the release gate.
+- `crevice fingerprint` and `crevice.fingerprint`: a pore fingerprint along
+  one path coordinate *s* (Å) of a resolved channel. It combines the radius,
+  a lining-hydrophobicity profile (Wimley–White whole-residue octanol scale,
+  sign reversed so that positive means hydrophobic, Gaussian kernel along *s*
+  with σ set by `--hydrophobicity-bandwidth`, default 3 Å), lining chemistry
+  per ENTRY/LUMEN/EXIT segment, the exit legs and, with `--trajectory`, the
+  radius spread over frames and the water-oxygen count, density and occupancy
+  along a fixed reference path. It also reports a HOLE-style geometric
+  conductance estimate *G* = 1/(ρ ∫ ds/πr²), with bulk resistivity
+  `--electrolyte` (default 150 mM KCl, 0.532 Ω m) or `--resistivity`, plus
+  the access-resistance and HOLE-corrected values. The conductance is labelled
+  as an order-of-magnitude estimate, not a measurement. The command writes
+  `PREFIX_fingerprint.csv`, `.json` and `.png` (plus `_frames.csv` for
+  trajectories). `publish --fingerprint` writes the same files inside the
+  bundle. Existing outputs and measurements are unchanged.
+
+### Changed
+
+- Faster channel profiles, with bit-identical results. The section-plane
+  free-node and edge tests, point and segment atom clearances and the
+  lateral-exit lattice search are now evaluated in batched NumPy/KD-tree
+  operations that perform the same floating-point operations in the same
+  order as before; enclosed sections are labelled with SciPy connected
+  components whenever every edge test is symmetric (otherwise the previous
+  flood fill runs). The automatic enclosure-probe ladder shares the
+  probe-independent frame data (spatial index, projected atoms, memoised
+  clearances) between its probes. On the recorded benchmarks (single
+  thread, shared machine) `crevice profile` with the automatic probe took
+  1GRM 9.9 s → about 2.3 s, 3UKM `--lateral-exits` 140 s → about 40-50 s and
+  1OED 98 s → about 18 s; canonical `publish` runs and every output file are
+  byte-identical to 0.1.2.
+- `cavity-trajectory` and `region-trajectory` now use several worker
+  processes by default (`--workers` omitted: min(4, available CPUs,
+  frames), reduced when the available memory is short). Results do not
+  depend on the worker count; the bundle records the count used
+  (`settings.workers`). The fixed regional grid is built once before the
+  workers start, and element inference is memoised per topology.
+- New `SpatialIndex.nearest_surface_values` and
+  `SpatialIndex.segment_clearances` batch queries (values identical to the
+  scalar methods).
+
 ## [0.1.2] - 2026-10-13
 
 ### Changed

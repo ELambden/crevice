@@ -30,6 +30,7 @@ CLI on import) is deliberately excluded.
    crevice.ensemble
    crevice.examples
    crevice.figures
+   crevice.fingerprint
    crevice.geometry
    crevice.grid
    crevice.hydration
@@ -65,6 +66,7 @@ CLI on import) is deliberately excluded.
    crevice.trajectory
    crevice.tunnels
    crevice.uncertainty
+   crevice.viewer
    crevice.voids
    crevice.volume_export
    crevice.water_density

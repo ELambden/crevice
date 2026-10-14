@@ -29,6 +29,16 @@ The 3D shape and volume of a pocket, cavity or channel.
 `crevice cast`
 :::
 
+:::{container} crevice-card
+![](../examples/images/1grm_fingerprint.png)
+
+**[Pore fingerprints](fingerprint.md)**
+
+Radius, lining hydrophobicity and chemistry, water and a geometric conductance estimate along one channel.
+
+`crevice fingerprint`
+:::
+
 ::::
 
 ## Cavities and tunnels
@@ -183,6 +193,7 @@ structures.
 
 profile
 cast
+fingerprint
 cavities
 tunnels
 residues

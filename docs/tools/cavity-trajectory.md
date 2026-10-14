@@ -72,7 +72,7 @@ Two options are worth knowing about:
 | `--probe-radius`, `--outer-radius` | 0.8, 6.0 Å | the cast probes |
 | `--region-margin` | 2.0 Å | how far around the reference to look (reference-region) |
 | `--axis` | from the map | the axis for widths, `x,y,z` |
-| `--max-frames`, `--workers` | 500, 1 | frame guard and parallel processes |
+| `--max-frames`, `--workers` | 500, automatic | frame guard and parallel processes (default min(4, available CPUs, frames), reduced when available memory is short; results do not depend on it) |
 | `--water-membership` | off | count waters inside the cavity in each frame |
 
 Everything is listed under

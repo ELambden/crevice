@@ -22,7 +22,37 @@ env:
   MPLBACKEND: Agg
 
 jobs:
+  fast:
+    # Quick feedback on pull requests: everything except tests marked slow
+    # (tests/conftest.py), in parallel. Not a release gate.
+    name: fast tests (Python ${{ matrix.python }})
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install CREVICE with required and test dependencies
+        run: python -m pip install '.[test]'
+      - name: Fast regression suite (not slow, parallel)
+        run: >-
+          python -m pytest -q -rs -m "not slow" -n auto tests
+          --junitxml=ci-artifacts/pytest-fast.xml
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: fast-tests-python-${{ matrix.python }}
+          path: ci-artifacts/
+
   test:
+    # Release gate: the full suite (no marker filter) on every supported Python.
     name: tests (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
     strategy:
@@ -43,9 +73,9 @@ jobs:
         run: |
           mkdir -p ci-artifacts
           python -m pip freeze > ci-artifacts/pip-freeze.txt
-      - name: Regression suite
+      - name: Regression suite (full)
         run: >-
-          python -m pytest -q -rs tests
+          python -m pytest -q -rs -n auto tests
           --junitxml=ci-artifacts/pytest.xml
       - uses: actions/upload-artifact@v7
         if: always()
@@ -71,9 +101,9 @@ jobs:
         run: |
           mkdir -p ci-artifacts
           python -m pip freeze > ci-artifacts/pip-freeze.txt
-      - name: Regression suite
+      - name: Regression suite (full)
         run: >-
-          python -m pytest -q -rs tests
+          python -m pytest -q -rs -n auto tests
           --junitxml=ci-artifacts/pytest.xml
       - uses: actions/upload-artifact@v7
         if: always()

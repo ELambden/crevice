@@ -7,6 +7,7 @@ axis describes only passages that are monotone along that direction.
 """
 from __future__ import annotations
 
+import contextvars
 import math
 from dataclasses import dataclass, replace
 
@@ -46,6 +47,67 @@ class Section:
     clearance: float
 
 
+class _FrameState:
+    """Probe-independent data of one section frame (atoms, origin, axis, basis).
+
+    Holds the spatial index, the atoms projected on the frame (Python floats,
+    as before, and NumPy columns) and memo tables of point and segment
+    clearances. Memoised values are the exact values the spatial index
+    returns, so sharing them changes no result.
+    """
+    _MEMO_LIMIT = 400_000
+
+    def __init__(self, atoms, origin, direction, basis=None):
+        import numpy as np
+        self.u, self.v = basis or molecular_basis(direction, atoms)
+        self.spatial = SpatialIndex(atoms)
+        self.projected = [(dot(sub(a.coord, origin), self.u),
+                           dot(sub(a.coord, origin), self.v),
+                           dot(sub(a.coord, origin), direction), atom_vdw_radius(a)) for a in atoms]
+        columns = np.array(self.projected, dtype=float).reshape(-1, 4)
+        self.px, self.py, self.pz, self.pr = (np.ascontiguousarray(columns[:, k]) for k in range(4))
+        self._clear, self._segment = {}, {}
+
+    def clearances(self, points):
+        """Atom-surface clearances of ``points`` (memoised, batched)."""
+        memo = self._clear
+        missing = [p for p in dict.fromkeys(points) if p not in memo]
+        if missing:
+            if len(memo) > self._MEMO_LIMIT:
+                memo.clear()
+            memo.update(zip(missing, self.spatial.nearest_surface_values(missing).tolist()))
+        return [memo[p] for p in points]
+
+    def segment_clearance(self, start, end):
+        """Memoised :meth:`crevice.spatial.SpatialIndex.segment_clearance`."""
+        key = (start, end)
+        value = self._segment.get(key)
+        if value is None:
+            if len(self._segment) > self._MEMO_LIMIT:
+                self._segment.clear()
+            value = self._segment[key] = self.spatial.segment_clearance(start, end)
+        return value
+
+
+#: Frame cache shared by the probes of one automatic-ladder run (see ``_auto_enclosure_profile``).
+_ACTIVE_FRAMES = contextvars.ContextVar("crevice_section_frames", default=None)
+
+
+class _FrameCache:
+    """Shares :class:`_FrameState` between geometries on the same atoms and frame."""
+
+    def __init__(self):
+        self._frames = {}
+
+    def frame(self, atoms, origin, direction, basis):
+        """The shared state for this frame, built on first use."""
+        key = (id(atoms), len(atoms), tuple(origin), tuple(direction), basis)
+        entry = self._frames.get(key)
+        if entry is None or entry[0] is not atoms:
+            entry = self._frames[key] = (atoms, _FrameState(atoms, origin, direction, basis))
+        return entry[1]
+
+
 class SectionGeometry:
     """Transverse grids perpendicular to a channel axis, and their enclosed sections.
 
@@ -71,6 +133,11 @@ class SectionGeometry:
     basis : tuple of Coord, optional
         In-plane axes ``(u, v)``; default from
         :func:`crevice.geometry.molecular_basis`.
+    shared : object, optional
+        Internal ``_FrameCache`` of probe-independent frame data (spatial index,
+        projected atoms, node clearances) shared by several geometries on the
+        same atoms and frame, as in the automatic enclosure-probe ladder. It
+        changes no result.
 
     Raises
     ------
@@ -78,18 +145,23 @@ class SectionGeometry:
         If a plane would need more than 250000 grid points.
     """
     def __init__(self, atoms, origin, direction, *, spacing=0.5, extent=6.0,
-                 probe=0.0, basis=None):
+                 probe=0.0, basis=None, shared=None):
         self.atoms = tuple(atoms)
         self.origin, self.direction = origin, direction
-        self.u, self.v = basis or molecular_basis(direction, atoms)
         self.spacing, self.probe = spacing, probe
         self.half = int(math.ceil(extent / spacing))
         if (2 * self.half + 1)**2 > 250_000:
             raise ValueError("Section search exceeds 250000 points; reduce search_radius or increase section_spacing")
-        self.spatial = SpatialIndex(self.atoms)
-        self.projected = [(dot(sub(a.coord, origin), self.u),
-                           dot(sub(a.coord, origin), self.v),
-                           dot(sub(a.coord, origin), direction), atom_vdw_radius(a)) for a in atoms]
+        # Everything below depends on the atoms and the frame only, never on
+        # the probe: a ``_FrameCache`` shares it between the probes of the
+        # automatic ladder.
+        state = shared.frame(self.atoms, origin, direction, basis) if shared is not None else \
+            _FrameState(self.atoms, origin, direction, basis)
+        self._state = state
+        self.u, self.v = state.u, state.v
+        self.spatial = state.spatial
+        self.projected = state.projected
+        self._sections = {}
 
     def position(self, i, j, t):
         """Cartesian position of in-plane node ``(i, j)`` on the plane at ``t``.
@@ -157,6 +229,71 @@ class SectionGeometry:
                     blocked[k, si, sj] |= ((ii+fraction*di)*ds-x)**2 + ((jj+fraction*dj)*ds-y)**2 <= rr + 1e-12
         return ~inside, blocked
 
+    def _plane_graph(self, t):
+        """Free nodes and blocked free-to-free edges of one plane (batched, exact).
+
+        Same arithmetic as :meth:`_plane_masks`, element by element, on the
+        same per-disk index boxes, but evaluated for all disks of the plane in
+        a few NumPy operations instead of a Python loop over atoms. ``free``
+        equals ``_plane_masks(t)[0]``; ``blocked[k, i, j]`` equals
+        ``_plane_masks(t)[1][k, i, j]`` wherever node ``(i, j)`` and its
+        k-th neighbour are both free (the only edges the flood fill in
+        :meth:`sections` reads) and is False elsewhere. The disk radius
+        ``rr`` keeps Python scalar arithmetic, as before.
+        """
+        import numpy as np
+        h, ds, probe = self.half, self.spacing, self.probe
+        n = 2*h+1
+        state = self._state
+        inside = np.zeros(n*n, dtype=bool)
+        blocked = np.zeros((len(_STEPS), n*n), dtype=bool)
+        near = np.nonzero(np.abs(state.pz - t) <= state.pr + probe)[0]
+        if len(near) == 0:
+            return ~inside.reshape(n, n), blocked.reshape(len(_STEPS), n, n)
+        xs, ys = state.px[near], state.py[near]
+        rr = np.array([(r + probe)**2 - (z-t)**2
+                       for r, z in zip(state.pr[near].tolist(), state.pz[near].tolist())])
+        threshold = rr + 1e-12
+        bound = np.sqrt(np.maximum(rr, 0.0) + 1e-12) + 1e-6
+        grid = np.arange(-h, h+1)*ds
+
+        def pairs(extent):
+            i0 = np.maximum(-h, np.floor((xs-extent)/ds).astype(np.int64) - 1)
+            i1 = np.minimum(h, np.ceil((xs+extent)/ds).astype(np.int64) + 1)
+            j0 = np.maximum(-h, np.floor((ys-extent)/ds).astype(np.int64) - 1)
+            j1 = np.minimum(h, np.ceil((ys+extent)/ds).astype(np.int64) + 1)
+            ni, nj = np.maximum(i1-i0+1, 0), np.maximum(j1-j0+1, 0)
+            sizes = ni*nj
+            owner = np.repeat(np.arange(len(sizes)), sizes)
+            local = np.arange(int(sizes.sum())) - np.repeat(np.cumsum(sizes)-sizes, sizes)
+            width = nj[owner]
+            return owner, i0[owner] + local//width, j0[owner] + local % width
+
+        owner, ii, jj = pairs(bound)
+        hit = ((grid[ii+h]-xs[owner])**2 + (grid[jj+h]-ys[owner])**2) <= threshold[owner]
+        inside[((ii+h)*n + (jj+h))[hit]] = True
+        free = ~inside
+        owner, ii, jj = pairs(bound + ds*math.sqrt(2.0))
+        start = (ii+h)*n + (jj+h)
+        live = free[start]
+        owner, ii, jj, start = owner[live], ii[live], jj[live], start[live]
+        # All eight steps at once: one row per (pair, step).
+        steps = np.array(_STEPS, dtype=np.int64)
+        k = np.tile(np.arange(len(_STEPS)), len(ii))
+        owner, ii, jj, start = (np.repeat(a, len(_STEPS)) for a in (owner, ii, jj, start))
+        di, dj = steps[k, 0], steps[k, 1]
+        ti, tj = ii+di, jj+dj
+        ok = (np.abs(ti) <= h) & (np.abs(tj) <= h)
+        ok[ok] = free[(ti[ok]+h)*n + (tj[ok]+h)]
+        owner, ii, jj, start, k = owner[ok], ii[ok], jj[ok], start[ok], k[ok]
+        di, dj = di[ok].astype(float), dj[ok].astype(float)
+        x, y = xs[owner], ys[owner]
+        fi, fj = ii.astype(float), jj.astype(float)
+        fraction = np.maximum(0.0, np.minimum(1.0, ((x/ds-fi)*di + (y/ds-fj)*dj)/(di*di+dj*dj)))
+        touch = ((fi+fraction*di)*ds-x)**2 + ((fj+fraction*dj)*ds-y)**2 <= threshold[owner]
+        blocked[k[touch], start[touch]] = True
+        return free.reshape(n, n), blocked.reshape(len(_STEPS), n, n)
+
     def sections(self, t):
         """Enclosed sections (connected free components) of the plane at ``t``.
 
@@ -166,10 +303,21 @@ class SectionGeometry:
         search boundary are exterior and dropped; each remaining component is
         a :class:`Section` centred on its node of largest 3D clearance.
         """
+        if t in self._sections:
+            return list(self._sections[t])
         h = self.half
-        free_mask, blocked = self._plane_masks(t)
-        free = {(int(i)-h, int(j)-h) for i, j in zip(*free_mask.nonzero())}
+        free_mask, blocked = self._plane_graph(t)
         result = []
+        components = _symmetric_components(free_mask, blocked, h)
+        if components is not None:
+            for component in components:
+                values = self._state.clearances([self.position(i, j, t) for i, j in component])
+                scored = [(value, i, j) for value, (i, j) in zip(values, component)]
+                clearance, i, j = max(scored, key=lambda row: (round(row[0], 10), -row[1]**2-row[2]**2, -row[1], -row[2]))
+                result.append(Section(t, component, self.position(i, j, t), clearance))
+            self._sections[t] = tuple(result)
+            return result
+        free = {(int(i)-h, int(j)-h) for i, j in zip(*free_mask.nonzero())}
         while free:
             first = min(free)
             free.remove(first)
@@ -189,10 +337,11 @@ class SectionGeometry:
                         stack.append(other)
             if not exterior:
                 # Real 3D clearance, not the distance to planar disk boundaries.
-                scored = [(self.spatial.nearest_surface(self.position(i, j, t))[0], i, j)
-                          for i, j in component]
+                values = self._state.clearances([self.position(i, j, t) for i, j in component])
+                scored = [(value, i, j) for value, (i, j) in zip(values, component)]
                 clearance, i, j = max(scored, key=lambda row: (round(row[0], 10), -row[1]**2-row[2]**2, -row[1], -row[2]))
                 result.append(Section(t, tuple(sorted(component)), self.position(i, j, t), clearance))
+        self._sections[t] = tuple(result)
         return result
 
     def refine(self, section, steps):
@@ -218,15 +367,78 @@ class SectionGeometry:
         step = self.spacing / 2
         for _ in range(steps):
             improved, score = best, clearance
-            for di, dj in ((-1, -1), (-1, 0), (-1, 1), (0, -1),
-                           (0, 1), (1, -1), (1, 0), (1, 1)):
-                p = add(best, add(scale(self.u, di*step), scale(self.v, dj*step)))
-                value = self.spatial.nearest_surface(p)[0]
-                if value > score + 1e-12 and self.spatial.segment_clearance(best, p) > self.probe:
+            moves = [add(best, add(scale(self.u, di*step), scale(self.v, dj*step))) for di, dj in _STEPS]
+            for p, value in zip(moves, self._state.clearances(moves)):
+                if value > score + 1e-12 and self._state.segment_clearance(best, p) > self.probe:
                     improved, score = p, value
             best, clearance = improved, score
             step /= 2
         return Section(section.t, section.indices, best, clearance)
+
+
+def _symmetric_components(free_mask, blocked, h):
+    """Interior components of a plane graph, or None when an edge test is asymmetric.
+
+    The flood fill in :meth:`SectionGeometry.sections` follows an edge from
+    the node it visits, testing that node's own segment. When every free edge
+    gives the same answer from both ends (the usual case; the two tests
+    differ only by rounding), the graph is undirected and the flood fill
+    finds exactly its connected components. This labels them with
+    :func:`scipy.sparse.csgraph.connected_components` and returns, in the
+    flood fill's discovery order (smallest node first), the sorted node
+    tuples of the components that never reach the search boundary. Returns
+    None (use the flood fill) without SciPy or when any free edge is
+    asymmetric, so the result is always the flood fill's.
+    """
+    try:
+        import numpy as np
+        from scipy.sparse import coo_matrix
+        from scipy.sparse.csgraph import connected_components
+    except ImportError:
+        return None
+    n = 2*h+1
+    free = free_mask.ravel()
+    flat = blocked.reshape(len(_STEPS), -1)
+    rows, cols = [], []
+    i_all, j_all = np.divmod(np.arange(n*n), n)
+    for k, (di, dj) in enumerate(_STEPS):
+        if (di, dj) <= (0, 0):
+            continue  # each undirected edge once, from its smaller end
+        back = _STEPS.index((-di, -dj))
+        ok = free & (i_all+di < n) & (j_all+dj >= 0) & (j_all+dj < n)
+        a = np.nonzero(ok)[0]
+        b = a + di*n + dj
+        keep = free[b]
+        a, b = a[keep], b[keep]
+        forward, backward = ~flat[k, a], ~flat[back, b]
+        if (forward != backward).any():
+            return None
+        rows.append(a[forward])
+        cols.append(b[forward])
+    rows = np.concatenate(rows) if rows else np.zeros(0, dtype=np.intp)
+    cols = np.concatenate(cols) if cols else np.zeros(0, dtype=np.intp)
+    graph = coo_matrix((np.ones(len(rows), dtype=np.int8), (rows, cols)), shape=(n*n, n*n)).tocsr()
+    _, labels = connected_components(graph, directed=False)
+    nodes = np.nonzero(free)[0]
+    if len(nodes) == 0:
+        return []
+    node_labels = labels[nodes]
+    boundary = (i_all[nodes] == 0) | (i_all[nodes] == n-1) | (j_all[nodes] == 0) | (j_all[nodes] == n-1)
+    exterior = np.zeros(labels.max()+1, dtype=bool)
+    exterior[node_labels[boundary]] = True
+    order = np.argsort(node_labels, kind="stable")
+    grouped, grouped_labels = nodes[order], node_labels[order]
+    cuts = np.nonzero(np.diff(grouped_labels))[0] + 1
+    starts = np.concatenate(([0], cuts))
+    ends = np.concatenate((cuts, [len(grouped)]))
+    components = []
+    for start, end in zip(starts.tolist(), ends.tolist()):
+        if exterior[grouped_labels[start]]:
+            continue
+        members = grouped[start:end]
+        components.append((int(members[0]), tuple(zip((i_all[members]-h).tolist(), (j_all[members]-h).tolist()))))
+    components.sort()
+    return [members for _, members in components]
 
 
 def _path_width(geometry, path):
@@ -237,7 +449,7 @@ def _path_width(geometry, path):
     """
     if len(path) == 1:
         return path[0].clearance
-    return min(geometry.spatial.segment_clearance(a.center, b.center) for a, b in zip(path, path[1:]))
+    return min(geometry._state.segment_clearance(a.center, b.center) for a, b in zip(path, path[1:]))
 
 
 def _runs(geometry, ts, refinement_steps):
@@ -264,7 +476,7 @@ def _runs(geometry, ts, refinement_steps):
             section = geometry.refine(section, refinement_steps)
             best, best_key = ([], section.clearance), None
             for path, width in previous:
-                edge = geometry.spatial.segment_clearance(path[-1].center, section.center)
+                edge = geometry._state.segment_clearance(path[-1].center, section.center)
                 if edge <= geometry.probe:
                     continue
                 joined = min(width, edge)
@@ -285,7 +497,7 @@ def _open_ends(geometry, path):
     margins = []
     for section, target in ((path[0], low), (path[-1], high)):
         end = add(section.center, scale(geometry.direction, target-section.t))
-        margins.append(geometry.spatial.segment_clearance(section.center, end))
+        margins.append(geometry._state.segment_clearance(section.center, end))
     return margins
 
 
@@ -303,7 +515,7 @@ def _refine_mouth(geometry, section, sign, step, refinement_steps, tolerance=0.0
 
     def continuation(t):
         choices = [s for s in geometry.sections(t)
-                   if geometry.spatial.segment_clearance(inside.center, s.center) > geometry.probe]
+                   if geometry._state.segment_clearance(inside.center, s.center) > geometry.probe]
         if len(choices) != 1:
             return None
         return geometry.refine(choices[0], refinement_steps)
@@ -414,10 +626,22 @@ def _auto_enclosure_profile(atoms, *, probe_radius, origin, **kwargs):
         return profile
 
     from .progress import ProgressBar
-    with ProgressBar(len(ladder), "automatic enclosure probe ladder") as bar:
-        for probe in ladder:
-            attempt(probe, "ladder")
-            bar.update()
+    # Every probe resolves on the same atoms and frames: share the
+    # probe-independent frame data (spatial index, projections, memoised
+    # clearances) between them. Results are those of independent runs.
+    token = _ACTIVE_FRAMES.set(_ACTIVE_FRAMES.get() or _FrameCache())
+    try:
+        with ProgressBar(len(ladder), "automatic enclosure probe ladder") as bar:
+            for probe in ladder:
+                attempt(probe, "ladder")
+                bar.update()
+        return _choose_enclosure_profile(ladder, rows, results, attempt, probe_radius)
+    finally:
+        _ACTIVE_FRAMES.reset(token)
+
+
+def _choose_enclosure_profile(ladder, rows, results, attempt, probe_radius):
+    """Group the resolved ladder probes and pick one (``AUTO_ENCLOSURE_RULE``)."""
 
     def grouped():
         groups = []
@@ -599,7 +823,8 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
     candidates, diagnostics = [], []
     for direction in directions:
         geometry = SectionGeometry(atoms, origin, direction, spacing=section_spacing,
-                                   extent=search_radius, probe=max(probe_radius, enclosure_radius))
+                                   extent=search_radius, probe=max(probe_radius, enclosure_radius),
+                                   shared=_ACTIVE_FRAMES.get())
         projections = [z for _, _, z, _ in geometry.projected]
         low, high = min(projections), max(projections)
         # Discovery resolution is independent of requested output point count.
@@ -612,7 +837,7 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
                 continue
             if supplied_seed:
                 near = min(path, key=lambda s: abs(s.t))
-                if not path[0].t <= 0 <= path[-1].t or geometry.spatial.segment_clearance(origin, near.center) <= geometry.probe:
+                if not path[0].t <= 0 <= path[-1].t or geometry._state.segment_clearance(origin, near.center) <= geometry.probe:
                     continue
             margins = _open_ends(geometry, path)
             if min(margins) <= geometry.probe and not lateral_exits:
@@ -631,7 +856,7 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
                 # the region a lateral exit may use, not a channel continuation.
                 capped = [margin <= geometry.probe for margin in best[3]]
                 beyond = [s for s in beyond if not capped[0 if s.t < path[0].t else 1]]
-            if any(geometry.spatial.segment_clearance(
+            if any(geometry._state.segment_clearance(
                     path[0 if section.t < path[0].t else -1].center, section.center) > geometry.probe
                    for section in beyond):
                 best = None
@@ -714,7 +939,7 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
         raw, nearest = geometry.spatial.nearest_surface(section.center)
         points.append(ChannelPoint(i, section.center, max(0.0, raw-probe_radius), raw, section.t,
                                    nearest.serial, nearest.residue_key.label))
-    segments = [geometry.spatial.segment_clearance(a.position, b.position) for a, b in zip(points, points[1:])]
+    segments = [geometry._state.segment_clearance(a.position, b.position) for a, b in zip(points, points[1:])]
     exit_metadata = {}
     if lateral_exits:
         exit_metadata = _lateral_exit_metadata(geometry, path, segments, probe_radius,
@@ -891,7 +1116,7 @@ def channel_cast(frame, profile, *, spacing, min_radius, max_grid_points, max_co
         f = (t-a.t)/(b.t-a.t)
         target = add(a.position, scale(sub(b.position, a.position), f))
         sections = geometry.sections(t)
-        eligible = [s for s in sections if geometry.spatial.segment_clearance(target, s.center) >= q]
+        eligible = [s for s in sections if geometry._state.segment_clearance(target, s.center) >= q]
         if not eligible:
             gaps.append(t)
             continue

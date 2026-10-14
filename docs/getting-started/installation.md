@@ -41,7 +41,8 @@ installed:
 | `hydration` | MDTraj | DSSP secondary structure in hydration reports | DSSP reported as explicitly unavailable |
 | `networks` | NetworkX | weighted residue paths (`network --connectivity-json`, {mod}`crevice.connectivity`) | those functions raise an error naming the extra |
 | `ml` | scikit-learn | PCA in {func}`crevice.ml.reduce_dimensions` | column truncation, which is not PCA |
-| `science` | all of the above | complete optional feature set | — |
+| `view` | py3Dmol | interactive 3D views in Jupyter ({func}`crevice.view`, `.show()`) | `.show()` raises an error naming the extra; `crevice view` and `.save_html()` still work |
+| `science` | Gemmi, MDTraj, NetworkX and scikit-learn | every optional scientific library (not `view`) | — |
 | `test` | pytest, Gemmi, NetworkX, MDTraj (and `tomli` on Python 3.10) | running the regression suite | — |
 
 To get everything at once:
@@ -74,6 +75,13 @@ CREVICE writes ready-to-open scenes for PyMOL (`.pml`), VMD (`.vmd`/`.tcl`) and
 ChimeraX (`.cxc`). The viewers themselves are separate programs, so install
 whichever you like to use from its own website; pip never installs them. See
 [Viewer scripts](outputs.md#viewer-scripts) for what each scene contains.
+
+Without any of them, `crevice view OUTDIR` writes a self-contained HTML file
+that shows the same result in a web browser, and {func}`crevice.view` shows it
+in Jupyter (with the `view` extra); see
+[Explore results interactively](../examples/explore-interactively.md). The HTML
+file includes the 3Dmol.js library (BSD-3-Clause licence, Rego and Koes,
+*Bioinformatics* 2015), whose licence text is embedded in each file.
 
 ## Upgrading
 

@@ -74,6 +74,13 @@ Measure a channel's radius along its length, and fill pockets, cavities and chan
    ~crevice.models.PoreProfile
    ~crevice.models.VoidComponent
    ~crevice.models.VoidCast
+   ~crevice.fingerprint.fingerprint_structure
+   ~crevice.fingerprint.pore_fingerprint
+   ~crevice.fingerprint.fingerprint_trajectory
+   ~crevice.fingerprint.conductance_estimate
+   ~crevice.fingerprint.write_fingerprint_bundle
+   ~crevice.fingerprint.plot_pore_fingerprint
+   ~crevice.fingerprint.PoreFingerprint
 ```
 
 (api-cavities)=
@@ -249,6 +256,23 @@ Write results, figures and PyMOL/VMD/ChimeraX scenes. Analysis functions never w
    ~crevice.figures.plot_network_chord
    ~crevice.figures.plot_trajectory_profiles
    ~crevice.connectivity.plot_lining_connectivity
+```
+
+(api-view)=
+## Interactive views
+
+Show results in 3D in Jupyter (with the `view` extra) or write them as one self-contained HTML file. See [Explore results interactively](../examples/explore-interactively.md).
+
+```{eval-rst}
+.. autosummary::
+   :nosignatures:
+
+   ~crevice.viewer.view
+   ~crevice.viewer.CreviceView
+   ~crevice.viewer.Layer
+   ~crevice.viewer.field_mesh
+   ~crevice.viewer.cast_mesh
+   ~crevice.viewer.read_dx_field
 ```
 
 (api-more)=

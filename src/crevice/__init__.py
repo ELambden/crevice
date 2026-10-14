@@ -20,7 +20,8 @@ in its defining module. The main groups are:
   :func:`~crevice.networks.build_residue_network`, :func:`~crevice.networks.build_cavity_network`;
 * trajectories and statistics: :func:`~crevice.trajectory.analyze_trajectory`,
   :func:`~crevice.ensemble.profile_distribution`, :func:`~crevice.uncertainty.block_mean_confidence`;
-* outputs: the ``write_*`` exporters and ``plot_*`` figure functions.
+* outputs: the ``write_*`` exporters and ``plot_*`` figure functions, and
+  :func:`~crevice.viewer.view` for interactive 3D views in Jupyter or HTML.
 
 The same analyses are available from the ``crevice`` command line.
 
@@ -277,7 +278,7 @@ __all__ = [
 from .rolling import rolling_probe_cast
 __all__.append("rolling_probe_cast")
 
-__version__ = "0.1.2"
+__version__ = "0.2.0"
 
 from .residue_evidence import boundary_residue_evidence,read_binary_dx,write_residue_evidence_bundle
 from .residue_dynamics import ResidueDynamics,write_dynamics_summary
@@ -294,3 +295,6 @@ __all__.append("restore_viewer_identities")
 
 from .residue_evidence import select_stick_residues
 __all__.append("select_stick_residues")
+
+from .viewer import CreviceView, view
+__all__.extend(["CreviceView", "view"])

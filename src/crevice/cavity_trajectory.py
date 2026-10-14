@@ -367,6 +367,47 @@ def analyze_cavity_frame(frame,reference_frame,reference,*,geometry=None,alignme
     return result
 
 
+def auto_workers(frame_count,*,max_grid_points=2_000_000,limit=4):
+    """Default number of worker processes for a per-frame trajectory analysis.
+
+    ``min(limit, usable CPUs, frame_count)``, then reduced so that the
+    estimated memory of all workers (about 0.3 GB plus 400 bytes per allowed
+    grid point each) fits in the memory the system reports as available
+    (``MemAvailable`` on Linux; no reduction where it is unknown). Never
+    below 1. Results never depend on the number of workers.
+
+    Parameters
+    ----------
+    frame_count : int
+        Frames to analyse.
+    max_grid_points : int, default 2000000
+        Per-frame grid allocation guard (``--max-grid-points``), used for the
+        memory estimate.
+    limit : int, default 4
+        Upper bound.
+
+    Returns
+    -------
+    int
+        Worker count, at least 1.
+    """
+    import os
+    try:
+        cpus=len(os.sched_getaffinity(0))
+    except (AttributeError,OSError):
+        cpus=os.cpu_count() or 1
+    workers=max(1,min(int(limit),cpus,int(frame_count)))
+    per_worker=0.3e9+400.*max_grid_points
+    try:
+        with open('/proc/meminfo') as handle:
+            fields={line.split(':')[0]:line.split()[1:] for line in handle}
+        available=float(fields['MemAvailable'][0])*1024
+        workers=max(1,min(workers,int(available//per_worker)))
+    except (OSError,KeyError,ValueError,IndexError):
+        pass
+    return workers
+
+
 _WORKER=None
 
 def _initialize_worker(frames,reference_frame,reference,settings,radii=None):
@@ -484,6 +525,12 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
     else:
         import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor,as_completed
+        if geometry_mode=='reference-region':
+            # Build the fixed regional grid once here (it is cached on the
+            # reference), so forked workers inherit it instead of each
+            # rebuilding the same frame-independent grid.
+            from .regional_volume import regional_grid
+            regional_grid(reference,region_margin,(geometry or {}).get('probe_radius',1.4),(geometry or {}).get('max_grid_points',2_000_000))
         # Fork shares the read-only compact coordinate trajectory on POSIX.
         context=mp.get_context('fork' if 'fork' in mp.get_all_start_methods() else 'spawn')
         pool=ProcessPoolExecutor(max_workers=int(workers),mp_context=context,

@@ -19,6 +19,7 @@ and whether figures carry text, are described once on
 |---|---|
 | [`profile`](profile.md) | Radius profile of a channel that runs right through the protein |
 | [`cast`](cast.md) | 3D cast of a pocket, cavity or channel, filled with atom-clear probe spheres |
+| [`fingerprint`](fingerprint.md) | Radius, lining hydrophobicity and chemistry, water and a geometric conductance estimate along a channel |
 
 ## Cavities and tunnels
 
@@ -58,6 +59,7 @@ and whether figures carry text, are described once on
 | Command | What it does |
 |---|---|
 | [`publish`](publish.md) | Tables, figures and PyMOL/VMD/ChimeraX scenes for one structure in one run |
+| [`view`](view.md) | A self-contained interactive 3D HTML view of an output directory |
 | [`analyze`](analyze.md) | Several analyses on one structure, written to one directory |
 
 ## Structures and batch runs
@@ -75,6 +77,7 @@ and whether figures carry text, are described once on
 common-options
 profile
 cast
+fingerprint
 cavities
 tunnels
 residues
@@ -89,6 +92,7 @@ region-prepare
 region-trajectory
 region-compare
 publish
+view
 analyze
 fetch
 fetch-example

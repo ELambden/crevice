@@ -32,6 +32,23 @@ ChimeraX are never installed by pip; tests that need them skip when absent.
 env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python -m pytest -q -rs tests
 ```
 
+This is the full suite and the release gate. While developing, run the fast
+suite, which leaves out the tests marked `slow` (5 s or more, plus every
+`native` viewer and `realdata` test), and run tests in parallel with
+pytest-xdist (installed by the `test` extra):
+
+```bash
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python -m pytest -q -rs -m "not slow" -n auto tests
+env OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 python -m pytest -q -rs -n auto tests   # full suite, parallel
+```
+
+The markers are assigned in `tests/conftest.py` (`SLOW_TESTS` lists the slow
+tests by node id; re-measure with `--durations=0` when you add a long test).
+Tests must stay xdist-safe: write only under `tmp_path`, never to a fixed or
+shared output directory. Pull requests get a fast CI job; the full suite
+runs on every pull request and push and must pass before a release. Run the
+full suite before asking for review.
+
 `-rs` prints every skip reason. Record the pass/skip/fail counts **and** the
 skip reasons in your pull request: optional tests skip when their
 prerequisites are missing, and a skip is not a pass. The optional prerequisites

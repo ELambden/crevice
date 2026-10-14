@@ -31,6 +31,7 @@ crevice fetch 1GRM --format pdb --cache-dir "$cache" | tee -a "$log"
 run 1grm profile 1GRM --cache-dir "$cache" --axis auto -o 1GRM_profile.json \
     --png 1GRM_profile.png --annotated-png 1GRM_profile_residues.png --dpi 150
 run 1grm publish 1GRM --cache-dir "$cache" --out-dir 1GRM_bundle --prefix 1GRM --skip-hydration --dpi 150
+run 1grm view 1GRM_bundle -o 1GRM_view.html
 
 # 3UKM: a capped channel with lateral exits
 run 3ukm profile 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
@@ -38,6 +39,7 @@ run 3ukm profile 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --later
 run 3ukm publish 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
     --enclosure-radius 0.55 --skip-hydration --skip-cavities --skip-tunnels --skip-network \
     --out-dir 3UKM_bundle --prefix 3UKM --dpi 150
+run 3ukm view 3UKM_bundle -o 3UKM_view.html
 
 # 1OED: a wide pore with gaps in its wall
 run 1oed profile 1OED --cache-dir "$cache" -o 1OED_profile.json --png 1OED_profile.png --dpi 150

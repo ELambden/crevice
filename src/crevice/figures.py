@@ -1185,6 +1185,7 @@ def write_static_publication_bundle(
     radii: RadiusSet | str | None = None,
     entry_end: str = "auto",
     lining_cutoff: float = 3.3,
+    fingerprint: bool = False,
 ) -> dict[str, str]:
     """Write the complete static-structure bundle of ``crevice publish``.
 
@@ -1297,6 +1298,12 @@ def write_static_publication_bundle(
     lining_cutoff : float, default 3.3
         Atom centre to segment grid node distance (Å) for lining residues
         (:func:`crevice.cast_segments.lining_residues`; CLI ``--lining-cutoff``).
+    fingerprint : bool, default False
+        Also write ``PREFIX_fingerprint.csv``, ``.json`` and ``.png``
+        (:func:`crevice.fingerprint.pore_fingerprint`; CLI ``--fingerprint``)
+        for a resolved channel, with the default scale, bandwidth, lining shell
+        and 150 mM KCl resistivity; manifest keys ``fingerprint_csv``,
+        ``fingerprint_json`` and ``fingerprint_png``.
     annotate : bool, optional
         Draw titles, value call-outs, mouth labels and residue landmark names in
         the figures (the viewer scenes of this bundle contain no text).
@@ -1645,6 +1652,11 @@ def write_static_publication_bundle(
         label_every=residue_label_every,
     )
     plot_residue_contacts(contacts, manifest["residue_contacts_png"], dpi=dpi)
+    if fingerprint:
+        from .fingerprint import pore_fingerprint, write_fingerprint_bundle
+        fp = pore_fingerprint(frame, profile, cast=cast if segments is not None else None, entry_end=entry_end,
+                              bulk_radius=exit_bulk_radius, include_hetero=include_hetero)
+        manifest.update(write_fingerprint_bundle(fp, root, prefix, dpi=dpi))
     write_publication_pymol_script(
         structure_path=structure_copy,
         pore_cast_path=manifest["pore_cast_pdb"],
