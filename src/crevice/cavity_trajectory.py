@@ -977,5 +977,7 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
     from .cavity_reports import write_additional_cavity_reports
     files.update(write_additional_cavity_reports(report,arrays,root,prefix=prefix,confidence=confidence,
                  block_length=block_length,replicates=replicates,seed=seed,dpi=dpi))
+    from .outputs import drop_blocked
+    drop_blocked(files)   # figures the output plan skipped
     path('manifest_json','_cavity_manifest.json').write_text(json.dumps({'files':files,'frame_count':len(times),'matched_frames':int(valid.sum()),'interpretation':report['limitations'],**radii_fields()},indent=2)+'\n')
     return files

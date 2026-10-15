@@ -273,6 +273,8 @@ class CreviceApiTests(unittest.TestCase):
                 "mini",
                 "--skip-cavities",
                 "--skip-tunnels",
+                "--skip-hydration",
+                "--all",   # 0.3: the complete bundle is opt-in
             ])
 
             self.assertEqual(profile_status, 0)

@@ -111,7 +111,7 @@ def test_publish_cli_prints_unresolved_profile(tmp_path, capsys):
     with pytest.warns(RuntimeWarning):
         assert main(["publish", str(source), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--exclude-hetero",
                      "--cast-spacing", "0.5", "--min-component-volume", "30", "--skip-hydration",
-                     "--skip-network", "--dpi", "60"]) == 0
+                     "--skip-network", "--dpi", "60", "--outputs", "default,cavities,tunnels"]) == 0
     assert "profile=unresolved" in capsys.readouterr().out
     manifest = json.loads((tmp_path / "out/pocket_manifest.json").read_text())
     assert manifest["fallback_analyses"]["network"]["status"] == "skipped_by_request"

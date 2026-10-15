@@ -293,12 +293,15 @@ def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95
         report['hydrogen_bonds']={'status':analysis['interactions']['metadata']['hydrogen_bond_status'],
                                  'details':Path(files['interaction_json']).name}
         Path(files['hydration_json']).write_text(json.dumps(report,indent=2,allow_nan=False)+'\n')
-    if 'reference_frame' in analysis:
+    from .outputs import drop_blocked,writes
+    if 'reference_frame' in analysis and (writes('viewers') or writes('viewer-html')):
+        # The coordinated scenes are written only when a viewer is among the outputs.
         from .analysis_viewers import write_analysis_assets,write_analysis_views
         files.update(write_analysis_assets(analysis,report,root,prefix))
         if not analysis.get('analysis_options',{}).get('skip_views',False):
             files.update(write_analysis_views(root,prefix,files,dpi=dpi))
 
+    drop_blocked(files)
     from .radii import radii_fields
     # The set the hydration analysis measured with (it may be the set recorded by --cavity-results).
     used={'radii':analysis['settings']['radii']} if 'radii' in analysis.get('settings',{}) else radii_fields()

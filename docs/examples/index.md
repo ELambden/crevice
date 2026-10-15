@@ -124,6 +124,13 @@ python examples/geometry_demo.py --output results/geometry-demo
 python examples/connectivity_validation.py --output results/connectivity-check
 ```
 
+:::{container} crevice-card
+![](images/glut1_f10_paths.png)
+
+**[Curved paths and cavity tracking in GLUT1](glut1-paths-tracking.md)**
+
+Trace the widest routes from the sugar site to the solvent on either side, and follow the site's cavity through every frame. *A few minutes, using the GLUT1 excerpt.*
+:::
 
 ```{toctree}
 :hidden:
@@ -138,4 +145,5 @@ alphafold-model
 glut1-trajectory
 explore-interactively
 pore-fingerprint
+glut1-paths-tracking
 ```

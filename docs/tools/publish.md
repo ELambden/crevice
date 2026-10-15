@@ -1,9 +1,12 @@
 # One-command output bundle
 
-`crevice publish` is the quickest way to get everything for one structure. It
-runs the profile, cast, lining residues, cavities, tunnels, residue network
-and hydration, and writes the tables, figures and PyMOL, VMD and ChimeraX
-scenes into one directory, with a manifest listing every file and setting. It
+`crevice publish` is the quickest way to get the main results for one
+structure. By default it runs the profile, cast, lining residues and the typed
+residue interactions, and writes the tables, the key figures and PyMOL, VMD and
+ChimeraX scenes into one directory, with a manifest listing every file and
+setting. Cavities, tunnels, the residue network, hydration, the fingerprint
+and more figures are one option away (`--outputs`, `--all`; see
+{ref}`output-policy`). It
 doesn't measure anything new; it runs the other tools for you, consistently.
 
 ## Quick start
@@ -18,11 +21,14 @@ from crevice import load_structure, write_static_publication_bundle
 frame = load_structure(".crevice/pdb/1GRM.cif")
 manifest = write_static_publication_bundle(
     frame, structure_path=".crevice/pdb/1GRM.cif", output_dir="results/1GRM",
-    prefix="1GRM", samples=81)
+    prefix="1GRM", samples=81, outputs="default")
 ```
 
-The command also adds hydration outputs and an input report, which the Python
-call leaves out. For finer detail on a channel, try
+Without `outputs=`, the Python call writes the complete bundle (as `--all`
+without hydration, fingerprint and HTML view). The command also adds an input
+report and the typed residue interactions, which the Python call leaves out;
+{func}`crevice.static_workflow.compute_static_workflow` measures everything
+without writing a file. For finer detail on a channel, try
 `--section-spacing 0.25 --cast-spacing 0.25 --cast-max-grid-points 2000000`.
 
 ```{figure} ../examples/images/3ukm_cast_exits_chimerax.png
@@ -41,13 +47,19 @@ exits in rust.
    the profile resolves. If it doesn't, `publish` says so, records why and
    casts the main cavity with a [rolling probe](cast.md) instead. `channel`,
    `cavity`, `all` and `rolling` force a mode.
-3. [Lining residues](residues.md), [cavities](cavities.md),
-   [tunnels](tunnels.md) and a [network](network.md), unless you pass
-   `--skip-cavities`, `--skip-tunnels` or `--skip-network`.
-4. [Hydration](hydration.md), unless you pass `--skip-hydration`.
-5. A [pore fingerprint](fingerprint.md), if you add `--fingerprint` and the
-   channel resolves: the same `*_fingerprint.csv`, `.json` and `.png` that
-   `crevice fingerprint` writes.
+3. [Lining residues](residues.md) and the typed residue–residue interactions
+   of the lining residues (hydrogen bonds, salt-bridge and aromatic
+   candidates; `--skip-interactions` leaves them out).
+4. On request: [cavities](cavities.md), [tunnels](tunnels.md) and a
+   [network](network.md) (`--outputs default,cavities,tunnels,network` or
+   `--all`; `--skip-cavities`, `--skip-tunnels`, `--skip-network` remove them
+   from `--all`).
+5. On request: [hydration](hydration.md) (`--outputs default,hydration` or
+   `--all`).
+6. A [pore fingerprint](fingerprint.md), with `--fingerprint`,
+   `--outputs default,fingerprint` or `--all`, when the channel resolves: the
+   same `*_fingerprint.csv`, `.json` and `.png` that `crevice fingerprint`
+   writes.
 
 A channel cast fills all the free space in each slice, not just the largest
 sphere. For display, it extends 2 Å beyond each mouth (`--cast-extension`);
@@ -131,7 +143,8 @@ hydrogens) fail instead of switching silently.
 | `--focus X Y Z`, `--focus-radius` | none, 8 Å | crop the cast to spheres around points (repeatable) |
 | `--entry-end` | `auto` | which end is the entry |
 | `--lining-cutoff` | 3.3 Å | distance for lining residues |
-| `--skip-cavities`, `--skip-tunnels`, `--skip-network`, `--skip-hydration` | off | leave parts out |
+| `--outputs`, `--all`, `--dry-run` | compact default | choose files and optional analyses ({ref}`output-policy`) |
+| `--skip-cavities`, `--skip-tunnels`, `--skip-network`, `--skip-hydration` | off | leave parts out (also from `--all`) |
 | `--fingerprint` | off | add a [pore fingerprint](fingerprint.md) of the resolved channel |
 
 Profile settings, atomic radii, figure text, mouth guides and smoothing are
@@ -140,7 +153,7 @@ under [`crevice publish`](../reference/cli/publish.md).
 
 ## What you get
 
-A default 1GRM run writes about 85 files:
+A default 1GRM run writes 40 files (96 in 0.2):
 
 | File | Contents |
 |---|---|
@@ -148,14 +161,17 @@ A default 1GRM run writes about 85 files:
 | `*_residue_contacts.csv` | residues along the channel, with roles |
 | `*_lining_residues.csv` | residues lining each segment |
 | `*_void_cast.csv`, `*_cast_segments.csv` | cast regions and segment volumes |
-| `*_cavities.csv`, `*_tunnels.csv`, `*_tunnel_points.csv` | grid cavities and tunnels |
-| `*_network_nodes.csv`, `*_network_edges.csv` | the residue network |
-| hydration tables | see [Hydration](hydration.md#what-you-get) |
+| `*_interaction_edges.csv`, `*_residue_conformations.csv` | typed residue interactions and conformations |
+| `*_profile_radius.png`, `*_residue_contacts.png` | the key figures |
+| `*_volume.pml`, `*_volume.vmd`, `*_volume.cxc` | the scene in PyMOL, VMD and ChimeraX |
 
-Plus the measured `*_volume.dx` and display maps, viewer scenes and render
-scripts, the radius, residue, cavity and network figures, dummy-atom PDB files
-for the cast, cavities and tunnels, and JSON records for the manifest, the
-input report and the full results. Figures and scenes are clean unless you
+Plus the measured `*_volume.dx` and display maps the scenes load, and JSON
+records for the manifest, the input report and the full results. With
+`--outputs`/`--all` come `*_cavities.csv`, `*_tunnels.csv`,
+`*_tunnel_points.csv`, `*_network_nodes.csv`, `*_network_edges.csv`, the
+annotated radius, cavity and network figures, the hydration tables (see
+[Hydration](hydration.md#what-you-get)), dummy-atom PDB files and the
+`*_pore_cast.*` alias scenes. Figures and scenes are clean unless you
 add `--annotate`.
 
 :::{admonition} Interpreting results

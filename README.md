@@ -71,8 +71,9 @@ crevice profile 1GRM --axis auto -o 1GRM_profile.json --png 1GRM_profile_radius.
 # 3D cast of the dominant interior cavity of GLUT1, with viewer scenes
 crevice cast 4PYP --out-dir 4PYP_cast
 
-# Everything for one structure: profile, cast, residues, cavities, tunnels,
-# network, hydration, figures and PyMOL/VMD/ChimeraX scenes
+# One structure: profile, cast, lining residues, typed residue interactions,
+# key figures and PyMOL/VMD/ChimeraX scenes (--all adds cavities, tunnels,
+# network, hydration, every figure and an HTML view; --dry-run shows the plan)
 crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 

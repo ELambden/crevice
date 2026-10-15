@@ -79,17 +79,17 @@ position, as the legend says.
 
 ```bash
 crevice publish 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
-    --skip-hydration --skip-cavities --skip-tunnels --skip-network \
     --out-dir 3UKM_bundle --prefix 3UKM --dpi 150
 ```
 
 ```text
-publish files=46 out_dir=3UKM_bundle profile=resolved
+publish files=43 out_dir=3UKM_bundle profile=resolved
 ```
 
 Passing the chosen probe explicitly skips the ladder (a minute instead of
-seven); the `--skip-*` options keep the bundle to the profile, the cast and the
-residue contacts. The manifest records `profile_status.path_type`,
+seven); the default outputs keep the bundle to the profile, the cast, the
+residue contacts and the typed residue interactions (`--all` adds cavities,
+tunnels, the network and the rest). The manifest records `profile_status.path_type`,
 `exit_types` and `exit_leg_counts`.
 
 The cast is split into ENTRY, LUMEN and EXIT segments. The LUMEN is the axial

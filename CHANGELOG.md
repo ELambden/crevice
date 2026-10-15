@@ -12,7 +12,105 @@ biological results.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-15
+
+**Breaking change to default outputs; no numerical change.**
+
 ### Changed
+
+- Compact default outputs. `publish`, `cast`, `analyze`, `residue-evidence`,
+  `hydration`, `trajectory`, `cavity-trajectory` and `region-trajectory` now
+  write the manifest, the data (JSON, CSV, NPZ and the measured DX maps), the
+  key figures and one scene set each for PyMOL, VMD and ChimeraX. Before/after
+  file counts: 1GRM `publish` (samples 101, 0.25 Å grids) 96 -> 40, 4PYP 86 -> 29;
+  synthetic cases: `cast` 72 -> 28, `analyze` 42 -> 10, `residue-evidence`
+  72 -> 32, `cavity-trajectory` 86 -> 27, `region-trajectory` 80 -> 28,
+  `trajectory` 79 -> 15. Every measurement is unchanged.
+- The water analyses (water contacts and occupancy, solvent-accessible area,
+  water bridges, water density, hydration scenes) are opt-in in those commands
+  (`--outputs default,hydration` or `--all`), except `hydration` itself and
+  `cavity-trajectory`/`region-trajectory --water-membership`. The typed
+  residue–residue interactions (hydrogen bonds, salt-bridge and aromatic
+  candidates, residue conformations) still run by default, now separately
+  from the water analyses (`crevice.residue_interactions`); their numbers are
+  identical to 0.2 (checked on the GLUT1 region trajectory, 1GRM and 4PYP),
+  and water bridges and residue–water hydrogen bonds are reported only with
+  hydration. `--skip-hydration` alone no longer removes them; add
+  `--skip-interactions`. A default-on interaction run that cannot be measured
+  (for example an MD input without a periodic box) is recorded as not completed
+  instead of failing the command.
+- `publish` no longer runs the separate cavity search, tunnel search and
+  residue network by default (`--outputs default,cavities,tunnels,network`),
+  and the annotated radius figure, the input copy and dummy-atom PDBs, the
+  `*_pore_cast.*`/`*_pore_spheres.pml` aliases and `cast`'s `*_end_view.*`
+  scenes are opt-in (`figures`, `structures`, `extra-views`).
+- The bundle writers keep their Python signatures; called without the new
+  `outputs=` argument they still write the complete 0.2 bundle.
+
+### Added
+
+- `crevice paths` and `crevice.paths.find_paths`: curved, branched pathways
+  from a start (`--seed X,Y,Z`, `--seed-residues`, or the landmark anchor of
+  a `--region` definition) to bulk solvent, without an assumed axis. A
+  maximin (widest, then shortest) lattice search ends each route at its
+  mouth: the first node in the rolling-probe bulk (6 Å, as `cast` and lateral
+  exits) or an exposed node (at least 7 of 26 straight lattice rays reach
+  bulk before an atom). Distinct routes follow the lateral-exit separation
+  rules, measured beyond the routes' junction; kept routes form a tree with
+  junctions and segments. With `--axis` each side of the start is searched
+  separately (half-spaces) and a side without a route is recorded as
+  unresolved. Centre lines are relaxed toward the clearance maximum without
+  narrowing below the lattice bottleneck, and the free-sphere radius is
+  measured exactly every 0.25 Å. Each branch reports length, bottleneck
+  radius, position and arc length, lining residues (the fingerprint lining
+  shell), mouth and end type. Outputs: `*_paths.json`, `*_paths.csv`,
+  `*_path_points.csv`, `*_path_lining.csv`, `*_path_junctions.csv`, a
+  radius-against-arc-length figure with junctions marked, and PyMOL/ChimeraX/
+  VMD scenes with one object per branch (generated, not run in every viewer);
+  `--html` writes an interactive view with one layer per branch
+  (`crevice.paths.paths_view`). `--trajectory`/`--frames` analyse chosen MD
+  frames. Opt-in; no existing command changes.
+- `crevice track-cavities` and `crevice.tracking`: persistent cavity
+  identities across trajectory frames. Every rolling-probe cavity component
+  (optionally within `--radius` of `--centre` or a region's landmark anchor)
+  is measured on one aligned, fixed lattice; components of consecutive
+  measured frames are linked by voxel Jaccard index (`--link-jaccard`, 0.2)
+  or containment (`--link-containment`, 0.5), continued one-to-one in
+  decreasing-overlap order, and births, deaths, splits and merges are
+  recorded. Outputs: event, per-identity time series (volume, centroid,
+  lining residues), lifetime and per-frame CSV tables, a JSON summary and a
+  volume/lifetime figure with events marked. Memory is bounded (previous
+  frame only, chunked reading); `--workers` runs frames in parallel.
+- Documentation: tool pages, method notes, CLI pages and API entries for
+  both, and a GLUT1 tutorial (curved paths and cavity tracking).
+- `--outputs LIST` (file kinds `key-figures`, `figures`, `pymol`, `vmd`,
+  `chimerax`, `viewers`, `scenes`, `viewer-html`, `structures`, `extra-views`;
+  analyses `hydration`, `interactions`, `cavities`, `tunnels`, `network`,
+  `fingerprint`; `default`, `none`; `--outputs help`), `--all` and `--dry-run`
+  on the bundle commands. The resolved plan is printed before the work (on a
+  terminal or with `CREVICE_PROGRESS=1`; always with `--dry-run`) and recorded
+  in the manifest. `--all` keeps every guard and records skipped prerequisites
+  (no invented profile). The defaults are defined in one table,
+  `crevice.outputs.COMMANDS`.
+- Typed run settings shared by the CLI and Python (`crevice.config`:
+  `RunSettings` with `input`, `geometry`, `radii`, `outputs`, `display`,
+  `trajectory`, `hydration` and `method` sections, `settings()`, `run()`),
+  validated before any input is read. `--print-config` and `--config FILE`
+  (JSON) on every command. Bundle manifests gain a `run` record: version,
+  command line, effective settings and their sources, units, input SHA-256 and
+  the output plan.
+- `crevice.static_workflow`: `compute_static_workflow` / `compute_rolling_cast`
+  measure without writing; `export_static_workflow` / `export_rolling_cast`
+  write. `write_static_publication_bundle` and `write_rolling_probe_bundle`
+  are now thin wrappers; their files are byte-identical to 0.2.
+
+### Deprecated
+
+- `--legacy-outputs` reproduces the 0.2 file set exactly (tested on every
+  synthetic case). It is a transition aid for the 0.3 series, prints a
+  deprecation warning and will be removed in a later minor release. See
+  `docs/getting-started/upgrading-0.3.md` ("Upgrading from 0.2 to 0.3") for
+  the migration.
 
 - Documentation: the site presents 0.2.0 as one release. New tool page for
   interactive views (`crevice view`), method notes for the pore fingerprint

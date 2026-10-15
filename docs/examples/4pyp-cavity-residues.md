@@ -26,7 +26,7 @@ closed; see [Outputs and unresolved results](../getting-started/outputs.md).
 ## Cast the dominant cavity
 
 ```bash
-crevice cast 4PYP --out-dir 4PYP_cast --skip-hydration
+crevice cast 4PYP --out-dir 4PYP_cast
 ```
 
 ```text
@@ -39,9 +39,9 @@ inside the envelope of a 6 Å outer probe, and keeps the dominant buried region
 (25 962 samples; `4PYP_void_cast.csv`). The volume depends on the probe, the
 outer envelope and the grid; compare settings before interpreting it.
 `4PYP_volume.dx` is the measured binary map, and `4PYP_volume.pml`, `.vmd`
-and `.cxc` show the cast inside the protein. `--skip-hydration` leaves out the
-water analysis: this entry contains no water molecules, so water contacts would
-be reported as unavailable. The default `--selection protein` uses
+and `.cxc` show the cast inside the protein. The water analysis is opt-in
+(`--outputs default,hydration`); this entry contains no water molecules, so
+water contacts would be reported as unavailable. The default `--selection protein` uses
 non-HETATM heavy atoms, so the bound detergent (BNG) is not an obstacle;
 `--selection all` keeps it.
 
@@ -49,7 +49,7 @@ non-HETATM heavy atoms, so the bound detergent (BNG) is not an obstacle;
 
 ```bash
 crevice residue-evidence 4PYP_cast/4PYP_viewer.pdb --volume-dx 4PYP_cast/4PYP_volume.dx \
-    --scene 4PYP_cast/4PYP_volume.pml --out-dir 4PYP_evidence --prefix 4PYP --skip-hydration --dpi 150
+    --scene 4PYP_cast/4PYP_volume.pml --out-dir 4PYP_evidence --prefix 4PYP --dpi 150
 ```
 
 ```text

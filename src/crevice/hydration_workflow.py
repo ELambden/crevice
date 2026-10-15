@@ -114,8 +114,9 @@ def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None
 def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,roles=None):
     """Add the standard hydration bundle to a CLI command's outputs.
 
-    Used by ``cast``, ``publish``, ``analyze``, ``residue-evidence`` and
-    ``trajectory``: unless ``--skip-hydration`` is set, runs
+    Used by ``cast``, ``publish``, ``analyze`` and ``residue-evidence``: when
+    the active output plan includes ``hydration`` (``--outputs hydration`` or
+    ``--all``; without a plan, unless ``--skip-hydration``), runs
     :func:`static_hydration_bundle` with the command's hydration options and
     merges its files into ``files`` and the command manifest. Figure and scene
     text follows the current annotation setting (CLI ``--annotate``).
@@ -140,7 +141,11 @@ def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,role
     dict of str to str
         The hydration outputs.
     """
-    if getattr(args,'skip_hydration',False):return {}
+    from .outputs import active_plan
+    plan=active_plan()
+    if plan is not None and not plan.runs('hydration'):
+        return append_residue_interactions(args,frame,source_path,files,residue_ids=residue_ids) if plan.runs('interactions') else {}
+    if plan is None and getattr(args,'skip_hydration',False):return {}
     prefix=getattr(args,'prefix',None) or Path(source_path).stem
     missing=hydration_dependencies()
     if missing:
@@ -150,6 +155,55 @@ def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,role
     else:
         extra=static_hydration_bundle(frame,args.out_dir,prefix=prefix,source_path=source_path,volume_path=files.get('volume_dx'),
           residue_ids=residue_ids,roles=roles,cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,dpi=args.dpi,analysis_options=analysis_options_from_args(args))
+    files.update(extra)
+    manifest=files.get('manifest_json')
+    if manifest:
+        p=Path(manifest);data=json.loads(p.read_text());data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n')
+    return extra
+
+
+def append_residue_interactions(args,frame,source_path,files,*,residue_ids=None):
+    """Add the typed residue–residue interactions (no water analyses) to a CLI command's outputs.
+
+    Runs :func:`crevice.residue_interactions.static_residue_interactions` with
+    the residue focus the hydration analysis would use (``residue_ids``, else
+    the boundary residues of the command's ``volume_dx``) and writes
+    ``PREFIX_interactions.json`` and the interaction/conformation tables. The
+    residue-residue numbers equal those of the hydration workflow; water
+    bridges and residue-water hydrogen bonds are not reported.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI arguments (``out_dir``, ``prefix``).
+    frame : StructureFrame
+        The analysed structure.
+    source_path : str or Path
+        Structure file.
+    files : dict of str to str
+        Command outputs; updated in place (and the command manifest).
+    residue_ids : sequence of str, optional
+        Residue focus.
+
+    Returns
+    -------
+    dict of str to str
+        The interaction outputs.
+    """
+    from .residue_interactions import static_residue_interactions,write_residue_interactions
+    prefix=getattr(args,'prefix',None) or Path(source_path).stem
+    from .outputs import note
+    try:
+        if residue_ids is not None and not residue_ids:
+            result=None
+        else:
+            result=static_residue_interactions(frame,source_path=source_path,volume_path=None if residue_ids is not None else files.get('volume_dx'),
+                                               residue_ids=residue_ids)
+    except ValueError as exc:
+        # A default-on analysis: record why it could not run instead of failing the command.
+        note('interactions',f'not completed: {exc}')
+        return {}
+    extra=write_residue_interactions(result,args.out_dir,prefix)
     files.update(extra)
     manifest=files.get('manifest_json')
     if manifest:

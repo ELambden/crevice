@@ -172,7 +172,7 @@ def test_cli_uses_auto_axis_and_map_scene(tmp_path):
                  "--samples", "21", "--section-spacing", "0.5", "--enclosure-radius", "0.8",
                  "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "60"]) == 0
     root = tmp_path / "out"
-    scene = (root / "wall_pore_cast.pml").read_text()
+    scene = (root / "wall_volume.pml").read_text()   # wall_pore_cast.pml is its --all alias
     assert "wall_volume.dx" in scene and "cmd.load_cgo" in scene
     assert (root / "wall_pymol_mesh.npz").is_file()
     assert "alter " not in scene and "show surface" not in scene

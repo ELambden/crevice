@@ -96,18 +96,21 @@ write_profile_csv(profile, "1GRM_profile.csv")
 ## Complete bundle with the channel cast
 
 ```bash
-crevice publish 1GRM --out-dir 1GRM_bundle --prefix 1GRM --skip-hydration --dpi 150
+crevice publish 1GRM --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
+    --outputs default,figures,cavities,tunnels,network
 ```
 
 ```text
-publish files=55 out_dir=1GRM_bundle profile=resolved
+publish files=51 out_dir=1GRM_bundle profile=resolved
 ```
 
-`--skip-hydration` leaves out the water and solvent-accessibility analysis
-(1GRM has no explicit water) and its viewer scenes; without it a default run
-writes about 85 files. The bundle holds the same 81-sample profile
-(`1GRM_profile.csv`), the measured channel cast and its scenes, residue
-contacts, cavities, tunnels and the residue network. Every file is listed in
+`--outputs default,figures,cavities,tunnels,network` adds every figure and the
+separate cavity search, tunnel search and residue network to the default
+bundle; plain `publish` writes 40 files, and `--all` also adds the water
+analysis (1GRM has no explicit water), the fingerprint and an HTML view. The
+bundle holds the same 81-sample profile (`1GRM_profile.csv`), the measured
+channel cast and its scenes, residue contacts, typed residue interactions,
+cavities, tunnels and the residue network. Every file is listed in
 `1GRM_manifest.json`, which also records the chosen enclosure probe under
 `profile_status.enclosure_probe`.
 

@@ -67,7 +67,8 @@ PROFILE_ARGS = ['--offline', '--samples', '21', '--search-radius', '8']
 def published(tmp_path_factory, channel_pdb):
     root = tmp_path_factory.mktemp('publish')
     assert main(['publish', str(channel_pdb), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
-                 '--hydration-sasa-points', '32', '--out-dir', str(root), '--prefix', 'c']) == 0
+                 '--hydration-sasa-points', '32', '--out-dir', str(root), '--prefix', 'c',
+                 '--outputs', 'default,figures,hydration,cavities,tunnels,network']) == 0
     return root
 
 
@@ -117,7 +118,7 @@ def test_analyze_single_commands_and_trajectory_write_csv_companions(tmp_path, c
     out = tmp_path / 'analyze'
     assert main(['analyze', str(channel_pdb), *PROFILE_ARGS, '--analysis', 'profile', '--analysis', 'residues',
                  '--analysis', 'cavities', '--analysis', 'tunnels', '--analysis', 'network', '--analysis', 'features',
-                 '--png', '--dpi', '40', '--skip-hydration', '--out-dir', str(out), '--prefix', 'c']) == 0
+                 '--png', '--dpi', '40', '--skip-hydration', '--skip-interactions', '--out-dir', str(out), '--prefix', 'c']) == 0
     _assert_clean_inventory(out)
     files = json.loads((out / 'c_manifest.json').read_text())['files']
     assert {'profile.json', 'profile.csv', 'residues.csv', 'cavities.json', 'cavities.csv', 'tunnels.json',

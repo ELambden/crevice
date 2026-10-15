@@ -673,6 +673,12 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     * White background, orthographic camera.
     """
     smoothing = resolve_display_smoothing(smooth, surface_smoothing, smooth_supersample=smooth_supersample)
+    from .outputs import drop_blocked, wants
+
+    def _dx(part, path, **options):
+        # Optional display grids follow the active output plan; the path is
+        # still returned because scripts refer to it by name.
+        return write_void_cast_dx(part, path, **options) if wants(path) else Path(path)
     from .presentation import (cast_rgb, exit_centre_lines_enabled, extend_channel_cast, mouth_guides_enabled,
                                orthogonal_map_cast, scene_geometry)
     draw_rings = mouth_guides_enabled() if mouth_guides is None else bool(mouth_guides)
@@ -733,8 +739,8 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         display = _replace(display, components=kept+segments,
                            points=lumen_display.points+tuple(p for c in segments for p in c.points),
                            metadata={**display.metadata, "display_only": True})
-    shown_dx = write_void_cast_dx(display, root / f"{prefix}_display.dx", smoothing=smoothing)
-    local_dx = write_void_cast_dx(orthogonal_map_cast(display), root / f"{prefix}_pymol_local.dx", smoothing=smoothing)
+    shown_dx = _dx(display, root / f"{prefix}_display.dx", smoothing=smoothing)
+    local_dx = _dx(orthogonal_map_cast(display), root / f"{prefix}_pymol_local.dx", smoothing=smoothing)
     # Native validation compares actual triangles with original point positions,
     # independently of the DX basis and viewer object transform.
     import numpy as np
@@ -748,8 +754,10 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     reference_basis = np.asarray(display.metadata.get('grid_basis', np.eye(3)))
     indices = np.rint(((reference_points-reference_origin) @ reference_basis.T)/display.spacing).astype(int)
     boundary_points = reference_points[(mask & ~interior)[tuple(indices.T)]]
-    np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
-                        protein_coords=np.asarray([a.coord for a in frame.atoms]) if frame else np.empty((0,3)))
+    write_reference = wants(reference_path)
+    if write_reference:
+        np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
+                            protein_coords=np.asarray([a.coord for a in frame.atoms]) if frame else np.empty((0,3)))
     geometry = scene_geometry(display, frame, profile)
     if segments:
         # Mouth rings come from the channel cast alone; the camera frames everything.
@@ -758,7 +766,9 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     geometry['exit_paths_drawn'] = draw_lines and bool(geometry.get('exit_paths'))
     geometry['cast_color_rgb'] = list(color)
     geometry_path = root / f"{prefix}_scene.json"
-    geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
+    write_scene = wants(geometry_path)
+    if write_scene:
+        geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
     basis = cast.metadata.get('grid_basis', ((1,0,0),(0,1,0),(0,0,1)))
     matrix = [basis[j][i] if j < 3 else 0 for i in range(3) for j in range(4)] + [0,0,0,1]
     manifest = {"volume_dx": str(dx), "display_dx": str(shown_dx),
@@ -799,8 +809,8 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
             part = replace(display, components=(replace(display.components[0], points=tuple(points), volume=len(points)*display.spacing**3),), points=tuple(points))
             mesh_key = f'region_{index:03d}'
             expected_surfaces.append(expected_surface(part, mesh_key))
-            world_path = write_void_cast_dx(part, root/f'{prefix}_region_{index:03d}.dx', smoothing=smoothing)
-            local_path = write_void_cast_dx(orthogonal_map_cast(part), root/f'{prefix}_region_{index:03d}_local.dx', smoothing=smoothing)
+            world_path = _dx(part, root/f'{prefix}_region_{index:03d}.dx', smoothing=smoothing)
+            local_path = _dx(orthogonal_map_cast(part), root/f'{prefix}_region_{index:03d}_local.dx', smoothing=smoothing)
             obj, map_name = f'crevice_volume_region_{index:03d}', f'crevice_region_grid_{index:03d}'
             region_pml += [f'crevice_surface({obj!r}, {mesh_key!r})',
                 f'cmd.set_color("crevice_region_color_{index}", {color!r})',
@@ -815,7 +825,8 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
             region_rows.append({'name':name,'pymol_object':obj,'pymol_mesh_key':mesh_key, 'color_rgb':color,'opacity':opacity,'points':len(points),
                                 'volume_dx':str(world_path), 'pymol_local_dx':str(local_path)})
         region_manifest = root/f'{prefix}_display_regions.json'
-        region_manifest.write_text(json.dumps(region_rows,indent=2)+'\n')
+        if wants(region_manifest):
+            region_manifest.write_text(json.dumps(region_rows,indent=2)+'\n')
         manifest['display_regions_json'] = str(region_manifest)
     segment_rows = []
     from .cast_segments import SEGMENT_RGB
@@ -828,9 +839,9 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
             kind = name.split("_")[0]
             rgb = color if kind == "lumen" else tuple(SEGMENT_RGB[kind])
             expected_surfaces.append(expected_surface(part, name))
-            world_path = write_void_cast_dx(part, root/f'{prefix}_{name}_display.dx', smoothing=smoothing)
-            local_path = write_void_cast_dx(orthogonal_map_cast(part), root/f'{prefix}_{name}_display_local.dx',
-                                            smoothing=smoothing)
+            world_path = _dx(part, root/f'{prefix}_{name}_display.dx', smoothing=smoothing)
+            local_path = _dx(orthogonal_map_cast(part), root/f'{prefix}_{name}_display_local.dx',
+                             smoothing=smoothing)
             if component is None:
                 measured_path, volume = dx, cast.total_volume
             else:
@@ -876,12 +887,15 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         geometry['lining_selections'] = [{k: r[k] for k in ('segment', 'residue_count', 'pymol_object',
                                                              'pymol_selection', 'chimerax_name', 'shown_by_default')}
                                          for r in lining_rows]
-        geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
-    np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
-                        surface_vertices=np.concatenate(expected_surfaces),
-                        protein_coords=np.asarray([a.coord for a in frame.atoms]) if frame else np.empty((0,3)))
+        if write_scene:
+            geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
+    if write_reference:
+        np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
+                            surface_vertices=np.concatenate(expected_surfaces),
+                            protein_coords=np.asarray([a.coord for a in frame.atoms]) if frame else np.empty((0,3)))
     mesh_path = root/f'{prefix}_pymol_mesh.npz'
-    np.savez_compressed(mesh_path, **mesh_arrays)
+    if wants(mesh_path):
+        np.savez_compressed(mesh_path, **mesh_arrays)
     manifest['pymol_mesh_npz'] = str(mesh_path)
     pml = root / f"{prefix}_volume.pml"
     if segment_mode:
@@ -926,7 +940,7 @@ for leg in crevice_scene.get("exit_paths", []):
         crevice_exit_cgo.extend([CYLINDER, *a, *b, 0.12, 0.16, 0.47, 0.84, 0.16, 0.47, 0.84])
 cmd.load_cgo(crevice_exit_cgo, "crevice_exits")
 '''
-    pml.write_text(f'''# CREVICE display extensions are excluded from measured volume.
+    (pml.write_text if wants(pml) else _no_write)(f'''# CREVICE display extensions are excluded from measured volume.
 python
 # Measured grid file: {dx.name!r}
 from pathlib import Path
@@ -1074,7 +1088,7 @@ python end
                             '    mol showrep $crevice_protein $crevice_lining_rep($segment) [expr {$state eq "on"}]',
                             '}']
         segment_list = ' $crevice_segment_molecules'
-    tcl.write_text(f'''# Measured grid: {dx.name}; display-only continuation: {shown_dx.name}
+    tcl_text = (f'''# Measured grid: {dx.name}; display-only continuation: {shown_dx.name}
 set crevice_root [file dirname [file normalize [info script]]]
 set crevice_structure [file join $crevice_root {_tcl_word(structure.name)}]
 if {{![file exists $crevice_structure]}} {{set crevice_structure {_tcl_word(str(structure))}}}
@@ -1135,9 +1149,12 @@ proc crevice_render {{}} {{
 }}
 # Type crevice_render for the final 2400 x 1800 image.
 ''')
+    if wants(tcl):
+        tcl.write_text(tcl_text)
     manifest["volume_tcl"] = str(tcl)
     vmd=root/f"{prefix}_volume.vmd"
-    vmd.write_text(tcl.read_text())
+    if wants(vmd):
+        vmd.write_text(tcl_text)
     manifest["volume_vmd"]=str(vmd)
     bild = root / f"{prefix}_mouths.bild"
     bild_lines = ['.color 0.90 0.52 0.12']
@@ -1149,7 +1166,8 @@ proc crevice_render {{}} {{
         for leg in geometry['exit_paths']:
             for a, b in zip(leg['points'], leg['points'][1:]):
                 bild_lines.append('.cylinder '+' '.join(f'{v:.9g}' for v in (*a,*b))+ ' 0.12')
-    bild.write_text('\n'.join(bild_lines)+'\n')
+    if wants(bild):
+        bild.write_text('\n'.join(bild_lines)+'\n')
     manifest['mouth_guides_bild'] = str(bild)
     camera_matrix = [rotation[j][i] if j<3 else center[i]+rotation[2][i]*geometry['radius']*3
                      for i in range(3) for j in range(4)]
@@ -1192,14 +1210,16 @@ proc crevice_render {{}} {{
         commands.append('# Lining residues (hidden by default): show crevice_lumen_lining atoms; '
                         'style crevice_lumen_lining stick; hide crevice_lumen_lining atoms')
     commands += ["windowsize 900 675", "view matrix camera "+','.join(f'{v:.12g}' for v in camera_matrix), "view", "zoom 0.9"]
-    cxc.write_text("\n".join(commands) + "\n")
+    if wants(cxc):
+        cxc.write_text("\n".join(commands) + "\n")
     manifest["volume_cxc"] = str(cxc)
     render_cxc = root / f'{prefix}_render.cxc'
-    render_cxc.write_text(f'open {json.dumps(cxc.name)}\nsave {json.dumps(prefix+"_chimerax.png")} width 2400 height 1800 supersample 3\n')
+    (render_cxc.write_text if wants(render_cxc) else _no_write)(f'open {json.dumps(cxc.name)}\nsave {json.dumps(prefix+"_chimerax.png")} width 2400 height 1800 supersample 3\n')
     manifest['chimerax_render_cxc'] = str(render_cxc)
     display_smoothing = smoothing.metadata(display.spacing, cast_grid(display)[0].shape)
     info = root / f"{prefix}_volume_metadata.json"
-    info.write_text(json.dumps({"spacing_A": cast.spacing, "isovalue": 0.5,
+    drop_blocked(manifest)
+    (info.write_text if wants(info) else _no_write)(json.dumps({"spacing_A": cast.spacing, "isovalue": 0.5,
                   "grid_value": "selected_void_occupancy", "smoothing": smoothing.width_A > 0,
                   "surface_smoothing_A": smoothing.width_A if smoothing.option == 'surface_smoothing' else None,
                   "smooth_A": smoothing.width_A if smoothing.option != 'surface_smoothing' else None,
@@ -1239,4 +1259,8 @@ proc crevice_render {{}} {{
                   "display_regions": region_rows,
                   "files": manifest}, indent=2) + "\n")
     manifest["volume_metadata_json"] = str(info)
-    return manifest
+    return drop_blocked(manifest)
+
+
+def _no_write(_text) -> None:
+    """Stand-in for ``Path.write_text`` when the output plan skips a file."""

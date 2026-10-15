@@ -77,7 +77,7 @@ def test_cast_cli_passes_explicit_seed_and_probe(two_rooms,tmp_path):
     out=tmp_path/'cli'
     assert main(['cast',str(structure),'--out-dir',str(out),'--prefix','rooms',
                  '--seed=-4,0,0','--probe-radius','1.8','--cavity-selection','all',
-                 '--enclosure-fraction','0','--min-component-volume','1','--dpi','60'])==0
+                 '--enclosure-fraction','0','--min-component-volume','1','--dpi','60','--outputs','default,extra-views'])==0
     cast=json.loads((out/'rooms_void_cast.json').read_text())
     assert cast['metadata']['seed_selection']['coordinate_A']==[-4.,0.,0.]
     assert cast['total_volume']==pytest.approx(seeded(two_rooms,1.8).total_volume)

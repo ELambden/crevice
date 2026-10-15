@@ -32,6 +32,7 @@ from .io import (
 )
 from .models import Cavity, FrameAnalysis, PoreProfile, ResidueContact, ResidueInteractionNetwork, StructureFrame, Tunnel, TrajectoryAnalysis
 from .networks import build_cavity_network, network_metrics
+from .outputs import output_option
 from .presentation import (FigureText, annotate_option, annotations_enabled, figure_annotations, figure_description,
                            mouth_guides_enabled)
 from .radii import RadiusSet, radii_fields, radii_option
@@ -1138,6 +1139,7 @@ zoom {structure_object} or {pore_object} or {pore_fill_object}, 6
     return output
 
 
+@output_option("publish")
 @radii_option
 @annotate_option
 def write_static_publication_bundle(
@@ -1160,9 +1162,9 @@ def write_static_publication_bundle(
     refinement_steps: int = 4,
     probe_radius: float = 0.0,
     dpi: int = 200,
-    include_cavities: bool = True,
-    include_tunnels: bool = True,
-    include_network: bool = True,
+    include_cavities: bool | None = None,
+    include_tunnels: bool | None = None,
+    include_network: bool | None = None,
     residue_label_every: int = 5,
     cast_mode: str = "auto",
     cast_outer_radius: float = 6.0,
@@ -1186,8 +1188,9 @@ def write_static_publication_bundle(
     entry_end: str = "auto",
     lining_cutoff: float = 3.3,
     fingerprint: bool = False,
+    outputs=None,
 ) -> dict[str, str]:
-    """Write the complete static-structure bundle of ``crevice publish``.
+    """Write the static-structure bundle of ``crevice publish``.
 
     The frame is reduced to the requested atom selection, a single
     through-channel profile is resolved (:func:`crevice.channels.pore_profile`),
@@ -1243,9 +1246,12 @@ def write_static_publication_bundle(
     dpi : int, default 200
         Resolution of every Matplotlib figure and the DPI recorded in rendered PyMOL
         images. The default suits screens; use 400 or more for print.
-    include_cavities, include_tunnels, include_network : bool, default True
-        Run the cavity search, tunnel search and residue network (CLI
-        ``--skip-cavities``/``--skip-tunnels``/``--skip-network``).
+    include_cavities, include_tunnels, include_network : bool, optional
+        Run the cavity search, tunnel search and residue network. ``None``
+        (default) follows the output plan: all three without a plan (as in
+        CREVICE 0.2), otherwise only when the plan includes ``cavities``,
+        ``tunnels`` or ``network`` (CLI ``--outputs``, ``--all``;
+        ``--skip-cavities``/``--skip-tunnels``/``--skip-network`` remove them).
     residue_label_every : int, default 5
         Landmark spacing (profile samples) in ``PREFIX_profile_radius_annotated.png``.
     cast_mode : {"auto", "channel", "cavity", "all", "rolling"}, default "auto"
@@ -1303,7 +1309,14 @@ def write_static_publication_bundle(
         (:func:`crevice.fingerprint.pore_fingerprint`; CLI ``--fingerprint``)
         for a resolved channel, with the default scale, bandwidth, lining shell
         and 150 mM KCl resistivity; manifest keys ``fingerprint_csv``,
-        ``fingerprint_json`` and ``fingerprint_png``.
+        ``fingerprint_json`` and ``fingerprint_png``. Also run when the output
+        plan includes ``fingerprint``.
+    outputs : None, str, sequence of str or OutputPlan, optional
+        Output selection for this call (:mod:`crevice.outputs`, policy of
+        ``crevice publish``): for example ``"default"`` (the compact CLI
+        default), ``"figures,pymol"``, ``"all"`` or ``"legacy"``. ``None``
+        (default) keeps the active plan, and writes the complete CREVICE 0.2
+        bundle when none is active. Measurements never depend on it.
     annotate : bool, optional
         Draw titles, value call-outs, mouth labels and residue landmark names in
         the figures (the viewer scenes of this bundle contain no text).
@@ -1398,9 +1411,11 @@ def write_static_publication_bundle(
         Only after the unresolved-profile fallback (whose other files are those
         of :func:`write_rolling_probe_bundle`).
 
-    The CLI adds ``PREFIX_input_report.json`` (input provenance) and the
-    standard hydration outputs (:func:`crevice.hydration_export.write_hydration_bundle`).
-    No HTML, 3D preview image or tunnel summary figure is written.
+    The CLI adds ``PREFIX_input_report.json`` (input provenance) and, when
+    requested, the hydration outputs (:func:`crevice.hydration_export.write_hydration_bundle`).
+    No 3D preview image or tunnel summary figure is written. With an output
+    plan (``outputs`` or an active plan) only the planned files are written;
+    the list above is the complete (``--all``/legacy) set.
 
     With ``lateral_exits``, the profile metadata gains ``exits``, ``path_type``
     and ``path_bottleneck_radius_A``, and the manifest's ``profile_status``
@@ -1457,415 +1472,38 @@ def write_static_publication_bundle(
       ``crevice_exits``; VMD colour 23; ChimeraX cylinders in
       ``PREFIX_mouths.bild``) only with ``--exit-centre-lines``.
     """
+    from .outputs import active_plan
+    from .static_workflow import compute_static_workflow, export_static_workflow
     from .volume_export import resolve_display_smoothing
-    from .sections import LEGACY_ENCLOSURE_RADIUS
     resolve_display_smoothing(smooth, surface_smoothing)
-    if entry_end not in (None, "auto", "start", "end"):
-        raise ValueError("entry_end must be 'auto', 'start' or 'end'")
-    if not math.isfinite(lining_cutoff) or lining_cutoff <= 0:
-        raise ValueError("lining_cutoff must be finite and positive")
-    # Rolling-probe casts need a number; the automatic choice applies to the
-    # channel profile only.
-    cast_probe = LEGACY_ENCLOSURE_RADIUS if enclosure_radius is None else enclosure_radius
-
-    if cast_mode == 'rolling':
-        if cast_focus_points is not None or cast_max_component_volume is not None or cast_min_radius != 0:
-            raise ValueError('Rolling publication mode does not support focus, maximum-volume or minimum-swept-clearance crops; use the explicit rolling probe and component settings')
-        return write_rolling_probe_bundle(frame, structure_path=structure_path,
-                   output_dir=output_dir, prefix=prefix, spacing=cast_spacing,
-                   probe_radius=cast_probe, outer_radius=cast_outer_radius,
-                   enclosure_fraction=cast_enclosure_fraction,
-                   min_component_volume=cast_min_component_volume,
-                   max_components=cast_max_components, max_grid_points=cast_max_grid_points,
-                   selection='all' if include_hetero else 'protein', dpi=dpi,
-                   selection_mode=cast_selection, core_fraction=cast_core_fraction, surface_smoothing=surface_smoothing, smooth=smooth)
-    root = Path(output_dir)
-    root.mkdir(parents=True, exist_ok=True)
-    manifest: dict[str, str] = {}
-
-    if not math.isfinite(cast_extension) or cast_extension < 0:
-        raise ValueError("cast_extension must be finite and non-negative")
-    frame = replace(frame, atoms=frame.selected_atoms(include_hydrogen=include_hydrogen,
-                                                      include_hetero=include_hetero))
-    original_copy = _copy_structure_for_bundle(structure_path, root, prefix)
-    from .presentation import write_viewer_structure
-    structure_copy = write_viewer_structure(frame, root / f"{prefix}_viewer.pdb")
-    from .sections import ChannelResolutionError
-    try:
-        profile = pore_profile(
-            frame,
-            axis=axis,
-            origin=origin,
-            section_spacing=section_spacing,
-            enclosure_radius=enclosure_radius,
-            include_hydrogen=include_hydrogen,
-            include_hetero=include_hetero,
-            samples=samples,
-            search_radius=search_radius,
-            refinement_steps=refinement_steps,
-            probe_radius=probe_radius,
-            lateral_exits=lateral_exits,
-            exit_bulk_radius=exit_bulk_radius,
-            exit_spacing=exit_spacing,
-        )
-    except ChannelResolutionError as exc:
-        if (cast_mode != 'auto' or cast_focus_points is not None or cast_max_component_volume is not None
-                or cast_min_radius != 0 or include_hydrogen):
-            raise
-        # General voids remain useful when no unique through-channel exists.
-        # Preserve the explicit selected obstacle set and never fabricate a
-        # radius profile for a multichannel, closed or one-ended pocket system.
-        manifest = write_rolling_probe_bundle(frame, structure_path=structure_path,
-            output_dir=root, prefix=prefix, spacing=cast_spacing, probe_radius=cast_probe,
-            outer_radius=cast_outer_radius, enclosure_fraction=cast_enclosure_fraction,
-            min_component_volume=cast_min_component_volume, max_components=cast_max_components,
-            max_grid_points=cast_max_grid_points, selection='all', dpi=dpi,
-            selection_mode=cast_selection, core_fraction=cast_core_fraction, surface_smoothing=surface_smoothing, smooth=smooth)
-        saved = json.loads(Path(manifest['manifest_json']).read_text())
-        saved['single_channel_unresolved_reason'] = str(exc)
-        saved['auto_fallback'] = '3D rolling-probe cast; no single-channel profile'
-        saved['publication_input_selection'] = {'include_hydrogen':include_hydrogen, 'include_hetero':include_hetero}
-        # Requested extras do not depend on a profile; complete them explicitly.
-        fallback = _complete_unresolved_profile_extras(frame, manifest, root, prefix, dpi=dpi,
-            include_cavities=include_cavities, include_tunnels=include_tunnels, include_network=include_network,
-            include_hydrogen=include_hydrogen, include_hetero=include_hetero, residue_groups=residue_groups)
-        status = {'status': 'unresolved', 'reason': str(exc),
-                  'interpretation': 'No unique through-channel resolved; no pore-radius profile or profile-derived features assigned.',
-                  'fallback_analyses': fallback}
-        selection = getattr(exc, 'probe_selection', None)
-        if selection is not None:
-            # Automatic enclosure probe: every candidate and why none was used.
-            status['enclosure_probe_selection'] = selection
-            saved['enclosure_probe'] = {'mode': 'auto', 'chosen_A': None, 'reason': selection['reason'],
-                                        'fallback_cast_probe_A': cast_probe}
-        manifest['profile_status_json'] = str(root / f'{prefix}_profile_status.json')
-        _write_json(status, manifest['profile_status_json'])
-        saved['profile_status'] = {k: status[k] for k in ('status', 'reason', 'interpretation')}
-        if selection is not None:
-            saved['profile_status']['enclosure_probe'] = saved.pop('enclosure_probe')
-        saved['fallback_analyses'] = fallback
-        saved.update(radii_fields())
-        saved['files'].update({k: v for k, v in manifest.items() if k != 'manifest_json'})
-        _write_json(saved, manifest['manifest_json'])
+    plan = active_plan()
+    include_cavities = (plan is None or plan.runs("cavities")) if include_cavities is None else include_cavities
+    include_tunnels = (plan is None or plan.runs("tunnels")) if include_tunnels is None else include_tunnels
+    include_network = (plan is None or plan.runs("network")) if include_network is None else include_network
+    fingerprint = bool(fingerprint) or (plan is not None and plan.runs("fingerprint"))
+    result = compute_static_workflow(
+        frame, axis=axis, origin=origin, section_spacing=section_spacing, enclosure_radius=enclosure_radius,
+        include_hydrogen=include_hydrogen, include_hetero=include_hetero, samples=samples, lateral_exits=lateral_exits,
+        exit_bulk_radius=exit_bulk_radius, exit_spacing=exit_spacing, search_radius=search_radius,
+        refinement_steps=refinement_steps, probe_radius=probe_radius, include_cavities=include_cavities,
+        include_tunnels=include_tunnels, include_network=include_network, cast_mode=cast_mode,
+        cast_outer_radius=cast_outer_radius, cast_enclosure_fraction=cast_enclosure_fraction,
+        cast_extension=cast_extension, cast_spacing=cast_spacing, cast_min_radius=cast_min_radius,
+        cast_max_components=cast_max_components, cast_selection=cast_selection, cast_core_fraction=cast_core_fraction,
+        cast_max_grid_points=cast_max_grid_points, cast_focus_points=cast_focus_points,
+        cast_focus_radius=cast_focus_radius, cast_min_component_volume=cast_min_component_volume,
+        cast_max_component_volume=cast_max_component_volume, residue_groups=residue_groups, entry_end=entry_end,
+        lining_cutoff=lining_cutoff, fingerprint=fingerprint)
+    if result.status == "unresolved":
         import warnings
         warnings.warn('No unique through-channel profile resolved; wrote a 3D rolling-probe cast. '
-                      'See single_channel_unresolved_reason in the manifest.', RuntimeWarning, stacklevel=3)  # caller of the annotate_option wrapper
-        return manifest
-    if profile.method == "axial-connected" and cast_extension:
-        from .spatial import SpatialIndex
-        from .geometry import add, scale
-        spatial = SpatialIndex(frame.atoms)
-        context = []
-        for point, sign in ((profile.points[0], -1), (profile.points[-1], 1)):
-            segment = []
-            count = max(2, int(math.ceil(cast_extension / 0.25)))
-            for k in range(count+1):
-                dt = sign * cast_extension * k/count
-                position = add(point.position, scale(profile.axis_direction, dt))
-                raw = spatial.nearest_surface(position)[0]
-                segment.append({"t": point.t+dt, "radius": max(0.0, raw-probe_radius)})
-            context.append(segment)
-        profile = replace(profile, metadata={**profile.metadata, "display_context": context,
-                          "display_context_definition": "clearance along axial exit; outside channel statistics"})
-    contacts = annotate_residues(frame, profile.points)
-    cast = void_cast(
-        frame,
-        mode=cast_mode,
-        axis=axis,
-        spacing=cast_spacing,
-        min_radius=cast_min_radius,
-        max_components=cast_max_components,
-        max_grid_points=cast_max_grid_points,
-        focus_points=cast_focus_points,
-        focus_radius=cast_focus_radius,
-        min_component_volume=cast_min_component_volume,
-        max_component_volume=cast_max_component_volume,
-        profile=profile,
-    )
-    exit_casts = ()
-    if (profile.metadata.get("exits") and cast.mode == "channel"
-            and any(e.get("type") == "lateral" for e in profile.metadata["exits"].values())):
-        # Lateral exit legs as probe-swept casts, reported separately; the
-        # axial cast and its volume are unchanged.
-        from .channel_exits import EXIT_CAST_DEFINITION, exit_cast_summary, lateral_exit_casts
-        exit_casts = lateral_exit_casts(frame, profile, cast)
-        if exit_casts:
-            cast = replace(cast, metadata={**cast.metadata,
-                                           "lateral_exit_casts": exit_cast_summary(exit_casts),
-                                           "lateral_exit_cast_definition": EXIT_CAST_DEFINITION,
-                                           "lateral_exit_casts_note": "separate volumes; not part of total_volume"})
-    segments, lining, segment_rows = None, [], []
-    if cast.mode == "channel" and cast.metadata.get("export_mode") == "connected_section_fill" and not cast_focus_points:
-        # ENTRY / LUMEN / EXIT: the lumen is the cast above, unchanged; the
-        # vestibules beyond each mouth are separate segments.
-        from .cast_segments import (LABEL_RULE_DEFINITION, LINING_DEFINITION, SEGMENT_DEFINITION, lining_residues,
-                                    segment_casts, segment_roles, segment_summary)
-        segment_roles(profile, entry_end)
-        segments = segment_casts(frame, profile, cast, entry_end=entry_end, bulk_radius=exit_bulk_radius,
-                                 lateral_casts=exit_casts)
-        segment_rows = segment_summary(cast, segments)
-        lining = lining_residues(frame, cast, segments, cutoff=lining_cutoff)
-        cast = replace(cast, metadata={**cast.metadata, "cast_segments": segment_rows,
-                                       "cast_segment_definition": SEGMENT_DEFINITION,
-                                       "segment_label_rule": {"entry_end": entry_end or "auto",
-                                                              "rule": segment_roles(profile, entry_end)[1],
-                                                              "definition": LABEL_RULE_DEFINITION},
-                                       "segment_bulk_radius_A": exit_bulk_radius,
-                                       "segments_total_volume_A3": sum(r["volume_A3"] for r in segment_rows),
-                                       "segments_total_note": "lumen + every entry and exit segment; "
-                                                              "total_volume stays the lumen only",
-                                       "lining_cutoff_A": lining_cutoff, "lining_definition": LINING_DEFINITION})
-    if cast_focus_points is not None or cast_mode in {"cavity", "all"}:
-        from .models import VoidComponent
-        cast_points = tuple(p for c in cast.components for p in c.points)
-        region = VoidComponent(0, "selected_void", (0.0, 0.0, 0.0), cast.total_volume, cast_points)
-        contacts = annotate_residues(frame, cast_points, identify_bottleneck=False)
-    else:
-        region = profile
-
-    manifest["structure_file"] = str(structure_copy)
-    manifest["original_structure_file"] = str(original_copy)
-    manifest["viewer_identity_json"] = str(structure_copy.with_suffix(".identities.json"))
-    manifest["profile_json"] = str(root / f"{prefix}_profile.json")
-    manifest["profile_csv"] = str(root / f"{prefix}_profile.csv")
-    manifest["pore_cast_pdb"] = str(root / f"{prefix}_pore_cast.pdb")
-    manifest["pore_cast_pml"] = str(root / f"{prefix}_pore_cast.pml")
-    manifest["void_cast_json"] = str(root / f"{prefix}_void_cast.json")
-    manifest["pymol_render_png"] = str(root / f"{prefix}_pore_cast.png")
-    manifest["profile_radius_png"] = str(root / f"{prefix}_profile_radius.png")
-    manifest["profile_radius_annotated_png"] = str(root / f"{prefix}_profile_radius_annotated.png")
-    manifest["void_cast_csv"] = str(root / f"{prefix}_void_cast.csv")
-    manifest["residue_contacts_csv"] = str(root / f"{prefix}_residue_contacts.csv")
-    manifest["residue_contacts_png"] = str(root / f"{prefix}_residue_contacts.png")
-
-    write_profile_json(profile, manifest["profile_json"])
-    write_profile_csv(profile, manifest["profile_csv"])
-    write_void_cast_json(cast, manifest["void_cast_json"])
-    write_void_cast_csv(cast, manifest["void_cast_csv"], extra_components=exit_casts)
-    write_void_cast_pdb(cast, manifest["pore_cast_pdb"])
-    write_residue_contacts_csv(contacts, manifest["residue_contacts_csv"])
-    plot_profile_radius(profile, manifest["profile_radius_png"], dpi=dpi)
-    plot_profile_radius_with_residues(
-        profile,
-        manifest["profile_radius_annotated_png"],
-        dpi=dpi,
-        label_every=residue_label_every,
-    )
-    plot_residue_contacts(contacts, manifest["residue_contacts_png"], dpi=dpi)
-    if fingerprint:
-        from .fingerprint import pore_fingerprint, write_fingerprint_bundle
-        fp = pore_fingerprint(frame, profile, cast=cast if segments is not None else None, entry_end=entry_end,
-                              bulk_radius=exit_bulk_radius, include_hetero=include_hetero)
-        manifest.update(write_fingerprint_bundle(fp, root, prefix, dpi=dpi))
-    write_publication_pymol_script(
-        structure_path=structure_copy,
-        pore_cast_path=manifest["pore_cast_pdb"],
-        script_path=manifest["pore_cast_pml"],
-        profile=profile,
-        output_png=manifest["pymol_render_png"],
-        dpi=dpi,
-        structure_local_name=Path(structure_copy).name,
-        pore_cast_local_name=Path(manifest["pore_cast_pdb"]).name,
-        output_png_local_name=Path(manifest["pymol_render_png"]).name,
-        bottleneck_resi=_pdb_resi_for_min_radius(cast.points),
-    )
-
-    from .volume_export import write_volume_viewer_bundle
-    if cast.components:
-        manifest.update(write_volume_viewer_bundle(cast, structure_path=structure_copy,
-                        output_dir=root, prefix=prefix, frame=frame, profile=profile,
-                        cast_extension=cast_extension, surface_smoothing=surface_smoothing, smooth=smooth,
-                        exit_casts=exit_casts, segments=segments, lining=lining or None))
-        if profile.method == "axial-connected":
-            # The primary pore-cast scene must show the measured full grid.
-            # Retain the dummy-atom representation separately for compatibility.
-            legacy = root / f"{prefix}_pore_spheres.pml"
-            shutil.copyfile(manifest["pore_cast_pml"], legacy)
-            manifest["pore_spheres_pml"] = str(legacy)
-            shutil.copyfile(manifest["volume_pml"], manifest["pore_cast_pml"])
-            manifest["pymol_render_png"] = str(root / f"{prefix}_pymol.png")
-        for extension in ['vmd','tcl','cxc']:
-            target=root/f'{prefix}_pore_cast.{extension}'
-            shutil.copyfile(manifest[f'volume_{extension}'],target)
-            manifest[f'pore_cast_{extension}']=str(target)
+                      'See single_channel_unresolved_reason in the manifest.', RuntimeWarning, stacklevel=4)
+    return export_static_workflow(result, structure_path=structure_path, output_dir=output_dir, prefix=prefix, dpi=dpi,
+                                  residue_label_every=residue_label_every, cast_extension=cast_extension,
+                                  surface_smoothing=surface_smoothing, smooth=smooth)
 
 
-    if include_cavities:
-        _write_cavity_outputs(frame, root, prefix, manifest, dpi=dpi)
-
-    if include_tunnels:
-        _write_tunnel_outputs(frame, root, prefix, manifest, dpi=dpi)
-
-    if include_network:
-        _write_network_outputs(frame, region, contacts, root, prefix, manifest,
-                               dpi=dpi, residue_groups=residue_groups)
-
-    if segments is not None:
-        from .cast_segments import add_lining_columns, write_lining_csv, write_segments_csv
-        manifest["cast_segments_csv"] = str(root / f"{prefix}_cast_segments.csv")
-        manifest["lining_residues_csv"] = str(root / f"{prefix}_lining_residues.csv")
-        write_segments_csv(segment_rows, manifest["cast_segments_csv"])
-        write_lining_csv(lining, manifest["lining_residues_csv"])
-        for key in ("residue_contacts_csv", "network_nodes_csv"):
-            if key in manifest and Path(manifest[key]).is_file():
-                add_lining_columns(manifest[key], lining)
-
-    manifest_path = root / f"{prefix}_manifest.json"
-    _write_json({"files": manifest, "dpi": dpi, "prefix": prefix, "void_cast": cast.to_dict(), **radii_fields(),
-                 "profile_status": {"status": "resolved", "method": profile.method,
-                                    "profile_json": manifest["profile_json"],
-                                    **({"path_type": profile.metadata["path_type"],
-                                        "exit_types": {k: e["type"] for k, e in profile.metadata["exits"].items()},
-                                        "exit_leg_counts": {k: e.get("leg_count", 0) for k, e in profile.metadata["exits"].items()}}
-                                       if "path_type" in profile.metadata else {}),
-                                    **({"lateral_exit_cast_volumes_A3": {f"{c.metadata['end']}_{c.metadata['leg']}": c.volume
-                                                                         for c in exit_casts},
-                                        "lateral_exit_cast_note": "separate from void_cast.total_volume (axial channel only)"}
-                                       if exit_casts else {}),
-                                    **({"cast_segment_volumes_A3": {r["segment"]: r["volume_A3"] for r in segment_rows},
-                                        "segment_label_rule": cast.metadata["segment_label_rule"]["rule"],
-                                        "lining_residue_counts": {r["segment"]: sum(1 for x in lining if x["segment"] == r["segment"])
-                                                                  for r in segment_rows},
-                                        "cast_segment_note": "lumen = void_cast.total_volume; entry/exit volumes separate"}
-                                       if segments is not None else {}),
-                                    **({"enclosure_probe": {
-                                        "mode": "auto",
-                                        "chosen_A": profile.metadata["enclosure_probe_selection"]["chosen_A"],
-                                        "reason": profile.metadata["enclosure_probe_selection"]["reason"],
-                                        "candidates_tried": [r["probe_A"] for r in profile.metadata["enclosure_probe_selection"]["candidates"]
-                                                             if r["status"] != "not_tried"]}}
-                                       if "enclosure_probe_selection" in profile.metadata else {})}}, manifest_path)
-    manifest["manifest_json"] = str(manifest_path)
-    return manifest
-
-
-def _write_cavity_outputs(frame, root, prefix, manifest, *, dpi, **options):
-    cavities = detect_cavities(frame, **options)
-    manifest["cavities_json"] = str(root / f"{prefix}_cavities.json")
-    manifest["cavities_csv"] = str(root / f"{prefix}_cavities.csv")
-    manifest["cavities_pdb"] = str(root / f"{prefix}_cavities.pdb")
-    manifest["cavity_summary_png"] = str(root / f"{prefix}_cavity_summary.png")
-    write_cavities_json(cavities, manifest["cavities_json"])
-    write_cavities_csv(cavities, manifest["cavities_csv"])
-    write_cavities_pdb(cavities, manifest["cavities_pdb"])
-    plot_cavity_summary(cavities, manifest["cavity_summary_png"], dpi=dpi)
-    return cavities
-
-
-def _write_tunnel_outputs(frame, root, prefix, manifest, *, dpi, **options):
-    tunnels = find_tunnels(frame, **options)
-    manifest["tunnels_json"] = str(root / f"{prefix}_tunnels.json")
-    manifest["tunnels_csv"] = str(root / f"{prefix}_tunnels.csv")
-    manifest["tunnel_points_csv"] = str(root / f"{prefix}_tunnel_points.csv")
-    manifest["tunnels_pdb"] = str(root / f"{prefix}_tunnels.pdb")
-    write_tunnels_json(tunnels, manifest["tunnels_json"])
-    write_tunnels_csv(tunnels, manifest["tunnels_csv"])
-    write_tunnel_points_csv(tunnels, manifest["tunnel_points_csv"])
-    write_tunnels_pdb(tunnels, manifest["tunnels_pdb"])
-    return tunnels
-
-
-def _write_network_outputs(frame, region, contacts, root, prefix, manifest, *, dpi, residue_groups=None):
-    network = build_cavity_network(frame, region, contacts=contacts, residue_groups=residue_groups)
-    if residue_groups is not None:
-        from .connectivity import lining_connectivity, plot_lining_connectivity
-        manifest["connectivity_json"] = str(root / f"{prefix}_connectivity.json")
-        manifest["connectivity_csv"] = str(root / f"{prefix}_connectivity.csv")
-        manifest["connectivity_groups_csv"] = str(root / f"{prefix}_connectivity_groups.csv")
-        manifest["connectivity_png"] = str(root / f"{prefix}_connectivity.png")
-        report = lining_connectivity(network)
-        _write_json(report, manifest["connectivity_json"])
-        write_connectivity_csv(report, manifest["connectivity_csv"], manifest["connectivity_groups_csv"])
-        plot_lining_connectivity(network, manifest["connectivity_png"], dpi=dpi)
-    manifest["network_json"] = str(root / f"{prefix}_network.json")
-    manifest["network_nodes_csv"] = str(root / f"{prefix}_network_nodes.csv")
-    manifest["network_edges_csv"] = str(root / f"{prefix}_network_edges.csv")
-    manifest["network_summary_png"] = str(root / f"{prefix}_network_summary.png")
-    manifest["network_chord_png"] = str(root / f"{prefix}_network_chord.png")
-    _write_json({"network": network.to_dict(), "metrics": network_metrics(network)}, manifest["network_json"])
-    write_network_csv(network, manifest["network_nodes_csv"], manifest["network_edges_csv"])
-    plot_network_summary(network, manifest["network_summary_png"], dpi=dpi)
-    plot_network_chord(network, manifest["network_chord_png"], dpi=dpi)
-    return network
-
-
-def _complete_unresolved_profile_extras(frame, manifest, root, prefix, *, dpi, include_cavities,
-                                        include_tunnels, include_network, include_hydrogen,
-                                        include_hetero, residue_groups=None):
-    """Run requested cavity/tunnel/network extras after an unresolved profile.
-
-    No radius profile or profile-derived feature is assigned. The measured
-    fallback cast (complete binary DX samples) is the only region used: it seeds
-    the tunnel search at its maximum atom-clearance sample and defines the
-    network region node. Obstacles are the publication atom selection, as for
-    the fallback cast itself.
-    """
-    import numpy as np
-    obstacles = {"include_hydrogen": include_hydrogen, "include_hetero": include_hetero,
-                 "definition": "Publication atom selection; the same obstacle atoms as the fallback rolling-probe cast"}
-    records: dict[str, object] = {}
-    region_xyz = None
-    source_dx = manifest.get("volume_dx")
-    if source_dx:
-        from .residue_evidence import read_binary_dx
-        grid, origin, deltas = read_binary_dx(source_dx)
-        region_xyz = np.argwhere(grid) @ deltas + origin
-        if not len(region_xyz):
-            region_xyz = None
-    no_region = "The fallback cast has no measured region samples"
-
-    if not include_cavities:
-        records["cavities"] = {"status": "skipped_by_request"}
-    else:
-        cavities = _write_cavity_outputs(frame, root, prefix, manifest, dpi=dpi,
-                                         include_hydrogen=include_hydrogen, include_hetero=include_hetero)
-        records["cavities"] = {"status": "completed", "cavity_count": len(cavities), "obstacles": obstacles,
-                               "definition": "Separate enclosed-cavity search (detect_cavities defaults); independent of the rolling-probe cast"}
-
-    if not include_tunnels:
-        records["tunnels"] = {"status": "skipped_by_request"}
-    else:
-        start = None
-        start_definition = "Structure centroid (find_tunnels default); " + no_region.lower()
-        if region_xyz is not None:
-            from .rolling import _SphereQueries
-            from .radii import atom_vdw_radius
-            query = _SphereQueries(np.asarray([a.coord for a in frame.atoms]),
-                                   np.asarray([atom_vdw_radius(a) for a in frame.atoms]))
-            clearance, _ = query.points(region_xyz)
-            start = tuple(float(v) for v in region_xyz[int(np.argmax(clearance))])
-            start_definition = "Maximum atom-surface-clearance sample of the measured fallback cast"
-        record = {"start": list(start) if start is not None else None, "start_definition": start_definition,
-                  "obstacles": obstacles}
-        try:
-            tunnels = _write_tunnel_outputs(frame, root, prefix, manifest, dpi=dpi, start=start,
-                                            include_hydrogen=include_hydrogen, include_hetero=include_hetero)
-        except ValueError as exc:
-            record.update(status="not_completed", reason=str(exc))
-        else:
-            record.update(status="completed", tunnel_count=len(tunnels))
-        records["tunnels"] = record
-
-    if not include_network:
-        records["network"] = {"status": "skipped_by_request"}
-    elif region_xyz is None:
-        records["network"] = {"status": "not_completed", "reason": no_region}
-    else:
-        from .models import ChannelPoint, VoidComponent
-        volume = float(len(region_xyz) * abs(np.linalg.det(deltas)))
-        points = tuple(ChannelPoint(i, tuple(map(float, p)), 0.0, 0.0, float(p[2])) for i, p in enumerate(region_xyz))
-        region = VoidComponent(1, "measured_void", tuple(map(float, region_xyz.mean(0))), volume, points)
-        coords = tuple(p.position for p in points)
-        contacts = annotate_residues(frame, coords, identify_bottleneck=False)
-        network = _write_network_outputs(frame, region, contacts, root, prefix, manifest,
-                                         dpi=dpi, residue_groups=residue_groups)
-        records["network"] = {"status": "completed", "node_count": len(network.nodes), "edge_count": len(network.edges),
-                              "region_source": str(source_dx), "region_sample_count": len(points),
-                              "definition": "Standard publish network; the region node is every measured fallback-cast sample centre (point-to-atom-surface contacts), not a profile"}
-    return records
-
-
-
+@output_option("cast")
 @radii_option
 @annotate_option
 def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="crevice",
@@ -1875,7 +1513,7 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
                                selection_mode="dominant", core_fraction=.08, surface_smoothing=None,
                                max_grid_points=16_000_000, selection="protein", dpi=200, seed=None, seed_tolerance=.75,
                                smooth=None, annotate=None,
-                               radii: RadiusSet | str | None = None):
+                               radii: RadiusSet | str | None = None, outputs=None):
     """Write the 3D rolling-probe cast bundle of ``crevice cast``.
 
     A probe of radius ``probe_radius`` is rolled over the selected atoms on a
@@ -1945,11 +1583,18 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
         hydration SASA) comes from that set, and results with a ``metadata``
         dict record it as ``metadata["radii"]``; see
         :doc:`/methods/atomic-radii`.
+    outputs : None, str, sequence of str or OutputPlan, optional
+        Output selection for this call (:mod:`crevice.outputs`, policy of
+        ``crevice cast``); ``None`` keeps the active plan and writes the
+        complete CREVICE 0.2 bundle when none is active.
 
     Returns
     -------
     dict of str to str
         Manifest mapping each output key to its path, including ``manifest_json``.
+        The measurement is :func:`crevice.static_workflow.compute_rolling_cast`
+        and the files are written by
+        :func:`crevice.static_workflow.export_rolling_cast`.
 
     Outputs
     -------
@@ -1981,73 +1626,19 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
     (orange for a shared core, translucent grey for other voids); white
     background; no text.
     """
-    from .rolling import rolling_probe_cast, select_cast_atoms, chain_enclosed_regions
-    from .presentation import write_viewer_structure
-    from .volume_export import write_volume_viewer_bundle, write_void_cast_dx
+    from .static_workflow import compute_rolling_cast, export_rolling_cast
+    from .volume_export import resolve_display_smoothing
     if Path(prefix).name != prefix or not prefix or any(c in prefix for c in '\n\r"'):
         raise ValueError("prefix must be a simple filename stem")
-    from .volume_export import resolve_display_smoothing
     resolve_display_smoothing(smooth, surface_smoothing)
-    frame, intake = select_cast_atoms(frame, selection)
-    cast = rolling_probe_cast(frame, spacing=spacing, probe_radius=probe_radius,
-                              outer_radius=outer_radius, enclosure_fraction=enclosure_fraction,
-                              min_depth=min_depth, min_component_volume=min_component_volume,
-                              max_components=max_components, max_grid_points=max_grid_points,
-                              include_hetero=selection == 'all', selection_mode=selection_mode, core_fraction=core_fraction,
-                              seed=seed,seed_tolerance=seed_tolerance)
-    root = Path(output_dir).resolve()
-    root.mkdir(parents=True, exist_ok=True)
-    original = _copy_structure_for_bundle(structure_path, root, prefix)
-    viewer = write_viewer_structure(frame, root / f"{prefix}_viewer.pdb")
-    manifest = {'structure_file': str(viewer), 'original_structure_file': str(original),
-                'viewer_identity_json': str(viewer.with_suffix('.identities.json')),
-                'void_cast_json': str(root / f'{prefix}_void_cast.json'),
-                'void_cast_csv': str(root / f'{prefix}_void_cast.csv'),
-                'selection_json': str(root / f'{prefix}_selection.json')}
-    write_void_cast_json(cast, manifest['void_cast_json'])
-    _write_json(intake, manifest['selection_json'])
-    labels = {}
-    if cast.components:
-        if selection_mode == 'dominant':
-            rows = {r['region_id']:r for r in cast.metadata['dominance'].get('regions', [])}
-            regions, region_summary = {}, []
-            for component in cast.components:
-                row = rows[component.metadata['source_component_id']]
-                name = 'shared' if row['kind'] == 'shared_interface_core' else f'cavity_{component.id}'
-                regions[name] = component.points
-                labels[component.id] = name
-                region_summary.append({'label':name, 'volume_A3':component.volume, 'selection':row})
-            if len(regions) == 1:
-                regions = {}
-        else:
-            regions, region_summary = chain_enclosed_regions(frame, cast)
-        manifest['region_annotations_json'] = str(root/f'{prefix}_region_annotations.json')
-        _write_json({'regions':region_summary, 'interpretation':'Disjoint display annotation; does not change connected components or imply a biological channel count.'}, manifest['region_annotations_json'])
-        manifest.update(write_volume_viewer_bundle(cast, structure_path=viewer, output_dir=root,
-                                                   prefix=prefix, frame=frame, cast_extension=0, regions=regions, surface_smoothing=surface_smoothing, smooth=smooth))
-        for extension, key in [('pml','volume_pml'), ('tcl','volume_tcl'), ('vmd','volume_vmd'), ('cxc','volume_cxc')]:
-            alias = root / f'{prefix}_pore_cast.{extension}'
-            shutil.copyfile(manifest[key], alias)
-            manifest[f'pore_cast_{extension}'] = str(alias)
-        end_turn = json.loads(Path(manifest['scene_json']).read_text()).get('end_view_turn_degrees',74)
-        for extension,command in [('pml',f'turn x, {end_turn:g}'),('tcl',f'rotate x by {end_turn:g}'),('vmd',f'rotate x by {end_turn:g}'),('cxc',f'turn x {end_turn:g}')]:
-            end_view = root/f'{prefix}_end_view.{extension}'
-            end_view.write_text(Path(manifest[f'volume_{extension}']).read_text()+command+'\n')
-            manifest[f'end_view_{extension}'] = str(end_view)
-        # Each retained region can also be inspected independently in a viewer.
-        region_dir = root / 'regions'
-        region_dir.mkdir(exist_ok=True)
-        for component in cast.components:
-            write_void_cast_dx(cast, region_dir/f'region_{component.id:03d}.dx', component_id=component.id)
-    write_void_cast_csv(cast, manifest['void_cast_csv'], labels=labels)
-    manifest_path = root / f'{prefix}_manifest.json'
-    _write_json({'files': manifest, 'prefix': prefix, 'atom_selection': intake,
-                 'void_cast': cast.to_dict(), **radii_fields(),
-                 'channel_profile_status': 'not_assigned_by_3D_void_detection',
-                 'interpretation': 'Geometric void regions. Component count is not a biological channel count.',
-                 'native_viewers': 'Scripts generated; running a viewer is a separate validation step.'}, manifest_path)
-    manifest['manifest_json'] = str(manifest_path)
-    return manifest
+    result = compute_rolling_cast(frame, spacing=spacing, probe_radius=probe_radius, outer_radius=outer_radius,
+                                  enclosure_fraction=enclosure_fraction, min_depth=min_depth,
+                                  min_component_volume=min_component_volume, max_components=max_components,
+                                  selection_mode=selection_mode, core_fraction=core_fraction,
+                                  max_grid_points=max_grid_points, selection=selection, seed=seed,
+                                  seed_tolerance=seed_tolerance)
+    return export_rolling_cast(result, structure_path=structure_path, output_dir=output_dir, prefix=prefix,
+                               surface_smoothing=surface_smoothing, smooth=smooth)
 
 
 def _pdb_resi_for_min_radius(points: Sequence) -> int | None:
@@ -2071,9 +1662,16 @@ def _save_figure(fig, path: Path, *, dpi: int, text: FigureText | None = None) -
     PNG files receive ``Software``, ``Title``, ``Description`` and
     ``CREVICE annotations`` text chunks (read them back with
     :func:`crevice.presentation.figure_description`); PDF and SVG files receive
-    the title and description in their own metadata fields.
+    the title and description in their own metadata fields. A figure the
+    active output plan does not want (:func:`crevice.outputs.wants`) is closed
+    without being written.
     """
     path = Path(path)
+    from .outputs import wants
+    if not wants(path):
+        fig.clf()
+        _pyplot().close(fig)
+        return
     suffix = path.suffix.lower()
     described = text.metadata() if text is not None else {}
     if suffix == ".png":
@@ -2228,15 +1826,32 @@ def _short_residue_label(label: str) -> str:
 
 
 def _copy_structure_for_bundle(structure_path: str | Path, root: Path, prefix: str) -> Path:
+    from .outputs import wants
     source = Path(structure_path)
     suffix = "".join(source.suffixes) or ".pdb"
     destination = root / f"{prefix}_structure{suffix}"
+    if source.exists() and source.resolve() != destination.resolve() and not wants(destination):
+        return destination   # the input copy is an optional output (file kind "structures")
     if source.exists() and source.resolve() != destination.resolve():
         shutil.copyfile(source, destination)
         return destination
     if source.exists():
         return source
     raise FileNotFoundError(f"Cannot copy missing structure file {source}")
+
+
+def _viewer_structure_for_bundle(frame, path: Path) -> Path:
+    """Write the renumbered viewer PDB and its identity sidecar unless the output plan skips them."""
+    from .outputs import wants
+    from .presentation import write_viewer_structure
+    path = Path(path)
+    if wants(path) and wants(path.with_suffix(".identities.json")):
+        return write_viewer_structure(frame, path)
+    return path
+
+
+def _skip_json(_data, _path) -> None:
+    """Stand-in for :func:`_write_json` when the output plan skips a file."""
 
 
 def _ensure_parent(path: str | Path) -> Path:

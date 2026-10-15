@@ -54,7 +54,8 @@ def test_every_json_interval_statistic_appears_once_in_the_bundle_csvs(tmp_path)
         write_json(path, data)
         prepared = prepare_region(path, tmp_path / (name + '-review'))
         out = tmp_path / name
-        assert main(['region-trajectory', prepared['definition_json'], '--out-dir', str(out), '--stop', '2', '--dpi', '60']) == 0
+        assert main(['region-trajectory', prepared['definition_json'], '--out-dir', str(out), '--stop', '2', '--dpi', '60',
+                     '--outputs', 'default,hydration']) == 0
         runs.append(out)
 
     def count_statistics(node):

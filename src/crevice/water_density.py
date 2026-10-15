@@ -342,6 +342,7 @@ def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=200, anno
     """
     import numpy as np
     from .figures import _pyplot, _save_figure
+    from .outputs import drop_blocked, wants
     if not math.isfinite(level) or level <= 0:
         raise ValueError('Water density display level must be positive')
     root = Path(output_dir)
@@ -356,7 +357,8 @@ def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=200, anno
         for key, field, ending in [('water_density_dx', 'density_A3', '_water_density.dx'),
                                    ('water_occupancy_dx', 'voxel_occupancy', '_water_occupancy.dx'),
                                    ('water_density_display_dx', 'display_density_A3', '_water_density_display.dx')]:
-            write_scalar_dx(result[field], result['origin'], result['spacing_A'], path(key, ending))
+            if wants(root/(prefix+ending)):   # the display map is a viewer companion
+                write_scalar_dx(result[field], result['origin'], result['spacing_A'], path(key, ending))
         np.savez_compressed(path('water_density_npz','_water_density.npz'), **{k: v for k,v in result.items() if k!='metadata'})
         plt = _pyplot()
         text = FigureText(('Mean aligned water-oxygen density over all analysed frames' if metadata['frame_count']>1 else
@@ -373,4 +375,4 @@ def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=200, anno
         text.suptitle(fig, 'Water oxygen density · all-frame mean' if metadata['frame_count']>1 else 'Observed water positions · static snapshot')
         _save_figure(fig, path('water_density_png','_water_density.png'), dpi=dpi, text=text)
     path('water_density_json','_water_density.json').write_text(json.dumps(metadata,indent=2,allow_nan=False,ensure_ascii=False)+'\n',encoding='utf-8')
-    return files
+    return drop_blocked(files)

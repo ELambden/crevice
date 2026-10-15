@@ -234,7 +234,7 @@ def test_cli_membership_is_additive_and_matches_unchanged_fixed_count(tmp_path):
     source, trajectory = md_fixture(tmp_path); dx = reference_dx(tmp_path/'ref.dx')
     common = ['cavity-trajectory', str(source), str(trajectory), '--reference-volume-dx', str(dx), '--geometry-mode', 'reference-region',
               '--max-frames', '3', '--dpi', '50', '--bootstrap-replicates', '200', '--hydration-sasa-points', '32',
-              '--skip-water-density', '--skip-interactions']
+              '--skip-water-density', '--skip-interactions', '--outputs', 'default,hydration']
     assert main(common+['--out-dir', str(tmp_path/'plain')]) == 0
     assert main(common+['--out-dir', str(tmp_path/'member'), '--water-membership', '--workers', '2']) == 0
     assert not list((tmp_path/'plain').glob('*water_membership*'))

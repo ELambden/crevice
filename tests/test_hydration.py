@@ -176,7 +176,7 @@ def test_standard_static_hydration_and_explicit_skip_preserve_geometry(tmp_path)
     from crevice.cli import main
     source,_=md_fixture(tmp_path);dx=reference_dx(tmp_path/'ref.dx');before=dx.read_bytes()
     base=['residue-evidence',str(source),'--volume-dx',str(dx),'--dpi','60','--hydration-sasa-points','32']
-    assert main(base+['--out-dir',str(tmp_path/'standard')])==0
+    assert main(base+['--out-dir',str(tmp_path/'standard'),'--outputs','default,hydration'])==0
     hydration=json.loads((tmp_path/'standard/crevice_hydration.json').read_text())
     assert hydration['water_population']==1 and hydration['residue_count']>0
     assert main(base+['--out-dir',str(tmp_path/'skipped'),'--skip-hydration'])==0
@@ -189,7 +189,8 @@ def test_standard_cavity_trajectory_and_subset_keep_original_alignment_reference
     from crevice.hydration_trajectory import analyze_hydration_trajectory
     source,trajectory=md_fixture(tmp_path);dx=reference_dx(tmp_path/'ref.dx');output=tmp_path/'standard'
     assert main(['cavity-trajectory',str(source),str(trajectory),'--reference-volume-dx',str(dx),'--geometry-mode','reference-region',
-      '--max-frames','3','--out-dir',str(output),'--dpi','60','--bootstrap-replicates','200','--hydration-sasa-points','32'])==0
+      '--max-frames','3','--out-dir',str(output),'--dpi','60','--bootstrap-replicates','200','--hydration-sasa-points','32',
+      '--outputs','default,hydration'])==0
     report=json.loads((output/'crevice_hydration.json').read_text());assert report['frame_count']==3
     cached=output/'crevice_cavity_statistics.json'
     subset=analyze_hydration_trajectory(source,trajectory,context_json=cached,start=2,stop=3,max_frames=1,sasa_samples=32)

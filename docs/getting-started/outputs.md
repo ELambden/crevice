@@ -16,20 +16,130 @@ are written only when you ask for them.
 
 The workflow commands (`cast`, `publish`, `residue-evidence`, `hydration`,
 `trajectory`, `cavity-trajectory`, `region-trajectory`, `analyze`) write a
-directory (`--out-dir`) with a `*_manifest.json` that lists every file. Most of
-them also add standard hydration, typed-interaction and viewer outputs. Opt-out
-flags control those extras:
+directory (`--out-dir`) with a `*_manifest.json` that lists every file and
+records the run: CREVICE version, command line, every effective setting with
+where it came from (default, `--config` file or command line), units, the
+SHA-256 of each input file and the output plan (under `run`).
+
+(output-policy)=
+## Choosing what is written (`--outputs`, `--all`)
+
+Since 0.3 these commands write a **compact default set**, and everything else
+is opt-in. The same rules apply on the command line and in Python
+(`outputs=` on {func}`crevice.write_static_publication_bundle`,
+{func}`crevice.figures.write_rolling_probe_bundle` and
+{func}`crevice.static_workflow.export_static_workflow`, or
+{func}`crevice.outputs.use_outputs`).
+
+By default a bundle command writes:
+
+- **data**, always: the manifest, the JSON records, every CSV table, NPZ arrays
+  and the measured DX maps that later commands read (`*_volume.dx`);
+- **key figures**: the figure that sums up the run (for example
+  `*_profile_radius.png` and `*_residue_contacts.png` for `publish`,
+  `*_residue_evidence.png`, `*_hydration_residues.png`, or the cavity volume,
+  radius and residue figures of the trajectory commands);
+- **one scene set per native viewer**: PyMOL (`.pml`), VMD (`.vmd`/`.tcl`) and
+  ChimeraX (`.cxc`), with the scene data they load;
+- the **typed residue–residue interactions** of the lining or boundary residues
+  (hydrogen bonds, salt-bridge candidates, aromatic contacts) and residue
+  conformations, as before.
+
+The **water analyses** (water contacts and occupancy, solvent-accessible area,
+water bridges, water density and the hydration scenes) no longer run by default
+in `cast`, `publish`, `analyze`, `residue-evidence`, `trajectory`,
+`cavity-trajectory` and `region-trajectory`. Request them with
+`--outputs default,hydration` or `--all`. They still run by default where
+water is the point of the command: `hydration`, and `cavity-trajectory` /
+`region-trajectory` with `--water-membership`. `publish` also no longer runs
+the separate cavity search, tunnel search and residue network unless asked
+(`--outputs default,cavities,tunnels,network`). Residue contacts, lining
+residues and cast segments are always written.
+
+`--outputs LIST` takes comma-separated values (`--outputs help` lists them with
+the command's defaults):
+
+| Value | What it adds |
+|---|---|
+| `key-figures` | the command's key figures |
+| `figures` | every Matplotlib figure |
+| `pymol`, `vmd`, `chimerax` | that viewer's scenes; `viewers` = all three |
+| `scenes` | scene data only (viewer PDB, display maps, meshes, scene JSON); added automatically with any viewer |
+| `viewer-html` | a self-contained interactive HTML view (`*_view.html`, see {doc}`view <../tools/view>`) |
+| `structures` | a copy of the input structure and dummy-atom PDBs |
+| `extra-views` | alias and variant scenes: `*_pore_cast.*`, `*_end_view.*`, `*_pore_spheres.pml` |
+| `hydration` | the water analyses (implies `interactions`) |
+| `interactions` | typed residue–residue interactions and conformations |
+| `cavities`, `tunnels`, `network`, `fingerprint` | the extra `publish` analyses |
+| `default` | the command's default selection |
+| `none` | data only |
+
+Listing file kinds (`figures`, `pymol`, ...) replaces the default file kinds;
+listing analyses (`hydration`, `cavities`, ...) replaces the default optional
+analyses; the other half keeps its default. So `--outputs figures` writes the
+data and every figure but no scene, `--outputs pymol` the data and the PyMOL
+scene only, `--outputs hydration` adds the water analyses to the default
+files, and `--outputs default,vmd,hydration` is the default plus hydration.
+
+`--all` writes every file kind and optional analysis of the command. It never
+raises an allocation or frame guard; an output whose prerequisite is missing
+is skipped and the reason recorded under `run.outputs.notes` in the manifest
+(for example, no fingerprint when no through-channel resolves, never an
+invented profile). The `--skip-*` flags still remove an analysis, also from
+`--all`:
 
 | Flag | Omits |
 |---|---|
-| `--skip-hydration` | water contacts and solvent-accessible area |
-| `--skip-water-density` | 3D water-density maps |
-| `--skip-interactions` | typed chemical interactions and conformation histories |
-| `--skip-analysis-views` | combined viewer scenes, the evidence table and the overview figures (the numbers are still written) |
+| `--skip-hydration` | the water analyses |
+| `--skip-interactions` | the typed residue interactions (and, with hydration, the water bridges) |
+| `--skip-water-density` | 3D water-density maps (hydration) |
+| `--skip-analysis-views` | the hydration scenes, evidence table and overview figures (the numbers are still written) |
 | `publish --skip-cavities / --skip-tunnels / --skip-network` | the extra grid searches and network |
 
-A default `publish` of 1GRM writes about 85 files, and a default `cast` of 1GRM
-about 70 (both include the standard hydration outputs).
+The plan is printed on standard error before any work when standard error is a
+terminal (or with `CREVICE_PROGRESS=1`). `--dry-run` validates the settings,
+prints the plan and exits without reading an input or writing a file.
+
+`--legacy-outputs` reproduces the CREVICE 0.2 file set exactly (including
+hydration and all extras). It is **deprecated**: it is kept during the 0.3
+series and will be removed in a later minor release. See
+{doc}`Upgrading from 0.2 to 0.3 <upgrading-0.3>`.
+
+Files written by the synthetic test cases (`tests/inventory_cases.py`) and by
+`publish 1GRM|4PYP --parser gemmi --samples 101` with `--section-spacing` and
+`--cast-spacing` 0.25 Å (1GRM) or 0.5 Å (4PYP), `--hydration-sasa-points 512`
+and `--dpi 400`:
+
+| Command | 0.2 default | 0.3 default | 0.3 `--all` |
+|---|---|---|---|
+| `publish` (1GRM) | 96 | 40 | |
+| `publish` (4PYP, no channel resolves) | 86 | 29 | |
+| `publish` (synthetic channel) | 90 | 34 | 94 |
+| `cast` (synthetic pocket) | 72 | 28 | 73 |
+| `analyze` (profile, residues) | 42 | 10 | 45 |
+| `residue-evidence` | 72 | 32 | 73 |
+| `hydration` (static / trajectory) | 43 / 53 | 40 / 48 | 44 / 54 |
+| `cavity-trajectory` | 86 | 27 | 87 |
+| `region-trajectory` | 80 | 28 | 80 |
+| `trajectory` (2 static frames) | 79 | 15 | 79 |
+
+The numbers are the same in every mode: the selection changes which files are
+written, never a measurement.
+
+(settings-files)=
+## Settings files (`--config`, `--print-config`)
+
+`--print-config` prints a command's effective settings as JSON, grouped into
+sections (`input`, `geometry`, `radii`, `outputs`, `display`, `trajectory`,
+`hydration`, `method`), and exits. Save it, edit it and pass it back with
+`--config FILE`: flags on the command line override the file, the file
+overrides the built-in defaults, and positional inputs (the structure) always
+come from the command line. Settings files are JSON. The same settings are
+available in Python as {class}`crevice.config.RunSettings`
+({func}`crevice.config.settings` builds and validates them,
+{func}`crevice.config.run` runs them exactly like the command line).
+Every setting is checked (units, ranges, input files, combinations) before any
+structure is read.
 
 ## Data files: CSV first
 
@@ -66,7 +176,8 @@ NPZ and DX files hold grids and arrays (measured and display maps, density,
 per-frame arrays) that viewers and later commands load; their tabular content is
 also in the CSV files.
 
-No command writes HTML: every value is in the CSV and JSON files above.
+No command writes HTML unless asked: every value is in the CSV and JSON files
+above, and `--outputs viewer-html` (or `--all`) adds the interactive view.
 
 `residue-evidence --stick-residues` controls which residues its viewer
 overlays draw as sticks (default `top:12`; see
@@ -99,7 +210,8 @@ a dry pocket.
 
 When `publish` cannot resolve a unique through-profile, it warns, records the
 reason and writes a 3D rolling-probe cast. It does not make up a profile. The
-requested cavity, tunnel and network analyses still run.
+cavity, tunnel and network analyses you requested (`--outputs` or `--all`)
+still run.
 `<prefix>_profile_status.json` and the manifest's `profile_status` and
 `fallback_analyses` entries record what was completed, what was skipped on
 request and what could not be completed. See
@@ -170,7 +282,8 @@ The colours and representations of every figure and scene are listed in the
 ## Viewer scripts
 
 Cast, evidence and hydration bundles include scene scripts for PyMOL (`.pml`),
-VMD (`.vmd`/`.tcl`) and ChimeraX (`.cxc`). Keep the whole output directory
+VMD (`.vmd`/`.tcl`) and ChimeraX (`.cxc`) by default (`--outputs pymol` etc.
+choose fewer). Keep the whole output directory
 together, because scripts refer to companion meshes, maps, PDB files and
 identity sidecars by relative path. `crevice_render` (PyMOL/VMD) and `*_render.cxc`
 (ChimeraX) make high-resolution images.

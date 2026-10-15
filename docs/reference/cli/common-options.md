@@ -57,6 +57,38 @@ Commands that analyse explicit water share these settings; see
 ```{crevice-cli-options} hydration
 ```
 
+(cli-outputs)=
+## Output selection
+
+The bundle commands (`publish`, `cast`, `analyze`, `residue-evidence`,
+`hydration`, `trajectory`, `cavity-trajectory`, `region-trajectory`) write a
+compact default set: data, the manifest, key figures and PyMOL, VMD and
+ChimeraX scenes, plus the typed residue interactions. `--outputs` chooses file
+kinds and optional analyses (`--outputs help` lists the values and defaults of
+a command), `--all` writes everything, `--dry-run` prints the plan without
+reading or writing anything, and the deprecated `--legacy-outputs` reproduces
+the 0.2 file set during the 0.3 series. See
+{ref}`Outputs <output-policy>`
+and [Upgrading from 0.2 to 0.3](../../getting-started/upgrading-0.3.md).
+
+```{crevice-cli-options} outputs
+```
+
+(cli-settings)=
+## Settings files
+
+Every command accepts `--print-config`, which prints its effective settings as
+JSON (grouped into `input`, `geometry`, `radii`, `outputs`, `display`,
+`trajectory`, `hydration` and `method`) and exits, and `--config FILE`, which
+reads such a file; flags on the command line override it. Settings are
+validated (units, ranges, files, combinations) before any input is read, and
+the manifest records each value with its source. Python:
+{class}`crevice.config.RunSettings`, {func}`crevice.config.settings`,
+{func}`crevice.config.run`.
+
+```{crevice-cli-options} settings
+```
+
 (cli-progress-errors)=
 ## Progress and errors
 
@@ -92,6 +124,7 @@ command page, but they follow the same pattern:
   separately (see the `crevice_render` helpers).
 - Commands that write a whole set of files, such as `publish`, `cast` and the
   trajectory commands, take `--out-dir` and record what they wrote, with the
-  settings used, in a `*_manifest.json`.
+  settings used, in a `*_manifest.json`; [Output selection](#cli-outputs)
+  chooses which files they write.
 
 [Outputs](../../getting-started/outputs.md) describes the files in more detail.

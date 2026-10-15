@@ -39,6 +39,14 @@ Radius, lining hydrophobicity and chemistry, water and a geometric conductance e
 `crevice fingerprint`
 :::
 
+:::{container} crevice-card
+**[Curved and branched pathways](paths.md)**
+
+Widest curved routes from a site to the solvent, with junctions where they split.
+
+`crevice paths`
+:::
+
 ::::
 
 ## Cavities and tunnels
@@ -136,6 +144,14 @@ A cavity's volume, width and wall residues through a simulation.
 :::
 
 :::{container} crevice-card crevice-exit
+**[Cavity tracking](cavity-tracking.md)**
+
+Persistent identities for every cavity near a site, with births, deaths, splits and merges.
+
+`crevice track-cavities`
+:::
+
+:::{container} crevice-card crevice-exit
 **[Named regions](regions.md)**
 
 Define a region once, review it, and compare it fairly across runs.
@@ -205,6 +221,7 @@ structures.
 profile
 cast
 fingerprint
+paths
 cavities
 tunnels
 residues
@@ -213,6 +230,7 @@ network
 hydration
 trajectory
 cavity-trajectory
+cavity-tracking
 regions
 publish
 view

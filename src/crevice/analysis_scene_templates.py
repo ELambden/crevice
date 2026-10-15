@@ -493,18 +493,23 @@ def write_scene_scripts(output_dir,prefix,*,annotate=None):
     annotate=annotations_enabled()
     scene['annotations']=scene_annotation_record(scene_texts(scene),drawn=annotate)
     scene_path.write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n')
-    files={}
+    files={};reference_written=False
+    from .outputs import wants
     for mode,ending in [('hydration','_analysis'),('network','_analysis_network')]:
         p=root/(prefix+ending+'.pml')
         pml=PML.replace('__LEGEND__',PML_LEGEND if annotate else '').replace('__REGION_STATUS__',PML_REGION_STATUS if annotate else '')
-        p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__FALLBACK__',repr(str(root))).replace('__MODE__',mode));files[mode+'_pml']=str(p)
-        text=_tcl(scene,root,mode,annotate)
-        for extension in ['vmd','tcl']:
-            p=root/(prefix+ending+'.'+extension);p.write_text(text);files[mode+'_'+extension]=str(p)
+        if wants(p):
+            p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__FALLBACK__',repr(str(root))).replace('__MODE__',mode));files[mode+'_pml']=str(p)
+        tcl_paths=[root/(prefix+ending+'.'+extension) for extension in ['vmd','tcl']]
+        if any(wants(p) for p in tcl_paths):
+            text=_tcl(scene,root,mode,annotate);reference_written=True
+            for extension,p in zip(['vmd','tcl'],tcl_paths):
+                p.write_text(text);files[mode+'_'+extension]=str(p)
         loader=root/(prefix+ending+'_chimerax.py')
         cxc=CXC_PY.replace('__LEGEND__',CXC_LEGEND if annotate else '').replace('__LABEL_VISIBILITY__',CXC_LABEL_VISIBILITY if annotate else '')
-        loader.write_text(cxc.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode));files[mode+'_chimerax_python']=str(loader)
-        p=root/(prefix+ending+'.cxc');p.write_text('open '+json.dumps(loader.name)+'\n');files[mode+'_cxc']=str(p)
+        if wants(loader):
+            loader.write_text(cxc.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode));files[mode+'_chimerax_python']=str(loader)
+            p=root/(prefix+ending+'.cxc');p.write_text('open '+json.dumps(loader.name)+'\n');files[mode+'_cxc']=str(p)
     lines=[]
     for edge in scene['contacts']:
         lines.append('.color '+' '.join(map(str,edge['color_rgb'])))
@@ -513,7 +518,12 @@ def write_scene_scripts(output_dir,prefix,*,annotate=None):
             for i in range(0,segments,2):
                 p=a+(b-a)*i/segments;q=a+(b-a)*min(i+1,segments)/segments
                 lines.append('.cylinder '+' '.join(f'{v:.9g}' for v in [*p,*q])+' 0.065')
-    p=root/(prefix+'_analysis_contacts.bild');p.write_text('\n'.join(lines)+'\n');files['analysis_contacts_bild']=str(p)
-    files['analysis_reference_tsv']=str(root/(prefix+'_analysis_reference.tsv'))
-    render=root/(prefix+'_analysis_render.cxc');render.write_text('open '+json.dumps(prefix+'_analysis.cxc')+'\nsave '+json.dumps(prefix+'_analysis_chimerax.png')+' width 2400 height 1800 supersample 3\n');files['analysis_chimerax_render']=str(render)
+    p=root/(prefix+'_analysis_contacts.bild')
+    if wants(p):
+        p.write_text('\n'.join(lines)+'\n');files['analysis_contacts_bild']=str(p)
+    if reference_written:
+        files['analysis_reference_tsv']=str(root/(prefix+'_analysis_reference.tsv'))
+    render=root/(prefix+'_analysis_render.cxc')
+    if wants(render):
+        render.write_text('open '+json.dumps(prefix+'_analysis.cxc')+'\nsave '+json.dumps(prefix+'_analysis_chimerax.png')+' width 2400 height 1800 supersample 3\n');files['analysis_chimerax_render']=str(render)
     return files

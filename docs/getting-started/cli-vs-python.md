@@ -33,11 +33,45 @@ write files and figures. The main public functions are:
 | `cavity-trajectory` | {func}`crevice.cavity_trajectory.analyze_cavity_trajectory` | {func}`crevice.cavity_trajectory.write_cavity_trajectory_bundle` |
 | `hydration` | {func}`crevice.hydration.static_hydration`, {func}`crevice.hydration_trajectory.analyze_hydration_trajectory` | {func}`crevice.hydration_export.write_hydration_bundle` |
 | `region-*` | {func}`crevice.region_definition.prepare_region`, {func}`crevice.region_comparison.compare_regions` | written by the same functions |
-| `publish` | {func}`crevice.write_static_publication_bundle` | (writes the whole bundle) |
+| `publish` | {func}`crevice.static_workflow.compute_static_workflow` (no files) | {func}`crevice.static_workflow.export_static_workflow`; {func}`crevice.write_static_publication_bundle` does both |
 
 The first eight rows can be imported straight from `crevice`. The trajectory
 cavity, hydration and region workflows are reached through their submodules,
 and some of their helpers take CLI argument objects.
+
+## The same run from both sides
+
+{func}`crevice.config.settings` builds the typed settings of any command
+(defaults are read from the command-line parser, so they cannot drift) and
+{func}`crevice.config.run` runs them through exactly the code the command line
+uses, including the output policy and the manifest's run record:
+
+```python
+from crevice.config import settings, run
+
+s = settings("publish", "1GRM", out_dir="results/1GRM", prefix="1GRM",
+             samples=101, outputs="default,hydration")
+print(s.to_dict()["geometry"]["samples"])   # the same JSON as --print-config
+record = run(s)                             # same files as the command line
+```
+
+To measure first and decide what to write later, split the `publish` workflow:
+
+```python
+from crevice import load_structure
+from crevice.static_workflow import compute_static_workflow, export_static_workflow
+
+frame = load_structure("1GRM.cif")
+result = compute_static_workflow(frame, samples=101)   # writes nothing
+print(result.status, result.profile.min_radius, result.cast.total_volume)
+export_static_workflow(result, structure_path="1GRM.cif", output_dir="out",
+                       prefix="1GRM", outputs="figures,pymol")
+```
+
+The bundle writers ({func}`crevice.write_static_publication_bundle`,
+{func}`crevice.figures.write_rolling_probe_bundle`) accept the same
+`outputs=` values as `--outputs` (plus `"all"` and `"legacy"`); without it they
+write the complete bundle, as in 0.2.
 
 ## Defaults that differ between the CLI and Python
 

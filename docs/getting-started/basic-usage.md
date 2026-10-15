@@ -64,11 +64,14 @@ Ask for more than one region with `--max-cavities N`. The
 crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
-`publish` runs the profile, cast, lining residues, cavities, tunnels, residue
-network and hydration in one go and writes the tables, figures and viewer
-scenes (about 85 files for 1GRM). Use the `--skip-*` options to leave out
-what you don't need, or add `--fingerprint` for a
-[pore fingerprint](../tools/fingerprint.md) of the channel.
+`publish` runs the profile, cast, lining residues and typed residue
+interactions in one go and writes the tables, the key figures and PyMOL, VMD
+and ChimeraX scenes (40 files for 1GRM). Add `--all` for everything (cavities,
+tunnels, network, hydration, every figure, a
+[pore fingerprint](../tools/fingerprint.md) and an interactive HTML view), or
+pick extras with `--outputs`, for example `--outputs default,hydration`;
+`--dry-run` shows the plan without running. See
+{ref}`Outputs <output-policy>`.
 
 ### Look at your results interactively
 
@@ -170,6 +173,7 @@ workers. Your times will differ.
 inputs-and-selections
 outputs
 cli-vs-python
+upgrading-0.3
 ```
 
 - The [Analysis tools](../tools/index.md) explain each method and its options.

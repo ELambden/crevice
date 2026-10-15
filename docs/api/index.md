@@ -78,6 +78,16 @@ Measure a channel's radius along its length, and fill pockets, cavities and chan
    ~crevice.fingerprint.pore_fingerprint
    ~crevice.fingerprint.fingerprint_trajectory
    ~crevice.fingerprint.conductance_estimate
+   crevice.paths.find_paths
+   crevice.paths.PathNetwork
+   crevice.paths.PathBranch
+   crevice.paths.residue_seed
+   crevice.paths.region_seed
+   crevice.paths.FreeSpace
+   crevice.paths.write_paths_outputs
+   crevice.paths.plot_paths
+   crevice.paths.write_path_scenes
+   crevice.paths.paths_view
    ~crevice.fingerprint.write_fingerprint_bundle
    ~crevice.fingerprint.plot_pore_fingerprint
    ~crevice.fingerprint.PoreFingerprint
@@ -174,6 +184,13 @@ Open MD trajectories, analyse every frame, summarise with approximate uncertaint
    crevice.cavity_trajectory.analyze_cavity_trajectory
    crevice.cavity_trajectory.summarize_cavity_trajectory
    crevice.cavity_trajectory.write_cavity_trajectory_bundle
+   crevice.tracking.track_cavities
+   crevice.tracking.CavityTracker
+   crevice.tracking.TrackedComponent
+   crevice.tracking.measure_frame
+   crevice.tracking.voxel_keys
+   crevice.tracking.write_tracking_outputs
+   crevice.tracking.plot_tracking
    crevice.region_definition.load_definition
    crevice.region_definition.prepare_region
    crevice.region_definition.trajectory_arguments

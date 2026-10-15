@@ -263,6 +263,8 @@ CLI_FAMILIES = {
                                             "water_density_spacing", "water_density_smoothing",
                                             "water_density_level", "skip_water_density", "skip_interactions",
                                             "skip_analysis_views", "skip_hydration"]),
+    "outputs": ("Output selection", 3, ["outputs", "all_outputs", "legacy_outputs", "dry_run"]),
+    "settings": ("Settings files", 1, ["config", "print_config"]),
 }
 
 

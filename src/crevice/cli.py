@@ -602,7 +602,7 @@ def build_parser() -> argparse.ArgumentParser:
     static_suite.add_argument("--skip-network", action="store_true", help="Skip residue-network analysis")
     static_suite.set_defaults(func=_cmd_static_suite)
     for command in [hydration, cavity_md, region_md, evidence, cast, publish, analyze, trajectory]:
-        if command is not hydration:command.add_argument("--skip-hydration", action="store_true", help="Skip standard water-contact/SASA analysis")
+        if command is not hydration:command.add_argument("--skip-hydration", action="store_true", help="Do not run the water-contact/SASA analysis (off by default since 0.3 except with --water-membership; kept so --all --skip-hydration works)")
         if command in (cavity_md, region_md):command.add_argument("--water-membership", action="store_true", help="Also count aligned water oxygens inside each frame's measured region, paired with the fixed-reference count")
         command.add_argument("--hydration-cutoff", type=float, default=3.5, help="Water oxygen–protein heavy-atom contact distance in Å")
         command.add_argument("--hydration-probe", type=float, default=1.4, help="Geometric SASA probe radius in Å")
@@ -626,9 +626,81 @@ def build_parser() -> argparse.ArgumentParser:
             "--allow-radii-mismatch", action="store_true",
             help="Proceed even though the radius set differs from the one recorded in the region definition "
                  "or earlier results (the mismatch is recorded). Without it a mismatch is an error")
+    # Output policy (crevice.outputs) of the bundle commands; kept as one block so
+    # new commands are added here.
+    for name, command in [("publish", publish), ("cast", cast), ("analyze", analyze), ("residue-evidence", evidence),
+                          ("hydration", hydration), ("cavity-trajectory", cavity_md), ("region-trajectory", region_md),
+                          ("trajectory", trajectory)]:
+        _add_output_policy_args(command, name)
+    # Opt-in pathway and tracking commands live in their own modules.
+    from .paths import add_paths_command
+    from .tracking import add_tracking_command
+    for command in [add_paths_command(subparsers), add_tracking_command(subparsers)]:
+        _add_annotate_arg(command)
+        _add_radii_arg(command)
     for command in subparsers.choices.values():
+        _add_config_args(command)
         _add_global_args(command, default=argparse.SUPPRESS)
     return parser
+
+
+def _outputs_arg(command: str):
+    """``--outputs`` value parser: comma-separated tokens, checked against the command's policy."""
+    from .outputs import OutputSelectionError, resolve_outputs
+
+    def parse(value: str) -> str:
+        if value.strip().lower() == "help":
+            print(_outputs_help(command))
+            raise SystemExit(0)
+        try:
+            resolve_outputs(command, value)
+        except OutputSelectionError as error:
+            raise argparse.ArgumentTypeError(str(error)) from None
+        return value
+    return parse
+
+
+def _outputs_help(command: str) -> str:
+    from .outputs import ANALYSES, COMMANDS, DESCRIPTIONS, FORMATS
+    policy = COMMANDS[command]
+    names = [f for f in FORMATS if f in policy.formats] + ["viewers"] + [a for a in ANALYSES if a in policy.analyses]
+    lines = [f"crevice {command} --outputs values (comma-separated):"]
+    lines += [f"  {name:13s} {DESCRIPTIONS[name]}" for name in [*names, "default", "none"]]
+    lines.append("default: " + ", ".join(["data", *policy.default_formats, *policy.default_analyses]))
+    lines.append("--all: " + ", ".join([*(f for f in policy.formats), *policy.analyses]))
+    return "\n".join(lines)
+
+
+def _add_output_policy_args(parser: argparse.ArgumentParser, command: str) -> None:
+    """``--outputs``, ``--all``, ``--legacy-outputs`` and ``--dry-run`` (see :mod:`crevice.outputs`)."""
+    group = parser.add_argument_group("outputs (what is analysed and written)")
+    group.add_argument(
+        "--outputs", metavar="LIST", type=_outputs_arg(command),
+        help="Comma-separated outputs instead of the command's defaults. File kinds: key-figures, figures, pymol, "
+             "vmd, chimerax, viewers (all three), scenes, viewer-html, structures, extra-views; optional analyses: "
+             "hydration, interactions, cavities, tunnels, network, fingerprint; 'default' adds the defaults, "
+             "'none' = data only. Listing file kinds replaces the default kinds and listing analyses replaces the "
+             "default analyses; data and the manifest are always written. '--outputs help' lists the values and "
+             "defaults of this command")
+    group.add_argument("--all", dest="all_outputs", action="store_true",
+                       help="Every file kind and optional analysis of the command (all three viewers, every figure, "
+                            "the interactive HTML view). Allocation and frame guards still apply; an output whose "
+                            "prerequisite is missing is skipped and recorded in the manifest")
+    group.add_argument("--legacy-outputs", action="store_true",
+                       help="Deprecated: reproduce the CREVICE 0.2 file set exactly (all viewers, figures and the "
+                            "default hydration analysis). Kept for the 0.3 series; use --all or --outputs instead")
+    group.add_argument("--dry-run", action="store_true",
+                       help="Validate the settings, print the output plan and exit without reading inputs or writing files")
+
+
+def _add_config_args(parser: argparse.ArgumentParser) -> None:
+    """``--config`` and ``--print-config`` (see :mod:`crevice.config`)."""
+    group = parser.add_argument_group("settings file")
+    group.add_argument("--config", metavar="FILE",
+                       help="Read option values from a JSON settings file (as written by --print-config); "
+                            "command-line flags override it")
+    group.add_argument("--print-config", action="store_true",
+                       help="Print the effective settings as JSON and exit without running")
 
 
 def _add_radii_arg(parser: argparse.ArgumentParser) -> None:
@@ -714,15 +786,22 @@ def _error_text(exc: BaseException) -> str:
 def main(argv: list[str] | None = None) -> int:
     """Run the ``crevice`` command line.
 
-    Parses ``argv``, validates the shared hydration settings, then runs the
-    selected command inside :func:`crevice.presentation.figure_annotations`
-    (``--annotate``), :func:`crevice.presentation.display_guides`
-    (``--mouth-guides``, ``--exit-centre-lines``) and
-    :func:`crevice.radii.use_radii` (``--radii``), so one setting applies to
-    every figure, scene and atomic radius of the command. Progress of long
-    runs (trajectory frames, the automatic enclosure-probe ladder) is shown on
-    standard error while it is a terminal, through
-    :func:`crevice.progress.progress_reporting`; ``--quiet`` turns it off.
+    Parses ``argv`` (option values from ``--config FILE`` are applied first, so
+    flags override them), builds the typed settings
+    (:class:`crevice.config.RunSettings`) and validates units, ranges, input
+    files and option combinations before any structure is read. Bundle
+    commands then resolve their output plan (:mod:`crevice.outputs`:
+    ``--outputs``, ``--all``, ``--legacy-outputs``, ``--skip-*``) and print it
+    on standard error. ``--print-config`` prints the settings and
+    ``--dry-run`` prints the plan; both exit without reading inputs or writing
+    files. The command then runs through :func:`execute`, inside
+    :func:`crevice.presentation.figure_annotations` (``--annotate``),
+    :func:`crevice.presentation.display_guides` (``--mouth-guides``,
+    ``--exit-centre-lines``), :func:`crevice.radii.use_radii` (``--radii``) and
+    the output plan, so one setting applies to every figure, scene and atomic
+    radius of the command. Progress of long runs is shown on standard error
+    while it is a terminal (:func:`crevice.progress.progress_reporting`);
+    ``--quiet`` turns it and the plan off.
 
     Parameters
     ----------
@@ -732,31 +811,36 @@ def main(argv: list[str] | None = None) -> int:
     Returns
     -------
     int
-        0 on success, 2 when the command raised an error (the message is
-        printed to standard error as ``crevice: error: ...``, followed for
-        common cases by a ``crevice: hint: ...`` line; ``--debug`` or
-        ``CREVICE_DEBUG=1`` prints the full traceback instead), 130 when
-        interrupted with Ctrl-C. Argument-parsing errors exit through
-        :mod:`argparse` (status 2) and ``--help`` exits with 0.
+        0 on success (and for ``--print-config``/``--dry-run``), 2 when the
+        command raised an error (the message is printed to standard error as
+        ``crevice: error: ...``, followed for common cases by a
+        ``crevice: hint: ...`` line; ``--debug`` or ``CREVICE_DEBUG=1`` prints
+        the full traceback instead), 130 when interrupted with Ctrl-C.
+        Argument-parsing errors exit through :mod:`argparse` (status 2) and
+        ``--help`` exits with 0.
     """
+    argv = list(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
+    try:
+        config_file, config_values = _apply_config_file(parser, argv)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
     args = parser.parse_args(argv)
     try:
+        from .config import RunSettings, setting_sources
+        settings = RunSettings.from_namespace(args, sources=setting_sources(args.command, argv, config_values),
+                                              config_file=config_file)
+        if getattr(args, "print_config", False):
+            print(json.dumps(settings.to_dict(), indent=2, ensure_ascii=False))
+            return 0
+        settings.validate()
         if hasattr(args,'hydration_cutoff') and not getattr(args,'skip_hydration',False) and not getattr(args,'inspect',False):
             if not math.isfinite(args.hydration_cutoff) or args.hydration_cutoff<=0:raise ValueError('hydration cutoff must be finite and positive')
             if not math.isfinite(args.hydration_probe) or args.hydration_probe<=0:raise ValueError('hydration SASA probe must be finite and positive')
             if args.hydration_sasa_points<32:raise ValueError('hydration SASA requires at least 32 points per atom')
             if not all(math.isfinite(v) and v>0 for v in [args.water_density_spacing,args.water_density_level]):raise ValueError('Water density spacing and level must be finite and positive')
             if not math.isfinite(args.water_density_smoothing) or args.water_density_smoothing<0:raise ValueError('Water density smoothing must be finite and nonnegative')
-        from .presentation import display_guides, figure_annotations
-        from .progress import progress_reporting
-        from .radii import use_radii
-        # One radius set for the whole command, including trajectory worker processes.
-        with figure_annotations(getattr(args, "annotate", False)), use_radii(getattr(args, "radii", None)), \
-                display_guides(mouth_guides=getattr(args, "mouth_guides", False),
-                               exit_centre_lines=getattr(args, "exit_centre_lines", False)), \
-                progress_reporting(not getattr(args, "quiet", False)):
-            args.func(args)
+        execute(args, settings=settings, argv=argv)
     except KeyboardInterrupt:
         print("\ncrevice: interrupted", file=sys.stderr)
         return 130
@@ -770,6 +854,147 @@ def main(argv: list[str] | None = None) -> int:
             print(f"crevice: hint: {hint}", file=sys.stderr)
         return 2
     return 0
+
+
+def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None = None) -> dict:
+    """Run a parsed command with its output plan, radius set and display settings.
+
+    Shared by :func:`main` and :func:`crevice.config.run`, so the command line
+    and Python run the same code. Resolves the output plan, prints it (unless
+    ``--quiet``), stops after the plan for ``--dry-run``, runs the command and
+    records the run (settings, sources, input hashes, plan) in the command's
+    manifest.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed arguments (or :meth:`crevice.config.RunSettings.to_namespace`).
+    settings : crevice.config.RunSettings, optional
+        The effective settings; built from ``args`` when omitted.
+    argv : list of str, optional
+        The command line, recorded in the manifest (``None`` from Python).
+
+    Returns
+    -------
+    dict
+        ``manifest`` (path or ``None``), ``files`` (the manifest's file index)
+        and ``plan`` (the output plan record or ``None``).
+    """
+    from .config import RunSettings, run_record
+    from .outputs import use_outputs
+    from .presentation import display_guides, figure_annotations
+    from .progress import progress_reporting
+    from .radii import use_radii
+    if settings is None:
+        settings = RunSettings.from_namespace(args)
+    plan = _output_plan(args)
+    quiet = getattr(args, "quiet", False)
+    if plan is not None:
+        # The plan follows the progress rules (a terminal, or CREVICE_PROGRESS=1); --dry-run always shows it.
+        from .progress import progress_mode
+        with progress_reporting(not quiet):
+            shown = getattr(args, "dry_run", False) or progress_mode() is not None
+        if shown:
+            print(plan.describe(), file=sys.stderr)
+        if plan.legacy:
+            import warnings
+            warnings.warn("--legacy-outputs is deprecated: it reproduces the CREVICE 0.2 file set during the 0.3 "
+                          "series and will be removed in a later minor release; use --all or --outputs",
+                          DeprecationWarning, stacklevel=2)
+            print("crevice: warning: --legacy-outputs is deprecated and will be removed in a later minor release "
+                  "(after the 0.3 series); use --all or --outputs", file=sys.stderr)
+    if getattr(args, "dry_run", False):
+        print("crevice: dry run: settings valid; nothing was read or written", file=sys.stderr)
+        return {"manifest": None, "files": {}, "plan": plan.to_dict() if plan else None}
+    args._run_manifest = None
+    args._run_source = None
+    # One radius set for the whole command, including trajectory worker processes.
+    with figure_annotations(getattr(args, "annotate", False)), use_radii(getattr(args, "radii", None)), \
+            display_guides(mouth_guides=getattr(args, "mouth_guides", False),
+                           exit_centre_lines=getattr(args, "exit_centre_lines", False)), \
+            progress_reporting(not quiet), use_outputs(plan) as log:
+        args.func(args)
+        if plan is not None and plan.writes("viewer-html") and args._run_manifest:
+            _write_view_html(Path(args._run_manifest), plan)
+    result = {"manifest": args._run_manifest, "files": {}, "plan": plan.to_dict() if plan else None}
+    if args._run_manifest and Path(args._run_manifest).is_file():
+        path = Path(args._run_manifest)
+        data = json.loads(path.read_text())
+        data["run"] = run_record(settings, argv, plan, log if plan is not None else None, source=args._run_source)
+        if plan is not None:
+            result["plan"] = data["run"]["outputs"]
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        result["files"] = data.get("files", {})
+    return result
+
+
+def _write_view_html(manifest: Path, plan) -> None:
+    """Write ``PREFIX_view.html`` (the interactive viewer) next to ``manifest``; record failures."""
+    from .outputs import note
+    try:
+        from .viewer import view
+        scene = view(manifest.parent, kind="auto")
+        stem = manifest.name
+        for ending in ("_hydration_manifest.json", "_cavity_manifest.json", "_evidence_manifest.json", "_manifest.json"):
+            if stem.endswith(ending):
+                stem = stem[:-len(ending)]
+                break
+        target = manifest.parent / f"{stem}_view.html"
+        scene.save_html(target)
+    except Exception as exc:   # an optional output; never fails the measurement run
+        note("viewer-html", f"not written: {_error_text(exc)}")
+        return
+    data = json.loads(manifest.read_text())
+    if isinstance(data.get("files"), dict):
+        data["files"]["view_html"] = str(target)
+        manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+
+
+def _output_plan(args: argparse.Namespace):
+    """The output plan of a bundle command (``None`` for commands without a policy)."""
+    from dataclasses import replace
+    from .outputs import COMMANDS, resolve_outputs
+    if args.command not in COMMANDS or getattr(args, "inspect", False):
+        return None
+    skip = [name for name in ("hydration", "interactions", "cavities", "tunnels", "network")
+            if getattr(args, f"skip_{name}", False)]
+    defaults = ("hydration",) if getattr(args, "water_membership", False) else None
+    plan = resolve_outputs(args.command, getattr(args, "outputs", None), all_outputs=getattr(args, "all_outputs", False),
+                           legacy=getattr(args, "legacy_outputs", False), skip=skip, default_analyses=defaults)
+    if getattr(args, "fingerprint", False) and args.command == "publish":
+        plan = replace(plan, analyses=plan.analyses | {"fingerprint"})
+    return plan
+
+
+def _apply_config_file(parser: argparse.ArgumentParser, argv: list[str]):
+    """Apply ``--config FILE`` values as the command's defaults (before parsing).
+
+    Returns the file name and the flattened values (``(None, {})`` without one).
+    """
+    subparsers = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
+    command = next((token for token in argv if token in subparsers.choices), None)
+    if command is None:
+        return None, {}
+    tail = argv[argv.index(command) + 1:]
+    path = None
+    for index, token in enumerate(tail):
+        if token == "--config" and index + 1 < len(tail):
+            path = tail[index + 1]
+        elif token.startswith("--config="):
+            path = token.split("=", 1)[1]
+    if path is None:
+        return None, {}
+    from .config import command_actions, flatten_settings, load_settings_file
+    values = flatten_settings(load_settings_file(path), command)
+    actions = command_actions(command)
+    # Positional inputs always come from the command line.
+    options = {dest: value for dest, value in values.items() if actions[dest].option_strings}
+    subparser = subparsers.choices[command]
+    for action in subparser._actions:
+        if action.dest in options and action.required and options[action.dest] is not None:
+            action.required = False   # supplied by the settings file
+    subparser.set_defaults(**options)
+    return path, options
 
 
 def _display_width(text: str) -> float:
@@ -1216,31 +1441,34 @@ def _report_trajectory(args, result, trajectory, lining, alignment_residues) -> 
         print(f"enclosure probe per frame: pinned={fallback['pinned_frames']} fallback={fallback['fallback_frames']} "
               f"unresolved={fallback['unresolved_frames']} (fallback {'on' if fallback['enabled'] else 'off'})"
               + (f"; fallback probes by source frame: {fallback['fallback_probes_A']}" if fallback['fallback_frames'] else ""))
-    write_trajectory_json(result, args.output)
-    from .io import write_trajectory_csv
-    write_trajectory_csv(result, _sibling(args.output, "_frames.csv"), _sibling(args.output, "_profiles.csv"))
-    distribution=None
-    if args.png or args.distribution_csv:
-        if any(f.profile is not None for f in result.frames):
-            distribution=profile_distribution(result,quantiles=args.quantiles,confidence=args.confidence or None,
-                     block_length=args.block_length,bootstrap_replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
-        else:
-            distribution={"status":"no_profiles","rows":[],"total_frame_count":len(result.frames),
-                          "confidence_interval":{"status":"unavailable_no_reference_profile"},
-                          "reason":result.metadata.get("reference_profile_reason")}
-    if args.png:
-        plot_trajectory_profiles(result,args.png,dpi=args.dpi,view=args.view,quantiles=args.quantiles,
-                                 distribution=distribution,quantity=args.profile_quantity)
-    if args.distribution_csv:
-        write_profile_distribution_csv(distribution,args.distribution_csv)
-        from .radii import radii_fields
-        _write_json({**distribution,**radii_fields()},str(Path(args.distribution_csv).with_suffix(".json")))
-    if args.network_json:
-        from .radii import radii_fields
-        _write_json({**result.metadata['residue_dynamics'],**radii_fields()},args.network_json)
-        from .residue_dynamics import write_dynamics_summary
-        write_dynamics_summary(result.metadata['residue_dynamics'],Path(args.network_json).with_suffix(''),dpi=args.dpi)
-    if not args.skip_hydration:
+    from .outputs import use_outputs
+    # Explicit paths (-o, --png, --distribution-csv, --network-json) are always written as given.
+    with use_outputs(None):
+        write_trajectory_json(result, args.output)
+        from .io import write_trajectory_csv
+        write_trajectory_csv(result, _sibling(args.output, "_frames.csv"), _sibling(args.output, "_profiles.csv"))
+        distribution=None
+        if args.png or args.distribution_csv:
+            if any(f.profile is not None for f in result.frames):
+                distribution=profile_distribution(result,quantiles=args.quantiles,confidence=args.confidence or None,
+                         block_length=args.block_length,bootstrap_replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
+            else:
+                distribution={"status":"no_profiles","rows":[],"total_frame_count":len(result.frames),
+                              "confidence_interval":{"status":"unavailable_no_reference_profile"},
+                              "reason":result.metadata.get("reference_profile_reason")}
+        if args.png:
+            plot_trajectory_profiles(result,args.png,dpi=args.dpi,view=args.view,quantiles=args.quantiles,
+                                     distribution=distribution,quantity=args.profile_quantity)
+        if args.distribution_csv:
+            write_profile_distribution_csv(distribution,args.distribution_csv)
+            from .radii import radii_fields
+            _write_json({**distribution,**radii_fields()},str(Path(args.distribution_csv).with_suffix(".json")))
+        if args.network_json:
+            from .radii import radii_fields
+            _write_json({**result.metadata['residue_dynamics'],**radii_fields()},args.network_json)
+            from .residue_dynamics import write_dynamics_summary
+            write_dynamics_summary(result.metadata['residue_dynamics'],Path(args.network_json).with_suffix(''),dpi=args.dpi)
+    if _hydration_requested(args):
         from .hydration_workflow import static_hydration_bundle,hydration_dependencies,analysis_options_from_args
         missing_hydration=hydration_dependencies()
         focus=sorted(set(lining)|{c.residue for f in result.frames for c in f.residue_contacts})
@@ -1266,7 +1494,65 @@ def _report_trajectory(args, result, trajectory, lining, alignment_residues) -> 
         else:
             hydration_files={'status':'unavailable_no_identified_residues','reason':'Supply lining evidence or use the cavity-trajectory workflow'}
         result.metadata['hydration_files']=hydration_files;write_trajectory_json(result,args.output)
+    elif _interactions_requested(args):
+        # Typed residue-residue interactions without the water analyses (0.3 default).
+        from .residue_interactions import (static_residue_interactions, trajectory_residue_interactions,
+                                           write_residue_interactions)
+        focus=sorted(set(lining)|{c.residue for f in result.frames for c in f.residue_contacts})
+        output=Path(args.output);interaction_files={}
+        if args.topology and focus:
+            def run_interactions():
+                found,times=trajectory_residue_interactions(args.topology,args.structures[0],residue_ids=focus,selection=args.selection,
+                    start=args.start,stop=args.stop,stride=args.stride,max_frames=args.max_frames or None,pbc=args.pbc,
+                    progress_callback=_HydrationProgress())
+                return write_residue_interactions(found,output.parent,output.stem,times=times,confidence=args.confidence,
+                    block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
+            interaction_files=_optional_analysis('interactions',run_interactions)
+        elif not args.topology and focus:
+            def run_frames():
+                found={}
+                for i,frame in enumerate(trajectory.frames[::args.stride]):
+                    found[str(i)]=write_residue_interactions(static_residue_interactions(frame,residue_ids=focus),
+                        output.parent/(output.stem+'_interaction_frames'),f'frame_{i:04d}')
+                return found
+            interaction_files=_optional_analysis('interactions',run_frames)
+        else:
+            interaction_files={'status':'unavailable_no_identified_residues','reason':'Supply lining evidence or use the cavity-trajectory workflow'}
+        result.metadata['interaction_files']=interaction_files;write_trajectory_json(result,args.output)
     print(f"trajectory frames={len(result.frames)} analyses={','.join(result.analyses)} output={args.output}")
+
+
+def _hydration_requested(args: argparse.Namespace) -> bool:
+    """Whether the run includes the hydration analysis (output plan, else ``--skip-hydration``)."""
+    from .outputs import active_plan
+    plan = active_plan()
+    if plan is not None:
+        return plan.runs("hydration")
+    return not getattr(args, "skip_hydration", False)
+
+
+def _optional_analysis(name: str, run):
+    """Run a default-on optional analysis; record (not raise) an input it cannot handle.
+
+    Returns the analysis' files, or ``{"status": "not_completed", "reason": ...}``
+    after a ``ValueError`` (for example no periodic box). The reason is printed
+    as a note and recorded in the manifest's ``run.outputs.notes``.
+    """
+    from .outputs import note
+    try:
+        return run()
+    except ValueError as exc:
+        reason = _error_text(exc)
+        note(name, f"not completed: {reason}")
+        print(f"crevice: note: {name} not completed ({reason}); the other outputs are complete", file=sys.stderr)
+        return {"status": "not_completed", "reason": reason}
+
+
+def _interactions_requested(args: argparse.Namespace) -> bool:
+    """Whether the run includes the typed residue interactions without hydration (output plan only)."""
+    from .outputs import active_plan
+    plan = active_plan()
+    return plan is not None and plan.runs("interactions") and not plan.runs("hydration")
 
 
 def _cmd_cast(args: argparse.Namespace) -> None:
@@ -1287,6 +1573,7 @@ def _cmd_cast(args: argparse.Namespace) -> None:
     _write_json(saved, manifest['manifest_json'])
     from .hydration_workflow import append_static_hydration
     append_static_hydration(args,frame,source.path,manifest)
+    args._run_manifest, args._run_source = manifest['manifest_json'], source.to_dict()
     cast = saved['void_cast']
     print(f"cast regions={cast['component_count']} volume_A3={cast['total_volume']:.3f} spacing_A={cast['spacing']} out_dir={args.out_dir}")
 
@@ -1313,9 +1600,9 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         include_hydrogen=args.include_hydrogen,
         include_hetero=not args.exclude_hetero,
         dpi=args.dpi,
-        include_cavities=not args.skip_cavities,
-        include_tunnels=not args.skip_tunnels,
-        include_network=not args.skip_network,
+        include_cavities=None,   # the output plan decides (--outputs/--all, minus --skip-cavities)
+        include_tunnels=None,
+        include_network=None,
         residue_label_every=args.residue_label_every,
         cast_mode=args.cast_mode,
         cast_outer_radius=args.cast_outer_radius,
@@ -1344,6 +1631,7 @@ def _cmd_publish(args: argparse.Namespace) -> None:
     _write_json(saved_manifest, manifest["manifest_json"])
     from .hydration_workflow import append_static_hydration
     append_static_hydration(args,frame,source.path,manifest)
+    args._run_manifest, args._run_source = manifest["manifest_json"], source.to_dict()
     profile_status = "unresolved" if "profile_status_json" in manifest else "resolved" if "profile_json" in manifest else "not_assigned"
     print(f"publish files={len(manifest)} out_dir={args.out_dir} profile={profile_status}")
     if profile_status == "unresolved":
@@ -1461,6 +1749,10 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         files[name] = path
         return path
 
+    from .outputs import active_plan
+    plan = active_plan()
+    # --png, or figures selected through --outputs/--all (not part of the 0.2 analyze default).
+    png = args.png or (plan is not None and not plan.legacy and plan.writes("figures"))
     profile = None
     contacts: tuple = ()
     if {"profile", "residues", "network", "features"} & set(analyses):
@@ -1479,11 +1771,11 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
     if "profile" in analyses:
         write_profile_json(profile, target("profile.json"))
         write_profile_csv(profile, target("profile.csv"))
-        if args.png:
+        if png:
             plot_profile_radius(profile, target("profile.png"), dpi=args.dpi)
     if "residues" in analyses:
         write_residue_contacts_csv(contacts, target("residues.csv"))
-        if args.png:
+        if png:
             plot_residue_contacts(contacts, target("residues.png"), dpi=args.dpi)
     if "cavities" in analyses:
         cavities = detect_cavities(
@@ -1494,7 +1786,7 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         )
         write_cavities_json(cavities, target("cavities.json"))
         write_cavities_csv(cavities, target("cavities.csv"))
-        if args.png:
+        if png:
             plot_cavity_summary(cavities, target("cavities.png"), dpi=args.dpi)
     if "tunnels" in analyses:
         tunnels = find_tunnels(
@@ -1511,7 +1803,7 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         network = build_cavity_network(frame, profile, contacts=contacts, cutoff=args.cutoff)
         write_network_json(network, target("network.json"))
         write_network_csv(network, target("network_nodes.csv"), target("network_edges.csv"))
-        if args.png:
+        if png:
             plot_network_summary(network, target("network.png"), dpi=args.dpi)
     if "features" in analyses:
         write_features_csv(profile_features(profile, contacts), target("features.csv"))
@@ -1529,6 +1821,7 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
     from .radii import radii_fields
     manifest.update(radii_fields())
     _write_json(manifest, str(out_dir / f"{prefix}_manifest.json"))
+    args._run_manifest, args._run_source = str(out_dir / f"{prefix}_manifest.json"), source.to_dict()
     print(f"analyze analyses={','.join(analyses)} files={len(files)} out_dir={args.out_dir}")
 
 
@@ -1698,6 +1991,7 @@ def _cmd_residue_evidence(args):
     append_static_hydration(args,frame,source.path,files,residue_ids=[r['residue'] for r in report['residues'] if r['role']!='other'],roles={r['residue']:r['role'] for r in report['residues']})
     from .radii import radii_fields
     _write_json({'files':files,**radii_fields()},Path(args.out_dir)/f'{args.prefix}_evidence_manifest.json')
+    args._run_manifest,args._run_source=str(Path(args.out_dir)/f'{args.prefix}_evidence_manifest.json'),source.to_dict()
     print(f"residue-evidence lining={len(report['lining_residues'])} out_dir={args.out_dir}")
 
 
@@ -1741,7 +2035,8 @@ def _cmd_cavity_trajectory(args):
         analysis['settings']['region_definition']=args.region_definition_metadata
     files=write_cavity_trajectory_bundle(analysis,root,prefix=args.prefix,confidence=args.confidence,
              block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi)
-    if not args.skip_hydration:
+    hydrated=_hydration_requested(args)
+    if hydrated:
         from .hydration_trajectory import analyze_hydration_trajectory
         from .hydration_workflow import analysis_options_from_args
         from .hydration_export import write_hydration_bundle
@@ -1753,15 +2048,27 @@ def _cmd_cavity_trajectory(args):
             hydration['member_waters']=viewer_member_waters(analysis)
         extra=write_hydration_bundle(hydration,root,prefix=args.prefix,confidence=args.confidence,block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi)
         manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text());data['files'].update(extra);_write_json(data,manifest)
+    elif _interactions_requested(args):
+        # Typed residue-residue interactions without the water analyses (0.3 default).
+        from .residue_interactions import trajectory_residue_interactions,write_residue_interactions
+        def run_interactions():
+            found,times=trajectory_residue_interactions(args.topology,args.trajectory,context_json=files['statistics_json'],
+                max_frames=args.max_frames,pbc=args.pbc,progress_callback=_HydrationProgress())
+            return write_residue_interactions(found,root,args.prefix,times=times,confidence=args.confidence,block_length=args.block_length,
+                replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
+        extra=_optional_analysis('interactions',run_interactions)
+        if 'status' in extra:extra={}
+        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text());data['files'].update(extra);_write_json(data,manifest)
     if waters is not None:
         from .water_membership import write_water_membership_bundle
         import numpy as np
         counts=None
-        if not args.skip_hydration and extra.get('hydration_frames_npz'):
+        if hydrated and extra.get('hydration_frames_npz'):
             with np.load(extra['hydration_frames_npz']) as saved:counts=saved['region_water_count'].copy() if 'region_water_count' in saved else None
         extra=write_water_membership_bundle(analysis,root,prefix=args.prefix,confidence=args.confidence,block_length=args.block_length,
             replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi,hydration_region_counts=counts)
         manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text());data['files'].update(extra);_write_json(data,manifest)
+    args._run_manifest=files['manifest_json']
     print(f"cavity trajectory frames={len(trajectory.frames)} statistics={files['statistics_json']}")
 
 
@@ -1785,6 +2092,8 @@ def _cmd_hydration(args):
         frame,_=restore_viewer_identities(frame,source.path)
         files=static_hydration_bundle(frame,args.out_dir,prefix=args.prefix,source_path=source.path,volume_path=args.volume_dx,residue_ids=residues,
             cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,dpi=args.dpi,analysis_options=analysis_options_from_args(args))
+    manifest=Path(args.out_dir)/f'{args.prefix}_hydration_manifest.json'
+    args._run_manifest=str(manifest) if manifest.is_file() else None
     print('hydration statistics='+files['hydration_json'])
 
 
@@ -1839,6 +2148,7 @@ def _cmd_region_trajectory(args):
     # The definition's radius set (or the explicitly allowed override) for every frame and worker.
     with use_radii(radius_set):
         _cmd_cavity_trajectory(resolved)
+    args._run_manifest=getattr(resolved,'_run_manifest',None)
 
 
 def _cmd_region_compare(args):

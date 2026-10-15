@@ -110,15 +110,18 @@ A directory containing:
   `--reference-volume-dx`.
 - **`*_void_cast.csv`**: one row per region with `volume_A3`, `point_count`,
   centre coordinates and the minimum, mean and maximum clearance.
-- **Viewer scenes** for PyMOL, VMD and ChimeraX (`*_pore_cast.*`,
-  `*_volume.*`, `*_end_view.*`, `*_render.cxc`): a grey-blue cartoon with
+- **Viewer scenes** for PyMOL, VMD and ChimeraX (`*_volume.*`,
+  `*_render.cxc`; the `*_pore_cast.*` aliases and `*_end_view.*` with
+  `--outputs default,extra-views` or `--all`): a grey-blue cartoon with
   opaque cast surfaces, one colour per region, starting with violet
   (`#a855f7`). Teal is reserved for channel casts.
 - **`*_display.dx`** and **`*_pymol_mesh.npz`**: smoothed display surfaces,
   for looks only.
 - The full cast record, atom selection and input report as JSON, one measured
-  map per region in `regions/`, standard hydration outputs (unless
-  `--skip-hydration`) and a `*_manifest.json` listing everything.
+  map per region in `regions/`, the typed residue interactions of the cast's
+  boundary residues, and a `*_manifest.json` listing everything. Hydration
+  outputs and the input copy are opt-in (`--outputs default,hydration,structures`
+  or `--all`; see {ref}`output-policy`).
 
 There is no Matplotlib preview: open a scene, or render one with
 `*_render.cxc`. A cast of this kind has no channel axis, so it isn't split into

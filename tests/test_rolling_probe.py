@@ -145,12 +145,13 @@ def test_cli_cast_does_not_require_a_through_channel(pocket,tmp_path,capsys):
     from crevice.presentation import write_viewer_structure
     frame,_=pocket
     source=write_viewer_structure(frame,tmp_path/'input.pdb')
-    main(['cast',str(source),'--out-dir',str(tmp_path/'bundle'),'--spacing','0.5','--min-component-volume','30'])
+    main(['cast',str(source),'--out-dir',str(tmp_path/'bundle'),'--spacing','0.5','--min-component-volume','30',
+          '--outputs','default,extra-views'])   # end views are opt-in since 0.3
     manifest=json.loads((tmp_path/'bundle/input_manifest.json').read_text())
     assert manifest['void_cast']['total_volume']>100
     assert manifest['channel_profile_status']=='not_assigned_by_3D_void_detection'
     assert 'profile_json' not in manifest['files']
-    assert Path(manifest['files']['pore_cast_pml']).exists()
+    assert Path(manifest['files']['volume_pml']).exists()
     assert Path(manifest['files']['end_view_tcl']).exists()
 
 

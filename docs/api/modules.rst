@@ -26,6 +26,7 @@ CLI on import) is deliberately excluded.
    crevice.channel_exits
    crevice.channels
    crevice.cli
+   crevice.config
    crevice.connectivity
    crevice.ensemble
    crevice.examples
@@ -45,7 +46,9 @@ CLI on import) is deliberately excluded.
    crevice.mmcif
    crevice.models
    crevice.networks
+   crevice.outputs
    crevice.parser
+   crevice.paths
    crevice.pdb
    crevice.presentation
    crevice.progress
@@ -56,6 +59,7 @@ CLI on import) is deliberately excluded.
    crevice.regional_volume
    crevice.residue_dynamics
    crevice.residue_evidence
+   crevice.residue_interactions
    crevice.residue_viewers
    crevice.residues
    crevice.rolling
@@ -63,6 +67,8 @@ CLI on import) is deliberately excluded.
    crevice.sections
    crevice.spatial
    crevice.static_suite
+   crevice.static_workflow
+   crevice.tracking
    crevice.trajectory
    crevice.tunnels
    crevice.uncertainty

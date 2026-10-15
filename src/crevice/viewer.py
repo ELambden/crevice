@@ -817,8 +817,9 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
     source : str or Path, optional
         Output directory (or its manifest/scene JSON) of ``crevice publish``,
         ``crevice cast``, ``crevice region-trajectory``, ``crevice
-        cavity-trajectory`` or ``crevice hydration``. Omit it to view in-memory
-        results instead.
+        cavity-trajectory`` or ``crevice hydration``, or of ``crevice paths``
+        (a ``*_paths.json``: one line layer per branch). Omit it to view
+        in-memory results instead.
     frame : StructureFrame, optional
         In-memory protein (cartoon and lining sticks).
     cast : VoidCast, optional
@@ -888,9 +889,16 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
                                  if not p.name.endswith(("_hydration_manifest.json", "_cavity_manifest.json"))), None)
             analysis = _find_one(directory, "*_analysis_scene.json") if kind in ("auto", "region") else None
             target = manifest or analysis
+            if target is None and kind == "auto" and _find_one(directory, "*_paths.json") is not None:
+                # crevice paths output: one line layer per branch (crevice.paths).
+                from .paths import paths_view_from_json
+                return paths_view_from_json(_find_one(directory, "*_paths.json"), title=title)
             if target is None:
                 raise FileNotFoundError(f"{directory}: no CREVICE cast/publish manifest (*_manifest.json) or "
                                         "hydration scene (*_analysis_scene.json)")
+        if target.name.endswith("_paths.json"):
+            from .paths import paths_view_from_json
+            return paths_view_from_json(target, title=title)
         result = (_from_analysis_scene(directory, target, snapshot) if target.name.endswith("_analysis_scene.json")
                   else _from_cast_manifest(directory, target))
         if title:

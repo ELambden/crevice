@@ -20,6 +20,7 @@ and whether figures carry text, are described once on
 | [`profile`](profile.md) | Radius profile of a channel that runs right through the protein |
 | [`cast`](cast.md) | 3D cast of a pocket, cavity or channel, filled with atom-clear probe spheres |
 | [`fingerprint`](fingerprint.md) | Radius, lining hydrophobicity and chemistry, water and a geometric conductance estimate along a channel |
+| [`paths`](paths.md) | Curved and branched widest routes from a seed, residues or region to bulk, with junctions |
 
 ## Cavities and tunnels
 
@@ -49,6 +50,7 @@ and whether figures carry text, are described once on
 |---|---|
 | [`trajectory`](trajectory.md) | Channel profiles and contacts across many frames |
 | [`cavity-trajectory`](cavity-trajectory.md) | A cavity's volume, widths and boundary residues in every frame |
+| [`track-cavities`](track-cavities.md) | Persistent cavity identities across frames, with births, deaths, splits and merges |
 | [`region-init`](region-init.md) | Start a named region definition from landmarks |
 | [`region-prepare`](region-prepare.md) | Check a region definition and write review scenes |
 | [`region-trajectory`](region-trajectory.md) | Run geometry and hydration on a prepared region |
@@ -78,6 +80,7 @@ common-options
 profile
 cast
 fingerprint
+paths
 cavities
 tunnels
 residues
@@ -87,6 +90,7 @@ features
 hydration
 trajectory
 cavity-trajectory
+track-cavities
 region-init
 region-prepare
 region-trajectory

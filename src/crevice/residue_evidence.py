@@ -274,7 +274,6 @@ def restore_viewer_identities(frame,structure_path):
 def _viewer_serial_mapping(frame,scene):
     """Validate direct PDB IDs or the exporter's reversible source-ID sidecar."""
     import ast
-    import numpy as np
     source=scene.read_text()
     body=source.split('python\n',1)[1].rsplit('python end',1)[0]
     tree=ast.parse(body)
@@ -287,6 +286,12 @@ def _viewer_serial_mapping(frame,scene):
     local,fallback=(ast.literal_eval(v) for v in loader.args[0].args[:2])
     protein=scene.parent/local
     if not protein.is_file():protein=Path(fallback)
+    return _protein_serial_mapping(frame,protein)
+
+
+def _protein_serial_mapping(frame,protein):
+    """Match the analysis atoms to the serials of a viewer protein PDB (direct or through its sidecar)."""
+    import numpy as np
     coordinates={}
     for line in protein.read_text().splitlines():
         if line[:6].strip() in {'ATOM','HETATM'}:
@@ -510,14 +515,21 @@ def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',sce
             'display_partner_residues':[r['residue'] for r in stick_support],
             'display_colors':{'boundary_lining':'gold','nonlocal_lining_partner':'magenta'},
             'stick_residue_selection':stick_selection}
-    if scene_path is None and (volume_path or report.get('source_volume_dx')):
+    from .outputs import drop_blocked,wants,writes
+    # Viewer overlays only when the output plan writes a native viewer (always without a plan).
+    viewers=writes('viewers')
+    if viewers and scene_path is None and (volume_path or report.get('source_volume_dx')):
         from .residue_viewers import scene_from_binary_volume
         base_files=scene_from_binary_volume(frame,volume_path or report['source_volume_dx'],root,prefix)
-        scene_path=base_files['volume_pml']
+        scene_path=base_files.get('volume_pml',str(root/f'{prefix}_volume.pml'))
         paths.update(base_files)
-    if scene_path is not None:
-        scene=Path(scene_path).resolve(strict=True)
-        viewer_ids,protein_path,mapping_definition=_viewer_serial_mapping(frame,scene)
+    if viewers and scene_path is not None:
+        scene=Path(scene_path).resolve()
+        if scene.is_file():
+            viewer_ids,protein_path,mapping_definition=_viewer_serial_mapping(frame,scene)
+        else:
+            # Automatic scene without its PyMOL script: map through the viewer PDB directly.
+            viewer_ids,protein_path,mapping_definition=_protein_serial_mapping(frame,root/f'{prefix}_viewer.pdb')
         report['overlay_atom_mapping']=mapping_definition
         if scene.parent!=root:
             import shutil
@@ -540,8 +552,10 @@ def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',sce
         membership={role:[serial for a,serial in zip(frame.atoms,viewer_ids) if a.residue_key.label in {r['residue'] for r in rows}]
                     for role,rows in [('lining',stick_lining),('partners',stick_support)]}
         coords_path=root/f'{prefix}_residue_reference.npz'
-        np.savez_compressed(coords_path,protein_coords=np.asarray([a.coord for a in frame.atoms]),atom_serials=np.asarray(viewer_ids))
-        evidence_path=Path(paths['residue_evidence_json'])
+        overlay=root/f'{prefix}_residue_context.pml'
+        write_overlay=wants(overlay)
+        if write_overlay:
+            np.savez_compressed(coords_path,protein_coords=np.asarray([a.coord for a in frame.atoms]),atom_serials=np.asarray(viewer_ids))
         extra=f"""\npython
 # Background protein stays cartoon; identified residues also show opaque sticks.
 crevice_reference = np.load(crevice_input({coords_path.name!r}, {str(coords_path)!r}), allow_pickle=False)
@@ -574,14 +588,15 @@ for crevice_object in cmd.get_names("objects"):
         cmd.set("cgo_transparency", 0.45, crevice_object)
 python end
 """
-        overlay=root/f'{prefix}_residue_context.pml'
-        body=extra.split('python\n',1)[1].rsplit('python end',1)[0]
-        base=scene.read_text()
-        if base.count('python end')!=1:
-            raise ValueError('The evidence overlay requires one CREVICE volume-scene Python block')
-        overlay.write_text(base.replace('python end',body+'\npython end',1))
+        if write_overlay:
+            body=extra.split('python\n',1)[1].rsplit('python end',1)[0]
+            base=scene.read_text()
+            if base.count('python end')!=1:
+                raise ValueError('The evidence overlay requires one CREVICE volume-scene Python block')
+            overlay.write_text(base.replace('python end',body+'\npython end',1))
         report['display_atom_serials']=membership
-        paths['residue_context_pml']=str(overlay);paths['residue_reference_npz']=str(coords_path)
+        if write_overlay:
+            paths['residue_context_pml']=str(overlay);paths['residue_reference_npz']=str(coords_path)
         if stick_selection['mode']=='top' and stick_selection['request']==STICK_RESIDUE_DEFAULT:
             report['overlay_definition']='Top 12 direct contributors gold, top 12 nonlining nonlocal partners magenta, shown as opaque sticks; background cartoon and 55%-opaque cast.'
         else:
@@ -592,7 +607,7 @@ python end
         from .residue_viewers import write_companion_contexts
         paths.update(write_companion_contexts(scene,root,prefix,protein_path,membership,viewer_ids,frame))
     Path(paths['residue_evidence_json']).write_text(json.dumps(report,indent=2)+'\n')
-    return paths
+    return drop_blocked(paths)
 
 
 @radii_option

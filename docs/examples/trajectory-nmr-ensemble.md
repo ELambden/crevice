@@ -35,7 +35,7 @@ and modified termini are not all matched by `protein`.
 
 ```bash
 crevice trajectory .crevice/pdb/1GRM.pdb --topology .crevice/pdb/1GRM.pdb --selection all \
-    --skip-hydration -o 1GRM_nmr.json --png 1GRM_nmr_profiles.png \
+    -o 1GRM_nmr.json --png 1GRM_nmr_profiles.png \
     --distribution-csv 1GRM_nmr_distribution.csv --network-json 1GRM_nmr_network.json --dpi 150
 ```
 
@@ -45,10 +45,12 @@ enclosure_radius=0.750 (auto, chosen once on the reference frame and fixed for e
 trajectory frames=5 analyses=profile,features,network output=1GRM_nmr.json
 ```
 
-`--skip-hydration` is needed here: the standard hydration step requires a
-protein heavy-atom selection and explicit water, and this ensemble has
-neither (without the option the command stops with "Hydration protein
-selection must contain only protein heavy atoms").
+The water analysis is off by default (since 0.3) and this ensemble has no
+explicit water. The typed residue interactions, on by default, need a periodic
+box, which an NMR ensemble does not have: the command prints
+`crevice: note: interactions not completed (...)`, records the reason under
+`metadata.interaction_files` in `1GRM_nmr.json` and completes everything else.
+`--skip-interactions` leaves them out.
 
 Every frame is aligned on matching CA atoms to the first frame, whose profile
 also fixes the axis and the enclosure probe (0.75 Å, chosen once and used for

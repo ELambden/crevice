@@ -103,7 +103,9 @@ All options, including the shared ones, are listed under
   compare them with the left panel.
 - **Scenes** (`*_residue_context.pml/.vmd/.tcl/.cxc`): a cartoon, a
   translucent cast, gold wall residues and magenta partners, without labels.
-- Standard hydration outputs for these residues, unless `--skip-hydration`.
+- The typed residue interactions of these residues (on by default), and their
+  hydration outputs with `--outputs default,hydration` or `--all`
+  ({ref}`output-policy`).
 
 For a resolved channel profile, {func}`crevice.profile_constriction_evidence`
 lists the atoms that set the bottleneck: every residue within 0.25 Å of the

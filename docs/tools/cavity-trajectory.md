@@ -93,8 +93,13 @@ Everything is listed under
   line for the mean and an orange band for the mean interval),
   time-by-position and residue-area heatmaps (unresolved frames in grey), and
   partner and motion summaries.
-- Standard hydration outputs unless `--skip-hydration`, and the water
-  membership files with `--water-membership`.
+- The typed residue interactions of the ever-lining and partner residues over
+  the frames (on by default). Hydration outputs come with
+  `--outputs default,hydration`, `--all` or `--water-membership` (which turns
+  hydration on), and the water membership files with `--water-membership`.
+  By default only the key figures (volume time series, radius profile,
+  residues) are written; `--outputs default,figures` adds the others
+  ({ref}`output-policy`).
 
 :::{admonition} Interpreting results
 :class: crevice-interpret

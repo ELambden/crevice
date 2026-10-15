@@ -40,12 +40,18 @@ SLOW_TESTS = {
     "tests/test_region_definition.py::test_region_cli_runs_each_frame_and_retains_region_provenance",
     "tests/test_region_radii.py::test_hydration_cavity_results_uses_or_checks_the_recorded_set",
     "tests/test_publish_fallback_and_sticks.py::test_unresolved_profile_completes_requested_extras_without_a_profile",
+    "tests/test_output_policy.py::test_legacy_outputs_reproduce_the_020_file_set_and_numbers",
+    "tests/test_output_policy.py::test_exact_inventories_of_default_selected_and_all_modes",
+    "tests/test_output_policy.py::test_cli_and_python_give_identical_numbers_and_files",
+    "tests/test_output_policy.py::test_renderer_guard_writes_no_scene_or_html_unless_requested",
+    "tests/test_output_policy.py::test_default_publish_has_three_viewers_key_figures_and_no_water_files",
+    "tests/test_output_policy.py::test_compute_writes_nothing_and_export_matches_the_wrapper",
 }
 
 #: Files whose every test needs a native viewer.
 NATIVE_FILES = {"test_chimerax_native.py"}
 #: Files or classes whose tests need data outside the repository.
-REALDATA_FILES = {"test_trajectory_real_gromacs.py"}
+REALDATA_FILES = {"test_trajectory_real_gromacs.py", "test_canonical_publish.py"}
 REALDATA_CLASSES = {"PDBIntegrationTests"}
 
 

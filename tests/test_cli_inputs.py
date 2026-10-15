@@ -167,7 +167,9 @@ def test_default_analyses_are_profile_and_residues(tmp_path, local_cif, network)
     assert data["analyses"] == ["profile", "residues"]
     assert {"profile.json", "profile.csv", "residues.csv"} <= set(data["files"])
     assert "residues.json" not in data["files"]  # the residue table is the CSV
-    assert {"hydration_json", "hydration_residues_csv", "hydration_frames_npz"} <= set(data["files"])
+    # 0.3: water analyses are opt-in; the typed residue interactions still run by default.
+    assert {"interaction_json", "interaction_edges_csv", "residue_conformations_csv"} <= set(data["files"])
+    assert not {k for k in data["files"] if k.startswith("hydration")}
 
 
 def test_requested_analyses_select_the_outputs(tmp_path, local_cif, network):

@@ -852,7 +852,8 @@ def write_water_membership_bundle(analysis, output_dir, *, prefix='crevice', con
             ax.spines[['top', 'right']].set_visible(False)
         text.suptitle(fig, 'Geometric membership, not binding, permeation or functional state', fontsize=10)
         _save_figure(fig, path('water_membership_png', '_water_membership.png'), dpi=dpi, text=text)
-    return files
+    from .outputs import drop_blocked
+    return drop_blocked(files)
 
 
 def viewer_member_waters(analysis):

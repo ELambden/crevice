@@ -77,6 +77,7 @@ def write_analysis_report(output_dir,prefix,files,*,dpi=200,annotate=None):
     from matplotlib.colors import LinearSegmentedColormap
     from .analysis_viewers import hydration_rgb
     from .figures import _pyplot,_save_figure
+    from .outputs import wants
     root=Path(output_dir);extra={}
     def path(key,suffix):
         p=root/(prefix+suffix);extra[key]=str(p);return p
@@ -113,7 +114,8 @@ def write_analysis_report(output_dir,prefix,files,*,dpi=200,annotate=None):
         stem=source.name.removesuffix('_cavity_statistics.json')
         for suffix,key in [('_cavity_radius_profile.png','geometry_radius_png'),('_cavity_diameter_profile.png','geometry_diameter_png'),('_cavity_volume_timeseries.png','geometry_volume_png')]:
             p=source.parent/(stem+suffix)
-            if p.is_file():
+            dest=root/(prefix+'_analysis'+suffix)
+            if p.is_file() and wants(dest):
                 dest=path(key,'_analysis'+suffix)
                 if p.resolve()!=dest.resolve():shutil.copy2(p,dest)
     plt=_pyplot();cmap=LinearSegmentedColormap.from_list('hydration',[(1,0,0),(0,0,1)])

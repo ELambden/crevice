@@ -152,10 +152,17 @@ def write_companion_contexts(scene, root, prefix, protein_path, membership, view
     """
     import re
     from .volume_export import _tcl_word
+    from .outputs import wants
     scene=Path(scene);root=Path(root)
     tcl=scene.with_suffix('.tcl');cxc=scene.with_suffix('.cxc')
-    if not tcl.is_file() or not cxc.is_file():
+    # Each overlay follows the active output plan (both are written without one).
+    want_vmd=[wants(root/f'{prefix}_residue_context.{extension}') for extension in ['vmd','tcl']]
+    want_cxc=wants(root/f'{prefix}_residue_context.cxc')
+    if (any(want_vmd) and not tcl.is_file()) or (want_cxc and not cxc.is_file()):
         raise ValueError('Residue contexts require companion CREVICE .tcl and .cxc volume scenes')
+    paths={}
+    if not any(want_vmd) and not want_cxc:
+        return paths
     coordinates=root/f'{prefix}_residue_reference.tsv'
     coordinates.write_text(''.join(f'{serial}\t{a.x:.9f}\t{a.y:.9f}\t{a.z:.9f}\n' for a,serial in zip(frame.atoms,viewer_ids)))
     definitions='\n'.join(f'set crevice_evidence_serials({role}) {{{" ".join(map(str,ids))}}}' for role,ids in membership.items())
@@ -196,10 +203,12 @@ material change opacity CREVICECast {cast_opacity:g}
 # No wireframe, labels or helper-grid representations are introduced.
 display update
 '''
-    text=tcl.read_text()+extra
-    paths={}
-    for extension in ['vmd','tcl']:
-        p=root/f'{prefix}_residue_context.{extension}';p.write_text(text);paths[f'residue_context_{extension}']=str(p)
+    for extension,wanted in zip(['vmd','tcl'],want_vmd):
+        if wanted:
+            p=root/f'{prefix}_residue_context.{extension}';p.write_text(tcl.read_text()+extra);paths[f'residue_context_{extension}']=str(p)
+    if not want_cxc:
+        paths['residue_reference_tsv']=str(coordinates)
+        return paths
     # CXC interprets file names relative to the command script's own directory.
     commands=cxc.read_text().splitlines()
     commands[0]='open '+json.dumps(protein_path.name)+' id #1'
