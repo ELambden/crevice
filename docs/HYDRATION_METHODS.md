@@ -200,9 +200,13 @@ cannot establish hydration-controlled movement.
 
 The numerical libraries hydration needs are required CREVICE dependencies;
 `crevice[hydration]` adds MDTraj for DSSP context and `crevice[structures]` adds the
-validated mmCIF loader. Standard `analyze`, `cast`, `publish`, `residue-evidence`,
-`trajectory` and `cavity-trajectory` workflows append hydration for their residue
-focus. Use `--skip-hydration` to omit it. If there is no focus, or a dependency
+validated mmCIF loader. Since CREVICE 0.3 the standard `analyze`, `cast`, `publish`,
+`residue-evidence`, `trajectory`, `cavity-trajectory` and `region-trajectory`
+workflows add hydration for their residue focus only on request
+(`--outputs default,hydration` or `--all`), or with `--water-membership` in
+the two trajectory-region commands; the typed residue interactions run by
+default without it (`--skip-interactions` omits them). `--skip-hydration`
+removes hydration even from `--all`. If there is no focus, or a dependency
 cannot be imported, standard analysis writes an explicit unavailable status and
 retains its other outputs. The low-level `profile` and `network` commands do not
 add hydration.

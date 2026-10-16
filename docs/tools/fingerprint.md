@@ -121,5 +121,6 @@ of magnitude, never as a prediction of function. The
 :::
 
 Try it in the [pore fingerprint tutorial](../examples/pore-fingerprint.md),
-add it to a whole bundle with [`publish --fingerprint`](publish.md), or look
+add it to a whole bundle with [`publish --fingerprint`](publish.md) (or
+`--outputs default,fingerprint`, or `--all`), or look
 at the same channel in 3D with [`crevice view`](view.md).

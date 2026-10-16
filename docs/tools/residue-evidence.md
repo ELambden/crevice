@@ -84,6 +84,7 @@ of each.
 | `--stick-residues` | `top:12` | which residues are drawn as sticks |
 | `--residue-groups` | none | a JSON file mapping residues to helices or strands |
 | `--scene` | none | reuse the surface and camera of an existing CREVICE scene |
+| `--outputs`, `--all`, `--dry-run` | compact default | add hydration, more figures or an HTML view ({ref}`output-policy`) |
 
 All options, including the shared ones, are listed under
 [`crevice residue-evidence`](../reference/cli/residue-evidence.md).

@@ -56,6 +56,24 @@ the separate cavity search, tunnel search and residue network unless asked
 (`--outputs default,cavities,tunnels,network`). Residue contacts, lining
 residues and cast segments are always written.
 
+### What each command writes
+
+| Command | Written by default | Added by `--all` |
+|---|---|---|
+| `publish` | data; `*_profile_radius.png` and `*_residue_contacts.png`; one PyMOL, VMD and ChimeraX scene of the cast and its entry, lumen and exit segments; lining residues; typed residue interactions | cavity search, tunnel search and residue network (tables and figures); hydration; pore fingerprint; the annotated radius figure; input copy and dummy-atom PDBs; `*_pore_cast.*` and `*_pore_spheres.pml` scenes; HTML view |
+| `cast` | data, including one map per region in `regions/`; PyMOL, VMD and ChimeraX scenes of the cast; typed residue interactions | hydration (with its scenes and figures); input copy; `*_pore_cast.*` and `*_end_view.*` scenes; HTML view |
+| `analyze` | data only: the CSV and JSON of each `--analysis`, and typed residue interactions | figures (as `--png`); hydration with its scenes; HTML view |
+| `residue-evidence` | data; `*_residue_evidence.png`; PyMOL, VMD and ChimeraX `*_residue_context.*` scenes; typed residue interactions | hydration (with its scenes and figures); HTML view |
+| `hydration` | data and water-density maps; `*_hydration_residues.png`; PyMOL, VMD and ChimeraX hydration scenes; typed residue interactions | the other figures (overview, legend, density projections, trajectory heatmaps and time series); HTML view |
+| `cavity-trajectory`, `region-trajectory` | data; `*_cavity_volume_timeseries.png`, `*_cavity_radius_profile.png` and `*_cavity_residues.png`; typed residue interactions (with `--water-membership`, also hydration, its scenes and the membership files) | hydration and its scenes; every other figure (width and residue heatmaps, partner, section and free-sphere figures) |
+| `trajectory` | data (`-o` JSON, `*_frames.csv`, `*_profiles.csv`, per-frame residue interactions) and any file you name (`--png`, `--distribution-csv`, `--network-json`) | per-frame hydration bundles with their figures and scenes |
+
+"Data" always includes the manifest, the CSV tables, the JSON records and the
+measured maps. The low-level commands (`profile`, `residues`, `cavities`,
+`tunnels`, `network`, `features`, `fingerprint`, `paths`, `track-cavities`,
+`view`) don't take `--outputs`; they write the files described on their tool
+pages.
+
 `--outputs LIST` takes comma-separated values (`--outputs help` lists them with
 the command's defaults):
 

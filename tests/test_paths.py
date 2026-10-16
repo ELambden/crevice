@@ -48,7 +48,7 @@ ARC = np.array([[ARC_R * math.sin(t), 0.0, -14.0 + ARC_R * math.cos(t)]
 @pytest.fixture(scope="module")
 def curved():
     frame, atoms = _block((-21, 21), (-9, 9), (-10, 10), lambda p: _distance_to_polyline(p, ARC) < CARVE)
-    return frame, atoms, find_paths(frame, seed=(0.0, 0.0, 4.0), axis="x")
+    return frame, atoms, find_paths(frame, probe_radius=0.8, seed=(0.0, 0.0, 4.0), axis="x")
 
 
 def test_curved_tube_length_radius_and_centre_line(curved):
@@ -90,7 +90,7 @@ Y_LINES = [np.array([[0, 0, -8.0], [0, 0, 0.0]]), np.array([[0, 0, 0.0], [12, 0,
 def ybranch():
     carve = lambda p: np.min([_distance_to_polyline(p, line) for line in Y_LINES], axis=0) < CARVE
     frame, atoms = _block((-18, 18), (-9, 9), (-16, 10), carve)
-    return frame, find_paths(frame, seed=(0.0, 0.0, -6.0))
+    return frame, find_paths(frame, probe_radius=0.8, seed=(0.0, 0.0, -6.0))
 
 
 def test_y_branch_two_branches_and_junction(ybranch):
@@ -114,7 +114,7 @@ def test_y_branch_two_branches_and_junction(ybranch):
 def test_closed_cavity_is_unresolved():
     centre = np.zeros(3)
     frame, _ = _block((-12, 12), (-12, 12), (-12, 12), lambda p: np.linalg.norm(p - centre, axis=1) < 5.0)
-    result = find_paths(frame, seed=(0.0, 0.0, 0.0))
+    result = find_paths(frame, probe_radius=0.8, seed=(0.0, 0.0, 0.0))
     assert result.status == "unresolved_no_bulk_path"
     assert result.branches == []
     assert result.unresolved and "reaches bulk" in result.unresolved[0]["reason"]
@@ -122,10 +122,10 @@ def test_closed_cavity_is_unresolved():
 
 def test_seed_blocked_and_start_options(ybranch):
     frame, _ = ybranch
-    blocked = find_paths(frame, seed=(15.0, 0.0, -14.0), seed_tolerance=1.0)
+    blocked = find_paths(frame, probe_radius=0.8, seed=(15.0, 0.0, -14.0), seed_tolerance=1.0)
     assert blocked.status == "unresolved_seed_blocked"
     with pytest.raises(ValueError):
-        find_paths(frame, seed=(0, 0, 0), seed_residues="1")
+        find_paths(frame, probe_radius=0.8, seed=(0, 0, 0), seed_residues="1")
 
 
 def test_outputs_written(tmp_path, ybranch):
@@ -144,7 +144,7 @@ def test_outputs_written(tmp_path, ybranch):
 
 def test_unresolved_outputs(tmp_path):
     frame, _ = _block((-12, 12), (-12, 12), (-12, 12), lambda p: np.linalg.norm(p, axis=1) < 5.0)
-    result = find_paths(frame, seed=(0.0, 0.0, 0.0))
+    result = find_paths(frame, probe_radius=0.8, seed=(0.0, 0.0, 0.0))
     files = write_paths_outputs(result, tmp_path, prefix="c", frame=frame)
     rows = list(csv.DictReader((tmp_path / "c_paths.csv").open()))
     assert rows[0]["status"] == "unresolved_no_bulk_path"

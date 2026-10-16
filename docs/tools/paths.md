@@ -39,7 +39,8 @@ paths_view(result, frame).show()        # in Jupyter (crevice[view])
 ## How it works
 
 1. A lattice (0.5 Å by default) covers the protein. A point is free when a
-   probe of `--probe-radius` (0.8 Å) fits there.
+   probe of the probe radius fits there. By default the probe is chosen
+   automatically (below); `--probe-radius 0.8` fixes it.
 2. **Bulk** is the space reached by a rolling 6 Å probe from outside the
    protein, as for [casts](cast.md) and lateral exits. A route ends at its
    **mouth**: the first point in bulk, or an *exposed* point that sees bulk
@@ -61,13 +62,44 @@ route to the far side can go around a narrow passage through a wider crevice.
 A side with no route is reported as unresolved. The full definitions are in
 the [method note](../methods/paths.md).
 
+## Choosing the probe automatically
+
+No single probe suits every structure: a potassium-channel selectivity filter
+(3UKM) is only passed by a 0.5 Å probe, while in a wide vestibule a small
+probe also finds narrow gaps between atoms and reports them as extra routes.
+With the default `--probe-radius auto`, CREVICE tries the probes 0.5–3.0 Å
+(the ladder that [`profile`](profile.md) uses for its enclosure probe) and,
+on each side, keeps the **smallest probe of the route set found at the most
+probes**:
+
+- A narrow filter is the only way out, so its routes are the ones found at
+  every probe up to their width, and a small probe is chosen.
+- A wide vestibule's routes are found at many probes, while narrow side
+  routes appear only at the smallest ones, so a larger probe is chosen and
+  the side routes are left out (they stay listed in `*_path_probes.csv`).
+- With `--axis`, each side gets its own probe.
+- If no probe gives a route, the result is unresolved and lists the probes
+  tried.
+
+The clearance field is computed once and shared by all probes, and probes
+wider than the widest route found at the smallest probe are skipped, so the
+whole ladder costs one route search per remaining probe; `--workers` runs
+them in parallel (default: up to 4). On a GLUT1 membrane frame this takes
+about 50 s with 4 processes instead of 20 s for one fixed probe; on 3UKM,
+30 s instead of 26 s (timings in the [method note](../methods/paths.md)).
+The command prints the choice, for
+example `probe=auto chosen: + 0.5 Å, - 0.9 Å`. Give a number, such as
+`--probe-radius 0.8`, to fix the probe; the result is then exactly what that
+probe gives.
+
 ## Options you'll use most
 
 | Option | Default | What it does |
 |---|---|---|
 | `--seed`, `--seed-residues`, `--region` | one required | where the routes start |
 | `--axis` | none | search each side of the start separately (`x`, `y`, `z` or `X,Y,Z`; write `--axis=-1,0,0` for a leading minus) |
-| `--probe-radius` | 0.8 Å | narrowest clearance a route may pass |
+| `--probe-radius` | `auto` | narrowest clearance a route may pass; `auto` chooses it per side (above), a number fixes it |
+| `--workers` | automatic | processes for the automatic probe's candidate searches (results do not depend on it) |
 | `--spacing` | 0.5 Å | lattice spacing; finer finds narrower passages and costs more |
 | `--bulk-radius` | 6 Å | the rolling probe that defines bulk, and the distinct-route distances |
 | `--include-hetero` | off | treat ligands, or lipids and ions in MD input, as walls |
@@ -83,8 +115,14 @@ All options are listed under [`crevice paths`](../reference/cli/paths.md).
   lengths, bottleneck, mouth, side, lining residues), junctions, segments,
   unresolved cases and every setting and definition.
 - **`*_paths.csv`**: one row per branch: length, bottleneck radius, its
-  position and arc length, start and mouth, end type, lining and bottleneck
-  residues. An unresolved run writes one row with its status.
+  position and arc length, start and mouth, end type, the probe it was found
+  with, lining and bottleneck residues. An unresolved run writes one row with
+  its status.
+- **`*_path_probes.csv`** (automatic probe only): one row per candidate probe
+  and side: status (`resolved`, `pruned`, unresolved), number of routes and
+  their widths, end types and lengths, the route-set group and whether it was
+  chosen. The JSON's `settings.probe_selection` has the same, plus the rule
+  and the reason for the choice.
 - **`*_path_points.csv`**, **`*_path_lining.csv`**,
   **`*_path_junctions.csv`**: samples along each branch, lining residues with
   their positions along the branch, and junctions with their arc length on
@@ -103,7 +141,7 @@ All options are listed under [`crevice paths`](../reference/cli/paths.md).
 
 A route is a geometric passage for the chosen probe, not a demonstrated path
 for a substrate, ion or water. Radii, lengths and even whether a route exists
-depend on the probe, the lattice spacing (a passage narrower than the probe radius
+depend on the probe (the automatic choice included), the lattice spacing (a passage narrower than the probe radius
 plus up to 0.87 lattice steps can be missed when no lattice point near its
 axis clears the probe) and the start
 point; check a finer `--spacing` before concluding that a side is closed.

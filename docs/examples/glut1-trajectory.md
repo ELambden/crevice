@@ -100,8 +100,11 @@ cavity trajectory frames=21 statistics=glut1-run/glut1_site_candidate_cavity_sta
 Each frame is aligned to the first one on the protein Cα atoms, the empty
 space inside the fixed reference region is measured, and, with
 `--water-membership`, every water oxygen inside that frame's measured space is
-counted as a member. The output directory holds the full cavity-trajectory
-and hydration bundle; two tables answer the main questions.
+counted as a member. The output directory holds the cavity-trajectory tables and
+key figures and, because `--water-membership` turns the water analysis on,
+the hydration tables and the PyMOL, VMD and ChimeraX scenes (84 files in our
+0.3.0 run; `--all` adds the remaining figures). Two tables answer the main
+questions.
 
 `glut1_site_candidate_cavity_frames.csv` has one row per frame with the
 measured volume:

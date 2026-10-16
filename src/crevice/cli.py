@@ -1633,7 +1633,8 @@ def _cmd_publish(args: argparse.Namespace) -> None:
     append_static_hydration(args,frame,source.path,manifest)
     args._run_manifest, args._run_source = manifest["manifest_json"], source.to_dict()
     profile_status = "unresolved" if "profile_status_json" in manifest else "resolved" if "profile_json" in manifest else "not_assigned"
-    print(f"publish files={len(manifest)} out_dir={args.out_dir} profile={profile_status}")
+    written = len({p for p in Path(args.out_dir).iterdir() if p.is_file()})
+    print(f"publish files={written} out_dir={args.out_dir} profile={profile_status}")
     if profile_status == "unresolved":
         print(f"crevice: note: the files describe the space without a channel profile ({Path(manifest['profile_status_json']).name} "
               f"says why); {UNRESOLVED_CHANNEL_HINT}", file=sys.stderr)

@@ -6,11 +6,12 @@ each residue is, where water sits on average once the protein is aligned, and
 which residue pairs make hydrogen bonds, salt bridges, aromatic contacts or
 water bridges.
 
-You often don't need to run it separately: `analyze`, `cast`, `publish`,
-`residue-evidence`, `trajectory`, `cavity-trajectory` and `region-trajectory`
-all include the same analysis unless you pass `--skip-hydration`. The
-standalone command is handy when you want to add hydration to geometry you
-have already computed.
+The same analysis can ride along with other commands: add
+`--outputs default,hydration` (or `--all`) to `analyze`, `cast`, `publish`,
+`residue-evidence`, `trajectory`, `cavity-trajectory` or `region-trajectory`.
+Since 0.3 it is off by default there, except in `cavity-trajectory` and
+`region-trajectory` with `--water-membership`. The standalone command is handy
+when you want to add hydration to geometry you have already computed.
 
 ## Quick start
 
@@ -139,12 +140,15 @@ Tables are CSV, with units in the column names (`_A2`, `_ps`, `_degrees`):
 | `*_residue_conformations.csv`, `*_residue_conformation_frames.csv` | torsions and secondary structure |
 | `*_analysis_evidence.csv` | everything per residue in one table |
 
-You also get density maps (DX), figures (water-contact and SASA bars;
-contact and SASA heatmaps and water time series for trajectories; density
-projections) and PyMOL, VMD and ChimeraX scenes in which residues are coloured
-from red (0 % water contact) through purple to blue (100 %), with a teal
-density surface and dashed typed contacts. `--skip-water-density`,
-`--skip-interactions` and `--skip-analysis-views` leave those parts out. An
+You also get density maps (DX), the water-contact and SASA bar chart
+(`*_hydration_residues.png`) and PyMOL, VMD and ChimeraX scenes in which
+residues are coloured from red (0 % water contact) through purple to blue
+(100 %), with a teal density surface and dashed typed contacts.
+`--outputs default,figures` adds the other figures (the overview, the colour
+legend, density projections, and contact and SASA heatmaps and water time
+series for trajectories) and `--all` also an HTML view.
+`--skip-water-density`, `--skip-interactions` and `--skip-analysis-views`
+leave those parts out. An
 empty pair or episode table has just its header; it doesn't mean the site is
 dry.
 

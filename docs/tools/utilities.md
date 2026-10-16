@@ -27,8 +27,11 @@ crevice analyze 1GRM --analysis profile --analysis residues --analysis network \
 `analyze` runs any mix of `profile`, `residues`, `cavities`, `tunnels`,
 `network` and `features` on one structure (repeat `--analysis` for each; the
 default is profile and residues), writing each as CSV (with the JSON
-records beside them) plus a manifest. `--png` adds figures for the profile,
-residues, cavities and network. Unlike the standalone commands, its cavity
+records beside them), the typed interactions of the lining residues and a
+manifest: data only, by default. `--png` (or `--outputs default,figures`) adds
+figures for the profile, residues, cavities and network,
+`--outputs default,hydration` the water analysis with its scenes, and `--all`
+everything ({ref}`output-policy`). Unlike the standalone commands, its cavity
 and tunnel grid caps (`--cavity-max-grid-points`, `--tunnel-max-grid-points`)
 coarsen the spacing to stay under the cap, so raise them if you need a fine
 grid. [All options](../reference/cli/analyze.md).
@@ -58,8 +61,10 @@ crevice static-suite 1GRM 4PYP --fetch --out-dir suite
 
 `benchmark --output b.json` also writes `b.csv`, one row per system with the
 profile radii, top cavity volume and any error. `static-suite` writes
-`static_benchmark_summary.csv` and `.json` and one bundle per system, with the
-same tables as `publish` plus `*_profile_sensitivity.csv`. Both choose the
+`static_benchmark_summary.csv` and `.json` and one bundle per system: the
+profile, cast, residue contacts, cavities, tunnels and network with their
+figures and viewer scenes, plus `*_profile_sensitivity.csv`. It doesn't take
+`--outputs`; its bundle is the same as in 0.2. Both choose the
 enclosure probe automatically for each system and record it
 (`enclosure_radius_A`, `enclosure_probe_mode`); a system where no probe gives
 a stable channel becomes an error row naming the probes tried. Pass a number,

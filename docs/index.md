@@ -26,8 +26,37 @@ open in PyMOL, VMD or ChimeraX, or explore in your web browser.
 
 ## Your first analysis
 
-Measure how wide the gramicidin A channel is along its length. CREVICE
-downloads the structure for you:
+Measure the gramicidin A channel in one command. CREVICE downloads the
+structure for you:
+
+```bash
+crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
+```
+
+```text
+publish files=40 out_dir=results/1GRM profile=resolved
+```
+
+`results/1GRM` now holds 40 files:
+the main results and nothing you didn't ask for.
+
+- **tables (CSV)**: the radius at every point along the channel
+  (`1GRM_profile.csv`), the residues around it (`1GRM_residue_contacts.csv`),
+  the residues lining each part of the cast (`1GRM_lining_residues.csv`), the
+  cast and its entry, lumen and exit segments, and the typed residue
+  interactions (hydrogen bonds, salt bridges, aromatic contacts);
+- **two figures**: the radius profile and the residue contacts;
+- **3D scenes** for PyMOL, VMD and ChimeraX (`1GRM_volume.pml`, `.vmd`,
+  `.cxc`) with the maps they load;
+- a **manifest** (`1GRM_manifest.json`) listing every file and every setting.
+
+Want more? `--outputs default,hydration` adds the water analyses, `--all`
+writes everything (cavities, tunnels, the residue network, every figure, a
+pore fingerprint and an interactive HTML view), and `--dry-run` shows what a
+command would do without running it. [Outputs](getting-started/outputs.md)
+has the full list.
+
+Just the profile is one line too, and so is the same thing in Python:
 
 ```bash
 crevice profile 1GRM -o 1GRM_profile.json --png 1GRM_profile.png
@@ -38,10 +67,6 @@ profile points=81 min_radius=1.324 mean_radius=1.563 bottleneck_index=73
 enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
 ```
 
-You now have the radius at every point along the channel in
-`1GRM_profile.csv`, the full record in `1GRM_profile.json` and a plot of the
-profile. The same thing in Python:
-
 ```python
 import crevice
 
@@ -51,7 +76,8 @@ print(f"narrowest point: {profile.min_radius:.2f} Å")
 ```
 
 [Basic usage](getting-started/basic-usage.md) walks through this and a few
-more first steps.
+more first steps. Coming from 0.2? [Upgrading to 0.3](getting-started/upgrading-0.3.md)
+shows how to get the old files back.
 
 ## What can it do?
 
@@ -89,6 +115,24 @@ Which residues form a boundary, and who they talk to.
 Follow a channel, a cavity or its water through every frame of a simulation.
 :::
 
+:::{container} crevice-card crevice-entry
+![](examples/images/glut1_f10_paths.png)
+
+**[Curved and branched pathways](tools/paths.md)**
+
+The widest routes from a site to the solvent, however they bend, with the
+junctions where they split.
+:::
+
+:::{container} crevice-card crevice-violet
+![](examples/images/glut1_excerpt_tracking.png)
+
+**[Cavity tracking](tools/cavity-tracking.md)**
+
+Give every cavity an identity across a simulation, and see where they appear,
+vanish, split and merge.
+:::
+
 :::{container} crevice-card
 ![](examples/images/3ukm_fingerprint.png)
 
@@ -112,17 +156,22 @@ share.
 Browse all of them in [Analysis tools](tools/index.md), or learn by example in
 the [Tutorials](examples/index.md).
 
-:::{admonition} New in 0.2.0
+:::{admonition} New in 0.3
 :class: tip
 
-- **Interactive views.** `crevice view OUTDIR` writes a self-contained HTML
-  viewer, and {func}`crevice.view` shows the same scene in Jupyter.
-- **Pore fingerprints.** `crevice fingerprint` (or `publish --fingerprint`)
-  puts the radius, lining hydrophobicity and chemistry, water and a geometric
-  conductance estimate on one coordinate along the channel.
-- **Faster runs, same numbers.** Channel profiles are several times faster with
-  bit-identical results, and cavity and region trajectories use several CPU
-  cores by default.
+- **Compact outputs.** Commands now write the data, the key figures and
+  PyMOL, VMD and ChimeraX scenes by default (a 1GRM `publish` writes 40 files
+  instead of 96, with the same numbers). Ask for more with `--outputs` or
+  `--all`, preview a run with `--dry-run`, and save and reuse settings with
+  `--print-config` and `--config`. See [Outputs](getting-started/outputs.md)
+  and [Upgrading to 0.3](getting-started/upgrading-0.3.md).
+- **Curved and branched pathways.** `crevice paths` follows the widest routes
+  from a site to the solvent without assuming a straight axis. See
+  [Curved and branched pathways](tools/paths.md). Since 0.3.1 it picks the
+  probe radius for each structure automatically.
+- **Cavity tracking.** `crevice track-cavities` follows every cavity near a
+  site through a trajectory, with births, deaths, splits and merges. See
+  [Cavity tracking](tools/cavity-tracking.md).
 
 The [changelog](project/changelog.md) has the details.
 :::

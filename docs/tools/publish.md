@@ -124,9 +124,11 @@ portal. `--exit-centre-lines` adds a thin blue tube along each leg.
 ## When no channel resolves
 
 If the profile doesn't resolve, `publish` still runs everything else on the
-fallback cast. No profile is invented: there is no profile JSON, CSV or radius
-plot. The tunnel search starts from the widest point of the cast, the network
-treats the whole cast as its region node, and
+fallback cast: the typed residue interactions by default, and the extras you
+asked for. No profile is invented: there is no profile JSON, CSV or radius
+plot (or fingerprint, even with `--all`). A requested tunnel search starts
+from the widest point of the cast, a requested network treats the whole cast
+as its region node, and
 `<prefix>_profile_status.json` records `status: "unresolved"` with the reason.
 The manifest marks each extra as `completed`, `skipped_by_request` or
 `not_completed`, and the summary line ends with `profile=unresolved`. Requests
@@ -166,13 +168,27 @@ A default 1GRM run writes 40 files (96 in 0.2):
 | `*_volume.pml`, `*_volume.vmd`, `*_volume.cxc` | the scene in PyMOL, VMD and ChimeraX |
 
 Plus the measured `*_volume.dx` and display maps the scenes load, and JSON
-records for the manifest, the input report and the full results. With
-`--outputs`/`--all` come `*_cavities.csv`, `*_tunnels.csv`,
+records for the manifest, the input report and the full results. A 4PYP run,
+where no channel resolves, writes 29 files: the fallback cast, its scenes and
+interactions, and `*_profile_status.json` instead of the profile files.
+
+To get more, name what you want or take everything:
+
+```bash
+crevice publish 1GRM --out-dir r --outputs default,hydration     # add water
+crevice publish 1GRM --out-dir r --outputs default,cavities,tunnels,network
+crevice publish 1GRM --out-dir r --all                           # everything
+```
+
+With `--outputs`/`--all` come `*_cavities.csv`, `*_tunnels.csv`,
 `*_tunnel_points.csv`, `*_network_nodes.csv`, `*_network_edges.csv`, the
 annotated radius, cavity and network figures, the hydration tables (see
 [Hydration](hydration.md#what-you-get)), dummy-atom PDB files and the
-`*_pore_cast.*` alias scenes. Figures and scenes are clean unless you
-add `--annotate`.
+`*_pore_cast.*` alias scenes (`*_pore_cast.*` is the same scene as
+`*_volume.*`). `--legacy-outputs` still writes the exact 0.2 file set during
+the 0.3 series, with a deprecation warning; see
+[Upgrading from 0.2 to 0.3](../getting-started/upgrading-0.3.md). Figures and
+scenes are clean unless you add `--annotate`.
 
 :::{admonition} Interpreting results
 :class: crevice-interpret

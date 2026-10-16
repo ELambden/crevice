@@ -73,7 +73,8 @@ Two options are worth knowing about:
 | `--region-margin` | 2.0 Å | how far around the reference to look (reference-region) |
 | `--axis` | from the map | the axis for widths, `x,y,z` |
 | `--max-frames`, `--workers` | 500, automatic | frame guard and parallel processes (default min(4, available CPUs, frames), reduced when available memory is short; results do not depend on it) |
-| `--water-membership` | off | count waters inside the cavity in each frame |
+| `--water-membership` | off | count waters inside the cavity in each frame (turns hydration on) |
+| `--outputs`, `--all`, `--dry-run` | data and key figures | add hydration, scenes and the other figures ({ref}`output-policy`) |
 
 Everything is listed under
 [`crevice cavity-trajectory`](../reference/cli/cavity-trajectory.md).
@@ -89,17 +90,23 @@ Everything is listed under
 - **`*_cavity_statistics.json`**: the structured report, which
   [`hydration --cavity-results`](hydration.md) and
   [`region-compare`](regions.md) read later.
-- **Figures**: width profiles (a violet band for the frame range, a violet
-  line for the mean and an orange band for the mean interval),
-  time-by-position and residue-area heatmaps (unresolved frames in grey), and
-  partner and motion summaries.
+- **Key figures** (by default): the volume time series, the radius profile
+  (a violet band for the frame range, a violet line for the mean and an
+  orange band for the mean interval) and the residue boundary areas.
 - The typed residue interactions of the ever-lining and partner residues over
-  the frames (on by default). Hydration outputs come with
-  `--outputs default,hydration`, `--all` or `--water-membership` (which turns
-  hydration on), and the water membership files with `--water-membership`.
-  By default only the key figures (volume time series, radius profile,
-  residues) are written; `--outputs default,figures` adds the others
-  ({ref}`output-policy`).
+  the frames (on by default).
+
+That's all by default: tables, a JSON record and three figures, about 27
+files. The rest is on request ({ref}`output-policy`):
+
+- `--outputs default,figures`: the diameter profile, time-by-position and
+  residue-area heatmaps (unresolved frames in grey), and the partner, section
+  and free-sphere figures;
+- `--outputs default,hydration`: the water analysis of the same residues and
+  frames, with its PyMOL, VMD and ChimeraX scenes (which
+  [`crevice view`](view.md) needs);
+- `--water-membership`: the water-membership files, and hydration with it;
+- `--all`: all of these and an HTML view.
 
 :::{admonition} Interpreting results
 :class: crevice-interpret

@@ -115,7 +115,8 @@ tables and the bar chart do not change.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The values come from a CREVICE 0.1.0 run on the downloaded entry. The wall
+The values come from a CREVICE 0.1.0 run on the downloaded entry, re-run
+with 0.3.0 with the same cast volume and wall residues. The wall
 area and partner contacts are geometric evidence: they point to residues worth
 following up, for example by mutagenesis, not to residues shown to control
 transport.

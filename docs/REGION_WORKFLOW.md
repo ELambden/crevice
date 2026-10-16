@@ -42,9 +42,11 @@ GRO and trajectory physical obstacles retain the declared periodic treatment.
 
 Preparation and analysis require empty output directories. Alternative reference
 regions use distinct IDs and directories. Existing evidence is never replaced by
-these commands. All normal geometry, hydration, density, interaction and viewer
-outputs are produced by `region-trajectory`; standard hydration opt-outs and
-sampling/uncertainty options remain available. The prepared definition supplies
+these commands. `region-trajectory` produces the normal geometry and typed interaction
+outputs by default; hydration, density and the viewer scenes are added with
+`--water-membership`, `--outputs default,hydration` or `--all` (CREVICE 0.3
+output policy), and the standard opt-outs and sampling/uncertainty options
+remain available. The prepared definition supplies
 geometry, alignment and obstacle settings, with no conflicting CLI overrides.
 
 ## What the definition records

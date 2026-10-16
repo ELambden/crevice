@@ -104,6 +104,15 @@ under [`crevice trajectory`](../reference/cli/trajectory.md).
   channel, in Å.
 - **`--network-json`**: the residue-dynamics report, with contact and
   residue tables and a partner plot.
+- The typed residue interactions across the frames (`<stem>_interaction_edges.csv`
+  and friends; one set per file in `<stem>_interaction_frames/` when you give
+  several structure files). They need a periodic box, or `--pbc none` for
+  non-periodic input such as an NMR ensemble; otherwise the command notes that
+  they were not completed and writes everything else.
+
+Without `--png`, the command writes no figure: `trajectory` writes data plus
+the files you name. `--outputs default,hydration` adds a hydration bundle for
+each frame, and `--all` also its figures and scenes ({ref}`output-policy`).
 
 ## Matching the command in Python
 

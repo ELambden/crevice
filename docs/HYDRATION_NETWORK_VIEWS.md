@@ -38,7 +38,11 @@ These options are available wherever the standard hydration analysis runs:
 | `--skip-interactions` | off | Omit typed chemistry/conformation analysis |
 | `--skip-analysis-views` | off | Omit coordinated scene scripts, evidence table and overview figures |
 
-`--skip-hydration` is the standard-workflow opt-out. A supplied cavity context
+In the standard workflows hydration is opt-in since CREVICE 0.3
+(`--outputs default,hydration`, `--all`, or `--water-membership` in the
+trajectory-region commands), and `--skip-hydration` removes it even from
+`--all`; the typed interactions run by default there and `--skip-interactions`
+removes them. A supplied cavity context
 keeps its original alignment reference and verifies matching source identities,
 frame indices and times, and input hashes when they are recorded.
 Unaligned trajectories do not produce a mean spatial density map.

@@ -83,7 +83,7 @@ crevice publish 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-r
 ```
 
 ```text
-publish files=43 out_dir=3UKM_bundle profile=resolved
+publish files=44 out_dir=3UKM_bundle profile=resolved
 ```
 
 Passing the chosen probe explicitly skips the ladder (a minute instead of
@@ -151,7 +151,9 @@ during development, including switching on the lumen-lining sticks
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-These values come from a CREVICE 0.1.0 run on the downloaded assembly. The
+These values come from a CREVICE 0.1.0 run on the downloaded assembly, and
+the `publish` step was re-run with 0.3.0 with the same volumes and lining
+residues. The
 axis was found automatically, and the two portals are a geometric result with
 these settings (probe, grids, `--exit-bulk-radius 6`, `--exit-spacing 0.5`),
 not a demonstrated permeation pathway.

@@ -39,6 +39,10 @@ and every other number are identical to 0.2 for the same settings.
   writing; {func}`~crevice.static_workflow.export_static_workflow` writes),
   {mod}`crevice.outputs` and {mod}`crevice.config`.
 
+Two new commands arrived in 0.3 as well, [`crevice paths`](../tools/paths.md)
+and [`crevice track-cavities`](../tools/cavity-tracking.md); they are opt-in
+and change nothing in the existing commands.
+
 ## Getting the old files back
 
 | You used | In 0.3 |
@@ -49,7 +53,8 @@ and every other number are identical to 0.2 for the same settings.
 | `*_pore_cast.pml` / `.vmd` / `.cxc` | open `*_volume.pml` / `.vmd` / `.cxc` (the same scene), or add `extra-views` |
 | `*_profile_radius_annotated.png` | add `--outputs default,figures` |
 | `*_structure.<ext>` (input copy), `*_pore_cast.pdb` | add `structures` |
-| `--skip-hydration` in scripts | still accepted; now usually already the default |
+| `--skip-hydration` in scripts | still accepted; now usually already the default. It no longer removes the typed residue interactions: add `--skip-interactions` for that |
+| `crevice view` on a `cavity-trajectory` or `region-trajectory` directory | add `--outputs default,hydration` (or `--water-membership`) so the run writes the hydration scene the view reads |
 
 `--legacy-outputs` reproduces the 0.2 file set exactly. It is **deprecated**:
 it prints a warning, stays available during the 0.3 series and will be

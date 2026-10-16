@@ -3,6 +3,52 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.3.1 (16 October 2026)
+
+- **Automatic probe for `crevice paths`.** `--probe-radius auto` (the default)
+  tries the probes of the enclosure ladder (0.5–3.0 Å) in parallel and keeps
+  the smallest probe that gives the most stable set of routes, per side with
+  `--axis`. The choice and every candidate are printed and recorded in
+  `*_path_probes.csv`; a number such as `--probe-radius 0.8` gives the fixed
+  probe exactly as before. See [Curved and branched pathways](../tools/paths.md).
+- **Fixes.** `crevice view` on a data-only trajectory directory explains how to
+  write a scene; the `publish` summary counts the files actually written.
+- **Documentation** describes the 0.3 defaults on every tool page and tutorial.
+
+## 0.3.0 (15 October 2026)
+
+**Commands write fewer files by default; no measurement changes.**
+
+- **Compact default outputs.** `publish`, `cast`, `analyze`,
+  `residue-evidence`, `hydration`, `trajectory`, `cavity-trajectory` and
+  `region-trajectory` write the data, the key figures and one scene each for
+  PyMOL, VMD and ChimeraX. A 1GRM `publish` writes 40 files instead of 96,
+  with identical numbers. See [Outputs](../getting-started/outputs.md).
+- **Water analyses are opt-in** in those commands (`--outputs default,hydration`
+  or `--all`), except in `hydration` itself and with `--water-membership`. The
+  typed residue interactions still run by default; `--skip-hydration` no
+  longer removes them (use `--skip-interactions`).
+- **`publish` extras are opt-in**: the cavity and tunnel searches, the residue
+  network, the annotated radius figure, input copies and alias scenes.
+- **Choosing outputs.** `--outputs LIST`, `--outputs help`, `--all` and
+  `--dry-run` on those commands; `--legacy-outputs` (deprecated) writes the
+  exact 0.2 file set during the 0.3 series. See
+  [Upgrading from 0.2 to 0.3](../getting-started/upgrading-0.3.md).
+- **Settings files.** `--print-config` and `--config FILE` (JSON) on every
+  command, settings validated before any input is read, and a `run` record
+  (version, command line, settings and their sources, input hashes, output
+  plan) in each manifest. Python: {mod}`crevice.config`, {mod}`crevice.outputs`
+  and {mod}`crevice.static_workflow`.
+- **Curved and branched pathways.** `crevice paths` finds the widest routes
+  from a seed, residues or a region to bulk solvent without an assumed axis,
+  with junctions, lining residues and per-branch scenes. See
+  [Curved and branched pathways](../tools/paths.md).
+- **Cavity tracking.** `crevice track-cavities` gives cavities persistent
+  identities across trajectory frames and records births, deaths, splits and
+  merges. See [Cavity tracking](../tools/cavity-tracking.md).
+- **Documentation** updated throughout for the new defaults, with a GLUT1
+  tutorial for paths and tracking.
+
 ## 0.2.0 (14 October 2026)
 
 - **Interactive 3D views.** `crevice view OUTDIR` writes one self-contained,

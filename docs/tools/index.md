@@ -40,6 +40,8 @@ Radius, lining hydrophobicity and chemistry, water and a geometric conductance e
 :::
 
 :::{container} crevice-card
+![](../examples/images/glut1_f10_paths.png)
+
 **[Curved and branched pathways](paths.md)**
 
 Widest curved routes from a site to the solvent, with junctions where they split.
@@ -144,6 +146,8 @@ A cavity's volume, width and wall residues through a simulation.
 :::
 
 :::{container} crevice-card crevice-exit
+![](../examples/images/glut1_excerpt_tracking.png)
+
 **[Cavity tracking](cavity-tracking.md)**
 
 Persistent identities for every cavity near a site, with births, deaths, splits and merges.
@@ -170,7 +174,7 @@ Define a region once, review it, and compare it fairly across runs.
 
 **[One-command output bundle](publish.md)**
 
-Every table, figure and viewer scene for a structure in one run, with an optional pore fingerprint.
+The main tables, key figures and PyMOL, VMD and ChimeraX scenes for a structure in one run; cavities, tunnels, hydration and a fingerprint on request.
 
 `crevice publish`
 :::

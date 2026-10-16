@@ -8,8 +8,9 @@ web browser without a network connection, and {func}`crevice.view` shows the
 same scene in a Jupyter notebook.
 
 It doesn't measure anything. It reads the files another command already wrote,
-so it takes a second or two, and no analysis command writes HTML unless you
-ask for it.
+so it takes a second or two. No analysis command writes HTML unless you ask
+for it: run `crevice view` afterwards, or add `--outputs default,viewer-html`
+(or `--all`) to the analysis command itself.
 
 ## Quick start
 
@@ -53,6 +54,10 @@ layer per object:
 - **Member waters** come from one of the frames a `region-trajectory
   --water-membership` run saved (`--snapshot`: 0 the first, 1 the middle, -1
   the last).
+
+The two trajectory commands write a scene only with the hydration analysis
+(`--water-membership`, `--outputs default,hydration` or `--all`); a default
+trajectory directory holds data and figures, and `crevice view` says so.
 
 The page includes the 3Dmol.js library (Rego and Koes 2015), so it works
 offline and can be e-mailed or put on a web page; `--cdn` writes a smaller file

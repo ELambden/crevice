@@ -27,7 +27,7 @@ set in effect; see :doc:`/methods/paths`):
   membrane obstacles included, the box faces in the bilayer are blocked, so
   only solvent on either side counts as bulk.
 * **Free nodes and steps.** A node is free when its clearance exceeds
-  ``probe_radius`` (default 0.8 Å, as ``crevice tunnels``). Routes move
+  ``probe_radius``. Routes move
   between free nodes in the 26 lattice directions. Diagonal steps are not
   tested analytically during the search (the clearance along a step of at
   most 0.87 Å can fall below its endpoints by at most a few hundredths of an
@@ -94,6 +94,21 @@ set in effect; see :doc:`/methods/paths`):
   result's ``status`` says so and no branch is reported. With an ``axis``,
   each side without a route is recorded in ``unresolved``.
 
+* **Automatic probe** (``probe_radius="auto"``, the default). Every probe of
+  ``PROBE_LADDER`` (0.5-3.0 Å, the ladder of ``crevice profile``'s automatic
+  enclosure probe) below ``bulk_radius`` is searched on one clearance field,
+  bulk and exposure computation (``_exposure_levels``), from one start
+  (snapped at the smallest probe that resolves it). Probes at or above the
+  widest route width found at the smallest probe are pruned: a route at a
+  larger probe is also a route at the smallest one, so none can exist.
+  Per side, the route sets found are grouped (same number of routes,
+  matched one to one as not distinct with ranking widths within
+  ``max(0.05 Å, 2 %)``); the group found at the most probes (at least two;
+  ties: the smaller probe) wins and its smallest probe is used
+  (``AUTO_PROBE_RULE``). Every candidate, the groups, the choice and its
+  reason are recorded in ``settings["probe_selection"]``. ``min_enclosure``
+  is the same for every candidate.
+
 Pathways are geometric routes for the stated probes and grid. They are not
 transport pathways, permeation mechanisms or functional assignments; the
 absence of a route on the grid does not prove that none exists.
@@ -126,6 +141,16 @@ INTERPRETATION = ("geometric route for the stated probe, bulk probe and grid; no
 
 #: Default largest number of distinct routes.
 MAX_PATHS = 8
+#: Candidate probes (Å) of ``probe_radius="auto"``: the ladder of ``crevice profile``'s automatic enclosure probe.
+PROBE_LADDER = (0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.90, 1.00, 1.10, 1.20,
+                1.30, 1.40, 1.50, 1.60, 1.80, 2.00, 2.20, 2.40, 2.70, 3.00)
+#: Automatic probe rule (recorded in ``settings["probe_selection"]["rule"]``).
+AUTO_PROBE_RULE = (
+    "per side: every ladder probe below the bulk probe is searched on one shared clearance field from one "
+    "start (snapped at the smallest probe that resolves it); probes at or above the widest route width found "
+    "at the smallest probe are pruned (they cannot have a route); the route sets found are grouped (same "
+    "number of routes, one-to-one matched as not distinct under the distinct-route rule); the group found at "
+    "the most probes (at least 2; ties: the smaller probe) wins and its smallest probe is used")
 #: Okabe-Ito colours, one per branch in rank order (colour-blind-safe).
 BRANCH_COLORS = ("#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000", "#999999")
 #: Line styles cycled with the colours (secondary encoding in figures).
@@ -276,7 +301,7 @@ class PathNetwork:
             ``branch``, ``status``, ``side``, ``length_A``,
             ``bottleneck_radius_A``, ``bottleneck_arc_length_A``,
             bottleneck, start and exit coordinates, ``ranking_width_A``,
-            ``junction_count``, ``lining_residue_count``,
+            ``probe_radius_A`` (the probe of the branch's search), ``junction_count``, ``lining_residue_count``,
             ``bottleneck_residues`` and ``lining_residues`` (``;``-separated).
         """
         if not self.branches:
@@ -285,7 +310,8 @@ class PathNetwork:
                      "bottleneck_z_A": "", "start_x_A": self.start.get("node_A", ["", "", ""])[0] if self.start.get("node_A") else "",
                      "start_y_A": self.start["node_A"][1] if self.start.get("node_A") else "",
                      "start_z_A": self.start["node_A"][2] if self.start.get("node_A") else "",
-                     "exit_x_A": "", "exit_y_A": "", "exit_z_A": "", "ranking_width_A": "", "junction_count": "",
+                     "exit_x_A": "", "exit_y_A": "", "exit_z_A": "", "ranking_width_A": "", "probe_radius_A": "",
+                     "junction_count": "",
                      "lining_residue_count": "", "end_type": "", "bottleneck_residues": "", "lining_residues": ""}]
         rows = []
         for b in self.branches:
@@ -299,6 +325,7 @@ class PathNetwork:
                          "start_z_A": round(b.points[0][2], 3),
                          "exit_x_A": round(b.exit_point[0], 3), "exit_y_A": round(b.exit_point[1], 3),
                          "exit_z_A": round(b.exit_point[2], 3), "ranking_width_A": round(b.ranking_width, 3),
+                         "probe_radius_A": b.metadata.get("probe_radius_A", self.settings.get("probe_radius_A")),
                          "junction_count": len(b.junctions), "lining_residue_count": len(b.lining),
                          "end_type": b.end_type, "bottleneck_residues": ";".join(b.bottleneck_residues),
                          "lining_residues": ";".join(r["residue"] for r in b.lining)})
@@ -564,12 +591,17 @@ def _ray_escapes(blocked, bulk):
     return count
 
 
-def _widest_routes(space, roots, exempt, probe, max_nodes, allowed=None):
-    """Maximin-then-length Dijkstra from root nodes; returns labels, parents and terminals in pop order."""
+def _widest_routes(space, roots, exempt, probe, max_nodes, allowed=None, outside=None):
+    """Maximin-then-length Dijkstra from root nodes; returns labels, parents and terminals in pop order.
+
+    ``outside`` (bulk or exposed nodes, the route terminals) defaults to
+    ``space.outside`` when set, else ``space.in_bulk``.
+    """
     import numpy as np
     from scipy import ndimage
     free = space.clearance > probe
-    outside = space.in_bulk if getattr(space, "outside", None) is None else space.outside
+    if outside is None:
+        outside = space.in_bulk if getattr(space, "outside", None) is None else space.outside
     inner = free & ~outside
     if allowed is not None:
         inner &= allowed
@@ -729,17 +761,182 @@ def _axis_vector(axis):
     return v / np.linalg.norm(v)
 
 
+def _exposure_levels(clearance, bulk, probes, required):
+    """Exposure of every node for a whole probe ladder at once.
+
+    For a ray, the largest probe at which it escapes is the smallest node
+    clearance met before its first bulk node (``inf`` from a bulk node,
+    ``-inf`` when it leaves the grid first). A node is exposed at probe
+    ``p`` when more than ``26 - required`` rays escape, that is when the
+    ``(27 - required)``-th largest of its 26 ray values exceeds ``p``. This
+    is :func:`_ray_escapes` for every probe in one sweep per direction.
+
+    Parameters
+    ----------
+    clearance : numpy.ndarray of float32
+        Node clearances (Å).
+    bulk : numpy.ndarray of bool
+        Bulk nodes.
+    probes : sequence of float
+        Candidate probes (Å), ascending.
+    required : int
+        ``ceil(26 * min_enclosure)``, 1 to 26.
+
+    Returns
+    -------
+    numpy.ndarray of uint8
+        Level ``L``: at ``probes[j]`` a free, non-bulk node is exposed exactly
+        when ``L > j`` (comparisons in float32, as the single-probe rule).
+    """
+    import numpy as np
+    k = 27 - int(required)
+    thresholds = np.asarray(probes, dtype=np.float32)
+    clear = np.asarray(clearance, dtype=np.float32)
+    top = np.zeros((k,) + clear.shape, dtype=np.uint8)
+    init = np.where(bulk, np.float32(np.inf), np.float32(-np.inf)).astype(np.float32)
+    for d in _STEPS:
+        value = init.copy()
+        a = next(i for i, v in enumerate(d) if v)
+        sign = d[a]
+        n = clear.shape[a]
+        for i in (range(n - 2, -1, -1) if sign == 1 else range(1, n)):
+            target, source = [slice(None)] * 3, [slice(None)] * 3
+            target[a], source[a] = i, i + sign
+            for j in range(3):
+                if j != a and d[j]:
+                    target[j] = slice(None, -1) if d[j] == 1 else slice(1, None)
+                    source[j] = slice(1, None) if d[j] == 1 else slice(None, -1)
+            t, s = tuple(target), tuple(source)
+            value[t] = np.where(bulk[t], value[t], np.minimum(clear[t], value[s]))
+        x = np.searchsorted(thresholds, value, side="left").astype(np.uint8)
+        del value
+        for i in range(k):
+            high = np.maximum(top[i], x)
+            np.minimum(top[i], x, out=x)
+            top[i] = high
+    return top[k - 1].copy()
+
+
+def _snap_start(space, spatial, point, seed_tolerance, probe, outside_box, start):
+    """Snap the start to the widest free node near ``point`` (updates ``start``).
+
+    Returns ``(root, root_pos, root_clear)`` or ``(status, reason)`` when unresolved.
+    """
+    import numpy as np
+    p = np.asarray(point)
+    spacing = space.spacing
+    lo_i = np.maximum(np.floor((p - seed_tolerance - space.origin) / spacing).astype(int), 0)
+    hi_i = np.minimum(np.ceil((p + seed_tolerance - space.origin) / spacing).astype(int) + 1, np.asarray(space.dims))
+    if np.any(hi_i <= lo_i):
+        return "unresolved_seed_blocked", "start lies outside the grid box"
+    box = tuple(slice(a, b) for a, b in zip(lo_i, hi_i))
+    idx = np.argwhere(np.ones(tuple(hi_i - lo_i), bool)) + lo_i
+    dist = np.linalg.norm(space.position(idx) - p, axis=1)
+    c = space.clearance[box].ravel().astype(float)
+    bulk = outside_box(box).ravel()
+    near = (dist <= seed_tolerance) & (c > probe)
+    start["point_clearance_A"] = float(spatial.nearest_surface(tuple(point))[0])
+    if not near.any():
+        return ("unresolved_seed_blocked",
+                f"no free node (clearance > {probe:g} Å) within {seed_tolerance:g} Å of the start")
+    inner = near & ~bulk
+    if not inner.any():
+        return "unresolved_seed_in_bulk", "every free node near the start is in bulk"
+    order = np.lexsort((dist[inner], -c[inner]))
+    pick = np.flatnonzero(inner)[order[0]]
+    root = idx[pick]
+    root_pos = space.position(root)
+    root_clear = float(spatial.nearest_surface(tuple(root_pos))[0])
+    start.update(node_A=root_pos.tolist(), node_clearance_A=root_clear, snap_distance_A=float(dist[pick]))
+    return root, root_pos, root_clear
+
+
+def _side_allowed(space, root, root_pos, root_clear, axis_vec, sign):
+    """Half-space mask (``sign`` side of the plane through the start normal to the axis) plus the start sphere."""
+    import numpy as np
+    dims, spacing = space.dims, space.spacing
+    proj = sum(((space.origin[d] + np.arange(dims[d]) * spacing - root_pos[d]) * axis_vec[d])
+               .reshape([-1 if k == d else 1 for k in range(3)]) for d in range(3))
+    allowed = sign * proj >= -1e-9
+    r = int(math.ceil(root_clear / spacing)) + 1
+    lo = np.maximum(root - r, 0)
+    hi = np.minimum(root + r + 1, np.asarray(dims))
+    local = np.argwhere(np.ones(tuple(hi - lo), bool)) + lo
+    inside = np.linalg.norm(space.position(local) - root_pos, axis=1) <= root_clear
+    allowed[tuple(local[inside].T)] = True
+    return allowed
+
+
+def _routes_overlap(pos_a, pos_b, ids_a, ids_b, separation, route_separation):
+    """Whether two routes are *not* distinct (``DISTINCT_PATH_DEFINITION``)."""
+    import numpy as np
+    if np.linalg.norm(pos_a[-1] - pos_b[-1]) <= separation:
+        return True
+    shared = 0
+    while shared < min(len(ids_a), len(ids_b)) and ids_a[shared] == ids_b[shared]:
+        shared += 1
+    junction = pos_a[shared - 1] if shared else None
+    one, two = pos_a[shared:], pos_b[shared:]
+    if junction is not None:
+        one = one[np.linalg.norm(one - junction, axis=1) > route_separation]
+        two = two[np.linalg.norm(two - junction, axis=1) > route_separation]
+    return not len(one) or not len(two) or _min_pair_distance(one, two) <= route_separation
+
+
+def _side_routes(space, outside, root, root_pos, root_clear, probe, axis_vec, side, sign, max_nodes,
+                 separation, route_separation, max_paths):
+    """Widest routes and the distinct ones kept on one side (or everywhere) at one probe."""
+    import time
+    import numpy as np
+    began = time.perf_counter()
+    allowed = None if sign is None else _side_allowed(space, root, root_pos, root_clear, axis_vec, sign)
+    exempt = lambda q: np.linalg.norm(q - root_pos, axis=1) <= root_clear
+    search = _widest_routes(space, [root], exempt, probe, max_nodes, allowed=allowed, outside=outside)
+    del allowed
+    stats = {"side": side, "search_domain_nodes": search["domain_nodes"], "terminal_nodes": search["terminal_nodes"],
+             "nodes_explored": search["explored"], "terminals_reached": len(search["terminals"])}
+    widths = search["width"][search["terminals"]] if search["terminals"] else np.zeros(0)
+    widest = float(widths.max()) if len(widths) else -math.inf
+    positions = space.position(search["ijk"])
+    side_kept, truncated, mouths = [], False, []
+    for term in search["terminals"]:
+        # Same test as _routes_overlap, with the cheap exit-point distance checked first for all kept routes.
+        if mouths and np.min(np.linalg.norm(np.asarray(mouths) - positions[term], axis=1)) <= separation:
+            continue
+        route = _route(search, term)
+        if any(_routes_overlap(positions[route], positions[other], route, other, separation, route_separation)
+               for other in side_kept):
+            continue
+        if len(side_kept) >= max_paths:
+            truncated = True
+            break
+        side_kept.append(route)
+        mouths.append(positions[term])
+    kept = []
+    for route in side_kept:
+        ijk = search["ijk"][route]
+        steps = np.linalg.norm(np.diff(positions[route], axis=0), axis=1)
+        width = float(search["width"][route[-1]])
+        kept.append({"side": side, "ids": np.ravel_multi_index(ijk.T, space.dims).tolist(),
+                     "walked": np.concatenate([[0.0], np.cumsum(steps)]).tolist(),
+                     "width": width if math.isfinite(width) else root_clear,
+                     "end": "bulk" if space.in_bulk[tuple(ijk[-1])] else "exposed", "probe": probe})
+    return {"stats": stats, "kept": kept, "truncated": truncated, "widest_A": widest,
+            "seconds": time.perf_counter() - began}
+
+
 @radii_option
-def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radius: float = 0.8,
+def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radius: float | str | None = "auto",
                spacing: float = 0.5, bulk_radius: float = 6.0, seed_tolerance: float = 3.0,
                max_paths: int = MAX_PATHS, separation: float | None = None, route_separation: float | None = None,
                axis=None, include_hetero: bool = False, lining_shell: float = 1.4, relax_iterations: int = 60,
                min_enclosure: float = 0.75, max_grid_points: int = 20_000_000, max_nodes: int = 6_000_000,
-               radii: RadiusSet | str | None = None) -> PathNetwork:
+               workers: int | None = None, radii: RadiusSet | str | None = None) -> PathNetwork:
     """Curved, possibly branched, widest routes from a start to bulk solvent.
 
     See the module docstring for every definition (grid, bulk, widest route,
-    distinct routes, junctions, centre line, radius, lining residues).
+    distinct routes, junctions, centre line, radius, lining residues) and
+    ``AUTO_PROBE_RULE`` for the automatic probe.
 
     Parameters
     ----------
@@ -753,8 +950,13 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
     region : dict, str or Path, optional
         Region definition; start at its landmark anchor (:func:`region_seed`).
         Exactly one of ``seed``, ``seed_residues`` and ``region`` is required.
-    probe_radius : float, default 0.8
+    probe_radius : float, "auto" or None, default "auto"
         Required node clearance, Å (threshold only; radii are not reduced).
+        ``"auto"`` (or ``None``) tries every probe of ``PROBE_LADDER`` below
+        ``bulk_radius`` on one shared clearance field and keeps, per side,
+        the probe chosen by ``AUTO_PROBE_RULE``; the choice is recorded in
+        ``settings["probe_selection"]``. A number runs that probe only,
+        exactly as before.
     spacing : float, default 0.5
         Lattice spacing, Å.
     bulk_radius : float, default 6.0
@@ -784,11 +986,17 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
         A free node counts as *exposed* (and ends a route like bulk) when more
         than ``26 - ceil(26 * min_enclosure)`` of the 26 lattice rays from it
         reach bulk before a node with clearance <= ``probe_radius``; 0
-        disables the exposure rule.
+        disables the exposure rule. Fixed for every candidate probe.
     max_grid_points : int, default 20000000
         Grid allocation guard.
     max_nodes : int, default 6000000
         Search-domain guard.
+    workers : int, optional
+        Worker processes for the candidate probes of ``"auto"`` (default:
+        automatic, ``min(4, CPUs, candidate searches)``, reduced when
+        available memory is short; see
+        :func:`crevice.cavity_trajectory.auto_workers`). Results do not
+        depend on it. Ignored for an explicit probe.
     radii : RadiusSet, str or None, optional
         Atomic radius set: a preset name (``"default"``, ``"bondi"``,
         ``"hole"``, ``"charmm_like"``), the path of a JSON, CSV or HOLE ``.rad`` radius
@@ -822,22 +1030,43 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
     >>> g = np.arange(-9, 9.1, 1.5)
     >>> atoms = [Atom(i + 1, "C", "ALA", "A", i + 1, x, y, z, "C")
     ...          for i, (x, y, z) in enumerate((x, y, z) for x in g for y in g for z in g if x * x + y * y > 18)]
-    >>> result = find_paths(StructureFrame(tuple(atoms)), seed=(0, 0, 0), relax_iterations=0)
+    >>> frame = StructureFrame(tuple(atoms))
+    >>> result = find_paths(frame, seed=(0, 0, 0), probe_radius=0.8, relax_iterations=0)
     >>> result.status, [(round(b.length, 1), round(b.bottleneck_radius, 1)) for b in result.branches]
     ('resolved', [(7.5, 2.6), (9.0, 2.6)])
+
+    With the automatic probe the same two routes are found and the choice is recorded:
+
+    >>> auto = find_paths(frame, seed=(0, 0, 0), relax_iterations=0, workers=1)
+    >>> auto.settings["probe_selection"]["chosen_probe_A"], len(auto.branches)
+    (0.5, 2)
     """
     import numpy as np
     from .spatial import SpatialIndex
-    for name, value in (("probe_radius", probe_radius), ("spacing", spacing), ("bulk_radius", bulk_radius),
-                        ("seed_tolerance", seed_tolerance)):
+    auto = probe_radius is None or (isinstance(probe_radius, str) and probe_radius.strip().lower() == "auto")
+    if not auto:
+        if isinstance(probe_radius, str):
+            try:
+                probe_radius = float(probe_radius)
+            except ValueError:
+                raise ValueError("probe_radius must be a number or 'auto'") from None
+        probe_radius = float(probe_radius)
+    for name, value in ((("probe_radius", probe_radius),) if not auto else ()) + (
+            ("spacing", spacing), ("bulk_radius", bulk_radius), ("seed_tolerance", seed_tolerance)):
         if not math.isfinite(value) or value <= 0:
             raise ValueError(f"{name} must be finite and positive")
-    if bulk_radius <= probe_radius:
+    if not auto and bulk_radius <= probe_radius:
         raise ValueError("bulk_radius must exceed probe_radius")
+    probes = [p for p in PROBE_LADDER if p < bulk_radius] if auto else [probe_radius]
+    if not probes:
+        raise ValueError("bulk_radius must exceed the smallest automatic probe "
+                         f"({PROBE_LADDER[0]:g} Å); give an explicit probe_radius")
     if not math.isfinite(min_enclosure) or not 0 <= min_enclosure <= 1:
         raise ValueError("min_enclosure must lie in [0, 1]")
     if int(max_paths) < 1:
         raise ValueError("max_paths must be a positive integer")
+    if workers is not None and int(workers) < 1:
+        raise ValueError("workers must be a positive integer")
     if sum(x is not None for x in (seed, seed_residues, region)) != 1:
         raise ValueError("give exactly one start: seed, seed_residues or region")
     separation = 2.0 * bulk_radius if separation is None else float(separation)
@@ -858,16 +1087,25 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
     start["requested_A"] = list(point)
     atoms = frame.selected_atoms(include_hydrogen=False, include_hetero=include_hetero)
     core = np.asarray([a.coord for a in atoms if not a.hetero] or [a.coord for a in atoms], dtype=float)
+    import time
+    clock = time.perf_counter()
     space = FreeSpace(atoms, core, spacing, bulk_radius, max_grid_points)
     spatial = SpatialIndex(space.atoms)
+    field_s = time.perf_counter() - clock
     space.outside = space.in_bulk
-    if min_enclosure > 0:
+    required = math.ceil(26 * min_enclosure)
+    levels, levels_s = None, 0.0
+    if not auto and min_enclosure > 0:
         blocked = space.clearance <= probe_radius
-        required = math.ceil(26 * min_enclosure)
         space.exposed = (_ray_escapes(blocked, space.in_bulk) > 26 - required) & ~blocked & ~space.in_bulk
         space.outside = space.in_bulk | space.exposed
         del blocked
-    settings = {"probe_radius_A": probe_radius, "spacing_A": spacing, "bulk_radius_A": bulk_radius,
+    elif auto and min_enclosure > 0 and required > 0:
+        clock = time.perf_counter()
+        levels = _exposure_levels(space.clearance, space.in_bulk, probes, required)
+        levels_s = time.perf_counter() - clock
+    settings = {"probe_radius_A": "auto" if auto else probe_radius, "spacing_A": spacing,
+                "bulk_radius_A": bulk_radius,
                 "seed_tolerance_A": seed_tolerance, "max_paths": int(max_paths), "separation_A": separation,
                 "route_separation_A": route_separation, "axis": axis_vec.tolist() if axis_vec is not None else None,
                 "include_hetero": include_hetero, "lining_shell_A": lining_shell, "min_enclosure": min_enclosure,
@@ -884,107 +1122,59 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
         return PathNetwork(status, {**start, "reason": reason}, [], [], [], [{"status": status, "reason": reason}],
                            settings)
 
-    # Snap the start.
-    p = np.asarray(point)
-    lo_i = np.maximum(np.floor((p - seed_tolerance - space.origin) / spacing).astype(int), 0)
-    hi_i = np.minimum(np.ceil((p + seed_tolerance - space.origin) / spacing).astype(int) + 1, np.asarray(space.dims))
-    if np.any(hi_i <= lo_i):
-        return unresolved("unresolved_seed_blocked", "start lies outside the grid box")
-    box = tuple(slice(a, b) for a, b in zip(lo_i, hi_i))
-    idx = np.argwhere(np.ones(tuple(hi_i - lo_i), bool)) + lo_i
-    dist = np.linalg.norm(space.position(idx) - p, axis=1)
-    c = space.clearance[box].ravel().astype(float)
-    bulk = space.outside[box].ravel()
-    near = (dist <= seed_tolerance) & (c > probe_radius)
-    start["point_clearance_A"] = float(spatial.nearest_surface(tuple(point))[0])
-    if not near.any():
-        return unresolved("unresolved_seed_blocked",
-                          f"no free node (clearance > {probe_radius:g} Å) within {seed_tolerance:g} Å of the start")
-    inner = near & ~bulk
-    if not inner.any():
-        return unresolved("unresolved_seed_in_bulk", "every free node near the start is in bulk")
-    order = np.lexsort((dist[inner], -c[inner]))
-    pick = np.flatnonzero(inner)[order[0]]
-    root = idx[pick]
-    root_pos = space.position(root)
-    root_clear = float(spatial.nearest_surface(tuple(root_pos))[0])
-    start.update(node_A=root_pos.tolist(), node_clearance_A=root_clear, snap_distance_A=float(dist[pick]))
-    exempt = lambda q: np.linalg.norm(q - root_pos, axis=1) <= root_clear
-    dims = space.dims
     runs = [(None, None)] if axis_vec is None else [("+", 1.0), ("-", -1.0)]
-    kept, searches, truncated = [], [], False
-    for side, sign in runs:
-        allowed = None
-        if sign is not None:
-            proj = sum(((space.origin[d] + np.arange(dims[d]) * spacing - root_pos[d]) * axis_vec[d])
-                       .reshape([-1 if k == d else 1 for k in range(3)]) for d in range(3))
-            allowed = sign * proj >= -1e-9
-            r = int(math.ceil(root_clear / spacing)) + 1
-            lo = np.maximum(root - r, 0)
-            hi = np.minimum(root + r + 1, np.asarray(dims))
-            local = np.argwhere(np.ones(tuple(hi - lo), bool)) + lo
-            inside = np.linalg.norm(space.position(local) - root_pos, axis=1) <= root_clear
-            allowed[tuple(local[inside].T)] = True
-            del proj
-        search = _widest_routes(space, [root], exempt, probe_radius, max_nodes, allowed=allowed)
-        del allowed
-        searches.append({"side": side, "search_domain_nodes": search["domain_nodes"],
-                         "terminal_nodes": search["terminal_nodes"], "nodes_explored": search["explored"],
-                         "terminals_reached": len(search["terminals"])})
-        positions = space.position(search["ijk"])
-        side_kept = []
-        for term in search["terminals"]:
-            route = _route(search, term)
-            ok = True
-            for other in side_kept:
-                if np.linalg.norm(positions[term] - positions[other[-1]]) <= separation:
-                    ok = False
-                    break
-                shared = 0
-                while shared < min(len(route), len(other)) and route[shared] == other[shared]:
-                    shared += 1
-                junction = positions[route[shared - 1]] if shared else None
-                one, two = positions[route[shared:]], positions[other[shared:]]
-                if junction is not None:
-                    one = one[np.linalg.norm(one - junction, axis=1) > route_separation]
-                    two = two[np.linalg.norm(two - junction, axis=1) > route_separation]
-                if not len(one) or not len(two) or _min_pair_distance(one, two) <= route_separation:
-                    ok = False
-                    break
-            if not ok:
-                continue
-            if len(side_kept) >= max_paths:
-                truncated = True
-                break
-            side_kept.append(route)
-        for route in side_kept:
-            ijk = search["ijk"][route]
-            steps = np.linalg.norm(np.diff(positions[route], axis=0), axis=1)
-            width = float(search["width"][route[-1]])
-            kept.append({"side": side, "ids": np.ravel_multi_index(ijk.T, dims).tolist(),
-                         "walked": np.concatenate([[0.0], np.cumsum(steps)]).tolist(),
-                         "width": width if math.isfinite(width) else root_clear,
-                         "end": "bulk" if space.in_bulk[tuple(ijk[-1])] else "exposed"})
-        del search, positions
-    settings.update(exposed_nodes=int(space.exposed.sum()) if min_enclosure > 0 else 0, searches=searches,
-                    paths_truncated=truncated,
-                    search_mode="one half-space search per side of the start along the axis" if axis_vec is not None
-                    else "one search over all free space")
-    if not kept:
-        reached = sum(x["search_domain_nodes"] for x in searches)
-        return unresolved("unresolved_no_bulk_path",
-                          f"no route of free nodes (clearance > {probe_radius:g} Å) from the start reaches bulk "
-                          f"({reached} free nodes reachable)")
+    if not auto:
+        snap = _snap_start(space, spatial, point, seed_tolerance, probe_radius, lambda box: space.outside[box], start)
+        if len(snap) == 2:
+            return unresolved(*snap)
+        root, root_pos, root_clear = snap
+        kept, searches, truncated = [], [], False
+        for side, sign in runs:
+            found = _side_routes(space, space.outside, root, root_pos, root_clear, probe_radius, axis_vec, side, sign,
+                                 max_nodes, separation, route_separation, max_paths)
+            searches.append(found["stats"])
+            kept += found["kept"]
+            truncated = truncated or found["truncated"]
+        settings.update(exposed_nodes=int(space.exposed.sum()) if min_enclosure > 0 else 0, searches=searches,
+                        paths_truncated=truncated,
+                        search_mode="one half-space search per side of the start along the axis"
+                        if axis_vec is not None else "one search over all free space")
+        if not kept:
+            reached = sum(x["search_domain_nodes"] for x in searches)
+            return unresolved("unresolved_no_bulk_path",
+                              f"no route of free nodes (clearance > {probe_radius:g} Å) from the start reaches bulk "
+                              f"({reached} free nodes reachable)")
+        return _assemble_paths(frame, space, spatial, kept, root_pos, start, settings, axis_vec, lining_shell,
+                               include_hetero, relax_iterations)
+    selection = _auto_probe_search(space, spatial, levels, probes, point, seed_tolerance, start, runs, axis_vec,
+                                   max_nodes, separation, route_separation, max_paths, workers)
+    selection["record"].setdefault("timing_s", {}).update(clearance_field_s=round(field_s, 3),
+                                                          exposure_levels_s=round(levels_s, 3))
+    settings.update(probe_selection=selection["record"], searches=selection["searches"],
+                    paths_truncated=selection["truncated"],
+                    exposed_nodes=selection["exposed_nodes"],
+                    search_mode="one half-space search per side of the start along the axis, probe chosen per side"
+                    if axis_vec is not None else "one search over all free space")
+    chosen = selection["record"]["chosen_probe_A"]
+    if chosen is not None:
+        settings["probe_radius_A"] = chosen
+    if selection["status"] is not None:
+        return unresolved(selection["status"], selection["reason"])
+    return _assemble_paths(frame, space, spatial, selection["kept"], selection["root_pos"], start, settings,
+                           axis_vec, lining_shell, include_hetero, relax_iterations, auto=True)
+
+
+def _assemble_paths(frame, space, spatial, kept, root_pos, start, settings, axis_vec, lining_shell, include_hetero,
+                    relax_iterations, auto=False):
+    """Tree, segments, centre lines, radii and lining of the kept routes (each carries its probe)."""
+    import numpy as np
+    dims, spacing = space.dims, space.spacing
     kept.sort(key=lambda k: (-k["width"], k["walked"][-1]))
     gpos = lambda n: space.origin + np.asarray(np.unravel_index(int(n), dims), dtype=float) * spacing
     walked_of = {}
     for k in kept:
         for n, w in zip(k["ids"], k["walked"]):
             walked_of.setdefault(n, w)
-
-    def side_of(k):
-        return k["side"]
-
     # Tree: junctions = nodes with >= 2 distinct children among kept routes.
     children = {}
     for k in kept:
@@ -995,20 +1185,26 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
     cut = set(junction_nodes) | {kept[0]["ids"][0]}
     segments, segment_ids = [], {}
     branch_segments = []
-    for route in (k["ids"] for k in kept):
+    for k_route in kept:
+        route = k_route["ids"]
         ids, startk = [], 0
         marks = [k for k, n in enumerate(route) if n in cut and k > 0] + [len(route) - 1]
         for k in sorted(set(marks)):
             key = (route[startk], route[k])
             if key not in segment_ids:
                 segment_ids[key] = len(segment_ids) + 1
-                segments.append({"segment": segment_ids[key], "nodes": route[startk:k + 1]})
+                segments.append({"segment": segment_ids[key], "nodes": route[startk:k + 1],
+                                 "probe": k_route["probe"]})
+            else:
+                seg = segments[segment_ids[key] - 1]
+                seg["probe"] = min(seg["probe"], k_route["probe"])
             ids.append(segment_ids[key])
             startk = k
         branch_segments.append(ids)
     # Centre lines.
     for seg in segments:
         node_ids = seg.pop("nodes")
+        probe = seg.pop("probe")
         nodes = np.asarray([gpos(n) for n in node_ids])
         lattice = np.asarray(_straighten(spatial, nodes))
         floor = float(min(space.clearance[np.unravel_index(n, dims)] for n in node_ids))
@@ -1016,7 +1212,7 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
         if relax_iterations > 0 and len(nodes) >= 3:
             relaxed = _relax(space, nodes, floor, int(relax_iterations), spacing)
             dense = _resample(relaxed, 0.25)
-            if float(spatial.nearest_surface_values([tuple(q) for q in dense]).min()) > probe_radius:
+            if float(spatial.nearest_surface_values([tuple(q) for q in dense]).min()) > probe:
                 line, mode = relaxed, "relaxed"
             else:
                 mode = "lattice_fallback"
@@ -1059,14 +1255,16 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
         if route[0] in junction_ids:
             junctions.insert(0, {"junction": junction_ids[route[0]], "arc_length_A": 0.0})
             junction_records[route[0]]["branches"].append(rank)
+        metadata = {"centre_line": {str(s): seg_by_id[s]["centre_line"] for s in seg_ids},
+                    "lattice_route_length_A": k_route["walked"][-1], "lattice_nodes": len(route),
+                    "below_probe": bool(radii_s[worst] <= k_route["probe"])}
+        if auto:
+            metadata["probe_radius_A"] = k_route["probe"]
         branches.append(PathBranch(
             rank, [tuple(map(float, q)) for q in dense], radii_s, arc, arc[-1], radii_s[worst],
             tuple(map(float, dense[worst])), arc[worst], tuple(map(float, gpos(route[-1]))),
-            k_route["width"], side_of(k_route), k_route["end"], seg_ids, junctions, lining,
-            sorted(k.label for k in per_sample[worst]),
-            {"centre_line": {str(s): seg_by_id[s]["centre_line"] for s in seg_ids},
-             "lattice_route_length_A": k_route["walked"][-1], "lattice_nodes": len(route),
-             "below_probe": bool(radii_s[worst] <= probe_radius)}))
+            k_route["width"], k_route["side"], k_route["end"], seg_ids, junctions, lining,
+            sorted(k.label for k in per_sample[worst]), metadata))
     junction_list = list(junction_records.values())
     for rec in junction_list:
         rec["is_start"] = bool(np.allclose(rec["position_A"], root_pos))
@@ -1074,8 +1272,10 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
     if axis_vec is not None:
         for side in ("+", "-"):
             if not any(b.side == side for b in branches):
-                unresolved_rows.append({"status": "unresolved_no_bulk_path_on_side", "side": side,
-                                        "reason": f"no distinct route to bulk on the {side} side of the start along the axis"})
+                reason = f"no distinct route to bulk on the {side} side of the start along the axis"
+                if auto:
+                    reason += " at any candidate probe"
+                unresolved_rows.append({"status": "unresolved_no_bulk_path_on_side", "side": side, "reason": reason})
     return PathNetwork("resolved", start, branches, junction_list, segments, unresolved_rows, settings)
 
 
@@ -1087,6 +1287,259 @@ def _node_kind(point, root_pos, junction_nodes, gpos, junction_ids):
         if np.allclose(point, gpos(n)):
             return {"kind": "junction", "junction": junction_ids[n]}
     return {"kind": "mouth"}
+
+
+# --------------------------------------------------------------------------
+# Automatic probe
+# --------------------------------------------------------------------------
+
+_AUTO_WORKER = None
+#: Prune ladder probes at or above the smallest probe's widest route width (False only for benchmarks).
+_PRUNE = True
+_SAME_WIDTH_A = 0.05
+_SAME_WIDTH_FRACTION = 0.02
+
+
+def _init_auto_worker(state):
+    global _AUTO_WORKER
+    _AUTO_WORKER = state
+
+
+def _auto_task(task):
+    return task, _candidate_routes(_AUTO_WORKER, *task)
+
+
+def _candidate_routes(state, j, side, sign):
+    """Routes at ladder probe ``j`` on one side, on the shared clearance field."""
+    space, levels, probes = state["space"], state["levels"], state["probes"]
+    p = probes[j]
+    outside = space.in_bulk if levels is None else space.in_bulk | ((levels > j) & (space.clearance > p))
+    found = _side_routes(space, outside, state["root"], state["root_pos"], state["root_clear"], p, state["axis"],
+                         side, sign, state["max_nodes"], state["separation"], state["route_separation"],
+                         state["max_paths"])
+    found["exposed_nodes"] = int((outside & ~space.in_bulk).sum())
+    return found
+
+
+def _same_route_set(a, b, space, separation, route_separation):
+    """Whether two kept-route lists (different probes) are the same routes: equal counts and a one-to-one
+    matching in which every pair is *not distinct* under ``DISTINCT_PATH_DEFINITION`` and has ranking widths
+    within ``max(0.05 Å, 2 %)`` (the tolerance of ``crevice profile``'s automatic probe)."""
+    import numpy as np
+    if len(a) != len(b):
+        return False
+    pos = lambda r: space.position(np.array(np.unravel_index(np.asarray(r["ids"]), space.dims)).T)
+    pa, pb = [pos(r) for r in a], [pos(r) for r in b]
+    same_width = lambda x, y: abs(x - y) <= max(_SAME_WIDTH_A, _SAME_WIDTH_FRACTION * max(x, y))
+    ok = [[same_width(a[i]["width"], b[k]["width"]) and
+           _routes_overlap(pa[i], pb[k], a[i]["ids"], b[k]["ids"], separation, route_separation)
+           for k in range(len(b))] for i in range(len(a))]
+    match = [-1] * len(b)
+
+    def augment(i, seen):
+        for k in range(len(b)):
+            if ok[i][k] and not seen[k]:
+                seen[k] = True
+                if match[k] < 0 or augment(match[k], seen):
+                    match[k] = i
+                    return True
+        return False
+    return all(augment(i, [False] * len(b)) for i in range(len(a)))
+
+
+def _auto_probe_search(space, spatial, levels, probes, point, seed_tolerance, start, runs, axis_vec, max_nodes,
+                       separation, route_separation, max_paths, workers):
+    """Run the probe ladder on one clearance field and choose a probe per side (``AUTO_PROBE_RULE``)."""
+    import time
+    import numpy as np
+    f32 = lambda v: float(np.float32(v))
+
+    def outside_box(j):
+        if levels is None:
+            return lambda box: space.in_bulk[box]
+        return lambda box: space.in_bulk[box] | ((levels[box] > j) & (space.clearance[box] > probes[j]))
+
+    rows, results = {}, {}
+    record = {"mode": "auto", "rule": AUTO_PROBE_RULE, "ladder_A": list(PROBE_LADDER), "candidates_A": list(probes),
+              "min_enclosure_note": "min_enclosure is the same for every candidate probe",
+              "start_snap_probe_A": None, "chosen_probe_A": None, "chosen_by_side": {}, "reason": None,
+              "candidates": [], "groups": []}
+    out = {"record": record, "searches": [], "truncated": False, "exposed_nodes": 0, "status": None, "reason": None,
+           "kept": [], "root_pos": None}
+    # Start: snapped at the smallest candidate that resolves it, then shared by every candidate.
+    snap, j0 = None, None
+    for j, p in enumerate(probes):
+        trial = dict(start)
+        snap = _snap_start(space, spatial, point, seed_tolerance, p, outside_box(j), trial)
+        if len(snap) == 3:
+            start.clear()
+            start.update(trial)
+            j0 = j
+            break
+        for side, _ in runs:
+            rows[(j, side)] = {"probe_A": p, "side": side, "status": snap[0], "reason": snap[1]}
+    if j0 is None:
+        start.update(trial)
+        record["candidates"] = [rows[k] for k in sorted(rows, key=lambda k: (k[0], str(k[1])))]
+        record["reason"] = f"{snap[1]} at every candidate probe ({probes[0]:g}-{probes[-1]:g} Å)"
+        out.update(status=snap[0], reason=record["reason"])
+        return out
+    root, root_pos, root_clear = snap
+    record["start_snap_probe_A"] = probes[j0]
+    lattice_clear = float(space.clearance[tuple(root)])
+    state = {"space": space, "levels": levels, "probes": probes, "root": root, "root_pos": root_pos,
+             "root_clear": root_clear, "axis": axis_vec, "max_nodes": max_nodes, "separation": separation,
+             "route_separation": route_separation, "max_paths": max_paths}
+    tasks = []
+    for j in range(j0, len(probes)):
+        for side, sign in runs:
+            if not lattice_clear > f32(probes[j]):
+                rows[(j, side)] = {"probe_A": probes[j], "side": side, "status": "unresolved_seed_blocked",
+                                   "reason": "the start node's clearance does not exceed this probe"}
+            else:
+                tasks.append((j, side, sign))
+    first = {}
+    for task in tasks:
+        first.setdefault(task[1], task)
+    from .cavity_trajectory import auto_workers
+    if workers is None:
+        workers = auto_workers(max(1, len(tasks)), max_grid_points=space.grid_points)
+    workers = max(1, int(workers))
+
+    # A route at a larger probe is also a route at the smallest one, so the smallest probe's widest route
+    # width bounds every larger probe: candidates at or above it cannot have a route. They are recorded as
+    # pruned whether or not a worker had already started them (such a search finds nothing), so the record
+    # does not depend on the number of workers or on timing.
+    widest = {}
+
+    def prunable(task):
+        j, side, _ = task
+        return (_PRUNE and task != first[side] and side in widest
+                and not widest[side] > f32(probes[j]))
+
+    def finished(task, found):
+        results[task[:2]] = found
+        if task == first[task[1]]:
+            widest[task[1]] = found["widest_A"]
+            timing["smallest_probe_searches_s"] = max(timing.get("smallest_probe_searches_s", 0.0),
+                                                      round(time.perf_counter() - clock, 3))
+
+    timing = {"workers": workers}
+    clock = time.perf_counter()
+    if workers == 1 or len(tasks) <= 1:
+        for task in tasks:
+            if not prunable(task):
+                finished(task, _candidate_routes(state, *task))
+    else:
+        import multiprocessing as mp
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        context = mp.get_context("fork" if "fork" in mp.get_all_start_methods() else "spawn")
+        with ProcessPoolExecutor(max_workers=min(workers, len(tasks)), mp_context=context,
+                                 initializer=_init_auto_worker, initargs=(state,)) as pool:
+            # Submitted in ascending probe order, so the smallest probe of each side starts first.
+            futures = {pool.submit(_auto_task, task): task for task in tasks}
+            for future in as_completed(futures):
+                if future.cancelled():
+                    continue
+                task, found = future.result()
+                finished(task, found)
+                if task == first[task[1]]:
+                    for other, pending in futures.items():
+                        if not other.done() and prunable(pending):
+                            other.cancel()
+    timing["all_probe_searches_s"] = round(time.perf_counter() - clock, 3)
+    for task in tasks:
+        if prunable(task):
+            j, side, _ = task
+            results.pop((j, side), None)
+            bound = widest[side]
+            rows[(j, side)] = {"probe_A": probes[j], "side": side, "status": "pruned",
+                               "reason": ("no route at the smallest probe" if not math.isfinite(bound) else
+                                          f"at or above the widest route width {bound:.3f} Å found at "
+                                          f"{probes[first[side][0]]:g} Å")}
+    timing["searches_kept"] = len(results)
+    timing["searches_pruned"] = sum(r["status"] == "pruned" for r in rows.values())
+    timing["search_time_sum_s"] = round(sum(r["seconds"] for r in results.values()), 3)
+    record["timing_s"] = timing
+    for (j, side), found in results.items():
+        kept = found["kept"]
+        rows[(j, side)] = {"probe_A": probes[j], "side": side,
+                           "status": "resolved" if kept else "unresolved_no_bulk_path",
+                           "routes": len(kept), "widest_route_width_A": max((k["width"] for k in kept), default=None),
+                           "route_widths_A": [round(k["width"], 4) for k in kept],
+                           "exit_points_A": [[round(v, 3) for v in space.position(
+                               np.unravel_index(k["ids"][-1], space.dims))] for k in kept],
+                           "end_types": [k["end"] for k in kept],
+                           "lattice_lengths_A": [round(k["walked"][-1], 3) for k in kept],
+                           "routes_truncated": found["truncated"], "exposed_nodes": found["exposed_nodes"],
+                           "search_s": round(found["seconds"], 3),
+                           **{key: found["stats"][key] for key in ("search_domain_nodes", "nodes_explored")}}
+    # Choose per side.
+    chosen = {}
+    for side, _ in runs:
+        side_groups = []
+        for j in range(len(probes)):
+            res = results.get((j, side))
+            if res is None or not res["kept"]:
+                continue
+            for group in side_groups:
+                if _same_route_set(results[(group["members"][0], side)]["kept"], res["kept"], space, separation,
+                                   route_separation):
+                    group["members"].append(j)
+                    break
+            else:
+                side_groups.append({"members": [j]})
+        for g, group in enumerate(side_groups, 1):
+            group["group"] = g
+            for j in group["members"]:
+                rows[(j, side)]["group"] = g
+        pick = _pick_group(side_groups)
+        label = "all" if side is None else side
+        if pick is None:
+            chosen[side] = None
+            record["chosen_by_side"][label] = {"probe_A": None, "reason": "no route at any candidate probe"}
+        else:
+            group, why = pick
+            j = group["members"][0]
+            chosen[side] = j
+            record["chosen_by_side"][label] = {"probe_A": probes[j], "group": group["group"],
+                                               "group_probes_A": [probes[m] for m in group["members"]],
+                                               "routes": len(results[(j, side)]["kept"]), "reason": why}
+        record["groups"] += [{"side": side, "group": g["group"], "probes_A": [probes[m] for m in g["members"]],
+                              "routes": len(results[(g["members"][0], side)]["kept"])} for g in side_groups]
+    record["candidates"] = [rows[k] for k in sorted(rows, key=lambda k: (k[0], str(k[1])))]
+    picked = [probes[j] for j in chosen.values() if j is not None]
+    record["chosen_probe_A"] = min(picked) if picked else None
+    record["reason"] = "; ".join(f"{s}: {v['reason']}" if len(runs) > 1 else v["reason"]
+                                 for s, v in record["chosen_by_side"].items())
+    for side, j in chosen.items():
+        if j is None:
+            continue
+        found = results[(j, side)]
+        out["searches"].append({**found["stats"], "probe_radius_A": probes[j]})
+        out["kept"] += found["kept"]
+        out["truncated"] = out["truncated"] or found["truncated"]
+        out["exposed_nodes"] = max(out["exposed_nodes"], found["exposed_nodes"])
+    out["root_pos"] = root_pos
+    if not out["kept"]:
+        reached = max((r.get("search_domain_nodes", 0) for r in rows.values()), default=0)
+        out.update(status="unresolved_no_bulk_path",
+                   reason=f"no route of free nodes from the start reaches bulk at any candidate probe "
+                          f"({probes[0]:g}-{probes[-1]:g} Å; {reached} free nodes reachable at the smallest)")
+    return out
+
+
+def _pick_group(groups):
+    """``AUTO_PROBE_RULE`` choice among the route-set groups of one side: ``(group, reason)`` or ``None``."""
+    if not groups:
+        return None
+    eligible = [g for g in groups if len(g["members"]) >= 2]
+    if eligible:
+        best = max(eligible, key=lambda g: (len(g["members"]), -g["members"][0]))
+        return best, (f"smallest probe of the most persistent route set (found unchanged at "
+                      f"{len(best['members'])} candidate probes)")
+    best = groups[0]
+    return best, "no route set persisted over two candidate probes; smallest probe with a route used"
 
 
 # --------------------------------------------------------------------------
@@ -1125,7 +1578,8 @@ def plot_paths(result, path, *, dpi: int = 200):
     6.4 x 3.8 inch. Each branch is a line in its Okabe-Ito colour
     (``BRANCH_COLORS``) and its own line style; junctions are hollow circles
     on each branch that passes them; the bottleneck of each branch is a small
-    filled dot; a thin dotted grey line marks the probe radius. Legend entries
+    filled dot; a thin dotted grey line marks the probe radius (one per
+    side when the automatic probe chose different probes). Legend entries
     name the branches (with side), the junction marker and the probe; no
     titles or value labels unless annotating (``--annotate``). An unresolved
     result gives an empty panel with a notice of its status.
@@ -1140,7 +1594,8 @@ def plot_paths(result, path, *, dpi: int = 200):
     text = FigureText("Free-sphere radius against arc length from the start for each route of a pathway tree "
                       "to bulk; hollow circles mark junctions where routes separate")
     fig, ax = plt.subplots(figsize=(6.4, 3.8), constrained_layout=True)
-    probe = result.settings.get("probe_radius_A", 0.0)
+    probes = sorted({b.metadata.get("probe_radius_A", result.settings.get("probe_radius_A", 0.0))
+                     for b in result.branches})
     if not result.branches:
         text.notice(ax, 0.5, 0.5, f"No route to bulk ({result.status})", transform=ax.transAxes, ha="center",
                     va="center", fontsize=10, color="#4a4a4a")
@@ -1161,14 +1616,16 @@ def plot_paths(result, path, *, dpi: int = 200):
         text.annotate(ax, f"{b.bottleneck_radius:.2f} Å", (b.bottleneck_arc_length, b.bottleneck_radius),
                       xytext=(5, -12), textcoords="offset points", fontsize=8, color="#333333")
     if result.branches:
-        ax.axhline(probe, color="#8d969e", linestyle=":", linewidth=1.0)
+        for probe in probes:
+            ax.axhline(probe, color="#8d969e", linestyle=":", linewidth=1.0)
         handles, labels = ax.get_legend_handles_labels()
         if any(b.junctions for b in result.branches):
             handles.append(Line2D([], [], marker="o", linestyle="", markerfacecolor="white",
                                   markeredgecolor="#333333", markersize=6.5))
             labels.append("Junction")
         handles.append(Line2D([], [], color="#8d969e", linestyle=":", linewidth=1.0))
-        labels.append("Probe radius")
+        labels.append("Probe radius" if len(probes) == 1 else
+                      "Probe radii (" + ", ".join(f"{p:g}" for p in probes) + " Å)")
         ax.legend(handles, labels, frameon=False, fontsize=8, loc="best")
         ax.set_ylim(bottom=0.0)
         ax.set_xlim(left=0.0)
@@ -1387,6 +1844,10 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
         ``branch``, ``residue``, ``min_gap_A``, ``anchor_arc_length_A``, ``samples``.
     <prefix>_path_junctions.csv
         ``junction``, ``x_A``, ``y_A``, ``z_A``, ``is_start``, ``branch``, ``arc_length_A``.
+    <prefix>_path_probes.csv
+        Automatic probe only: one row per candidate probe and side
+        (``probe_A``, ``side``, ``status``, ``group``, ``chosen``, routes,
+        widths, end types, lengths, search sizes, ``reason``).
     <prefix>_paths.png, scenes
         See :func:`plot_paths` and :func:`write_path_scenes`.
     """
@@ -1419,6 +1880,17 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
                                       "is_start": j["is_start"], "branch": b.id, "arc_length_A": k["arc_length_A"]})
     written.append(_write_csv(directory / f"{prefix}_path_junctions.csv", junctions,
                               ["junction", "x_A", "y_A", "z_A", "is_start", "branch", "arc_length_A"]))
+    selection = result.settings.get("probe_selection")
+    if selection:
+        columns = ["probe_A", "side", "status", "group", "chosen", "routes", "widest_route_width_A",
+                   "route_widths_A", "end_types", "lattice_lengths_A", "exposed_nodes", "search_domain_nodes",
+                   "nodes_explored", "reason"]
+        chosen = {side: v["probe_A"] for side, v in selection["chosen_by_side"].items()}
+        probe_rows = [{**{c: (";".join(map(str, r[c])) if isinstance(r.get(c), list) else r.get(c, ""))
+                          for c in columns},
+                       "side": r["side"] or "all",
+                       "chosen": chosen.get(r["side"] or "all") == r["probe_A"]} for r in selection["candidates"]]
+        written.append(_write_csv(directory / f"{prefix}_path_probes.csv", probe_rows, columns))
     if figure:
         written.append(plot_paths(result, directory / f"{prefix}_paths.png", dpi=dpi))
     if scenes:
@@ -1436,6 +1908,20 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
 # --------------------------------------------------------------------------
 # Command line
 # --------------------------------------------------------------------------
+
+def _probe_arg(value):
+    """``--probe-radius`` value: ``auto`` or a positive number (Å)."""
+    import argparse
+    if value.strip().lower() == "auto":
+        return "auto"
+    try:
+        number = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("use 'auto' or a number of Å") from None
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("the probe radius must be finite and positive")
+    return number
+
 
 def add_paths_command(subparsers):
     """Register ``crevice paths`` on the CLI subparsers.
@@ -1463,8 +1949,15 @@ def add_paths_command(subparsers):
                        help="Start at the centroid of these residues, comma-separated: GLN282, 282, A:GLN282 or "
                             "GLN282@OE1+NE2 (atoms joined by +); each residue counts once")
     start.add_argument("--region", help="Region definition JSON; start at the mean of its landmark centroids")
-    parser.add_argument("--probe-radius", type=float, default=0.8,
-                        help="Required clearance (Å) of every route node; a threshold, radii are not reduced (default 0.8)")
+    parser.add_argument("--probe-radius", type=_probe_arg, default="auto",
+                        help="Required clearance (Å) of every route node; a threshold, radii are not reduced. 'auto' "
+                             "(default) searches the probe ladder 0.5-3.0 Å on one shared clearance field and keeps, "
+                             "per side, the smallest probe of the route set found at the most probes (recorded in "
+                             "the JSON); a number runs that probe only")
+    parser.add_argument("--workers", type=int, default=None,
+                        help="Worker processes for the candidate probes of --probe-radius auto (default: automatic, "
+                             "min(4, available CPUs, searches), reduced if available memory is short); results do "
+                             "not depend on it")
     parser.add_argument("--spacing", type=float, default=0.5, help="Search lattice spacing in Å (default 0.5)")
     parser.add_argument("--bulk-radius", type=float, default=6.0,
                         help="Rolling probe radius (Å) that defines bulk solvent; also sets the default distinct-route "
@@ -1534,7 +2027,7 @@ def run_paths_command(args):
                             route_separation=args.route_separation, axis=args.axis,
                             include_hetero=args.include_hetero, lining_shell=args.lining_shell,
                             relax_iterations=args.relax_iterations, min_enclosure=args.min_enclosure,
-                            max_grid_points=args.max_grid_points)
+                            max_grid_points=args.max_grid_points, workers=args.workers)
         result.settings["frame_index"] = frame.frame_index
         write_paths_outputs(result, args.output_dir, prefix=prefix + suffix, frame=frame, dpi=args.dpi,
                             scenes=not args.no_scenes)
@@ -1545,3 +2038,8 @@ def run_paths_command(args):
               f"{len(result.junctions)}" + (f" widest_bottleneck={widest.bottleneck_radius:.3f} length="
                                               f"{widest.length:.2f}" if widest else "")
               + "".join(f" unresolved_side={u['side']}" for u in result.unresolved if u.get("side")))
+        selection = result.settings.get("probe_selection")
+        if selection:
+            choice = ", ".join(f"{side} {v['probe_A']:g} Å" if v["probe_A"] is not None else f"{side} none"
+                               for side, v in selection["chosen_by_side"].items())
+            print(f"paths{suffix} probe=auto chosen: {choice} ({selection['reason']})")

@@ -24,9 +24,11 @@ python -m pip install "crevice[view]"
 The examples below use the output directories of two earlier tutorials:
 `3UKM_bundle` from [3UKM: a capped channel with side exits](3ukm-lateral-exits.md)
 and `glut1-run` from
-[A membrane MD trajectory](glut1-trajectory.md). Any `publish`, `cast`,
-`region-trajectory`, `cavity-trajectory` or `hydration` output directory works
-the same way.
+[A membrane MD trajectory](glut1-trajectory.md). Any `publish`, `cast`
+or `hydration` output directory works the same way, and so does a
+`region-trajectory` or `cavity-trajectory` directory that has the hydration
+scene (written with `--water-membership`, `--outputs default,hydration` or
+`--all`; the default trajectory bundle is data and figures only).
 
 ## A standalone HTML viewer
 

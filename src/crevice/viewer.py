@@ -858,7 +858,9 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
     FileNotFoundError
         When the directory holds no recognised CREVICE output.
     ValueError
-        When neither ``source`` nor in-memory results are given.
+        When neither ``source`` nor in-memory results are given, or when the
+        directory is a data-only trajectory run (no scene was written; rerun with
+        ``--outputs default,hydration`` or ``--all``).
 
     Colours and representation
     --------------------------
@@ -893,6 +895,10 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
                 # crevice paths output: one line layer per branch (crevice.paths).
                 from .paths import paths_view_from_json
                 return paths_view_from_json(_find_one(directory, "*_paths.json"), title=title)
+            if target is None and any(directory.glob("*_cavity_manifest.json")):
+                raise ValueError(f"{directory}: this trajectory run wrote data only (the 0.3 default), so there "
+                                 "is no scene to view; rerun it with --outputs default,hydration (or --all) to "
+                                 "write the analysis scene")
             if target is None:
                 raise FileNotFoundError(f"{directory}: no CREVICE cast/publish manifest (*_manifest.json) or "
                                         "hydration scene (*_analysis_scene.json)")

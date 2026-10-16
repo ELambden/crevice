@@ -197,7 +197,7 @@ little with the grid, the sample count and the input format (1GRM gives a
 minimum of 1.324 Å with the quick-start settings and 1.330 to 1.339 Å on finer
 grids). Report the enclosure probe with your results. The method assumes a
 channel that runs roughly in one direction; branched or strongly curved
-passages are not followed, openings narrower than the slice grid can be
+passages are not followed (use [`crevice paths`](paths.md) for those), openings narrower than the slice grid can be
 missed, and two exits closer than twice the bulk probe are reported as one. If
 no profile is found, that does not show the protein is closed: 4PYP, an
 inward-open transporter, gives no through-profile, which fits its structure

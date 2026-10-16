@@ -53,8 +53,10 @@ crevice cast 4PYP --out-dir 4PYP_cast
 ```
 
 `cast` fills the largest interior space of GLUT1 with atom-clear probe
-spheres. You get the cast as a 3D map (`4PYP_volume.dx`), its volume, ready-made
-PyMOL, VMD and ChimeraX scenes, and a `*_manifest.json` listing every file.
+spheres. You get the cast as a 3D map (`4PYP_volume.dx`), its volume
+(`4PYP_void_cast.csv`), the typed interactions of the residues around it,
+ready-made PyMOL, VMD and ChimeraX scenes and a `*_manifest.json` listing every
+file. Add `--outputs default,hydration` for the water around it.
 Ask for more than one region with `--max-cavities N`. The
 [cast guide](../tools/cast.md) explains how regions are chosen.
 
@@ -64,14 +66,63 @@ Ask for more than one region with `--max-cavities N`. The
 crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
-`publish` runs the profile, cast, lining residues and typed residue
-interactions in one go and writes the tables, the key figures and PyMOL, VMD
-and ChimeraX scenes (40 files for 1GRM). Add `--all` for everything (cavities,
-tunnels, network, hydration, every figure, a
-[pore fingerprint](../tools/fingerprint.md) and an interactive HTML view), or
-pick extras with `--outputs`, for example `--outputs default,hydration`;
-`--dry-run` shows the plan without running. See
-{ref}`Outputs <output-policy>`.
+`publish` runs the profile, the cast (split into entry, lumen and exit
+segments), the lining residues and the typed residue interactions in one go.
+By default it writes 40 files for 1GRM:
+
+- the **data**: every table as CSV (profile, residue contacts, lining
+  residues, cast and segment volumes, residue interactions and
+  conformations), the full JSON records and the measured cast maps;
+- two **key figures**: `1GRM_profile_radius.png` and
+  `1GRM_residue_contacts.png`;
+- one **scene for each viewer**: `1GRM_volume.pml` (PyMOL),
+  `1GRM_volume.vmd` (VMD) and `1GRM_volume.cxc` (ChimeraX), with the maps and
+  meshes they load;
+- `1GRM_manifest.json`, which lists every file and records the version,
+  command line and every setting.
+
+### Asking for more (or less)
+
+Everything else is one option away, on every command that writes a directory:
+
+```bash
+# what you can ask for, and this command's defaults
+crevice publish 1GRM --outputs help
+# add the water analyses
+crevice publish 1GRM --out-dir r --outputs default,hydration
+# add the cavity and tunnel searches and the residue network
+crevice publish 1GRM --out-dir r --outputs default,cavities,tunnels,network
+# every figure and an interactive HTML view
+crevice publish 1GRM --out-dir r --outputs default,figures,viewer-html
+# data and the PyMOL scene only
+crevice publish 1GRM --out-dir r --outputs pymol
+# everything this command can write
+crevice publish 1GRM --out-dir r --all
+# show the plan, write nothing
+crevice publish 1GRM --out-dir r --all --dry-run
+```
+
+`default` keeps the standard set, so `--outputs default,hydration` means
+"the usual, plus hydration". Naming file kinds without `default`
+(`--outputs pymol`) replaces the default files. Whatever you choose, the
+numbers are the same; only the list of files changes.
+{ref}`Outputs <output-policy>` has the full
+vocabulary and what each command writes by default.
+
+### Saving your settings
+
+`--print-config` prints every setting of a command as JSON; edit it and pass
+it back with `--config`. Options on the command line still win, and the
+structure always comes from the command line:
+
+```bash
+crevice publish 1GRM --out-dir results/1GRM --print-config > publish.json
+crevice publish 1GRM --config publish.json --samples 101
+```
+
+Settings are checked before anything is read, so a typo or an impossible
+value fails straight away. See
+{ref}`Settings files <settings-files>`.
 
 ### Look at your results interactively
 
@@ -134,6 +185,9 @@ topology and trajectory through MDAnalysis, and
 - **Figures are clean by default.** Add `--annotate` (or `annotate=True`) for
   titles, labels and legends. They are written at 200 dpi; use `--dpi 400` for
   print.
+- **Coming from 0.2?** Commands write fewer files by default now, and the
+  water analyses are opt-in. [Upgrading from 0.2 to 0.3](upgrading-0.3.md)
+  shows how to get the old files back.
 - **CLI and Python defaults occasionally differ.** The differences are listed
   in [CLI or Python?](cli-vs-python.md#defaults-that-differ-between-the-cli-and-python).
 

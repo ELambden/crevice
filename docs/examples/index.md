@@ -12,7 +12,7 @@ downloaded from the RCSB PDB or AlphaFold DB the first time you run a command.
 
 **[1GRM: pore radius profile and channel cast](1grm-profile-cast.md)**
 
-Measure the gramicidin A channel, then write the full bundle with its 3D cast. *About 1 min.*
+Measure the gramicidin A channel, then write a bundle with its 3D cast, cavities, tunnels and network. *About 1 min.*
 :::
 
 :::{container} crevice-card crevice-exit
@@ -85,11 +85,19 @@ Turn any output directory into a 3D view with layer checkboxes, in Jupyter or as
 Radius, lining hydrophobicity, chemistry, water and a geometric conductance estimate along a channel. *About 10 min.*
 :::
 
+:::{container} crevice-card crevice-violet
+![](images/glut1_f10_paths.png)
+
+**[Curved paths and cavity tracking in GLUT1](glut1-paths-tracking.md)**
+
+Trace the widest routes from the sugar site to the solvent on either side, and follow the site's cavity through every frame. *A few minutes, using the GLUT1 excerpt.*
+:::
+
 ::::
 
-Every command and Python block was run with CREVICE {{ version }} and the
-numbers were copied from that run; viewer images were rendered in the viewer
-named in the caption. The pages aren't executed when the documentation is
+Every command and Python block was run and the numbers were copied from that
+run; the commands whose output files changed in 0.3 were re-run with 0.3.0.
+Viewer images were rendered in the viewer named in the caption. The pages aren't executed when the documentation is
 built, so your numbers may differ slightly with a newer version or different
 settings, and that's part of the lesson: the settings are part of the result.
 Times are rough guides, for one CPU core of a desktop computer.
@@ -123,14 +131,6 @@ need no downloads:
 python examples/geometry_demo.py --output results/geometry-demo
 python examples/connectivity_validation.py --output results/connectivity-check
 ```
-
-:::{container} crevice-card
-![](images/glut1_f10_paths.png)
-
-**[Curved paths and cavity tracking in GLUT1](glut1-paths-tracking.md)**
-
-Trace the widest routes from the sugar site to the solvent on either side, and follow the site's cavity through every frame. *A few minutes, using the GLUT1 excerpt.*
-:::
 
 ```{toctree}
 :hidden:

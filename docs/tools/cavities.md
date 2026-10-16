@@ -71,8 +71,8 @@ near the cavity centre; for contacts over a whole cavity surface, pass a cast's
 Enclosure is judged at one grid resolution and one probe size, and the default
 2 Å grid is coarse: a narrow opening can be missed, or a closed space can look
 open, and results can change with the spacing or a small shift of the grid. An
-empty result doesn't mean the protein has no cavity. In our `publish` runs on
-1GRM and 4PYP this search found none, yet 4PYP has a large cavity that opens to
+empty result doesn't mean the protein has no cavity. In our runs on 1GRM and 4PYP
+(`publish --outputs default,cavities`) this search found none, yet 4PYP has a large cavity that opens to
 one side and casts clearly. The search is tested on synthetic structures; it
 has not been benchmarked against curated cavities.
 :::

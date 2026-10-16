@@ -11,7 +11,7 @@ with another.
 |---|---|
 | [`region-init`](../reference/cli/region-init.md) | start a candidate region from residue landmarks or an existing reference map |
 | [`region-prepare`](../reference/cli/region-prepare.md) | check it, bind it to a reference frame and write review scenes |
-| [`region-trajectory`](../reference/cli/region-trajectory.md) | run the full geometry, hydration and viewer analysis on it |
+| [`region-trajectory`](../reference/cli/region-trajectory.md) | measure it in every frame, with water analysis and scenes on request |
 | [`region-compare`](../reference/cli/region-compare.md) | compare two prepared regions on identical frames |
 
 ## A typical run
@@ -79,9 +79,13 @@ standalone Python function yet.
 - **`region-prepare`**: the prepared definition, a binary reference map, an
   identity fingerprint, review diagnostics (`*_review.json`), a landmark table
   (`*_review_landmarks.csv`) and PyMOL, VMD and ChimeraX review scenes.
-- **`region-trajectory`**: everything [`cavity-trajectory`](cavity-trajectory.md)
-  and [`hydration`](hydration.md) write, labelled with the region's status,
-  plus the water membership files with `--water-membership`.
+- **`region-trajectory`**: what [`cavity-trajectory`](cavity-trajectory.md)
+  writes (by default the tables, three key figures and the typed residue
+  interactions), labelled with the region's status. With `--water-membership`
+  (as in the run above) it adds the water-membership files and the
+  [`hydration`](hydration.md) analysis with its scenes;
+  `--outputs default,hydration` adds hydration alone, and `--all` everything
+  ({ref}`output-policy`).
 - **`region-compare`**: paired volumes and water counts per frame
   (`paired_observations.csv`), difference statistics (`comparison.json` and
   `comparison_summary.csv`), residue and hydration comparisons, width

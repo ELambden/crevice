@@ -102,4 +102,7 @@ python -m pip install --upgrade crevice
 
 The [Changelog](../project/changelog.md) lists what changed in each release.
 Until version 1.0, a minor release may change options or default outputs, so
-note the version you used with your results.
+note the version you used with your results. Version 0.3 is such a release:
+commands write a smaller default set of files, and
+[Upgrading from 0.2 to 0.3](upgrading-0.3.md) shows how to get the old ones
+back.

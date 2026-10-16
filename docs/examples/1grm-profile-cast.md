@@ -101,7 +101,7 @@ crevice publish 1GRM --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
 ```
 
 ```text
-publish files=51 out_dir=1GRM_bundle profile=resolved
+publish files=52 out_dir=1GRM_bundle profile=resolved
 ```
 
 `--outputs default,figures,cavities,tunnels,network` adds every figure and the
@@ -177,8 +177,8 @@ contact network.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The printed values and file counts come from a CREVICE 0.1.0 run (the cast
-segments and lining residues from the development version after it). They are
+The printed values were first recorded with CREVICE 0.1.0 and re-run with
+0.3.0 (same numbers; file counts as 0.3 writes them by default). They are
 measurements with the settings shown; gramicidin A is a convenient, well-known
 test case, not a curated reference, so treat them as such (see
 [How far to trust the numbers](../tools/index.md#how-far-to-trust-the-numbers)).

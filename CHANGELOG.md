@@ -12,6 +12,44 @@ biological results.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-16
+
+### Changed
+
+- `crevice paths --probe-radius auto` (the default; Python
+  `probe_radius="auto"`): the probe is chosen per structure, and per side with
+  `--axis`. The probes of `profile`'s enclosure ladder (0.5–3.0 Å) are
+  searched on one shared clearance field, bulk and exposure computation, from
+  one start; probes at or above the widest route width found at the smallest
+  probe are pruned (no route can exist there); the route sets are grouped
+  (same routes under the distinct-route rule, widths within max(0.05 Å, 2 %))
+  and the smallest probe of the set found at the most probes is used. A narrow
+  filter (3UKM) gets 0.5 Å, a wide vestibule a larger probe that leaves out
+  narrow side routes seen only at small probes. Candidates run in parallel
+  (`--workers`, default up to 4; results do not depend on it). The choice, the
+  reason and every candidate are recorded in `settings.probe_selection` and
+  `*_path_probes.csv`, branches and `*_paths.csv` carry their probe, and the
+  command prints the choice. A number (`--probe-radius 0.8`) gives exactly the
+  fixed-probe result. `--min-enclosure` is not varied with the probe.
+
+### Fixed
+
+- `crevice view` on a data-only trajectory run directory (the 0.3 default)
+  now explains that there is no scene to view and how to write one
+  (`--outputs default,hydration` or `--all`), instead of a generic error.
+- The `publish` summary line counts the files actually written to the
+  output directory.
+
+### Documentation
+
+- The documentation site describes the 0.3 defaults throughout: a "New in
+  0.3" note and paths/cavity-tracking cards on the landing page, default
+  outputs, `--outputs`/`--all`/`--dry-run` and settings files in Basic usage,
+  a per-command table of default and `--all` outputs in the Outputs guide,
+  updated "What you get" sections on every tool page, and tutorials re-run
+  where their output files changed. The `paths` tool page, method note and
+  GLUT1 paths tutorial describe the automatic probe.
+
 ## [0.3.0] - 2026-10-15
 
 **Breaking change to default outputs; no numerical change.**

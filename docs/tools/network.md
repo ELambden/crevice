@@ -86,7 +86,8 @@ A contact means two residues are close in this one structure; it doesn't show
 that the interaction is stable or favourable (follow it over a
 [trajectory](trajectory.md) for that). Network paths and centrality are
 associations, not evidence of signalling or allostery. One practical catch:
-networks written by `publish` and `analyze` use the Python defaults (surface
+networks written by `publish` (on request, with
+`--outputs default,network` or `--all`) and `analyze` use the Python defaults (surface
 gap, no heteroatoms), not the `crevice network` defaults, so compare networks
 only when they were built the same way. Each network records its settings in
 `metadata`.

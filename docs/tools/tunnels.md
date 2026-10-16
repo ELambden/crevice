@@ -76,5 +76,7 @@ try a couple of settings. Reaching the edge of the grid stands in for reaching
 bulk solvent; the box is not a membrane or solvent model, and a coarse grid can
 miss a narrow opening that exists in reality. A route is a geometric
 possibility, not evidence of transport, hydration or conductance. Routes are
-not clustered or tracked across trajectory frames by this command.
+not clustered or tracked across trajectory frames by this command;
+[`crevice paths`](paths.md) follows curved, branched routes on a finer
+lattice, also frame by frame.
 :::

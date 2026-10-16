@@ -94,10 +94,11 @@ uses the same 0.8 Å cast as its fallback when no channel resolves.
 | `--selection` | `protein` | which atoms count as walls |
 | `--enclosure-fraction`, `--core-fraction` | 0.9, 0.08 | how buried a core must be, and how large relative to the strongest |
 | `--min-component-volume` | 50 Å³ | smallest region kept |
+| `--outputs`, `--all`, `--dry-run` | compact default | add hydration, figures, extra scenes or an HTML view ({ref}`output-policy`) |
 
 `--smooth` changes only how the surface is drawn
 ([Surface smoothing](../SURFACE_SMOOTHING.md)). Atomic radii, figure text,
-hydration and structure input are
+hydration settings, output selection and structure input are
 [shared options](../reference/cli/common-options.md); every option is listed
 under [`crevice cast`](../reference/cli/cast.md).
 
