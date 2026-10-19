@@ -12,6 +12,20 @@ biological results.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-10-19
+
+### Fixed
+
+- `crevice view` (and `crevice.view`) opens an output directory written on
+  another operating system, for example a Windows bundle copied to Linux or
+  macOS. Manifests record absolute paths in the writing system's form; when
+  those paths do not exist, the file is found by name in the bundle directory,
+  and that name is now read with either path separator. Previously such a
+  bundle opened with no layers. Output files are unchanged.
+- Two tests failed on Windows because they compared paths containing
+  backslashes as raw text or as a regular expression; they now pass there, and
+  Linux runs exercise the same case.
+
 ## [0.3.2] - 2026-10-19
 
 ### Added

@@ -6,6 +6,9 @@ where it lands and how it is described; they do not contact RCSB.
 
 from __future__ import annotations
 
+import os
+import re
+
 import pytest
 
 from crevice import benchmarks, pdb
@@ -163,8 +166,10 @@ def test_cached_accession_is_reused_without_network(tmp_path, transport):
 
 
 def test_offline_uncached_accession_names_the_cache_directory(tmp_path, transport):
-    with pytest.raises(RuntimeError, match=str(tmp_path)):
-        pdb.resolve_structure("1GRM", cache_dir=tmp_path, fmt="pdb", offline=True)
+    # Backslashes and regex metacharacters (as in Windows paths) must not break the check.
+    cache = tmp_path / ("C\\Users (x+1)" if os.sep == "/" else "Users (x+1)")
+    with pytest.raises(RuntimeError, match=re.escape(str(cache))):
+        pdb.resolve_structure("1GRM", cache_dir=cache, fmt="pdb", offline=True)
     assert transport.calls == []
 
 

@@ -31,7 +31,10 @@ CREVICE is pure Python and runs wherever its libraries install:
 macOS and Windows support is new in version 0.3.2, so please
 [report](https://github.com/ELambden/crevice/issues) anything that behaves
 differently there. CREVICE reads and writes its text files as UTF-8, with
-Unix line endings, on every platform. Commands with `--workers` start fresh
+Unix line endings, on every platform. File paths recorded in manifests use
+the form of the system that wrote them (with `\` on Windows); `crevice view`
+finds the files by name when an output directory has been moved, including to
+another operating system. Commands with `--workers` start fresh
 worker processes on macOS and Windows (on Linux they are forked); the results
 do not depend on it, but each worker receives its own copy of the input, so
 starting the workers takes a little longer and uses more memory.

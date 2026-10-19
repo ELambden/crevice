@@ -214,3 +214,31 @@ def test_jupyter_fragment_drives_the_py3dmol_viewer(published):
     fragment = view(published).jupyter_html(width=400, height=300)
     uid = re.search(r'id="3dmolviewer_(\d+)"', fragment).group(1)
     assert f"CreviceView.build(viewer_{uid}," in fragment and f"crevice_controls_{uid}" in fragment
+
+
+def test_bundle_written_on_another_platform_still_opens(published, tmp_path):
+    # Manifests record absolute paths in the writing platform's form; a moved
+    # bundle falls back to the file name, which must be read with either separator.
+    import shutil
+    from pathlib import PureWindowsPath
+    from crevice.viewer import _resolve
+    moved = tmp_path / "moved"
+    shutil.copytree(published, moved)
+    root = str(published)
+    for manifest in moved.glob("*manifest*.json"):
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        def windows(value):
+            if isinstance(value, dict):
+                return {k: windows(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [windows(v) for v in value]
+            if isinstance(value, str) and value.startswith(root):
+                return "C:\\Users\\someone\\bundle" + value[len(root):].replace("/", "\\")
+            return value
+        manifest.write_text(json.dumps(windows(data), indent=2), encoding="utf-8")
+    assert view(moved).layer_names == view(published).layer_names
+    name = next(p.name for p in moved.iterdir() if p.is_file())
+    for text in ("C:\\Users\\someone\\bundle\\" + name, "/srv/someone/bundle/" + name,
+                 str(PureWindowsPath("D:/x") / name)):
+        assert _resolve(text, moved) == moved / name
+    assert _resolve("C:\\Users\\someone\\bundle\\missing.json", moved) is None

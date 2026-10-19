@@ -3,6 +3,13 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.3.3 (19 October 2026)
+
+- **Windows.** The test suite passes on Windows (two tests compared paths with
+  backslashes incorrectly; CREVICE itself was unaffected).
+- **`crevice view`** opens an output directory written on another operating
+  system, for example a Windows bundle copied to Linux or macOS.
+
 ## 0.3.2 (19 October 2026)
 
 **Faster, more portable, more transparent; no change to any result.**

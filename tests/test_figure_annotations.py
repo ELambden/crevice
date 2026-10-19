@@ -8,6 +8,7 @@ metadata and scene JSON either way, and every data output is unchanged.
 # Tests here exercise other behaviour with the legacy fixed 0.8 A enclosure probe;
 # the automatic probe is tested in test_auto_enclosure.py.
 import json
+import os
 import re
 from pathlib import Path
 
@@ -70,8 +71,28 @@ def _assert_clean(name, text, png):
     assert figure_description(png)[ANNOTATION_METADATA_KEY].startswith('omitted')
 
 
+def _root_forms(root):
+    """``root`` as it appears in a file: as is, and JSON-escaped (Windows backslashes are doubled in JSON)."""
+    text = str(root)
+    return [json.dumps(text)[1:-1], text]
+
+
+def _strip_root(text, root):
+    for form in _root_forms(root):
+        text = text.replace(form, '')
+    return text
+
+
 def _normalised(path, root):
-    return path.read_bytes().replace(str(root).encode(), b'ROOT')
+    data = path.read_bytes()
+    for form in _root_forms(root):
+        data = data.replace(form.encode(), b'ROOT')
+    return data
+
+
+# A backslash in the output directory name makes POSIX runs see the
+# JSON-escaped paths a Windows run records (on Windows it is a separator).
+BACKSLASH_DIR = 'cl\\ean' if os.sep == '/' else 'clean'
 
 
 def _publish(tmp_path, name, **options):
@@ -111,7 +132,7 @@ def test_publish_figures_are_clean_by_default_and_annotate_restores_text(tmp_pat
 
 
 def test_publish_data_outputs_identical_with_and_without_annotations(tmp_path):
-    clean, drawn = _publish(tmp_path, 'clean'), _publish(tmp_path, 'annotated', annotate=True)
+    clean, drawn = _publish(tmp_path, BACKSLASH_DIR), _publish(tmp_path, 'annotated', annotate=True)
     names = sorted(p.relative_to(clean) for p in clean.rglob('*') if p.is_file())
     assert names == sorted(p.relative_to(drawn) for p in drawn.rglob('*') if p.is_file())
     compared = [n for n in names if n.suffix != '.png']
@@ -140,7 +161,7 @@ def _text_commands(path):
 
 def test_hydration_scenes_have_no_text_by_default_and_annotate_restores_it(tmp_path, saved_figures):
     from crevice.hydration_workflow import static_hydration_bundle
-    clean, drawn = tmp_path/'clean', tmp_path/'annotated'
+    clean, drawn = tmp_path/BACKSLASH_DIR, tmp_path/'annotated'
     static_hydration_bundle(_toy_frame(), clean, prefix='toy', sasa_samples=32, dpi=60)
     default = dict(saved_figures); saved_figures.clear()
     static_hydration_bundle(_toy_frame(), drawn, prefix='toy', sasa_samples=32, dpi=60, annotate=True)
@@ -167,7 +188,7 @@ def test_hydration_scenes_have_no_text_by_default_and_annotate_restores_it(tmp_p
         assert _normalised(path, clean) == _normalised(drawn/path.name, drawn), path.name
     other = json.loads((drawn/'toy_analysis_scene.json').read_text(encoding="utf-8"))
     scene.pop('annotations'); other.pop('annotations')
-    assert json.dumps(scene).replace(str(clean), '') == json.dumps(other).replace(str(drawn), '')
+    assert _strip_root(json.dumps(scene), clean) == _strip_root(json.dumps(other), drawn)
 
 
 def test_region_review_scene_labels_are_opt_in(tmp_path):

@@ -43,7 +43,7 @@ import html
 import json
 import math
 from dataclasses import dataclass, field as _dc_field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import numpy as np
 
@@ -604,14 +604,21 @@ window.creviceReady = CreviceView.build(creviceViewer, document.getElementById("
 # --------------------------------------------------------------------------
 
 def _resolve(path_text, directory):
-    """Manifest paths are absolute at write time; fall back to the bundle directory."""
+    """Manifest paths are absolute at write time; fall back to the bundle directory.
+
+    The fallback takes the file name with either separator, so a bundle written
+    on Windows and moved to Linux or macOS (or the reverse) still opens.
+    """
     if not path_text:
         return None
     path = Path(path_text)
     if path.is_file():
         return path
-    local = Path(directory) / path.name
-    return local if local.is_file() else None
+    for name in dict.fromkeys((path.name, PureWindowsPath(path_text).name)):
+        local = Path(directory) / name
+        if name and local.is_file():
+            return local
+    return None
 
 
 def _mesh_layer(name, label, color, mesh, opacity=1.0, visible=True, description=""):
