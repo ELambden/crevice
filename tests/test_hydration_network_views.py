@@ -143,7 +143,7 @@ def test_interaction_occupancy_uses_all_frames_and_circular_statistics(tmp_path)
     frame=ring_frame([0,0,3.6]);model=chemical(frame);analysis=InteractionAnalysis(model,['A:PHE1','A:PHE2'],3)
     xyz=np.asarray([a.coord for a in frame.atoms]);analysis.add(xyz);far=xyz.copy();far[6:,0]+=10;analysis.add(far);analysis.add(xyz)
     r=analysis.result();files=write_interaction_bundle(r,tmp_path,'test',times=np.array([0,100,200]),replicates=200)
-    report=json.loads(Path(files['interaction_json']).read_text())
+    report=json.loads(Path(files['interaction_json']).read_text(encoding="utf-8"))
     assert report['edges'][0]['observed_occupancy']==pytest.approx(2/3)
     assert report['edges'][0]['denominator_frames']==3
     assert all(Path(p).is_file() for p in files.values())
@@ -188,12 +188,12 @@ def test_complete_static_views_and_explicit_opt_out_do_not_reuse_stale_chemistry
         assert Path(files[name]).is_file()
     assert not list(tmp_path.glob('*.html')) and 'analysis_html' not in files and 'analysis_report_data_json' not in files
     assert Path(files['analysis_evidence_csv']).name.startswith('toy sample')
-    report=json.loads((tmp_path/(prefix+'_interactions.json')).read_text())
+    report=json.loads((tmp_path/(prefix+'_interactions.json')).read_text(encoding="utf-8"))
     assert report['residues'][0]['mean_hydrogen_bonded_waters'] is None
     files=static_hydration_bundle(frame,tmp_path,prefix=prefix,sasa_samples=32,dpi=60,analysis_options={'skip_interactions':True,'skip_density':True})
     # The stale interaction and density files of the first run are not reused.
     assert 'interaction_json' not in files and 'water_density_json' not in files
-    scene=json.loads(Path(files['analysis_scene_json']).read_text())
+    scene=json.loads(Path(files['analysis_scene_json']).read_text(encoding="utf-8"))
     assert scene['contacts']==[] and not scene['surfaces']
     import csv
     with open(files['analysis_evidence_csv'],newline='',encoding='utf-8') as handle:

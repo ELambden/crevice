@@ -57,7 +57,7 @@ def write_json(path, value):
     value : object
         JSON-serialisable value. NaN or infinity raises ``ValueError``.
     """
-    Path(path).write_text(json.dumps(value, indent=2, allow_nan=False)+'\n')
+    Path(path).write_text(json.dumps(value, indent=2, allow_nan=False)+'\n', encoding="utf-8", newline="\n")
 
 
 def sha256(path):
@@ -95,9 +95,23 @@ def file_record(path, base=None):
     dict
         ``path`` (relative to ``base`` or absolute) and ``sha256``.
     """
-    import os
     p = Path(path).resolve(strict=True)
-    return {'path': os.path.relpath(p, base) if base else str(p), 'sha256': sha256(p)}
+    return {'path': _relative_path(p, base) if base else str(p), 'sha256': sha256(p)}
+
+
+def _relative_path(path, base):
+    """``path`` relative to ``base`` with ``/`` separators, or absolute when no relative path exists.
+
+    On Windows a file on another drive than ``base`` has no relative path;
+    its absolute path is recorded instead (a stored absolute path is used as is
+    when the definition is read).
+    """
+    import os
+    try:
+        relative = os.path.relpath(path, base)
+    except ValueError:
+        return str(Path(path).resolve())
+    return relative if os.sep == '/' else relative.replace(os.sep, '/')
 
 
 def _keys(value, required, optional=(), label='definition'):
@@ -259,7 +273,7 @@ def load_definition(path):
             if key in out:raise ValueError(f'Duplicate JSON key {key}')
             out[key]=value
         return out
-    data=json.loads(path.read_text(),object_pairs_hook=unique)
+    data=json.loads(path.read_text(encoding="utf-8"),object_pairs_hook=unique)
     validate_definition(data)
     assets={}
     records={'topology':data['system']['topology'],'trajectory':data['system']['trajectory']}
@@ -718,7 +732,6 @@ def prepare_region(path, output_dir, *, annotate=None, radii: RadiusSet | str | 
 
 def _prepare_region(path, output_dir, used, check):
     """Body of :func:`prepare_region`, run with the chosen radius set ``used`` in effect."""
-    import os
     import numpy as np
     from scipy.spatial import cKDTree
     from .trajectory import load_trajectory_report,align_frame_report
@@ -777,7 +790,7 @@ def _prepare_region(path, output_dir, used, check):
     prepared=deepcopy(data)
     prepared['schema_version']=CURRENT_SCHEMA_VERSION;prepared['radii']=used.provenance()
     for key in ['topology','trajectory']:
-        if assets[key] is not None:prepared['system'][key]={**system[key],'path':os.path.relpath(assets[key],root)}
+        if assets[key] is not None:prepared['system'][key]={**system[key],'path':_relative_path(assets[key],root)}
     prepared['reference']={'kind':'existing_dx','asset':file_record(reference_path,root)}
     prepared['prepared']={'request_sha256':sha256(path),'frame_contract':frame_contract(frame),'proposal':proposal,
                            'definition':'Reference fixed in the declared source frame; preserve separate region IDs for alternative assignments'}

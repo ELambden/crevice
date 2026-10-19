@@ -90,7 +90,7 @@ def test_viewer_structure_preserves_selected_model_and_chain_identity(tmp_path):
     assert len(read.atoms) == 2
     assert read.atoms[0].chain_id != read.atoms[1].chain_id
     assert np.allclose([a.coord for a in read.atoms],[a.coord for a in frame.atoms],atol=.0005)
-    mapping = json.loads(path.with_suffix('.identities.json').read_text())
+    mapping = json.loads(path.with_suffix('.identities.json').read_text(encoding="utf-8"))
     assert mapping['original_serials_in_viewer_order'] == [17,98]
     assert mapping['chain_mapping']['A'] == 'A'
 
@@ -101,7 +101,7 @@ def mixed_gro(path):
           (4,'DOPC','C1',5,(.5,.2,.3))]
     path.write_text('mixed selection\n5\n'+''.join(
         f'{r:5d}{res:<5}{name:>5}{i:5d}{x:8.3f}{y:8.3f}{z:8.3f}\n'
-        for r,res,name,i,(x,y,z) in rows)+'   3.0 3.0 3.0\n')
+        for r,res,name,i,(x,y,z) in rows)+'   3.0 3.0 3.0\n', encoding="utf-8", newline="\n")
     return path
 
 
@@ -141,7 +141,7 @@ def test_native_pymol_relocated_rotated_cast(channel_display,tmp_path,split_regi
     done=subprocess.run([sys.executable,str(runner),str(relocated/'crevice_volume.pml'),
                          '--output',str(tmp_path/'render')],capture_output=True,text=True,timeout=200)
     assert done.returncode == 0, done.stdout+done.stderr
-    report=json.loads((tmp_path/'render/pymol_verification.json').read_text())
+    report=json.loads((tmp_path/'render/pymol_verification.json').read_text(encoding="utf-8"))
     assert report['source_grid_occupied_samples'] > c.point_count
     assert report['helper_grid_objects']==[]
     assert report['protein_representation_atoms']['sticks']==0
@@ -161,16 +161,16 @@ def test_native_geometry_rejects_matching_wrong_transform_metadata(channel_displ
     structure=write_viewer_structure(moved,root/'viewer.pdb')
     files=write_volume_viewer_bundle(c,structure_path=structure,output_dir=root,frame=moved,profile=p)
     metadata_path=Path(files['volume_metadata_json'])
-    metadata=json.loads(metadata_path.read_text())
+    metadata=json.loads(metadata_path.read_text(encoding="utf-8"))
     old=metadata['pymol_local_to_input_matrix']
     wrong=np.eye(4).ravel().tolist()
     scene=Path(files['volume_pml'])
-    scene.write_text(scene.read_text().replace(repr(old),repr(wrong)))
+    scene.write_text(scene.read_text(encoding="utf-8").replace(repr(old),repr(wrong)), encoding="utf-8", newline="\n")
     metadata['pymol_local_to_input_matrix']=wrong
-    metadata_path.write_text(json.dumps(metadata))
+    metadata_path.write_text(json.dumps(metadata), encoding="utf-8", newline="\n")
     runner=Path(__file__).resolve().parents[1]/'scripts/check_pymol.py'
     done=subprocess.run([sys.executable,str(runner),str(scene),'--output',str(tmp_path/'render')],capture_output=True,text=True,timeout=200)
-    report=json.loads((tmp_path/'render/pymol_verification.json').read_text())
+    report=json.loads((tmp_path/'render/pymol_verification.json').read_text(encoding="utf-8"))
     assert done.returncode==1
     assert report['alignment_max_error_A']<.001  # the former check is fooled
     assert report['extent_max_error_A']<.001
@@ -226,7 +226,7 @@ def test_native_residue_overlay_survives_atom_sorting_and_relocation(channel_dis
     runner=Path(__file__).resolve().parents[1]/'scripts/check_pymol.py'
     done=subprocess.run([sys.executable,str(runner),str(relocated/'crevice_residue_context.pml'),'--output',str(tmp_path/'render')],capture_output=True,text=True,timeout=200)
     assert done.returncode==0,done.stdout+done.stderr
-    result=json.loads((tmp_path/'render/pymol_verification.json').read_text())
+    result=json.loads((tmp_path/'render/pymol_verification.json').read_text(encoding="utf-8"))
     assert result['residue_highlights_passed']
     assert result['residue_sticks_passed']
     assert result['residue_highlights']['lining']['expected_atoms']>0
@@ -246,14 +246,14 @@ def test_native_vmd_residue_sticks_relocate_and_reject_coordinate_mismatch(chann
     command=[sys.executable,str(runner),str(relocated/'crevice_residue_context.vmd'),'--output',str(tmp_path/'render')]
     done=subprocess.run(command,capture_output=True,text=True,timeout=180)
     assert done.returncode==0,done.stdout+done.stderr
-    native=json.loads((tmp_path/'render/vmd_verification.json').read_text())
+    native=json.loads((tmp_path/'render/vmd_verification.json').read_text(encoding="utf-8"))
     assert native['residue_sticks_passed']
-    reference=relocated/'crevice_residue_reference.tsv';lines=reference.read_text().splitlines()
-    fields=lines[0].split();fields[1]=str(float(fields[1])+2);lines[0]='\t'.join(fields);reference.write_text('\n'.join(lines)+'\n')
+    reference=relocated/'crevice_residue_reference.tsv';lines=reference.read_text(encoding="utf-8").splitlines()
+    fields=lines[0].split();fields[1]=str(float(fields[1])+2);lines[0]='\t'.join(fields);reference.write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n")
     command[-1]=str(tmp_path/'rejected')
     done=subprocess.run(command,capture_output=True,text=True,timeout=60)
     assert done.returncode!=0
-    assert 'Residue reference coordinates differ' in (tmp_path/'rejected/vmd.log').read_text()
+    assert 'Residue reference coordinates differ' in (tmp_path/'rejected/vmd.log').read_text(encoding="utf-8")
 
 
 def test_mouth_guides_are_opt_in_and_non_channel_casts_are_violet(channel_display, tmp_path):
@@ -263,27 +263,27 @@ def test_mouth_guides_are_opt_in_and_non_channel_casts_are_violet(channel_displa
     assert cast_rgb(cast) == CHANNEL_CAST_RGB
     plain = write_volume_viewer_bundle(cast, structure_path=tmp_path/'p.pdb', output_dir=tmp_path/'plain',
                                        frame=frame, profile=profile)
-    scene = json.loads(Path(plain['scene_json']).read_text())
+    scene = json.loads(Path(plain['scene_json']).read_text(encoding="utf-8"))
     assert scene['mouth_rings'] and not scene['mouth_rings_drawn']
-    assert 'radius 0.065' not in Path(plain['volume_tcl']).read_text()
-    assert '.cylinder' not in Path(plain['mouth_guides_bild']).read_text()
-    assert 'mouths.bild' not in Path(plain['volume_cxc']).read_text()
-    meta = json.loads(Path(plain['volume_metadata_json']).read_text())
+    assert 'radius 0.065' not in Path(plain['volume_tcl']).read_text(encoding="utf-8")
+    assert '.cylinder' not in Path(plain['mouth_guides_bild']).read_text(encoding="utf-8")
+    assert 'mouths.bild' not in Path(plain['volume_cxc']).read_text(encoding="utf-8")
+    meta = json.loads(Path(plain['volume_metadata_json']).read_text(encoding="utf-8"))
     assert meta['channel_mouths'] and meta['mouth_guides_drawn'] is False
     with display_guides(mouth_guides=True):
         guided = write_volume_viewer_bundle(cast, structure_path=tmp_path/'p.pdb', output_dir=tmp_path/'rings',
                                             frame=frame, profile=profile)
-    assert json.loads(Path(guided['scene_json']).read_text())['mouth_rings_drawn']
-    assert 'radius 0.065' in Path(guided['volume_tcl']).read_text()
-    assert 'mouths.bild' in Path(guided['volume_cxc']).read_text()
+    assert json.loads(Path(guided['scene_json']).read_text(encoding="utf-8"))['mouth_rings_drawn']
+    assert 'radius 0.065' in Path(guided['volume_tcl']).read_text(encoding="utf-8")
+    assert 'mouths.bild' in Path(guided['volume_cxc']).read_text(encoding="utf-8")
     # Every non-channel cast takes the violet default, in all three viewers.
     other = replace(cast, mode='rolling')
     assert cast_rgb(other) == NON_CHANNEL_CAST_RGB
     files = write_volume_viewer_bundle(other, structure_path=tmp_path/'p.pdb', output_dir=tmp_path/'other',
                                       frame=frame)
-    assert f'color #2 {NON_CHANNEL_CAST_HEX}' in Path(files['volume_cxc']).read_text()
-    assert repr(list(NON_CHANNEL_CAST_RGB)) in Path(files['volume_pml']).read_text()
-    assert 'color change rgb 10 0.659 0.333 0.969' in Path(files['volume_tcl']).read_text()
+    assert f'color #2 {NON_CHANNEL_CAST_HEX}' in Path(files['volume_cxc']).read_text(encoding="utf-8")
+    assert repr(list(NON_CHANNEL_CAST_RGB)) in Path(files['volume_pml']).read_text(encoding="utf-8")
+    assert 'color change rgb 10 0.659 0.333 0.969' in Path(files['volume_tcl']).read_text(encoding="utf-8")
 
 
 def test_profile_mouth_brackets_are_opt_in(channel_display, tmp_path):

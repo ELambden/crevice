@@ -123,6 +123,13 @@ the footprint. Missing residues can affect the sequence-distance rule for
 partners. For a cast with several regions, run the command on each
 `regions/region_*.dx` map as well as on the combined map. The method is
 detailed in [Trajectory profiles and residue evidence](../TRAJECTORY_RESIDUE_METHODS.md).
+
+The typed residue interactions count directional hydrogen bonds only between
+explicit hydrogens. Most crystal and cryo-EM structures have none, so for them
+the interactions list salt-bridge and aromatic candidates but no hydrogen
+bonds; a missing hydrogen bond is not evidence that none forms. See
+[Limitations](../getting-started/limitations.md) for the caveats shared by
+all tools.
 :::
 
 The [4PYP tutorial](../examples/4pyp-cavity-residues.md) walks through this

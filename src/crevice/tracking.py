@@ -518,10 +518,9 @@ def track_cavities(topology, trajectory=None, *, selection="protein", start=0, s
         if workers == 1:
             results = [_safe_measure(f, reference, settings) for f in frames]
         else:
-            import multiprocessing as mp
             from concurrent.futures import ProcessPoolExecutor
-            context = mp.get_context("fork" if "fork" in mp.get_all_start_methods() else "spawn")
-            with ProcessPoolExecutor(max_workers=int(workers), mp_context=context, initializer=_init_worker,
+            from .cavity_trajectory import _process_context
+            with ProcessPoolExecutor(max_workers=int(workers), mp_context=_process_context(), initializer=_init_worker,
                                      initargs=(frames, reference, settings, active_radii())) as pool:
                 results = [None] * len(frames)
                 for i, rec in pool.map(_measure_worker, range(len(frames))):
@@ -768,7 +767,7 @@ def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: i
                "identities": len(result["lifetimes"]), "event_counts": counts,
                "most_persistent": [r for r in sorted(result["lifetimes"], key=lambda r: -r["frames_present"])[:10]]}
     path = directory / f"{prefix}_tracking.json"
-    path.write_text(json.dumps(summary, indent=1, default=str) + "\n")
+    path.write_text(json.dumps(summary, indent=1, default=str) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     if figure:
         written.append(plot_tracking(result, directory / f"{prefix}_tracking.png", dpi=dpi))

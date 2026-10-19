@@ -267,7 +267,7 @@ def _tcl(scene,root,mode,annotate=False):
            'color scale method RGB','color scale min 0','color scale max 1',
            'for {set i 0} {$i<$crevice_palette_size} {incr i} {set p [expr {double($i)/($crevice_palette_size-1)}]; color change rgb [expr {$crevice_palette_start+$i}] [expr {1-$p}] 0 $p}']
     expected=root/(scene['prefix']+'_analysis_reference.tsv')
-    geometry=np.load(root/scene['geometry_npz']);expected.write_text(''.join(f'{i}\t{p[0]:.9f}\t{p[1]:.9f}\t{p[2]:.9f}\n' for i,p in enumerate(geometry['protein_coords_A'],1)));geometry.close()
+    geometry=np.load(root/scene['geometry_npz']);expected.write_text(''.join(f'{i}\t{p[0]:.9f}\t{p[1]:.9f}\t{p[2]:.9f}\n' for i,p in enumerate(geometry['protein_coords_A'],1)), encoding="utf-8", newline="\n");geometry.close()
     lines += ['set crevice_check [open [file join $crevice_root '+q(expected.name)+'] r]',
               'set crevice_expected [dict create]',
               'foreach line [split [read $crevice_check] "\\n"] {if {[llength $line]==4} {dict set crevice_expected [lindex $line 0] [lrange $line 1 3]}}',
@@ -489,27 +489,27 @@ def write_scene_scripts(output_dir,prefix,*,annotate=None):
     * White background, orthographic camera, ambient occlusion.
     """
     import numpy as np
-    root=Path(output_dir).resolve();scene_path=root/(prefix+'_analysis_scene.json');scene=json.loads(scene_path.read_text())
+    root=Path(output_dir).resolve();scene_path=root/(prefix+'_analysis_scene.json');scene=json.loads(scene_path.read_text(encoding="utf-8"))
     annotate=annotations_enabled()
     scene['annotations']=scene_annotation_record(scene_texts(scene),drawn=annotate)
-    scene_path.write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n')
+    scene_path.write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     files={};reference_written=False
     from .outputs import wants
     for mode,ending in [('hydration','_analysis'),('network','_analysis_network')]:
         p=root/(prefix+ending+'.pml')
         pml=PML.replace('__LEGEND__',PML_LEGEND if annotate else '').replace('__REGION_STATUS__',PML_REGION_STATUS if annotate else '')
         if wants(p):
-            p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__FALLBACK__',repr(str(root))).replace('__MODE__',mode));files[mode+'_pml']=str(p)
+            p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__FALLBACK__',repr(str(root))).replace('__MODE__',mode), encoding="utf-8", newline="\n");files[mode+'_pml']=str(p)
         tcl_paths=[root/(prefix+ending+'.'+extension) for extension in ['vmd','tcl']]
         if any(wants(p) for p in tcl_paths):
             text=_tcl(scene,root,mode,annotate);reference_written=True
             for extension,p in zip(['vmd','tcl'],tcl_paths):
-                p.write_text(text);files[mode+'_'+extension]=str(p)
+                p.write_text(text, encoding="utf-8", newline="\n");files[mode+'_'+extension]=str(p)
         loader=root/(prefix+ending+'_chimerax.py')
         cxc=CXC_PY.replace('__LEGEND__',CXC_LEGEND if annotate else '').replace('__LABEL_VISIBILITY__',CXC_LABEL_VISIBILITY if annotate else '')
         if wants(loader):
-            loader.write_text(cxc.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode));files[mode+'_chimerax_python']=str(loader)
-            p=root/(prefix+ending+'.cxc');p.write_text('open '+json.dumps(loader.name)+'\n');files[mode+'_cxc']=str(p)
+            loader.write_text(cxc.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode), encoding="utf-8", newline="\n");files[mode+'_chimerax_python']=str(loader)
+            p=root/(prefix+ending+'.cxc');p.write_text('open '+json.dumps(loader.name)+'\n', encoding="utf-8", newline="\n");files[mode+'_cxc']=str(p)
     lines=[]
     for edge in scene['contacts']:
         lines.append('.color '+' '.join(map(str,edge['color_rgb'])))
@@ -520,10 +520,10 @@ def write_scene_scripts(output_dir,prefix,*,annotate=None):
                 lines.append('.cylinder '+' '.join(f'{v:.9g}' for v in [*p,*q])+' 0.065')
     p=root/(prefix+'_analysis_contacts.bild')
     if wants(p):
-        p.write_text('\n'.join(lines)+'\n');files['analysis_contacts_bild']=str(p)
+        p.write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n");files['analysis_contacts_bild']=str(p)
     if reference_written:
         files['analysis_reference_tsv']=str(root/(prefix+'_analysis_reference.tsv'))
     render=root/(prefix+'_analysis_render.cxc')
     if wants(render):
-        render.write_text('open '+json.dumps(prefix+'_analysis.cxc')+'\nsave '+json.dumps(prefix+'_analysis_chimerax.png')+' width 2400 height 1800 supersample 3\n');files['analysis_chimerax_render']=str(render)
+        render.write_text('open '+json.dumps(prefix+'_analysis.cxc')+'\nsave '+json.dumps(prefix+'_analysis_chimerax.png')+' width 2400 height 1800 supersample 3\n', encoding="utf-8", newline="\n");files['analysis_chimerax_render']=str(render)
     return files

@@ -143,23 +143,23 @@ def test_cli_auto_is_the_default_and_is_reported(tmp_path, capsys):
     path = tmp_path / "narrow.pdb"
     path.write_text("\n".join(
         f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
-        for a in frame.atoms) + "\nEND\n")
+        for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
     common = ["--axis", "z", "--origin", "0,0,-4", "--search-radius", "7", "--samples", "25",
               "--section-spacing", "0.5"]
     assert main(["profile", str(path), "-o", str(tmp_path / "auto.json"), *common]) == 0
     out = capsys.readouterr().out
     assert "enclosure_radius=" in out and "(auto:" in out
-    data = json.loads((tmp_path / "auto.json").read_text())
+    data = json.loads((tmp_path / "auto.json").read_text(encoding="utf-8"))
     assert data["metadata"]["enclosure_probe_selection"]["mode"] == "auto"
     assert main(["profile", str(path), "-o", str(tmp_path / "auto2.json"), "--enclosure-radius", "auto", *common]) == 0
-    assert json.loads((tmp_path / "auto2.json").read_text()) == data
+    assert json.loads((tmp_path / "auto2.json").read_text(encoding="utf-8")) == data
     with pytest.raises(SystemExit):
         main(["profile", str(path), "--enclosure-radius", "wide", *common])
     capsys.readouterr()
     # An explicit probe below the constriction resolves without any selection record.
     assert main(["profile", str(path), "-o", str(tmp_path / "fixed.json"), "--enclosure-radius", "0.5", *common]) == 0
     assert "(auto:" not in capsys.readouterr().out
-    assert "enclosure_probe_selection" not in json.loads((tmp_path / "fixed.json").read_text())["metadata"]
+    assert "enclosure_probe_selection" not in json.loads((tmp_path / "fixed.json").read_text(encoding="utf-8"))["metadata"]
 
 
 def test_publish_records_the_choice_or_the_refusal(tmp_path):
@@ -169,20 +169,20 @@ def test_publish_records_the_choice_or_the_refusal(tmp_path):
         path = tmp_path / f"{name}.pdb"
         path.write_text("\n".join(
             f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
-            for a in frame.atoms) + "\nEND\n")
+            for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
         out = tmp_path / name
         with pytest.warns(RuntimeWarning) if not resolved else _no_warning_check():
             assert main(["publish", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,-4",
                          "--search-radius", "7", "--samples", "25", "--section-spacing", "0.5",
                          "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "40"]) == 0
-        manifest = json.loads((out / f"{name}_manifest.json").read_text())
+        manifest = json.loads((out / f"{name}_manifest.json").read_text(encoding="utf-8"))
         probe = manifest["profile_status"]["enclosure_probe"]
         assert probe["mode"] == "auto"
         if resolved:
             assert probe["chosen_A"] is not None and probe["candidates_tried"]
         else:
             assert probe["chosen_A"] is None and probe["fallback_cast_probe_A"] == 0.8
-            status = json.loads((out / f"{name}_profile_status.json").read_text())
+            status = json.loads((out / f"{name}_profile_status.json").read_text(encoding="utf-8"))
             assert status["enclosure_probe_selection"]["chosen_A"] is None
 
 
@@ -275,7 +275,7 @@ def test_trajectory_fixed_axis_scan_records_no_probe():
 def _write_pdb(frame, path):
     path.write_text("\n".join(
         f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
-        for a in frame.atoms) + "\nEND\n")
+        for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
     return path
 
 
@@ -290,16 +290,16 @@ def test_trajectory_cli_defaults_to_auto_and_records_the_choice(tmp_path, capsys
     out = capsys.readouterr().out
     assert "auto, chosen once on the reference frame and fixed for every frame" in out
     assert len(short_ladder) == 1
-    data = json.loads((tmp_path / "auto.json").read_text())
+    data = json.loads((tmp_path / "auto.json").read_text(encoding="utf-8"))
     probe = data["metadata"]["enclosure_probe"]
     assert probe["mode"] == "auto" and probe["chosen_A"] in SHORT_LADDER
-    with (tmp_path / "auto_frames.csv").open() as handle:
+    with (tmp_path / "auto_frames.csv").open(encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     assert len(rows) == 3 and {float(r["enclosure_radius_A"]) for r in rows} == {probe["chosen_A"]}
     short_ladder.clear()
     assert main(["trajectory", *paths, "-o", str(tmp_path / "fixed.json"), "--enclosure-radius", "0.5", *common]) == 0
     assert "chosen once" not in capsys.readouterr().out and short_ladder == []
-    fixed = json.loads((tmp_path / "fixed.json").read_text())["metadata"]["enclosure_probe"]
+    fixed = json.loads((tmp_path / "fixed.json").read_text(encoding="utf-8"))["metadata"]["enclosure_probe"]
     assert fixed["mode"] == "explicit" and fixed["chosen_A"] == 0.5
 
 
@@ -322,12 +322,12 @@ def test_static_suite_and_benchmark_default_to_auto(tmp_path, short_ladder):
         # The 3 A measurement probe exceeds the ~2.3 A clearance: an unresolved
         # sensitivity row, not a failed system.
         assert system["status"] == "ok" and system["profile_sensitivity_unresolved_probe_radii"] == [3.0]
-        with open(tmp_path / label / "1GRM" / "1GRM_profile_sensitivity.csv") as handle:
+        with open(tmp_path / label / "1GRM" / "1GRM_profile_sensitivity.csv", encoding="utf-8") as handle:
             sensitivity = list(csv.DictReader(handle))
         assert [r["status"] for r in sensitivity] == ["resolved", "unresolved"]
         assert {float(r["enclosure_radius_A"]) for r in sensitivity} == {system["enclosure_radius"]}
         assert result["parameters"]["enclosure_radius"] == ("auto" if enclosure is None else 0.8)
-        with open(result["summary_csv"]) as handle:
+        with open(result["summary_csv"], encoding="utf-8") as handle:
             rows[label] = next(csv.DictReader(handle))
     assert rows["auto"]["enclosure_probe_mode"] == "auto" and float(rows["auto"]["enclosure_radius_A"]) in SHORT_LADDER
     assert rows["fixed"]["enclosure_probe_mode"] == "explicit" and float(rows["fixed"]["enclosure_radius_A"]) == 0.8
@@ -336,7 +336,7 @@ def test_static_suite_and_benchmark_default_to_auto(tmp_path, short_ladder):
         output = tmp_path / f"benchmark_{label}.json"
         assert main(["benchmark", "1GRM", "--cache-dir", str(cache), "--format", "pdb", "--samples", "11",
                      "--search-radius", "8", "--output", str(output), *extra]) == 0
-        row = json.loads(output.read_text())["benchmarks"][0]
+        row = json.loads(output.read_text(encoding="utf-8"))["benchmarks"][0]
         assert row["status"] == "ok" and row["enclosure_probe_mode"] == ("auto" if not extra else "explicit")
         assert row["enclosure_radius"] == (float(rows["auto"]["enclosure_radius_A"]) if not extra else 0.8)
 
@@ -365,7 +365,7 @@ def test_pinned_auto_probe_falls_back_per_frame_and_records_it(narrow, leaky, tm
     assert fallback["enabled"] and fallback["fallback_frames"] == 1 and fallback["pinned_frames"] == 2
     assert fallback["fallback_frame_indices"] == [middle.frame_index]
     write_trajectory_csv(result, tmp_path / "f.csv", tmp_path / "p.csv")
-    rows = list(csv.DictReader(open(tmp_path / "f.csv")))
+    rows = list(csv.DictReader(open(tmp_path / "f.csv", encoding="utf-8")))
     assert [r["enclosure_probe_source"] for r in rows] == sources
     assert float(rows[1]["enclosure_radius_A"]) == middle.profile.metadata["enclosure_radius_A"]
 

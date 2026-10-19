@@ -68,7 +68,7 @@ def _numbers(out: Path, prefix: str) -> dict:
     numbers = {}
     manifest = out / f'{prefix}_manifest.json'
     if manifest.is_file():
-        data = json.loads(manifest.read_text())
+        data = json.loads(manifest.read_text(encoding="utf-8"))
         if 'void_cast' in data:
             numbers['void_cast_volume_A3'] = data['void_cast']['total_volume']
         status = data.get('profile_status')
@@ -76,7 +76,7 @@ def _numbers(out: Path, prefix: str) -> dict:
             numbers['profile_status'] = status.get('status')
     profile = out / f'{prefix}_profile.json'
     if profile.is_file():
-        numbers['min_radius_A'] = json.loads(profile.read_text())['min_radius']
+        numbers['min_radius_A'] = json.loads(profile.read_text(encoding="utf-8"))['min_radius']
     frames = out / f'{prefix}_cavity_frames.csv'
     if frames.is_file():
         import csv
@@ -84,7 +84,7 @@ def _numbers(out: Path, prefix: str) -> dict:
             numbers['cavity_volumes_A3'] = [float(r['volume_A3']) for r in csv.DictReader(handle)]
     hydration = out / f'{prefix}_hydration.json'
     if hydration.is_file():
-        data = json.loads(hydration.read_text())
+        data = json.loads(hydration.read_text(encoding="utf-8"))
         numbers['hydration_residue_count'] = data.get('residue_count')
     trajectory = out / f'{prefix}_frames.csv'
     if trajectory.is_file():
@@ -93,10 +93,10 @@ def _numbers(out: Path, prefix: str) -> dict:
             numbers['frame_min_radius_A'] = [r['min_radius_A'] for r in csv.DictReader(handle)]
     fingerprint = out / f'{prefix}_fingerprint.json'
     if fingerprint.is_file():
-        numbers['g_macro_pS'] = json.loads(fingerprint.read_text())['conductance']['g_macro_pS']
+        numbers['g_macro_pS'] = json.loads(fingerprint.read_text(encoding="utf-8"))['conductance']['g_macro_pS']
     evidence = out / f'{prefix}_residue_evidence.json'
     if evidence.is_file():
-        data = json.loads(evidence.read_text())
+        data = json.loads(evidence.read_text(encoding="utf-8"))
         numbers['lining_residues'] = len(data.get('lining_residues', []))
     return numbers
 

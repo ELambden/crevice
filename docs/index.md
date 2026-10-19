@@ -187,6 +187,9 @@ pip install "crevice[science]"   # plus every optional scientific library
 CREVICE needs Python 3.10 or newer. [Installation](getting-started/installation.md)
 covers the extras, installing from source and the molecular viewers.
 
+Before you interpret a result, read [Limitations](getting-started/limitations.md):
+the caveats that apply to every tool, in one page.
+
 ## Getting help
 
 Questions, ideas and bug reports are all welcome as
@@ -206,6 +209,7 @@ which version and settings you used.
 Home <self>
 getting-started/installation
 getting-started/basic-usage
+getting-started/limitations
 tools/index
 examples/index
 reference/cli/index

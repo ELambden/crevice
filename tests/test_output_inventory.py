@@ -74,7 +74,7 @@ def published(tmp_path_factory, channel_pdb):
 
 def test_publish_default_inventory_is_csv_first_without_html(published):
     _assert_clean_inventory(published)
-    manifest = json.loads((published / 'c_manifest.json').read_text())
+    manifest = json.loads((published / 'c_manifest.json').read_text(encoding="utf-8"))
     files = manifest['files']
     for key in ['profile_csv', 'residue_contacts_csv', 'void_cast_csv', 'cavities_csv', 'tunnels_csv',
                 'tunnel_points_csv', 'network_nodes_csv', 'network_edges_csv', 'hydration_residues_csv']:
@@ -89,21 +89,21 @@ def test_publish_default_inventory_is_csv_first_without_html(published):
     assert {'node_id', 'kind', 'degree', 'residue_degree', 'x_A'} <= set(_header(files['network_nodes_csv']))
     assert {'source', 'target', 'interaction', 'distance_A', 'cutoff_A'} <= set(_header(files['network_edges_csv']))
     # The CSVs hold the same numbers as the retained JSON records.
-    profile = json.loads(Path(files['profile_json']).read_text())
+    profile = json.loads(Path(files['profile_json']).read_text(encoding="utf-8"))
     assert min(float(r['radius_A']) for r in _rows(files['profile_csv'])) == pytest.approx(profile['min_radius'], abs=0)
     volumes = [float(r['volume_A3']) for r in _rows(files['void_cast_csv'])]
     assert sum(volumes) == pytest.approx(manifest['void_cast']['total_volume'], abs=1e-9)
-    tunnels = json.loads(Path(files['tunnels_json']).read_text())['tunnels']
+    tunnels = json.loads(Path(files['tunnels_json']).read_text(encoding="utf-8"))['tunnels']
     assert len(_rows(files['tunnels_csv'])) == len(tunnels)
     assert len(_rows(files['tunnel_points_csv'])) == sum(len(t['points']) for t in tunnels)
-    network = json.loads(Path(files['network_json']).read_text())
+    network = json.loads(Path(files['network_json']).read_text(encoding="utf-8"))
     assert len(_rows(files['network_edges_csv'])) == network['network']['edge_count']
     degrees = {r['node_id']: int(r['degree']) for r in _rows(files['network_nodes_csv'])}
     assert degrees == network['metrics']['degree']
 
 
 def test_hydration_views_write_frame_tables_and_no_html(published):
-    hydration = json.loads((published / 'c_hydration_manifest.json').read_text())['files']
+    hydration = json.loads((published / 'c_hydration_manifest.json').read_text(encoding="utf-8"))['files']
     assert _header(hydration['hydration_frames_csv'])[:3] == ['frame_index', 'time_ps', 'residue']
     assert {'water_count', 'sasa_A2'} <= set(_header(hydration['hydration_frames_csv']))
     assert _header(hydration['hydration_region_frames_csv'])[:2] == ['frame_index', 'time_ps']
@@ -120,7 +120,7 @@ def test_analyze_single_commands_and_trajectory_write_csv_companions(tmp_path, c
                  '--analysis', 'cavities', '--analysis', 'tunnels', '--analysis', 'network', '--analysis', 'features',
                  '--png', '--dpi', '40', '--skip-hydration', '--skip-interactions', '--out-dir', str(out), '--prefix', 'c']) == 0
     _assert_clean_inventory(out)
-    files = json.loads((out / 'c_manifest.json').read_text())['files']
+    files = json.loads((out / 'c_manifest.json').read_text(encoding="utf-8"))['files']
     assert {'profile.json', 'profile.csv', 'residues.csv', 'cavities.json', 'cavities.csv', 'tunnels.json',
             'tunnels.csv', 'tunnel_points.csv', 'network.json', 'network_nodes.csv', 'network_edges.csv',
             'features.csv', 'profile.png', 'residues.png', 'cavities.png', 'network.png'} == set(files)
@@ -159,7 +159,7 @@ def test_cast_writes_region_table_and_no_preview(tmp_path):
     assert main(['cast', str(source), '--offline', '--out-dir', str(out), '--prefix', 'p', '--min-component-volume', '30',
                  '--skip-hydration']) == 0
     _assert_clean_inventory(out)
-    manifest = json.loads((out / 'p_manifest.json').read_text())
+    manifest = json.loads((out / 'p_manifest.json').read_text(encoding="utf-8"))
     assert 'cast_preview_png' not in manifest['files'] and not list(out.glob('*.png'))
     rows = _rows(manifest['files']['void_cast_csv'])
     assert rows and sum(float(r['volume_A3']) for r in rows) == pytest.approx(manifest['void_cast']['total_volume'], abs=1e-9)

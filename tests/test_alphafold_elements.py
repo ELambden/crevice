@@ -26,7 +26,7 @@ def designed_pdb(tmp_path):
     """Alanine plus a designed residue XGD carrying a Gd atom (no tabulated radius)."""
     path = tmp_path / "designed.pdb"
     path.write_text(line(1, "N", "ALA", "N", 0.0, "ATOM") + line(2, "CA", "ALA", "C", 1.458, "ATOM")
-                    + line(3, "C1", "XGD", "C", 4.0, resid=2) + line(4, "GD1", "XGD", "GD", 6.0, resid=2) + "END\n")
+                    + line(3, "C1", "XGD", "C", 4.0, resid=2) + line(4, "GD1", "XGD", "GD", 6.0, resid=2) + "END\n", encoding="utf-8", newline="\n")
     return path
 
 
@@ -45,7 +45,7 @@ def test_designed_residue_without_radius_is_excluded_and_reported(designed_pdb):
 
 def test_user_radius_file_includes_the_element_and_is_recorded(designed_pdb, tmp_path):
     radii = write_radius_template(tmp_path / "gd.csv", elements=["GD"])
-    radii.write_text(radii.read_text().replace("# element,GD,<radius in angstrom>", "element,GD,2.10"))
+    radii.write_text(radii.read_text(encoding="utf-8").replace("# element,GD,<radius in angstrom>", "element,GD,2.10"), encoding="utf-8", newline="\n")
     frame, report = load_structure_report(designed_pdb, radii=radii)
     assert [a.name for a in frame.atoms] == ["N", "CA", "C1", "GD1"]
     assert report["excluded_no_radius_atoms"] == {} and report["radius_set"] == "gd"
@@ -61,7 +61,7 @@ def test_user_radius_file_includes_the_element_and_is_recorded(designed_pdb, tmp
 
 def test_modified_residue_keyed_by_resname_atomname(designed_pdb, tmp_path):
     path = tmp_path / "modified.json"
-    path.write_text(json.dumps({"base": "default", "atom_radii": {"XGD:GD1": 2.30}}))
+    path.write_text(json.dumps({"base": "default", "atom_radii": {"XGD:GD1": 2.30}}), encoding="utf-8", newline="\n")
     frame, report = load_structure_report(designed_pdb, radii=path)
     gd = frame.atoms[-1]
     assert gd.name == "GD1" and atom_vdw_radius(gd, path) == 2.30

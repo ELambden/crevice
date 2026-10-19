@@ -93,7 +93,7 @@ def test_cast_fills_non_circular_section_and_rotates_with_structure(channel, tmp
     assert other.total_volume == cast.total_volume
     assert other.component_count == cast.component_count
     assert np.array_equal(cast_grid(cast)[0], cast_grid(other)[0])
-    dx = write_void_cast_dx(other, tmp_path / "rotated.dx").read_text()
+    dx = write_void_cast_dx(other, tmp_path / "rotated.dx").read_text(encoding="utf-8")
     deltas = np.array([[float(v) for v in line.split()[1:]] for line in dx.splitlines() if line.startswith("delta ")])
     assert np.allclose(deltas, np.array(other.metadata["grid_basis"])*other.spacing)
     assert not np.allclose(deltas, np.eye(3)*other.spacing)
@@ -165,18 +165,18 @@ def test_cli_uses_auto_axis_and_map_scene(tmp_path):
     path = tmp_path / "wall.pdb"
     path.write_text("\n".join(
         f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
-        for a in frame.atoms) + "\nEND\n")
+        for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
     args = build_parser().parse_args(["publish", str(path), "--out-dir", str(tmp_path / "out")])
     assert args.axis == "auto"
     assert main(["publish", str(path), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--search-radius", "8",
                  "--samples", "21", "--section-spacing", "0.5", "--enclosure-radius", "0.8",
                  "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "60"]) == 0
     root = tmp_path / "out"
-    scene = (root / "wall_volume.pml").read_text()   # wall_pore_cast.pml is its --all alias
+    scene = (root / "wall_volume.pml").read_text(encoding="utf-8")   # wall_pore_cast.pml is its --all alias
     assert "wall_volume.dx" in scene and "cmd.load_cgo" in scene
     assert (root / "wall_pymol_mesh.npz").is_file()
     assert "alter " not in scene and "show surface" not in scene
-    profile = json.loads((root / "wall_profile.json").read_text())
+    profile = json.loads((root / "wall_profile.json").read_text(encoding="utf-8"))
     assert profile["method"] == "axial-connected"
 
 

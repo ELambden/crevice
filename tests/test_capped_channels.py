@@ -128,7 +128,7 @@ def _publish_capped(tmp_path, *extra):
     path = tmp_path / "capped.pdb"
     path.write_text("\n".join(
         f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
-        for a in frame.atoms) + "\nEND\n")
+        for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
     out = tmp_path / "out"
     assert main(["publish", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,0",
                  "--search-radius", "7", "--samples", "25", "--section-spacing", "0.5",
@@ -140,47 +140,47 @@ def _publish_capped(tmp_path, *extra):
 def test_publish_reports_path_type_and_draws_the_exit_leg_as_a_cast(tmp_path):
     import csv
     out = _publish_capped(tmp_path)
-    manifest = json.loads((out / "capped_manifest.json").read_text())
+    manifest = json.loads((out / "capped_manifest.json").read_text(encoding="utf-8"))
     assert manifest["profile_status"]["path_type"] == "capped_channel_lateral_exit"
     assert manifest["profile_status"]["exit_types"] == {"lower": "axial", "upper": "lateral"}
-    profile = json.loads((out / "capped_profile.json").read_text())
+    profile = json.loads((out / "capped_profile.json").read_text(encoding="utf-8"))
     assert profile["metadata"]["exits"]["upper"]["type"] == "lateral"
     assert manifest["profile_status"]["exit_leg_counts"] == {"lower": 0, "upper": 1}
     # The leg is a separate cast component; the axial volume excludes it.
-    cast = json.loads((out / "capped_void_cast.json").read_text())
+    cast = json.loads((out / "capped_void_cast.json").read_text(encoding="utf-8"))
     legs = cast["metadata"]["lateral_exit_casts"]
     assert [(leg["end"], leg["leg"], leg["kind"]) for leg in legs] == [("upper", 1, "lateral_exit")]
     assert legs[0]["volume_A3"] > 0
     assert cast["total_volume"] == sum(c["volume"] for c in cast["components"])
     assert all(c["kind"] != "lateral_exit" for c in cast["components"])
     assert manifest["profile_status"]["lateral_exit_cast_volumes_A3"] == {"upper_1": legs[0]["volume_A3"]}
-    rows = list(csv.DictReader((out / "capped_void_cast.csv").open()))
+    rows = list(csv.DictReader((out / "capped_void_cast.csv").open(encoding="utf-8")))
     assert [r["label"] for r in rows if r["kind"] == "lateral_exit"] == ["lateral_exit_upper_1"]
     assert (out / "capped_exit_casts.dx").exists()
-    metadata = json.loads((out / "capped_volume_metadata.json").read_text())
+    metadata = json.loads((out / "capped_volume_metadata.json").read_text(encoding="utf-8"))
     assert metadata["measured_volume_A3"] == cast["total_volume"]
     assert metadata["display_points"] > metadata["measurement_points"]
     # Lines and rings are opt-in; their coordinates stay in the scene JSON.
-    geometry = json.loads((out / "capped_scene.json").read_text())
+    geometry = json.loads((out / "capped_scene.json").read_text(encoding="utf-8"))
     assert [(leg["end"], leg["leg"]) for leg in geometry["exit_paths"]] == [("upper", 1)]
     assert geometry["mouth_rings"] and not geometry["mouth_rings_drawn"] and not geometry["exit_paths_drawn"]
-    scene = (out / "capped_volume.pml").read_text()
+    scene = (out / "capped_volume.pml").read_text(encoding="utf-8")
     assert "crevice_exits" not in scene and 'crevice_scene.get("mouth_rings_drawn")' in scene
-    assert "0.16 0.47 0.84" not in (out / "capped_mouths.bild").read_text()
-    assert "color 23" not in (out / "capped_volume.tcl").read_text()
-    assert "capped_mouths.bild" not in (out / "capped_volume.cxc").read_text()
-    assert "color #2 #1494a1" in (out / "capped_volume.cxc").read_text()
+    assert "0.16 0.47 0.84" not in (out / "capped_mouths.bild").read_text(encoding="utf-8")
+    assert "color 23" not in (out / "capped_volume.tcl").read_text(encoding="utf-8")
+    assert "capped_mouths.bild" not in (out / "capped_volume.cxc").read_text(encoding="utf-8")
+    assert "color #2 #1494a1" in (out / "capped_volume.cxc").read_text(encoding="utf-8")
 
 
 def test_publish_guides_are_restored_by_the_options(tmp_path):
     out = _publish_capped(tmp_path, "--exit-centre-lines", "--mouth-guides")
-    assert "crevice_exits" in (out / "capped_volume.pml").read_text()
-    bild = (out / "capped_mouths.bild").read_text()
+    assert "crevice_exits" in (out / "capped_volume.pml").read_text(encoding="utf-8")
+    bild = (out / "capped_mouths.bild").read_text(encoding="utf-8")
     assert "0.16 0.47 0.84" in bild and bild.count(".cylinder") > 64
-    tcl = (out / "capped_volume.tcl").read_text()
+    tcl = (out / "capped_volume.tcl").read_text(encoding="utf-8")
     assert "color 23" in tcl and "radius 0.065" in tcl
-    assert "capped_mouths.bild" in (out / "capped_volume.cxc").read_text()
-    geometry = json.loads((out / "capped_scene.json").read_text())
+    assert "capped_mouths.bild" in (out / "capped_volume.cxc").read_text(encoding="utf-8")
+    geometry = json.loads((out / "capped_scene.json").read_text(encoding="utf-8"))
     assert geometry["mouth_rings_drawn"] and geometry["exit_paths_drawn"]
 
 

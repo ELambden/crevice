@@ -36,7 +36,7 @@ def write_wall_pdb(frame: StructureFrame, path: Path) -> None:
     for a in frame.atoms:
         lines.append(f"ATOM  {a.serial:5d} {a.name:>4s} {a.resname:>3s} {a.chain_id}{a.resid:4d}    "
                      f"{a.x:8.3f}{a.y:8.3f}{a.z:8.3f}{1.0:6.2f}{0.0:6.2f}          {a.element:>2s}")
-    path.write_text("\n".join(lines) + "\nEND\n")
+    path.write_text("\n".join(lines) + "\nEND\n", encoding="utf-8", newline="\n")
 
 
 def main():
@@ -51,7 +51,7 @@ def main():
     write_trajectory_json(analysis, root / "trajectory.json")
     write_trajectory_csv(analysis, root / "trajectory_frames.csv", root / "trajectory_profiles.csv")
     write_profile_distribution_csv(distribution, root / "profile_distribution.csv")
-    (root / "profile_distribution.json").write_text(json.dumps(distribution, indent=2) + "\n")
+    (root / "profile_distribution.json").write_text(json.dumps(distribution, indent=2) + "\n", encoding="utf-8", newline="\n")
     plot_trajectory_profiles(analysis, root / "profile_distribution.png", title="Synthetic channel: axial radius distribution")
     plot_trajectory_profiles(analysis, root / "profile_distribution.svg", title="Synthetic channel: axial radius distribution")
     structure = root / "wall.pdb"
@@ -74,7 +74,7 @@ def main():
         "sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                    for p in sorted(root.iterdir()) if p.is_file() and p.name != "manifest.json"},
     }
-    (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    (root / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(root)
 
 

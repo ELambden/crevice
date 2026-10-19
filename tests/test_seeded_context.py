@@ -65,7 +65,7 @@ def test_measured_map_without_scene_creates_all_contexts_and_preserves_samples(t
     assert cKDTree(before).query(after)[0].max()<1e-7
     for extension in ['pml','vmd','tcl','cxc']:
         assert Path(paths['residue_context_'+extension]).is_file()
-    report=json.loads(Path(paths['residue_evidence_json']).read_text())
+    report=json.loads(Path(paths['residue_evidence_json']).read_text(encoding="utf-8"))
     assert report['overlay_representation']=='cartoon_with_evidence_sticks'
     assert report['display_atom_serials']['lining']
 
@@ -78,7 +78,7 @@ def test_cast_cli_passes_explicit_seed_and_probe(two_rooms,tmp_path):
     assert main(['cast',str(structure),'--out-dir',str(out),'--prefix','rooms',
                  '--seed=-4,0,0','--probe-radius','1.8','--cavity-selection','all',
                  '--enclosure-fraction','0','--min-component-volume','1','--dpi','60','--outputs','default,extra-views'])==0
-    cast=json.loads((out/'rooms_void_cast.json').read_text())
+    cast=json.loads((out/'rooms_void_cast.json').read_text(encoding="utf-8"))
     assert cast['metadata']['seed_selection']['coordinate_A']==[-4.,0.,0.]
     assert cast['total_volume']==pytest.approx(seeded(two_rooms,1.8).total_volume)
     for extension in ['pml','vmd','tcl','cxc']:assert (out/f'rooms_pore_cast.{extension}').is_file()

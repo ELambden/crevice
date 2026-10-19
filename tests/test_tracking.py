@@ -109,5 +109,5 @@ def test_measure_frame_and_outputs(tmp_path):
     assert {p.name for p in files} >= {"t_tracking_events.csv", "t_tracking_identities.csv",
                                         "t_tracking_lifetimes.csv", "t_tracking_frames.csv", "t_tracking.json",
                                         "t_tracking.png"}
-    rows = list(csv.DictReader((tmp_path / "t_tracking_identities.csv").open()))
+    rows = list(csv.DictReader((tmp_path / "t_tracking_identities.csv").open(encoding="utf-8")))
     assert len(rows) == 2 and rows[0]["lining_residues"]

@@ -122,7 +122,7 @@ def _check_api_module_index(app: Sphinx) -> None:
     if not index.exists():
         logger.warning("API module index api/modules.rst is missing", type="crevice", subtype="api")
         return
-    listed = set(re.findall(r"^\s*crevice\.([A-Za-z_][A-Za-z0-9_]*)\s*$", index.read_text(), flags=re.M))
+    listed = set(re.findall(r"^\s*crevice\.([A-Za-z_][A-Za-z0-9_]*)\s*$", index.read_text(encoding="utf-8"), flags=re.M))
     actual = {m.name for m in pkgutil.iter_modules(crevice.__path__)} - API_EXCLUDED_MODULES
     for name in sorted(actual - listed):
         logger.warning(f"crevice.{name} is not listed in api/modules.rst", type="crevice", subtype="api")

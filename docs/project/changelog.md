@@ -3,6 +3,27 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.3.2 (19 October 2026)
+
+**Faster, more portable, more transparent; no change to any result.**
+
+- **Faster.** `region-trajectory` is about 1.8× faster, `paths` 1.2–1.6×,
+  `publish` 1.3–1.4× and `profile --lateral-exits` 1.25× on one core, with
+  every output file byte for byte the same. `scripts/timing.py` in the
+  repository reproduces the timings.
+- **Routes left out by the automatic probe.** `crevice paths` now says how
+  many routes the automatic probe left out and which `--probe-radius` shows
+  them, and lists them in `*_path_left_out.csv`. See
+  [Curved and branched pathways](../tools/paths.md).
+- **macOS and Windows** are tested automatically, parallel workers use the
+  start method those systems need, and text files are UTF-8 everywhere.
+- **[Limitations](../getting-started/limitations.md)**: one page with the
+  caveats that apply across the tools.
+- **Fixes.** The fingerprint's nearest lining residue no longer changes between
+  runs when two residues are equally close; `--help` no longer fails on
+  consoles that cannot print symbols such as ≤; `region-prepare` handles files
+  on another Windows drive.
+
 ## 0.3.1 (16 October 2026)
 
 - **Automatic probe for `crevice paths`.** `--probe-radius auto` (the default)

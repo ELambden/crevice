@@ -18,6 +18,24 @@ so CREVICE's scientific libraries don't clash with other projects. The test
 suite runs on Python 3.10 to 3.13, including a run with the oldest supported
 library versions.
 
+## Supported platforms
+
+CREVICE is pure Python and runs wherever its libraries install:
+
+| Platform | Tested automatically |
+|---|---|
+| Linux | the full test suite on Python 3.10 to 3.13, plus the oldest supported library versions |
+| macOS | the fast test suite (without the slow tests) on Python 3.10 and 3.13 |
+| Windows | the fast test suite (without the slow tests) on Python 3.10 and 3.13 |
+
+macOS and Windows support is new in version 0.3.2, so please
+[report](https://github.com/ELambden/crevice/issues) anything that behaves
+differently there. CREVICE reads and writes its text files as UTF-8, with
+Unix line endings, on every platform. Commands with `--workers` start fresh
+worker processes on macOS and Windows (on Linux they are forked); the results
+do not depend on it, but each worker receives its own copy of the input, so
+starting the workers takes a little longer and uses more memory.
+
 ## What gets installed
 
 pip brings in these libraries automatically:
@@ -60,7 +78,7 @@ install an editable copy from a clone of the repository:
 git clone https://github.com/ELambden/crevice.git
 cd crevice
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate                    # Windows: .venv\Scripts\activate
 python -m pip install -e .                   # required libraries only
 python -m pip install -e ".[science,test]"   # plus every optional library and pytest
 ```

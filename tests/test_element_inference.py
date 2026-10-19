@@ -43,7 +43,7 @@ def test_mercury_is_not_hydrogen_and_survives_the_hydrogen_filter(tmp_path):
         pdb_line(1, "CA", "ALA", "C", record="ATOM"),
         pdb_line(2, "HG", "HG", "HG", x=5.0),
         "END",
-    ]) + "\n")
+    ]) + "\n", encoding="utf-8", newline="\n")
     frame, _ = load_structure_report(path)
     mercury = [a for a in frame.atoms if a.resname == "HG"]
     assert [a.element for a in mercury] == ["HG"]
@@ -141,7 +141,7 @@ def test_element_without_radius_is_excluded_and_reported(tmp_path):
     assert default_radius_elements(atoms) == ["GD"]
     path = tmp_path / "gd.pdb"
     path.write_text(pdb_line(1, "GD", "GD", "GD") + "\n"
-                    + pdb_line(2, "CA", "ALA", "C", record="ATOM", x=5.0) + "\nEND\n")
+                    + pdb_line(2, "CA", "ALA", "C", record="ATOM", x=5.0) + "\nEND\n", encoding="utf-8", newline="\n")
     with pytest.warns(UnrecognisedElementWarning, match=r"GD \(1 atom\).*--radii"):
         frame, report = load_structure_report(path)
     assert [a.element for a in frame.atoms] == ["C"]

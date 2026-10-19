@@ -27,7 +27,7 @@ END
 
 def pdb_file(tmp_path):
     path = tmp_path / "structure.pdb"
-    path.write_text(PDB_TEXT)
+    path.write_text(PDB_TEXT, encoding="utf-8", newline="\n")
     return path
 
 

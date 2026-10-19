@@ -399,13 +399,39 @@ def auto_workers(frame_count,*,max_grid_points=2_000_000,limit=4):
     workers=max(1,min(int(limit),cpus,int(frame_count)))
     per_worker=0.3e9+400.*max_grid_points
     try:
-        with open('/proc/meminfo') as handle:
+        with open('/proc/meminfo', encoding="utf-8") as handle:
             fields={line.split(':')[0]:line.split()[1:] for line in handle}
         available=float(fields['MemAvailable'][0])*1024
         workers=max(1,min(workers,int(available//per_worker)))
     except (OSError,KeyError,ValueError,IndexError):
         pass
     return workers
+
+
+def _process_context():
+    """Multiprocessing context for the worker pools of trajectory and path analyses.
+
+    ``fork`` on Linux (workers share the parent's read-only arrays without
+    copying them); ``spawn`` on macOS and Windows, where forking a process
+    that has loaded NumPy's BLAS or system frameworks is unsafe. Every worker
+    receives its inputs and the active radius set explicitly, so results do
+    not depend on the start method. The environment variable
+    ``CREVICE_MP_START_METHOD`` (``fork``, ``spawn`` or ``forkserver``)
+    overrides the choice; the test suite uses it to run the worker tests
+    under ``spawn`` on Linux.
+
+    Returns
+    -------
+    multiprocessing context
+        The context to pass as ``mp_context``.
+    """
+    import multiprocessing as mp
+    import os
+    import sys
+    method=os.environ.get('CREVICE_MP_START_METHOD','').strip()
+    if not method:
+        method='fork' if sys.platform.startswith('linux') and 'fork' in mp.get_all_start_methods() else 'spawn'
+    return mp.get_context(method)
 
 
 _WORKER=None
@@ -523,17 +549,16 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
         results=((i,analyze_cavity_frame(frames[i],first,reference,**settings)) for i in range(n))
         pool=None
     else:
-        import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor,as_completed
         if geometry_mode=='reference-region':
             # Build the fixed regional grid once here (it is cached on the
             # reference), so forked workers inherit it instead of each
             # rebuilding the same frame-independent grid.
             from .regional_volume import regional_grid
-            regional_grid(reference,region_margin,(geometry or {}).get('probe_radius',1.4),(geometry or {}).get('max_grid_points',2_000_000))
-        # Fork shares the read-only compact coordinate trajectory on POSIX.
-        context=mp.get_context('fork' if 'fork' in mp.get_all_start_methods() else 'spawn')
-        pool=ProcessPoolExecutor(max_workers=int(workers),mp_context=context,
+            regional_grid(reference,region_margin,(geometry or {}).get('probe_radius',1.4),(geometry or {}).get('max_grid_points',2_000_000),near_only=True)
+        # Fork shares the read-only compact coordinate trajectory on Linux;
+        # spawned workers receive it through the initializer.
+        pool=ProcessPoolExecutor(max_workers=int(workers),mp_context=_process_context(),
                                 initializer=_initialize_worker,initargs=(frames,first,reference,settings,active_radii()))
         futures=[pool.submit(_analyze_worker,i) for i in range(n)]
         results=(future.result() for future in as_completed(futures))
@@ -875,7 +900,7 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
     files={}
     def path(key,suffix):
         target=root/(prefix+suffix);files[key]=str(target);return target
-    path('statistics_json','_cavity_statistics.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n')
+    path('statistics_json','_cavity_statistics.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     from .io import write_summary_statistics_csv
     write_summary_statistics_csv(report,path('statistics_summary_csv','_cavity_statistics_summary.csv'))
     np.savez_compressed(path('all_frame_arrays_npz','_cavity_frames.npz'),**arrays)
@@ -893,7 +918,7 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
           'excluded_crop_boundary_A2':row['boundary'].get('excluded_boundary_area_A2',0.) if row['boundary'] else None,
           'region_volume_components':row['matching'].get('regional_definition',{}).get('sampled_volume_components')})
     def table(target,rows):
-        if not rows:target.write_text('');return
+        if not rows:target.write_text('', encoding="utf-8", newline="\n");return
         with target.open('w',newline='',encoding='utf-8') as f:
             writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
     table(path('frames_csv','_cavity_frames.csv'),frame_rows)
@@ -913,7 +938,7 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
                         for i in range(len(frame_ids)) for j in range(len(residue_ids)) if np.isfinite(arrays['boundary_area_A2'][i,j])]
     table(path('residue_frames_csv','_cavity_residue_frames.csv'),residue_frame_rows)
     path('frame_diagnostics_json','_cavity_frame_diagnostics.json').write_text(json.dumps([
-        {k:v for k,v in row.items() if k not in {'boundary','profile','water_membership'}} for row in analysis['frames']],indent=2,allow_nan=False)+'\n')
+        {k:v for k,v in row.items() if k not in {'boundary','profile','water_membership'}} for row in analysis['frames']],indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     table(path('width_profile_csv','_cavity_width_profile.csv'),report['profile']['rows'])
     residue_rows=[]
     for row in report['residues']:
@@ -979,5 +1004,5 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
                  block_length=block_length,replicates=replicates,seed=seed,dpi=dpi))
     from .outputs import drop_blocked
     drop_blocked(files)   # figures the output plan skipped
-    path('manifest_json','_cavity_manifest.json').write_text(json.dumps({'files':files,'frame_count':len(times),'matched_frames':int(valid.sum()),'interpretation':report['limitations'],**radii_fields()},indent=2)+'\n')
+    path('manifest_json','_cavity_manifest.json').write_text(json.dumps({'files':files,'frame_count':len(times),'matched_frames':int(valid.sum()),'interpretation':report['limitations'],**radii_fields()},indent=2)+'\n', encoding="utf-8", newline="\n")
     return files

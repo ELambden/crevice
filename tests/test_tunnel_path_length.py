@@ -74,7 +74,7 @@ def test_cli_tunnel_json_reports_path_length(tmp_path):
     out = tmp_path / "tunnels.json"
     assert main(["tunnels", str(source), "-o", str(out), "--start", "0.3,0.2,0.1", "--spacing", "2",
                  "--min-radius", "0.8", "--max-tunnels", "1", "--include-hetero"]) == 0
-    tunnel = json.loads(out.read_text())["tunnels"][0]
+    tunnel = json.loads(out.read_text(encoding="utf-8"))["tunnels"][0]
     positions = [p["axis_position"] for p in tunnel["points"]]
     assert positions[0] == 0.0
     assert positions[-1] == pytest.approx(tunnel["length"])

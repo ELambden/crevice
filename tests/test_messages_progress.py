@@ -228,7 +228,7 @@ def test_trajectory_progress_goes_to_stderr_and_never_changes_outputs(tmp_path, 
     assert silenced.err == ""
 
     def payload(path):
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         data.pop("metadata", None)
         return data
 

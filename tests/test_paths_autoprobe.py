@@ -116,9 +116,9 @@ def test_probe_chosen_per_side(two_sided, tmp_path):
     assert by_side == {"+": chosen["+"]["probe_A"], "-": 0.5}
     files = {p.name for p in write_paths_outputs(result, tmp_path, prefix="t", figure=True, scenes=False)}
     assert "t_path_probes.csv" in files
-    rows = list(csv.DictReader((tmp_path / "t_paths.csv").open()))
+    rows = list(csv.DictReader((tmp_path / "t_paths.csv").open(encoding="utf-8")))
     assert {r["side"]: float(r["probe_radius_A"]) for r in rows} == by_side
-    probes = list(csv.DictReader((tmp_path / "t_path_probes.csv").open()))
+    probes = list(csv.DictReader((tmp_path / "t_path_probes.csv").open(encoding="utf-8")))
     assert sum(r["chosen"] == "True" for r in probes) == 2
 
 
@@ -158,13 +158,70 @@ def test_cli_auto_prints_choice(narrow, tmp_path, capsys):
     from crevice.cli import build_parser
     from crevice.viewer import _frame_pdb
     pdb = tmp_path / "narrow.pdb"
-    pdb.write_text(_frame_pdb(narrow))
+    pdb.write_text(_frame_pdb(narrow), encoding="utf-8", newline="\n")
     args = build_parser().parse_args(["paths", str(pdb), "-o", str(tmp_path / "out"), "--seed", "0.75,0.75,0",
                                       "--axis", "z", "--workers", "1", "--no-scenes"])
     assert args.probe_radius == "auto"
     args.func(args)
     out = capsys.readouterr().out
     assert "probe=auto chosen: + 0.5 Å, - 0.5 Å" in out
-    data = json.loads((tmp_path / "out" / "narrow_paths.json").read_text())
+    data = json.loads((tmp_path / "out" / "narrow_paths.json").read_text(encoding="utf-8"))
     assert data["settings"]["probe_selection"]["chosen_by_side"]["+"]["probe_A"] == 0.5
     assert (tmp_path / "out" / "narrow_path_probes.csv").exists()
+
+
+def test_left_out_slit_listed(slit, tmp_path):
+    auto = find_paths(slit, seed=(0.0, 0.0, 0.0), workers=1)
+    selection = auto.settings["probe_selection"]
+    assert selection["chosen_by_side"]["all"]["left_out_routes"] == 1
+    (route,) = selection["left_out_routes"]
+    assert route["route"] == "L1" and route["side"] is None and route["chosen_probe_A"] == 0.65
+    assert route["found_at_probes_A"] == [0.5, 0.55, 0.6] and route["rerun_probe_A"] == 0.6
+    assert 0.55 < route["width_A"] < 0.65 and route["mouth_A"][0] > 10.0       # leaves along the +x slit
+    assert route["bottleneck_residues"] and route["lining_residues"] and route["own_lattice_nodes"] > 0
+    assert "distinct" in selection["left_out_definition"]
+    # The branches are unchanged: the left-out route is reported, not added.
+    assert len(auto.branches) == 2 and all(b.bottleneck_radius > 2.0 for b in auto.branches)
+    # A fixed run at the suggested probe reports it as a branch.
+    fixed = find_paths(slit, seed=(0.0, 0.0, 0.0), probe_radius=route["rerun_probe_A"])
+    assert min(np.linalg.norm(np.subtract(b.exit_point, route["mouth_A"])) for b in fixed.branches) < 1.0
+    write_paths_outputs(auto, tmp_path, prefix="s", figure=False, scenes=False)
+    rows = list(csv.DictReader((tmp_path / "s_path_left_out.csv").open()))
+    assert len(rows) == 1 and rows[0]["side"] == "all" and rows[0]["found_at_probes_A"] == "0.5;0.55;0.6"
+    assert rows[0]["rerun_probe_A"] == "0.6" and float(rows[0]["mouth_x_A"]) > 10.0
+
+
+def test_left_out_per_side(two_sided):
+    selection = find_paths(two_sided, seed=(0.0, 0.0, 3.75), axis="z", workers=1).settings["probe_selection"]
+    assert selection["chosen_by_side"]["+"]["left_out_routes"] == 1
+    assert selection["chosen_by_side"]["-"]["left_out_routes"] == 0
+    (route,) = selection["left_out_routes"]
+    assert route["side"] == "+" and route["chosen_probe_A"] == 0.65 and max(route["found_at_probes_A"]) < 0.65
+
+
+def test_nothing_left_out_writes_header_only(narrow, tmp_path):
+    auto = find_paths(narrow, seed=(0.75, 0.75, 0.0), axis="z", workers=1)
+    assert auto.settings["probe_selection"]["left_out_routes"] == []
+    write_paths_outputs(auto, tmp_path, prefix="n", figure=False, scenes=False)
+    lines = (tmp_path / "n_path_left_out.csv").read_text().splitlines()
+    assert len(lines) == 1 and lines[0].startswith("route,side,width_A,found_at_probes_A")
+
+
+def test_fixed_probe_has_no_left_out_record(slit, tmp_path):
+    fixed = find_paths(slit, seed=(0.0, 0.0, 0.0), probe_radius=0.65)
+    assert "probe_selection" not in fixed.settings
+    names = {p.name for p in write_paths_outputs(fixed, tmp_path, prefix="f", figure=False, scenes=False)}
+    assert "f_path_left_out.csv" not in names and "f_path_probes.csv" not in names
+
+
+def test_cli_prints_left_out(slit, tmp_path, capsys):
+    from crevice.cli import build_parser
+    from crevice.viewer import _frame_pdb
+    pdb = tmp_path / "slit.pdb"
+    pdb.write_text(_frame_pdb(slit))
+    args = build_parser().parse_args(["paths", str(pdb), "-o", str(tmp_path / "out"), "--seed", "0,0,0",
+                                      "--workers", "1", "--no-scenes"])
+    args.func(args)
+    out = capsys.readouterr().out
+    assert "probe=auto left out: 1 route found only at other candidate probes" in out
+    assert "slit_path_left_out.csv" in out and "--probe-radius 0.6 reports it" in out

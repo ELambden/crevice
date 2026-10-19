@@ -72,7 +72,7 @@ def test_builtin_pdb_keeps_the_first_alternate_location_per_residue(tmp_path):
     path.write_text("\n".join([line(1, "CA", "A", 1, 0), line(2, "CA", "B", 1, .5),
                                line(3, "CA", "B", 2, 4), line(4, "CA", "C", 2, 4.5),
                                line(5, "N", " ", 3, 8), line(6, "CA", "1", 3, 8.5),
-                               line(7, "CA", "2", 3, 9), "END"]) + "\n")
+                               line(7, "CA", "2", 3, 9), "END"]) + "\n", encoding="utf-8", newline="\n")
     frame, report = load_structure_report(path)
     assert [(a.name, a.resid, a.altloc) for a in frame.atoms] == EXPECTED_ALTLOC
     assert report["altloc_policy"] == "blank plus first lexical nonblank per residue"

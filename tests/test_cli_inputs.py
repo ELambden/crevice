@@ -89,7 +89,7 @@ def local_cif(tmp_path):
 
 
 def manifest_for(out_dir, prefix):
-    return json.loads((Path(out_dir) / f"{prefix}_manifest.json").read_text())
+    return json.loads((Path(out_dir) / f"{prefix}_manifest.json").read_text(encoding="utf-8"))
 
 
 # --- structure input --------------------------------------------------------
@@ -253,7 +253,7 @@ def test_fetch_writes_provenance_records(tmp_path, network):
     report = tmp_path / "downloads.json"
     assert main(["fetch", "1GRM", "--cache-dir", str(tmp_path / "cache"),
                  "--json", str(report)]) == 0
-    downloads = json.loads(report.read_text())["downloads"]
+    downloads = json.loads(report.read_text(encoding="utf-8"))["downloads"]
     assert downloads[0]["pdb_id"] == "1GRM"
     assert downloads[0]["identity_verified"] is True
 
@@ -298,7 +298,7 @@ def test_trajectory_inspect_reports_without_analyzing(tmp_path, gromacs_pair, ca
     assert main(["trajectory", str(trajectory), "--topology", str(topology),
                  "--inspect", "-o", str(tmp_path / "unused.json"),
                  "--report-json", str(report)]) == 0
-    assert json.loads(report.read_text())["frame_count"] == 5
+    assert json.loads(report.read_text(encoding="utf-8"))["frame_count"] == 5
     assert not (tmp_path / "unused.json").exists()
     assert "frame_count" in capsys.readouterr().out
 
@@ -331,7 +331,7 @@ def test_trajectory_flags_control_the_frames_read(tmp_path, gromacs_pair):
                  "--selection", "name CA", "--start", "1", "--stop", "5", "--stride", "2",
                  "-o", str(tmp_path / "traj.json"), "--report-json", str(report),
                  "--samples", "5", "--search-radius", "0"]) == 0
-    data = json.loads(report.read_text())
+    data = json.loads(report.read_text(encoding="utf-8"))
     assert data["loaded_frame_count"] == 2
     assert data["selection"] == "name CA"
     assert data["selected_atom_count"] == 4
@@ -352,11 +352,11 @@ def test_trajectory_stride_is_not_applied_twice(tmp_path, gromacs_pair):
     assert main(["trajectory", str(trajectory), "--topology", str(topology),
                  "--stride", "2", "-o", str(output),
                  "--samples", "5", "--search-radius", "0"]) == 0
-    assert len(json.loads(output.read_text())["frames"]) == 3
+    assert len(json.loads(output.read_text(encoding="utf-8"))["frames"]) == 3
 
 
 def test_static_frame_sequence_still_works(tmp_path, local_cif, network):
     output = tmp_path / "traj.json"
     assert main(["trajectory", str(local_cif), str(local_cif), "-o", str(output),
                  "--samples", "5", "--search-radius", "0"]) == 0
-    assert len(json.loads(output.read_text())["frames"]) == 2
+    assert len(json.loads(output.read_text(encoding="utf-8"))["frames"]) == 2

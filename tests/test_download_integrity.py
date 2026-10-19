@@ -227,7 +227,7 @@ def test_download_records_hash_size_and_source(tmp_path, transport):
 def test_provenance_sidecar_is_written_next_to_the_structure(tmp_path, transport):
     record = benchmarks.fetch_benchmark_record("1GRM", tmp_path, extension="pdb")
     sidecar = tmp_path / "1GRM.pdb.provenance.json"
-    assert json.loads(sidecar.read_text())["sha256"] == record.sha256
+    assert json.loads(sidecar.read_text(encoding="utf-8"))["sha256"] == record.sha256
     assert benchmarks.read_provenance(record.path).sha256 == record.sha256
 
 

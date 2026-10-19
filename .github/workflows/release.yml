@@ -6,6 +6,8 @@ name: Release to PyPI
 # build to TestPyPI instead, as a dry run. Uploads use PyPI Trusted Publishing
 # (OpenID Connect), so no API token is stored in the repository; see
 # https://docs.pypi.org/trusted-publishers/ for the one-time PyPI and TestPyPI setup.
+# Publishing depends only on the Linux build-and-test job below; the macOS and
+# Windows jobs of tests.yml are not a release gate.
 
 on:
   release:

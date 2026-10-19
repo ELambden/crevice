@@ -49,7 +49,7 @@ def test_input_hash_and_duplicate_json_keys_rejected(tmp_path):
     path,data,_=definition(tmp_path)
     data['system']['topology']['sha256']='0'*64;write_json(path,data)
     with pytest.raises(ValueError,match='SHA256'):load_definition(path)
-    path.write_text('{"schema_version":1,"schema_version":1}')
+    path.write_text('{"schema_version":1,"schema_version":1}', encoding="utf-8", newline="\n")
     with pytest.raises(ValueError,match='Duplicate JSON'):load_definition(path)
 
 
@@ -74,7 +74,7 @@ def test_prepared_region_roundtrip_and_reference_frame_binding(tmp_path):
     args=build_parser().parse_args(argv)
     assert args.spacing==.5 and args.region_margin==1. and args.geometry_mode=='reference-region'
     assert metadata['definition']['prepared']['frame_contract']==frame_contract(traj.frames[0])
-    scene=json.loads(Path(files['review_scene_json']).read_text())
+    scene=json.loads(Path(files['review_scene_json']).read_text(encoding="utf-8"))
     assert set(i for r in scene['landmarks'] for i in r['residue_atom_serials'])==set(i for r in resolve_landmarks(traj.frames[0],data['landmarks']) for i in r['residue_atom_serials'])
     for ext in ['pml','tcl','vmd','cxc']:assert Path(files['review_'+ext]).is_file()
     with pytest.raises(ValueError,match='empty output'):prepare_region(path,out)
@@ -94,7 +94,7 @@ def test_landmark_proposal_is_connected_and_excludes_atom_cores(tmp_path):
     atoms=traj.frames[0].atoms
     q=_SphereQueries(np.array([a.coord for a in atoms]),np.array([atom_vdw_radius(a) for a in atoms]))
     assert q.points(xyz)[0].min()>=-1e-8
-    report=json.loads(Path(files['review_json']).read_text());anchor=np.asarray(report['proposal']['anchor_A'])
+    report=json.loads(Path(files['review_json']).read_text(encoding="utf-8"));anchor=np.asarray(report['proposal']['anchor_A'])
     assert np.linalg.norm(xyz-anchor,axis=1).max()<=3.+1e-8
     assert label(grid)[1]==1
     assert report['review']['status']=='candidate'
@@ -106,7 +106,7 @@ def test_region_cli_runs_each_frame_and_retains_region_provenance(tmp_path):
     out=tmp_path/'run'
     code=main(['region-trajectory',files['definition_json'],'--out-dir',str(out),'--skip-hydration','--max-frames','2','--confidence','.95','--dpi','60'])
     assert code==0
-    report=json.loads((out/'synthetic_cavity_statistics.json').read_text())
+    report=json.loads((out/'synthetic_cavity_statistics.json').read_text(encoding="utf-8"))
     assert report['frame_count']==2
     assert report['settings']['region_definition']['region_id']=='synthetic'
     assert report['settings']['region_definition']['review']['status']=='candidate'
@@ -129,7 +129,7 @@ def test_static_mmcif_preserves_canonical_identity_and_nonprotein_obstacles(tmp_
     data['landmarks']=[{'residue':static.atoms[0].residue_key.label,'atoms':['C'],'evidence':'Synthetic mmCIF identity control'}]
     write_json(path,data);files=prepare_region(path,tmp_path/'mmcif-review')
     prepared,_=load_definition(files['definition_json'])
-    report=json.loads(Path(files['review_json']).read_text())
+    report=json.loads(Path(files['review_json']).read_text(encoding="utf-8"))
     assert prepared['landmarks'][0]['residue']==static.atoms[0].residue_key.label
     assert report['reference_frame']['atom_count']==len(static.atoms)-1
     assert report['reference_samples_inside_obstacle_spheres']>0
@@ -166,14 +166,14 @@ def test_comparison_rejects_unpaired_frames_and_preserves_region_identity(tmp_pa
     assert result['profile_uncertainty']['left']['section_positions_with_mean_intervals']==0
     from crevice.region_comparison import _load_result
     profile_file=files[1].with_name('right_cavity_profile_statistics.json')
-    profile=json.loads(profile_file.read_text());original=deepcopy(profile)
+    profile=json.loads(profile_file.read_text(encoding="utf-8"));original=deepcopy(profile)
     profile['profiles']['section']['rows'][0]['position_A']+=1;write_json(profile_file,profile)
     with pytest.raises(ValueError,match='Pointwise profile observations'):_load_result(files[1])
     write_json(profile_file,original)
 
     with pytest.raises(ValueError,match='identical frames'):compare_regions(files[0],files[2],tmp_path/'mismatch')
     from crevice.region_comparison import _load_result
-    report=json.loads(files[0].read_text());report['settings'].pop('region_definition');write_json(files[0],report)
+    report=json.loads(files[0].read_text(encoding="utf-8"));report['settings'].pop('region_definition');write_json(files[0],report)
     prepared=tmp_path/'left-review/left_region.json'
     with pytest.raises(ValueError,match='historical input provenance'):_load_result(files[0],prepared)
     d,assets=load_definition(prepared)

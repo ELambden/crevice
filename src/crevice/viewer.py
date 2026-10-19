@@ -111,7 +111,7 @@ def read_dx_field(path):
     ValueError
         When the header is incomplete or the value count does not match.
     """
-    text = Path(path).read_text()
+    text = Path(path).read_text(encoding="utf-8")
     head, sep, body = text.partition("data follows")
     if not sep:
         raise ValueError(f"{path}: no 'data follows' array")
@@ -694,12 +694,12 @@ def _lining_layers(rows, colors):
 
 
 def _from_cast_manifest(directory, manifest_path):
-    manifest = json.loads(Path(manifest_path).read_text())
+    manifest = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
     files = manifest.get("files", manifest)
     structure_path = _resolve(files.get("structure_file"), directory)
-    structure = structure_path.read_text() if structure_path else None
+    structure = structure_path.read_text(encoding="utf-8") if structure_path else None
     scene_path = _resolve(files.get("scene_json"), directory)
-    scene = json.loads(scene_path.read_text()) if scene_path else {}
+    scene = json.loads(scene_path.read_text(encoding="utf-8")) if scene_path else {}
     layers = [Layer("protein", "Protein", "cartoon", PROTEIN_HEX, opacity=PROTEIN_OPACITY)] if structure else []
     colors = {}
     segments = scene.get("cast_segments") or []
@@ -730,10 +730,10 @@ def _from_cast_manifest(directory, manifest_path):
                                           description="display surface of the measured cast"))
     lining_csv = _resolve(files.get("lining_residues_csv"), directory)
     if lining_csv:
-        with open(lining_csv, newline="") as handle:
+        with open(lining_csv, newline="", encoding="utf-8") as handle:
             layers += _lining_layers(list(csv.DictReader(handle)), colors)
     profile_path = _resolve(files.get("profile_json"), directory)
-    paths = _profile_paths(json.loads(profile_path.read_text())) if profile_path else []
+    paths = _profile_paths(json.loads(profile_path.read_text(encoding="utf-8"))) if profile_path else []
     if not any(len(p) for p in paths[1:]) and scene.get("exit_paths"):
         paths += [p.get("points") if isinstance(p, dict) else p for p in scene["exit_paths"]]
         paths = [p for p in paths if p and len(p) > 1]
@@ -748,7 +748,7 @@ def _from_cast_manifest(directory, manifest_path):
 
 
 def _from_analysis_scene(directory, scene_path, snapshot=0):
-    scene = json.loads(Path(scene_path).read_text())
+    scene = json.loads(Path(scene_path).read_text(encoding="utf-8"))
     root = Path(directory)
     snapshots = scene.get("snapshots") or []
     index = int(snapshot)
@@ -756,7 +756,7 @@ def _from_analysis_scene(directory, scene_path, snapshot=0):
         raise ValueError(f"snapshot {index} out of range: {len(snapshots)} snapshots")
     chosen = snapshots[index] if snapshots else None
     protein = root / (chosen["pdb"] if chosen else scene["protein_pdb"])
-    structure = protein.read_text() if protein.is_file() else None
+    structure = protein.read_text(encoding="utf-8") if protein.is_file() else None
     layers = [Layer("protein", "Protein", "cartoon", PROTEIN_HEX, opacity=PROTEIN_OPACITY)] if structure else []
     names = {"cavity": ("region", "Region cast"), "water": ("water_density", "Water density")}
     for surface in scene.get("surfaces") or ():
@@ -788,7 +788,7 @@ def _from_analysis_scene(directory, scene_path, snapshot=0):
         record = next((s for s in waters.get("snapshots") or ()
                        if s.get("source_frame_index") == chosen.get("source_frame_index")), None)
         if record and record.get("pdb") and (root / record["pdb"]).is_file():
-            points = _pdb_coords((root / record["pdb"]).read_text())
+            points = _pdb_coords((root / record["pdb"]).read_text(encoding="utf-8"))
             layers.append(Layer("waters", f"Member waters ({len(points)})", "spheres",
                                 _hex(waters.get("color_rgb", (1., .5, 0.))), data={
                                     "points": points.tolist(), "radius": float(waters.get("sphere_radius_A", .7))},
@@ -920,7 +920,7 @@ def _frame_pdb(frame):
     from .presentation import write_viewer_structure
     with tempfile.TemporaryDirectory() as tmp:
         path = write_viewer_structure(frame, Path(tmp) / "frame.pdb")
-        return path.read_text()
+        return path.read_text(encoding="utf-8")
 
 
 def _from_memory(frame, cast, segments, profile, lining, waters, smooth, smooth_supersample, title):

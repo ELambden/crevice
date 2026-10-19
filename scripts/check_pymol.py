@@ -46,7 +46,7 @@ def main():
     root.mkdir(parents=True, exist_ok=True)
     scene = args.scene.resolve(strict=True)
     overlay_path=scene.parent/(scene.stem.removesuffix('_residue_context')+'_residue_evidence.json')
-    overlay=json.loads(overlay_path.read_text()) if scene.stem.endswith('_residue_context') and overlay_path.exists() else None
+    overlay=json.loads(overlay_path.read_text(encoding="utf-8")) if scene.stem.endswith('_residue_context') and overlay_path.exists() else None
     with tempfile.TemporaryDirectory(prefix='crevice-pymol-') as tmp:
         tmp = Path(tmp)
         image = tmp/'native.png'
@@ -114,16 +114,16 @@ assert __import__('os').path.getsize({str(image)!r}) > 0
 cmd.quit()
 '''
         check_script = tmp/'inspect_scene.py'
-        check_script.write_text(program)
+        check_script.write_text(program, encoding="utf-8", newline="\n")
         # Startup .py arguments can run while a PML Python block is still using
         # the API. Execute inspection at the end of the same block instead.
-        source=scene.read_text()
+        source=scene.read_text(encoding="utf-8")
         if source.count('python end')!=1:
             raise ValueError('Native checker requires one CREVICE Python scene block')
         source=source.replace('from pymol import cmd',
                               'from pymol import cmd\ncmd._pymol.__script__ = '+repr(str(scene)),1)
         combined=tmp/'scene_and_inspection.pml'
-        combined.write_text(source.replace('python end',program+'\npython end',1))
+        combined.write_text(source.replace('python end',program+'\npython end',1), encoding="utf-8", newline="\n")
         environment = dict(os.environ)
         if environment.get('PYTHONPATH'):
             environment['PYTHONPATH'] = os.pathsep.join(str(Path(p or '.').resolve()) for p in environment['PYTHONPATH'].split(os.pathsep))
@@ -133,14 +133,14 @@ cmd.quit()
         except subprocess.TimeoutExpired as error:
             def decoded(value):
                 return value.decode(errors='replace') if isinstance(value,bytes) else (value or '')
-            (root/'pymol.log').write_text(decoded(error.stdout)+decoded(error.stderr))
-            result=json.loads(report.read_text()) if report.is_file() else {}
+            (root/'pymol.log').write_text(decoded(error.stdout)+decoded(error.stderr), encoding="utf-8", newline="\n")
+            result=json.loads(report.read_text(encoding="utf-8")) if report.is_file() else {}
             result.update(status='timeout',timeout_seconds=args.timeout,scene=str(scene))
-            (root/'pymol_verification.json').write_text(json.dumps(result,indent=2)+'\n')
+            (root/'pymol_verification.json').write_text(json.dumps(result,indent=2)+'\n', encoding="utf-8", newline="\n")
             raise SystemExit('Native PyMOL render exceeded its timeout; log and inspection retained')
         log = done.stdout+done.stderr
-        (root/'pymol.log').write_text(log)
-        result = json.loads(report.read_text()) if report.exists() else {}
+        (root/'pymol.log').write_text(log, encoding="utf-8", newline="\n")
+        result = json.loads(report.read_text(encoding="utf-8")) if report.exists() else {}
         ok = done.returncode == 0 and image.exists() and not any(
             marker in log for marker in ('Traceback', ' Error:', 'SyntaxError:', 'FileNotFoundError:', 'cmd.sync() timed out', 'ObjectSurfaceUpdate-Error'))
         if overlay is not None:
@@ -150,8 +150,8 @@ cmd.quit()
             import numpy as np
             metadata_files = list(scene.parent.glob('*_volume_metadata.json'))
             if len(metadata_files) == 1:
-                metadata = json.loads(metadata_files[0].read_text())
-                scene_geometry = json.loads((scene.parent/Path(metadata['files']['scene_json']).name).read_text())
+                metadata = json.loads(metadata_files[0].read_text(encoding="utf-8"))
+                scene_geometry = json.loads((scene.parent/Path(metadata['files']['scene_json']).name).read_text(encoding="utf-8"))
                 camera_expected = np.asarray(scene_geometry['camera_rotation'])
                 if scene.stem.endswith('_end_view'):
                     angle = np.deg2rad(scene_geometry.get('end_view_turn_degrees',74))
@@ -161,11 +161,11 @@ cmd.quit()
                 actual = np.asarray(result['volume_matrix']).reshape(4,4)
                 result['alignment_max_error_A'] = float(np.max(np.abs(actual-expected)))
                 local_path = scene.parent / Path(metadata['files']['pymol_local_dx']).name
-                lines = local_path.read_text().splitlines()
+                lines = local_path.read_text(encoding="utf-8").splitlines()
                 shape = tuple(int(v) for v in lines[1].split()[-3:])
                 origin = np.array([float(v) for v in lines[2].split()[1:]])
                 deltas = np.array([[float(v) for v in line.split()[1:]] for line in lines[3:6]])
-                field = np.fromstring(local_path.read_text().split('data follows\n',1)[1].split('attribute',1)[0], sep=' ')
+                field = np.fromstring(local_path.read_text(encoding="utf-8").split('data follows\n',1)[1].split('attribute',1)[0], sep=' ')
                 # A supersampled display field contains every measured sample at
                 # indices divisible by its factor; count only those samples.
                 display_smoothing = metadata.get('display_smoothing') or {}
@@ -251,7 +251,7 @@ cmd.quit()
                 ok = int(teal.sum()) >= 25 and result.get('source_grid_occupied_samples',0) > 0
                 im.save(root/'pymol_native.png')
         result.update(status='passed' if ok else 'failed', scene=str(scene), returncode=done.returncode)
-        (root/'pymol_verification.json').write_text(json.dumps(result, indent=2)+'\n')
+        (root/'pymol_verification.json').write_text(json.dumps(result, indent=2)+'\n', encoding="utf-8", newline="\n")
         print(json.dumps(result, indent=2))
         if not ok:
             raise SystemExit(1)

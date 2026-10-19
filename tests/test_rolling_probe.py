@@ -147,7 +147,7 @@ def test_cli_cast_does_not_require_a_through_channel(pocket,tmp_path,capsys):
     source=write_viewer_structure(frame,tmp_path/'input.pdb')
     main(['cast',str(source),'--out-dir',str(tmp_path/'bundle'),'--spacing','0.5','--min-component-volume','30',
           '--outputs','default,extra-views'])   # end views are opt-in since 0.3
-    manifest=json.loads((tmp_path/'bundle/input_manifest.json').read_text())
+    manifest=json.loads((tmp_path/'bundle/input_manifest.json').read_text(encoding="utf-8"))
     assert manifest['void_cast']['total_volume']>100
     assert manifest['channel_profile_status']=='not_assigned_by_3D_void_detection'
     assert 'profile_json' not in manifest['files']
@@ -164,7 +164,7 @@ def test_publication_auto_falls_back_without_inventing_a_profile(pocket,tmp_path
         files=write_static_publication_bundle(frame, enclosure_radius=0.8,structure_path=source,output_dir=tmp_path/'published',
             cast_spacing=.5,cast_max_grid_points=500000,cast_min_component_volume=30,
             include_hetero=False,include_cavities=False,include_tunnels=False,include_network=False,dpi=80)
-    manifest=json.loads(Path(files['manifest_json']).read_text())
+    manifest=json.loads(Path(files['manifest_json']).read_text(encoding="utf-8"))
     assert manifest['single_channel_unresolved_reason']
     assert manifest['void_cast']['mode']=='rolling'
     assert manifest['void_cast']['total_volume']>100

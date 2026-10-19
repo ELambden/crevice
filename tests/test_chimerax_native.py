@@ -29,12 +29,12 @@ def test_native_chimerax_rotated_relocated_map_and_residue_context(tmp_path,spli
     command=[sys.executable,str(root/'scripts/check_chimerax.py'),str(scene),'--xvfb','--width','500','--output',str(tmp_path/'native')]
     done=subprocess.run(command,capture_output=True,text=True,timeout=200)
     assert done.returncode==0,done.stdout+done.stderr
-    result=json.loads((tmp_path/'native/chimerax_verification.json').read_text())
+    result=json.loads((tmp_path/'native/chimerax_verification.json').read_text(encoding="utf-8"))
     assert result['residue_sticks_passed'] and result['surface_reference_error_A']<.01
     if not split_regions:
-        lines=scene.read_text().splitlines();lines=['view matrix models #2,1,0,0,0,0,1,0,0,0,0,1,0' if line.startswith('view matrix models #2,') else line for line in lines]
-        scene.write_text('\n'.join(lines)+'\n');command[-1]=str(tmp_path/'rejected')
+        lines=scene.read_text(encoding="utf-8").splitlines();lines=['view matrix models #2,1,0,0,0,0,1,0,0,0,0,1,0' if line.startswith('view matrix models #2,') else line for line in lines]
+        scene.write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n");command[-1]=str(tmp_path/'rejected')
         done=subprocess.run(command,capture_output=True,text=True,timeout=200)
         assert done.returncode!=0
-        result=json.loads((tmp_path/'rejected/chimerax_verification.json').read_text())
+        result=json.loads((tmp_path/'rejected/chimerax_verification.json').read_text(encoding="utf-8"))
         assert result['native_execution_passed'] and result['surface_reference_error_A']>result['surface_reference_bound_A']

@@ -69,7 +69,7 @@ def _token(value: str) -> str:
 
 def write(tmp_path, rows, **kwargs):
     path = tmp_path / "structure.cif"
-    path.write_text(mmcif_text(rows, **kwargs))
+    path.write_text(mmcif_text(rows, **kwargs), encoding="utf-8", newline="\n")
     return path
 
 
@@ -304,7 +304,7 @@ def test_missing_required_columns_are_rejected(tmp_path):
 
 def test_absent_atom_site_category_is_rejected(tmp_path):
     path = tmp_path / "empty.cif"
-    path.write_text("data_TEST\n_entry.id TEST\n")
+    path.write_text("data_TEST\n_entry.id TEST\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="complete atom-site coordinate table"):
         mmcif.load_mmcif(path)
 
@@ -316,7 +316,7 @@ def test_multi_block_input_is_rejected(tmp_path):
 
 def test_unparsable_text_is_rejected(tmp_path):
     path = tmp_path / "broken.cif"
-    path.write_text("data_TEST\nloop_\n_atom_site.id\n'unterminated\n")
+    path.write_text("data_TEST\nloop_\n_atom_site.id\n'unterminated\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError):
         mmcif.load_mmcif(path)
 

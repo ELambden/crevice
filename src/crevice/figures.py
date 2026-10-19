@@ -1135,7 +1135,7 @@ spectrum b, blue_white_red, {pore_object}
 {bottleneck_lines}orient {structure_object} or {pore_object} or {pore_fill_object}
 zoom {structure_object} or {pore_object} or {pore_fill_object}, 6
 {png_block}"""
-    output.write_text(script)
+    output.write_text(script, encoding="utf-8", newline="\n")
     return output
 
 
@@ -1863,4 +1863,4 @@ def _ensure_parent(path: str | Path) -> Path:
 
 def _write_json(data: object, path: str | Path) -> None:
     output = _ensure_parent(path)
-    output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

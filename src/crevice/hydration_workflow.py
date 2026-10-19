@@ -102,7 +102,7 @@ def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None
         frame=full
     if residue_ids is not None and not residue_ids:
         root=Path(output_dir);root.mkdir(parents=True,exist_ok=True);p=root/(prefix+'_hydration.json')
-        p.write_text(json.dumps({'status':'unavailable_no_identified_residues','residues':[],'interpretation':'No pore/cavity residue focus was available; not evidence of absent hydration'},indent=2)+'\n')
+        p.write_text(json.dumps({'status':'unavailable_no_identified_residues','residues':[],'interpretation':'No pore/cavity residue focus was available; not evidence of absent hydration'},indent=2)+'\n', encoding="utf-8", newline="\n")
         return {'hydration_json':str(p)}
     result=static_hydration(frame,residue_ids=residue_ids,box=box,cutoff=cutoff,sasa_probe=sasa_probe,sasa_samples=sasa_samples)
     if evidence is not None:result['boundary_area_by_residue_A2']={r['residue']:r['boundary_area_A2'] for r in evidence['residues']}
@@ -150,7 +150,7 @@ def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,role
     missing=hydration_dependencies()
     if missing:
         root=Path(args.out_dir);root.mkdir(parents=True,exist_ok=True);p=root/(prefix+'_hydration.json')
-        p.write_text(json.dumps({'status':'unavailable_missing_required_dependencies','missing':missing,'install':'reinstall CREVICE (pip install --force-reinstall crevice)','other_analyses_retained':True},indent=2)+'\n')
+        p.write_text(json.dumps({'status':'unavailable_missing_required_dependencies','missing':missing,'install':'reinstall CREVICE (pip install --force-reinstall crevice)','other_analyses_retained':True},indent=2)+'\n', encoding="utf-8", newline="\n")
         extra={'hydration_json':str(p)}
     else:
         extra=static_hydration_bundle(frame,args.out_dir,prefix=prefix,source_path=source_path,volume_path=files.get('volume_dx'),
@@ -158,7 +158,7 @@ def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,role
     files.update(extra)
     manifest=files.get('manifest_json')
     if manifest:
-        p=Path(manifest);data=json.loads(p.read_text());data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n')
+        p=Path(manifest);data=json.loads(p.read_text(encoding="utf-8"));data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n', encoding="utf-8", newline="\n")
     return extra
 
 
@@ -207,7 +207,7 @@ def append_residue_interactions(args,frame,source_path,files,*,residue_ids=None)
     files.update(extra)
     manifest=files.get('manifest_json')
     if manifest:
-        p=Path(manifest);data=json.loads(p.read_text());data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n')
+        p=Path(manifest);data=json.loads(p.read_text(encoding="utf-8"));data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n', encoding="utf-8", newline="\n")
     return extra
 
 

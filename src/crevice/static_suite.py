@@ -673,7 +673,7 @@ def _write_rows_csv(rows: Sequence[dict[str, object]], path: str | Path) -> None
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     fields = sorted({key for row in rows for key in row})
-    with output.open("w", newline="") as handle:
+    with output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for row in rows:
@@ -683,4 +683,4 @@ def _write_rows_csv(rows: Sequence[dict[str, object]], path: str | Path) -> None
 def _write_json(data: object, path: str | Path) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

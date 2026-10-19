@@ -121,4 +121,7 @@ stationary, representative sampling, and one simulation is not a replica set.
 A reference pocket is a candidate until it has been reviewed, and a zero
 volume in a region doesn't show that transport is closed. The method is
 described in [Cavity trajectories](../CAVITY_TRAJECTORY_METHODS.md).
+
+[Limitations](../getting-started/limitations.md) collects the caveats shared by
+all tools.
 :::

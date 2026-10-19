@@ -260,12 +260,12 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
                 source, model_index=model_index, selection="all",
                 chain_ids=chain_ids, hetero_policy="auto",
             )
-            with source.open(errors="replace") as handle:
+            with source.open(errors="replace", encoding="utf-8") as handle:
                 header = handle.read(65536)
             return _with_radius_note(frame, {**report, "input_format": "mmcif",
                                              **predicted_model_report(header)})
 
-    text = source.read_text()
+    text = source.read_text(encoding="utf-8")
     if chain_ids not in {"label", "auth"}:
         raise ValueError("chain_ids must be label or auth")
     if mmcif_input:

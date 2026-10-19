@@ -74,7 +74,7 @@ class CreviceApiTests(unittest.TestCase):
             structure = root / "mini.pdb"
             network_output = root / "network.json"
             trajectory_output = root / "trajectory.json"
-            structure.write_text(_pdb_fixture())
+            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             network_status = main([
                 "network",
@@ -109,8 +109,8 @@ class CreviceApiTests(unittest.TestCase):
 
             self.assertEqual(network_status, 0)
             self.assertEqual(trajectory_status, 0)
-            self.assertIn("network", json.loads(network_output.read_text()))
-            self.assertEqual(json.loads(trajectory_output.read_text())["frame_count"], 2)
+            self.assertIn("network", json.loads(network_output.read_text(encoding="utf-8")))
+            self.assertEqual(json.loads(trajectory_output.read_text(encoding="utf-8"))["frame_count"], 2)
 
     def test_void_cast_exports_only_physical_empty_space(self) -> None:
         # Isolated atoms test clearance, but do not establish channel enclosure.
@@ -141,10 +141,10 @@ class CreviceApiTests(unittest.TestCase):
             write_void_cast_json(cast, json_path)
             write_void_cast_pdb(cast, pdb_path)
 
-            data = json.loads(json_path.read_text())
+            data = json.loads(json_path.read_text(encoding="utf-8"))
             self.assertEqual(data["method"], "clearance-grid-fill")
             self.assertIn("components", data)
-            self.assertIn("HETATM", pdb_path.read_text())
+            self.assertIn("HETATM", pdb_path.read_text(encoding="utf-8"))
 
     def test_publication_profile_png_and_pymol_script(self) -> None:
         from PIL import Image
@@ -157,7 +157,7 @@ class CreviceApiTests(unittest.TestCase):
             pml = root / "pore_cast.pml"
             pdb = root / "pore_cast.pdb"
             structure = root / "mini.pdb"
-            structure.write_text(_pdb_fixture())
+            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
             crevice.write_profile_pdb(profile, pdb)
 
             plot_profile_radius(profile, png, dpi=400)
@@ -175,7 +175,7 @@ class CreviceApiTests(unittest.TestCase):
             with Image.open(png) as image:
                 self.assertEqual(image.format, "PNG")
                 self.assertGreaterEqual(round(image.info.get("dpi", (0, 0))[0]), 399)
-            script = pml.read_text()
+            script = pml.read_text(encoding="utf-8")
             self.assertIn("cmd.load(_crevice_input", script)
             self.assertIn("cmd.ray(2400, 1800)", script)
             self.assertIn("cmd.png(_png_target, dpi=400)", script)
@@ -218,7 +218,7 @@ class CreviceApiTests(unittest.TestCase):
             network_output = root / "network.json"
             chord_png = root / "network_chord.png"
             bundle_dir = root / "bundle"
-            structure.write_text(_pdb_fixture())
+            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             profile_status = main([
                 "profile",
@@ -283,8 +283,8 @@ class CreviceApiTests(unittest.TestCase):
             self.assertTrue(profile_png.exists())
             self.assertTrue(annotated_png.exists())
             self.assertTrue(chord_png.exists())
-            self.assertIn("cmd.ray(2400, 1800)", pml.read_text())
-            manifest = json.loads((bundle_dir / "mini_manifest.json").read_text())
+            self.assertIn("cmd.ray(2400, 1800)", pml.read_text(encoding="utf-8"))
+            manifest = json.loads((bundle_dir / "mini_manifest.json").read_text(encoding="utf-8"))
             self.assertIn("structure_file", manifest["files"])
             self.assertIn("profile_radius_png", manifest["files"])
             self.assertIn("profile_radius_annotated_png", manifest["files"])
@@ -293,7 +293,7 @@ class CreviceApiTests(unittest.TestCase):
             self.assertTrue((bundle_dir / "mini_profile_radius.png").exists())
             self.assertTrue((bundle_dir / "mini_profile_radius_annotated.png").exists())
             self.assertTrue((bundle_dir / "mini_network_chord.png").exists())
-            bundle_pml = (bundle_dir / "mini_pore_cast.pml").read_text()
+            bundle_pml = (bundle_dir / "mini_pore_cast.pml").read_text(encoding="utf-8")
             self.assertIn("mini_viewer.pdb", bundle_pml)
             self.assertIn("mini_pore_cast.pdb", bundle_pml)
             self.assertIn("crevice_cartoon", bundle_pml)
@@ -308,7 +308,7 @@ class CreviceApiTests(unittest.TestCase):
             cache = root / "cache"
             out_dir = root / "suite"
             cache.mkdir()
-            (cache / "1GRM.pdb").write_text(_pdb_fixture())
+            (cache / "1GRM.pdb").write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             status = main([
                 "static-suite",
@@ -331,7 +331,7 @@ class CreviceApiTests(unittest.TestCase):
             ])
 
             self.assertEqual(status, 0)
-            summary = json.loads((out_dir / "static_benchmark_summary.json").read_text())
+            summary = json.loads((out_dir / "static_benchmark_summary.json").read_text(encoding="utf-8"))
             self.assertEqual(summary["systems"][0]["status"], "ok")
             self.assertTrue((out_dir / "1GRM" / "1GRM_manifest.json").exists())
             self.assertTrue((out_dir / "1GRM" / "1GRM_network_chord.png").exists())

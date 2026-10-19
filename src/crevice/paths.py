@@ -108,6 +108,13 @@ set in effect; see :doc:`/methods/paths`):
   (``AUTO_PROBE_RULE``). Every candidate, the groups, the choice and its
   reason are recorded in ``settings["probe_selection"]``. ``min_enclosure``
   is the same for every candidate.
+* **Left-out routes** (automatic probe only). Routes found at a searched
+  candidate probe that are distinct, under the distinct-route rule, from
+  every route of the chosen result on their side are listed in
+  ``settings["probe_selection"]["left_out_routes"]`` (``LEFT_OUT_DEFINITION``)
+  with their width, the probes that found them, mouth, length, bottleneck and
+  the residues lining their own part. They are reported, not added to the
+  result: the branches are those of the chosen probe.
 
 Pathways are geometric routes for the stated probes and grid. They are not
 transport pathways, permeation mechanisms or functional assignments; the
@@ -151,6 +158,13 @@ AUTO_PROBE_RULE = (
     "at the smallest probe are pruned (they cannot have a route); the route sets found are grouped (same "
     "number of routes, one-to-one matched as not distinct under the distinct-route rule); the group found at "
     "the most probes (at least 2; ties: the smaller probe) wins and its smallest probe is used")
+#: Routes left out by the automatic probe (recorded in ``settings["probe_selection"]["left_out_definition"]``).
+LEFT_OUT_DEFINITION = (
+    "per side with a chosen probe: a kept route of any other searched candidate probe that is distinct (distinct-route "
+    "rule) from every route of the chosen result; routes left out at several probes are merged when not distinct "
+    "from the first (smallest-probe) one, which supplies the width, mouth, length, bottleneck and lining (lattice route, "
+    "not smoothed; lining only of its own nodes, those farther than one lattice diagonal from every route of the "
+    "result); rerun_probe_A is the largest probe at which the route was found")
 #: Okabe-Ito colours, one per branch in rank order (colour-blind-safe).
 BRANCH_COLORS = ("#0072b2", "#d55e00", "#009e73", "#cc79a7", "#e69f00", "#56b4e9", "#000000", "#999999")
 #: Line styles cycled with the colours (secondary encoding in figures).
@@ -552,7 +566,7 @@ def region_seed(frame, definition):
     from pathlib import Path
     import numpy as np
     from .region_definition import resolve_landmarks
-    data = json.loads(Path(definition).read_text()) if not isinstance(definition, dict) else definition
+    data = json.loads(Path(definition).read_text(encoding="utf-8")) if not isinstance(definition, dict) else definition
     rows = data.get("landmarks") or []
     if not rows:
         raise ValueError("region definition has no residue landmarks")
@@ -651,36 +665,52 @@ def _widest_routes(space, roots, exempt, probe, max_nodes, allowed=None, outside
         width[c], walked[c] = np.inf, 0.0
         heap.append((-np.inf, 0.0, int(c)))
     heapq.heapify(heap)
-    done = np.zeros(n, bool)
+    # The search runs on Python floats and lists (the per-node work is too
+    # small for NumPy calls to pay off); every comparison and sum is the
+    # same IEEE operation as the array form, in the same order.
+    done = [False]*n
+    width_l, walked_l, parent_l = width.tolist(), walked.tolist(), parent.tolist()
+    clear_l, exempt_l, terminal_l = clear.tolist(), exempt_mask.tolist(), is_terminal.tolist()
+    steps = list(enumerate(lengths.tolist()))
+    pop, push = heapq.heappop, heapq.heappush
     terminals = []
     while heap:
-        key, dist, node = heapq.heappop(heap)
+        key, dist, node = pop(heap)
         if done[node]:
             continue
         done[node] = True
-        if is_terminal[node]:
+        if terminal_l[node]:
             terminals.append(node)
             continue
-        nb = neighbours[node]
-        valid = nb >= 0
-        nbv = nb[valid]
-        cur = width[node]
-        new_w = np.where(exempt_mask[nbv], cur, np.minimum(cur, clear[nbv]))
-        new_d = dist + lengths[valid]
-        better = (~done[nbv]) & ((new_w > width[nbv]) | ((new_w == width[nbv]) & (new_d < walked[nbv] - 1e-9)))
-        for v, w, d in zip(nbv[better].tolist(), new_w[better].tolist(), new_d[better].tolist()):
-            width[v], walked[v], parent[v] = w, d, node
-            heapq.heappush(heap, (-w, d, v))
-    return {"ijk": world_ijk, "clear": clear, "width": width, "walked": walked, "parent": parent,
+        nb = neighbours[node].tolist()
+        cur = width_l[node]
+        for s, length in steps:
+            v = nb[s]
+            if v < 0 or done[v]:
+                continue
+            w = cur if exempt_l[v] else min(cur, clear_l[v])
+            d = dist + length
+            known = width_l[v]
+            if w > known or (w == known and d < walked_l[v] - 1e-9):
+                width_l[v], walked_l[v], parent_l[v] = w, d, node
+                push(heap, (-w, d, v))
+    width, walked = np.array(width_l, dtype=float), np.array(walked_l, dtype=float)
+    parent = np.array(parent_l, dtype=np.int64)
+    done = np.array(done, dtype=bool)
+    return {"ijk": world_ijk, "clear": clear, "width": width, "walked": walked, "parent": parent, "parent_list": parent_l,
             "terminals": terminals, "domain_nodes": int(domain.sum()), "terminal_nodes": int(terminal_mask.sum()),
             "explored": int(done.sum())}
 
 
 def _route(search, node):
+    parent = search.get("parent_list")
+    if parent is None:
+        parent = search["parent"].tolist()
     out = []
+    node = int(node)
     while node >= 0:
-        out.append(int(node))
-        node = search["parent"][node]
+        out.append(node)
+        node = parent[node]
     return out[::-1]
 
 
@@ -872,15 +902,22 @@ def _routes_overlap(pos_a, pos_b, ids_a, ids_b, separation, route_separation):
     import numpy as np
     if np.linalg.norm(pos_a[-1] - pos_b[-1]) <= separation:
         return True
-    shared = 0
-    while shared < min(len(ids_a), len(ids_b)) and ids_a[shared] == ids_b[shared]:
-        shared += 1
+    common = min(len(ids_a), len(ids_b))
+    differ = np.flatnonzero(np.asarray(ids_a[:common]) != np.asarray(ids_b[:common]))
+    shared = int(differ[0]) if len(differ) else common
     junction = pos_a[shared - 1] if shared else None
     one, two = pos_a[shared:], pos_b[shared:]
     if junction is not None:
         one = one[np.linalg.norm(one - junction, axis=1) > route_separation]
         two = two[np.linalg.norm(two - junction, axis=1) > route_separation]
-    return not len(one) or not len(two) or _min_pair_distance(one, two) <= route_separation
+    if not len(one) or not len(two):
+        return True
+    # Routes that are still together where they leave the junction overlap:
+    # this pair is closer than route_separation by far more than any rounding
+    # difference from the KD-tree distance below, so the answer is the same.
+    if float(np.linalg.norm(one[0] - two[0])) < route_separation - 1e-6:
+        return True
+    return _min_pair_distance(one, two) <= route_separation
 
 
 def _side_routes(space, outside, root, root_pos, root_clear, probe, axis_vec, side, sign, max_nodes,
@@ -898,20 +935,26 @@ def _side_routes(space, outside, root, root_pos, root_clear, probe, axis_vec, si
     widths = search["width"][search["terminals"]] if search["terminals"] else np.zeros(0)
     widest = float(widths.max()) if len(widths) else -math.inf
     positions = space.position(search["ijk"])
-    side_kept, truncated, mouths = [], False, []
-    for term in search["terminals"]:
-        # Same test as _routes_overlap, with the cheap exit-point distance checked first for all kept routes.
-        if mouths and np.min(np.linalg.norm(np.asarray(mouths) - positions[term], axis=1)) <= separation:
+    side_kept, truncated, mouths, kept_positions = [], False, [], []
+    terminal_positions = positions[search["terminals"]] if search["terminals"] else np.zeros((0, 3))
+    near_mouth = np.zeros(len(terminal_positions), bool)
+    for k, term in enumerate(search["terminals"]):
+        # Same test as _routes_overlap, with the cheap exit-point distance checked first for all kept routes
+        # (updated for every terminal at once when a route is kept).
+        if near_mouth[k]:
             continue
         route = _route(search, term)
-        if any(_routes_overlap(positions[route], positions[other], route, other, separation, route_separation)
-               for other in side_kept):
+        route_positions = positions[route]
+        if any(_routes_overlap(route_positions, other_positions, route, other, separation, route_separation)
+               for other, other_positions in zip(side_kept, kept_positions)):
             continue
         if len(side_kept) >= max_paths:
             truncated = True
             break
         side_kept.append(route)
+        kept_positions.append(route_positions)
         mouths.append(positions[term])
+        near_mouth |= np.linalg.norm(positions[term] - terminal_positions, axis=1) <= separation
     kept = []
     for route in side_kept:
         ijk = search["ijk"][route]
@@ -1155,6 +1198,14 @@ def find_paths(frame, *, seed=None, seed_residues=None, region=None, probe_radiu
                     exposed_nodes=selection["exposed_nodes"],
                     search_mode="one half-space search per side of the start along the axis, probe chosen per side"
                     if axis_vec is not None else "one search over all free space")
+    clock = time.perf_counter()
+    left_out = _describe_left_out(frame, spatial, selection["left_out"], lining_shell, include_hetero)
+    record = selection["record"]
+    for label, value in record["chosen_by_side"].items():
+        if value["probe_A"] is not None:
+            value["left_out_routes"] = sum((r["side"] or "all") == label for r in left_out)
+    record.update(left_out_definition=LEFT_OUT_DEFINITION, left_out_routes=left_out)
+    record["timing_s"]["left_out_routes_s"] = round(time.perf_counter() - clock, 3)
     chosen = selection["record"]["chosen_probe_A"]
     if chosen is not None:
         settings["probe_radius_A"] = chosen
@@ -1365,7 +1416,7 @@ def _auto_probe_search(space, spatial, levels, probes, point, seed_tolerance, st
               "start_snap_probe_A": None, "chosen_probe_A": None, "chosen_by_side": {}, "reason": None,
               "candidates": [], "groups": []}
     out = {"record": record, "searches": [], "truncated": False, "exposed_nodes": 0, "status": None, "reason": None,
-           "kept": [], "root_pos": None}
+           "kept": [], "root_pos": None, "left_out": []}
     # Start: snapped at the smallest candidate that resolves it, then shared by every candidate.
     snap, j0 = None, None
     for j, p in enumerate(probes):
@@ -1431,10 +1482,9 @@ def _auto_probe_search(space, spatial, levels, probes, point, seed_tolerance, st
             if not prunable(task):
                 finished(task, _candidate_routes(state, *task))
     else:
-        import multiprocessing as mp
         from concurrent.futures import ProcessPoolExecutor, as_completed
-        context = mp.get_context("fork" if "fork" in mp.get_all_start_methods() else "spawn")
-        with ProcessPoolExecutor(max_workers=min(workers, len(tasks)), mp_context=context,
+        from .cavity_trajectory import _process_context
+        with ProcessPoolExecutor(max_workers=min(workers, len(tasks)), mp_context=_process_context(),
                                  initializer=_init_auto_worker, initargs=(state,)) as pool:
             # Submitted in ascending probe order, so the smallest probe of each side starts first.
             futures = {pool.submit(_auto_task, task): task for task in tasks}
@@ -1521,12 +1571,104 @@ def _auto_probe_search(space, spatial, levels, probes, point, seed_tolerance, st
         out["truncated"] = out["truncated"] or found["truncated"]
         out["exposed_nodes"] = max(out["exposed_nodes"], found["exposed_nodes"])
     out["root_pos"] = root_pos
+    out["left_out"] = _left_out_routes(results, chosen, probes, runs, space, root_pos, root_clear, separation,
+                                       route_separation)
     if not out["kept"]:
         reached = max((r.get("search_domain_nodes", 0) for r in rows.values()), default=0)
         out.update(status="unresolved_no_bulk_path",
                    reason=f"no route of free nodes from the start reaches bulk at any candidate probe "
                           f"({probes[0]:g}-{probes[-1]:g} Å; {reached} free nodes reachable at the smallest)")
     return out
+
+
+def _left_out_routes(results, chosen, probes, runs, space, root_pos, root_clear, separation, route_separation):
+    """Routes found at a candidate probe but not in the chosen result (``LEFT_OUT_DEFINITION``).
+
+    Per side with a chosen probe, every kept route of every other searched
+    candidate (ascending probe) that is not distinct from a chosen route is
+    dropped; the rest are clustered, each joining the first cluster whose
+    first (smallest-probe) route it is not distinct from. Returns one dict
+    per cluster with the representative route, the probes and widths.
+    """
+    import numpy as np
+    from scipy.spatial import cKDTree
+    pos = lambda r: space.position(np.array(np.unravel_index(np.asarray(r["ids"]), space.dims)).T)
+    out = []
+    for side, _ in runs:
+        j_star = chosen.get(side)
+        if j_star is None:
+            continue
+        in_result = [(pos(k), k["ids"]) for k in results[(j_star, side)]["kept"]]
+        result_tree = cKDTree(np.concatenate([q for q, _ in in_result]))
+        clusters = []
+        for j in range(len(probes)):
+            res = results.get((j, side))
+            if j == j_star or res is None:
+                continue
+            for k in res["kept"]:
+                p = pos(k)
+                if any(_routes_overlap(p, q, k["ids"], ids, separation, route_separation) for q, ids in in_result):
+                    continue
+                for c in clusters:
+                    if _routes_overlap(p, c["pos"], k["ids"], c["route"]["ids"], separation, route_separation):
+                        if j not in c["probes"]:
+                            c["probes"].append(j)
+                            c["widths"].append(k["width"])
+                        break
+                else:
+                    clusters.append({"route": k, "pos": p, "probes": [j], "widths": [k["width"]], "side": side,
+                                     "chosen": j_star})
+        clusters.sort(key=lambda c: (-c["route"]["width"], c["route"]["walked"][-1]))
+        for c in clusters:
+            route, p = c["route"], c["pos"]
+            clear = space.clearance[np.unravel_index(np.asarray(route["ids"]), space.dims)].astype(float)
+            beyond = np.linalg.norm(p - root_pos, axis=1) > root_clear
+            neck = int(np.flatnonzero(beyond)[np.argmin(clear[beyond])]) if beyond.any() else None
+            own = result_tree.query(p)[0] > space.spacing * math.sqrt(3) + 1e-6
+            out.append({"route": route, "positions": p, "bottleneck_index": neck, "own": own, "side": side,
+                        "probes_A": [probes[j] for j in c["probes"]], "widths_A": c["widths"],
+                        "chosen_probe_A": probes[c["chosen"]]})
+    return out
+
+
+def _describe_left_out(frame, spatial, left_out, lining_shell, include_hetero):
+    """JSON records of the left-out routes, with lining residues of their lattice routes."""
+    from .fingerprint import _lining
+    if not left_out:
+        return []
+    import numpy as np
+    rows, owner = [], []
+    for i, item in enumerate(left_out):
+        keep = item["own"].copy()
+        if item["bottleneck_index"] is not None:
+            keep[item["bottleneck_index"]] = True
+        points = [tuple(map(float, q)) for q in item["positions"][keep]]
+        radii = spatial.nearest_surface_values(points).tolist()
+        rows += [{"position": q, "raw_clearance_A": r} for q, r in zip(points, radii)]
+        owner += [(i, int(k), bool(item["own"][k])) for k in np.flatnonzero(keep)]
+    per_sample, _ = _lining(frame, rows, lining_shell, include_hetero)
+    lining, necks = [[] for _ in left_out], [[] for _ in left_out]
+    for (i, k, own), keys in zip(owner, per_sample):
+        labels = sorted(key.label for key in keys)
+        if k == left_out[i]["bottleneck_index"]:
+            necks[i] = labels
+        if own:
+            lining[i] += [label for label in labels if label not in lining[i]]
+    records = []
+    for n, item in enumerate(left_out):
+        route, neck = item["route"], item["bottleneck_index"]
+        mouth = item["positions"][-1]
+        record = {"route": f"L{n + 1}", "side": item["side"], "width_A": round(route["width"], 4),
+                  "found_at_probes_A": item["probes_A"], "widths_A": [round(w, 4) for w in item["widths_A"]],
+                  "rerun_probe_A": max(item["probes_A"]), "chosen_probe_A": item["chosen_probe_A"],
+                  "end_type": route["end"], "lattice_length_A": round(route["walked"][-1], 3),
+                  "mouth_A": [round(float(v), 3) for v in mouth],
+                  "bottleneck_A": ([round(float(v), 3) for v in item["positions"][neck]] if neck is not None
+                                   else None),
+                  "bottleneck_residues": necks[n], "own_lattice_nodes": int(item["own"].sum()),
+                  "lining_residues": lining[n]}
+        records.append(record)
+    return records
 
 
 def _pick_group(groups):
@@ -1554,6 +1696,43 @@ def _write_csv(path, rows, columns):
         for row in rows:
             writer.writerow({c: row.get(c, "") for c in columns})
     return path
+
+
+#: Columns of ``<prefix>_path_left_out.csv``.
+LEFT_OUT_COLUMNS = ["route", "side", "width_A", "found_at_probes_A", "widths_A", "rerun_probe_A", "chosen_probe_A",
+                    "end_type", "lattice_length_A", "mouth_x_A", "mouth_y_A", "mouth_z_A", "bottleneck_x_A",
+                    "bottleneck_y_A", "bottleneck_z_A", "bottleneck_residues", "lining_residues"]
+
+
+def _left_out_rows(selection):
+    """Rows of ``<prefix>_path_left_out.csv`` (one per left-out route) from ``settings["probe_selection"]``."""
+    rows = []
+    for r in selection.get("left_out_routes", []):
+        neck = r["bottleneck_A"] or ["", "", ""]
+        rows.append({**{c: r[c] for c in ("route", "width_A", "rerun_probe_A", "chosen_probe_A", "end_type",
+                                          "lattice_length_A")},
+                     "side": r["side"] or "all",
+                     "found_at_probes_A": ";".join(map(str, r["found_at_probes_A"])),
+                     "widths_A": ";".join(map(str, r["widths_A"])),
+                     "mouth_x_A": r["mouth_A"][0], "mouth_y_A": r["mouth_A"][1], "mouth_z_A": r["mouth_A"][2],
+                     "bottleneck_x_A": neck[0], "bottleneck_y_A": neck[1], "bottleneck_z_A": neck[2],
+                     "bottleneck_residues": ";".join(r["bottleneck_residues"]),
+                     "lining_residues": ";".join(r["lining_residues"])})
+    return rows
+
+
+def _left_out_summary(selection, prefix):
+    """Printed line about the routes the automatic probe left out (``None`` when there are none)."""
+    routes = selection.get("left_out_routes") or []
+    if not routes:
+        return None
+    widest = max(routes, key=lambda r: r["width_A"])
+    by_side = ", ".join(f"{side} {n}" for side, n in
+                        ((s, sum((r["side"] or "all") == s for r in routes)) for s in ("+", "-", "all")) if n)
+    return (f"left out: {len(routes)} route{'s' if len(routes) != 1 else ''} found only at other candidate probes "
+            f"({by_side}; widest {widest['width_A']:.2f} Å on side {widest['side'] or 'all'}, found at "
+            f"{';'.join(f'{p:g}' for p in widest['found_at_probes_A'])} Å); listed in {prefix}_path_left_out.csv; "
+            f"--probe-radius {widest['rerun_probe_A']:g} reports it")
 
 
 def plot_paths(result, path, *, dpi: int = 200):
@@ -1707,7 +1886,7 @@ def write_path_scenes(result, directory, prefix, structure_name=None, *, tube_ra
     pml.append("cmd.orient('crevice_protein')" if structure_name else "cmd.zoom()")
     pml.append("python end")
     path = directory / f"{prefix}_paths.pml"
-    path.write_text("\n".join(pml) + "\n")
+    path.write_text("\n".join(pml) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     cxc = ["# CREVICE pathway scene (ChimeraX): one BILD model per branch, no labels", "set bgColor white"]
     if structure_name:
@@ -1717,12 +1896,12 @@ def write_path_scenes(result, directory, prefix, structure_name=None, *, tube_ra
         rows = [f".color {rgb[0]:.3f} {rgb[1]:.3f} {rgb[2]:.3f}"]
         rows += [f".cylinder {a[0]:.3f} {a[1]:.3f} {a[2]:.3f} {b[0]:.3f} {b[1]:.3f} {b[2]:.3f} {tube_radius}"
                  for a, b in zip(pts, pts[1:])]
-        bild.write_text("\n".join(rows) + "\n")
+        bild.write_text("\n".join(rows) + "\n", encoding="utf-8", newline="\n")
         written.append(bild)
         cxc.append(f"open {bild.name} name {name}")
     cxc.append("view")
     path = directory / f"{prefix}_paths.cxc"
-    path.write_text("\n".join(cxc) + "\n")
+    path.write_text("\n".join(cxc) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     tcl = ["# CREVICE pathway scene (VMD): one graphics molecule per branch, no labels",
            "set crevice_here [file dirname [file normalize [info script]]]", "color Display Background white"]
@@ -1736,7 +1915,7 @@ def write_path_scenes(result, directory, prefix, structure_name=None, *, tube_ra
         tcl += [f"graphics top cylinder {{{a[0]:.3f} {a[1]:.3f} {a[2]:.3f}}} {{{b[0]:.3f} {b[1]:.3f} {b[2]:.3f}}} "
                 f"radius {tube_radius} resolution 12" for a, b in zip(pts, pts[1:])]
     path = directory / f"{prefix}_paths_vmd.tcl"
-    path.write_text("\n".join(tcl) + "\n")
+    path.write_text("\n".join(tcl) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     return written
 
@@ -1794,9 +1973,9 @@ def paths_view_from_json(path, *, title=None):
     from pathlib import Path
     from .viewer import CreviceView, Layer, PROTEIN_HEX, PROTEIN_OPACITY
     path = Path(path)
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     structure_path = path.with_name(path.name.replace("_paths.json", "_paths_structure.pdb"))
-    structure = structure_path.read_text() if structure_path.is_file() else None
+    structure = structure_path.read_text(encoding="utf-8") if structure_path.is_file() else None
     layers = [Layer("protein", "Protein", "cartoon", PROTEIN_HEX, opacity=PROTEIN_OPACITY)] if structure else []
     for b in data.get("branches", []):
         n = b["branch"]
@@ -1848,6 +2027,13 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
         Automatic probe only: one row per candidate probe and side
         (``probe_A``, ``side``, ``status``, ``group``, ``chosen``, routes,
         widths, end types, lengths, search sizes, ``reason``).
+    <prefix>_path_left_out.csv
+        Automatic probe only: one row per route found at a candidate probe
+        but left out of the result (``LEFT_OUT_DEFINITION``; header only when
+        none): ``route``, ``side``, ``width_A``, ``found_at_probes_A``,
+        ``widths_A``, ``rerun_probe_A``, ``chosen_probe_A``, ``end_type``,
+        ``lattice_length_A``, mouth and bottleneck coordinates,
+        ``bottleneck_residues`` and ``lining_residues``.
     <prefix>_paths.png, scenes
         See :func:`plot_paths` and :func:`write_path_scenes`.
     """
@@ -1858,7 +2044,7 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
     directory.mkdir(parents=True, exist_ok=True)
     written = []
     path = directory / f"{prefix}_paths.json"
-    path.write_text(json.dumps(result.to_dict(), indent=1, default=float) + "\n")
+    path.write_text(json.dumps(result.to_dict(), indent=1, default=float) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     rows = result.summary_rows()
     written.append(_write_csv(directory / f"{prefix}_paths.csv", rows, list(rows[0])))
@@ -1891,6 +2077,8 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
                        "side": r["side"] or "all",
                        "chosen": chosen.get(r["side"] or "all") == r["probe_A"]} for r in selection["candidates"]]
         written.append(_write_csv(directory / f"{prefix}_path_probes.csv", probe_rows, columns))
+        written.append(_write_csv(directory / f"{prefix}_path_left_out.csv", _left_out_rows(selection),
+                                  LEFT_OUT_COLUMNS))
     if figure:
         written.append(plot_paths(result, directory / f"{prefix}_paths.png", dpi=dpi))
     if scenes:
@@ -2043,3 +2231,6 @@ def run_paths_command(args):
             choice = ", ".join(f"{side} {v['probe_A']:g} Å" if v["probe_A"] is not None else f"{side} none"
                                for side, v in selection["chosen_by_side"].items())
             print(f"paths{suffix} probe=auto chosen: {choice} ({selection['reason']})")
+            left_out = _left_out_summary(selection, prefix + suffix)
+            if left_out:
+                print(f"paths{suffix} probe=auto {left_out}")

@@ -116,7 +116,7 @@ def test_rule_detects_missing_parameter_and_field_descriptions(tmp_path):
     sample.write_text('"""A module docstring that is long enough for the rule."""\n'
                       'def f(a, b):\n    """Do something with a only."""\n'
                       'class C:\n    """A class with one documented field: x."""\n    x: int\n    y: int\n'
-                      'def _private(z):\n    pass\n')
+                      'def _private(z):\n    pass\n', encoding="utf-8", newline="\n")
     assert docstring_problems(sample) == {"f": "parameters not described: b",
                                           "C": "fields/parameters not described: y"}
 

@@ -289,6 +289,7 @@ DISTINCT_EXIT_DEFINITION = (
 #: Edge of the lattice blocks whose clearances the exit search computes together.
 _BLOCK = 4
 _STEPS = tuple((i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1) if (i, j, k) != (0, 0, 0))
+_STEP_INDEX = {step: s for s, step in enumerate(_STEPS)}
 
 
 def lateral_exit(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.0, bulk_spacing=1.0,
@@ -396,6 +397,7 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     openings). Symmetric portals, such as the two C2-related portals of a K2P
     dimer, therefore give one leg each instead of a tie-break.
     """
+    import numpy as np
     spatial, probe = geometry.spatial, geometry.probe
     u, v, axis = geometry.u, geometry.v, geometry.direction
     separation = 2.0*bulk_radius if separation is None else separation
@@ -431,6 +433,76 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     def in_mouth(node):
         return distance(position(node), origin) <= mouth_sphere
 
+    filled = set()
+
+    def fill(blocks):
+        # Clearances of whole lattice blocks in one batched query (values are
+        # per node, so the batch only amortises the query).
+        block = []
+        for key in blocks:
+            if key in filled:
+                continue
+            filled.add(key)
+            block += [q for q in ((key[0]*_BLOCK+a, key[1]*_BLOCK+b, key[2]*_BLOCK+c)
+                                  for a in range(_BLOCK) for b in range(_BLOCK) for c in range(_BLOCK))
+                      if q not in clear]
+        if block:
+            clear.update(zip(block, spatial.nearest_surface_values(
+                [add(origin, add(scale(u, q[0]*spacing), add(scale(v, q[1]*spacing), scale(w, q[2]*spacing))))
+                 for q in block]).tolist()))
+
+    # Segment clearances computed ahead, per lattice block: when a node of a
+    # block first needs segment tests, every segment the search could test
+    # from any node of that block (both ends clear the probe and the lower
+    # bound does not settle the test) is computed in one batched call. Each
+    # value is exactly what a separate call gives, so the search is unchanged;
+    # a segment not prepared here is computed when needed.
+    segment_cache = {}
+    prefetched = set()
+
+    def prefetch(node):
+        key = (node[0]//_BLOCK, node[1]//_BLOCK, node[2]//_BLOCK)
+        if key in prefetched:
+            return
+        prefetched.add(key)
+        fill({(key[0]+a, key[1]+b, key[2]+c) for a in (-1, 0, 1) for b in (-1, 0, 1) for c in (-1, 0, 1)
+              if key[2]+c >= 0})
+        nodes = [q for q in ((key[0]*_BLOCK+a, key[1]*_BLOCK+b, key[2]*_BLOCK+c)
+                             for a in range(_BLOCK) for b in range(_BLOCK) for c in range(_BLOCK))
+                 if q[2] >= 0 and clear.get(q, -math.inf) > probe]
+        if not nodes:
+            return
+        # Bulk nodes are terminals and never expanded; skip them (an
+        # approximate, batched depth only decides what is prepared).
+        index = np.rint(((np.asarray([position(q) for q in nodes])-envelope.origin_world) @ envelope.basis.T
+                         - envelope.low)/envelope.spacing).astype(int)
+        inside = np.all((index >= 0) & (index < np.asarray(envelope.dims)), axis=1)
+        deep = np.zeros(len(nodes), bool)
+        deep[inside] = envelope.distance[tuple(index[inside].T)] > envelope.bulk_radius
+        pending, starts, ends = [], [], []
+        for q in (q for q, keep in zip(nodes, deep.tolist()) if keep):
+            if q in segment_cache:
+                continue
+            cq = clear[q]
+            for s, step in enumerate(_STEPS):
+                other = (q[0]+step[0], q[1]+step[1], q[2]+step[2])
+                if other[2] < 0:
+                    continue
+                c = clear[other]
+                if c <= probe:
+                    continue
+                bound = (cq+c-spacing*math.sqrt(step[0]**2+step[1]**2+step[2]**2))/2
+                if bound <= probe or bound < c:
+                    pending.append((q, s))
+                    starts.append(position(q))
+                    ends.append(position(other))
+        if pending:
+            for (q, s), value in zip(pending, spatial.segment_clearances(starts, ends).tolist()):
+                row = segment_cache.get(q)
+                if row is None:
+                    row = segment_cache[q] = [None]*len(_STEPS)
+                row[s] = value
+
     width = {root: math.inf}
     parent = {root: None}
     counter = 0
@@ -463,18 +535,8 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
         # segment clearances the bound test asks for, each in one call.
         neighbours = [(step, (node[0]+step[0], node[1]+step[1], node[2]+step[2])) for step in _STEPS]
         neighbours = [(step, other) for step, other in neighbours if other[2] >= 0]
-        missing = [other for _, other in neighbours if other not in clear]
-        if missing:
-            # Fill whole lattice blocks at once (values are per node, so this
-            # only amortises the batched query).
-            block = []
-            for key in {(o[0]//_BLOCK, o[1]//_BLOCK, o[2]//_BLOCK) for o in missing}:
-                block += [q for q in ((key[0]*_BLOCK+a, key[1]*_BLOCK+b, key[2]*_BLOCK+c)
-                                      for a in range(_BLOCK) for b in range(_BLOCK) for c in range(_BLOCK))
-                          if q not in clear]
-            clear.update(zip(block, spatial.nearest_surface_values(
-                [add(origin, add(scale(u, q[0]*spacing), add(scale(v, q[1]*spacing), scale(w, q[2]*spacing))))
-                 for q in block]).tolist()))
+        if any(other not in clear for _, other in neighbours):
+            fill({(o[0]//_BLOCK, o[1]//_BLOCK, o[2]//_BLOCK) for _, o in neighbours if o not in clear})
         plan = []
         for step, other in neighbours:
             c = clear[other]
@@ -485,9 +547,24 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
             new = current if inside else min(current, c)
             # (clear[node]+c-length)/2 is a lower bound on the segment clearance.
             bound = (clear[node]+c-length)/2
-            plan.append((other, length, inside, new, (bound <= probe) if inside else (bound < new)))
-        tested = [position(other) for other, _, _, _, test in plan if test]
-        segments = iter(spatial.segment_clearances([p]*len(tested), tested).tolist() if tested else ())
+            plan.append((other, length, inside, new, (bound <= probe) if inside else (bound < new), step))
+        if any(row[4] for row in plan):
+            prefetch(node)
+        values = {}
+        missing = []
+        prepared = segment_cache.pop(node, None)
+        for other, _, _, _, test, step in plan:
+            if test:
+                value = None if prepared is None else prepared[_STEP_INDEX[step]]
+                if value is None:
+                    missing.append((other, step))
+                else:
+                    values[step] = value
+        if missing:
+            values.update(zip((step for _, step in missing), spatial.segment_clearances(
+                [p]*len(missing), [position(other) for other, _ in missing]).tolist()))
+        segments = iter([values[row[5]] for row in plan if row[4]])
+        plan = [row[:5] for row in plan]
         for other, length, inside, new, test in plan:
             if test:
                 segment = next(segments)

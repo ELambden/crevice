@@ -143,7 +143,7 @@ def write_additional_cavity_reports(report,arrays,output_dir,*,prefix='crevice',
         p=root/(prefix+suffix);files[key]=str(p);return p
     def table(p,rows):
         if not rows:return
-        with p.open('w',newline='') as f:
+        with p.open('w',newline='', encoding="utf-8") as f:
             writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
     options=dict(confidence=confidence,block_length=block_length,replicates=replicates,seed=seed,regular=report['regular_timestamps'])
     positions=np.array([r['position_A'] for r in report['profile']['rows']]);time=np.asarray(arrays['time_ps'])/1000
@@ -173,7 +173,7 @@ def write_additional_cavity_reports(report,arrays,output_dir,*,prefix='crevice',
     metadata={'profiles':profiles,'empirical_band':'Fixed 2.5–97.5% quantiles of measured frames; not confidence bounds',
               'mean_band':f'{confidence:.0%} separate pointwise batch-bootstrap intervals; serial-dependence and coverage safeguards retained; not simultaneous confidence across coordinates',
               'statistical_options':options}
-    path('profile_statistics_json','_cavity_profile_statistics.json').write_text(json.dumps(metadata,indent=2,allow_nan=False)+'\n')
+    path('profile_statistics_json','_cavity_profile_statistics.json').write_text(json.dumps(metadata,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     # Dynamic partner roles are recalculated in every frame, separate from the
     # reference-lining labels retained by the older motion report.
     partner_rows=[];ids=list(arrays['residue_ids']);motion={r['residue']:r for r in report['residue_dynamics']['residues']}

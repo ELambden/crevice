@@ -22,8 +22,8 @@ from crevice.outputs import OutputSelectionError, file_kind, resolve_outputs
 from inventory_cases import CASES, channel_pdb, inventory, run_case
 
 DATA = Path(__file__).parent / "data"
-LEGACY = json.loads((DATA / "legacy_inventory_0.2.0.json").read_text())["cases"]
-EXPECTED = json.loads((DATA / "output_inventory_0.3.json").read_text())["cases"]
+LEGACY = json.loads((DATA / "legacy_inventory_0.2.0.json").read_text(encoding="utf-8"))["cases"]
+EXPECTED = json.loads((DATA / "output_inventory_0.3.json").read_text(encoding="utf-8"))["cases"]
 SCRIPT_SUFFIXES = (".pml", ".vmd", ".tcl", ".cxc", ".bild", "_chimerax.py", ".html")
 
 
@@ -75,7 +75,7 @@ def test_default_publish_has_three_viewers_key_figures_and_no_water_files(tmp_pa
     assert "c_interactions.json" in files
     assert not [f for f in files if "hydration" in f or "water" in f or f.endswith(".html")]
     assert not [f for f in files if f.startswith(("c_cavities", "c_tunnels", "c_network"))]
-    manifest = json.loads((tmp_path / "out" / "c_manifest.json").read_text())
+    manifest = json.loads((tmp_path / "out" / "c_manifest.json").read_text(encoding="utf-8"))
     for path in manifest["files"].values():
         assert Path(path).is_file(), path
     run = manifest["run"]
@@ -94,8 +94,8 @@ def test_residue_interactions_equal_the_hydration_workflow_without_water_terms(t
     residues = ["A:ALA1", "A:ALA2", "A:ALA3"]
     full = static_hydration_bundle(frame, tmp_path / "full", prefix="x", residue_ids=residues, sasa_samples=32, dpi=40)
     alone = write_residue_interactions(static_residue_interactions(frame, residue_ids=residues), tmp_path / "alone", "x")
-    a = json.loads(Path(full["interaction_json"]).read_text())
-    b = json.loads(Path(alone["interaction_json"]).read_text())
+    a = json.loads(Path(full["interaction_json"]).read_text(encoding="utf-8"))
+    b = json.loads(Path(alone["interaction_json"]).read_text(encoding="utf-8"))
     assert [e for e in a["edges"] if e["kind"] != "water_bridge_hbond"] == b["edges"]
     assert b["metadata"]["water_terms"].startswith("not measured")
     strip = {"mean_hydrogen_bonded_waters", "chi1_wet_endpoint_intervals", "chi1_dry_endpoint_intervals",
@@ -130,8 +130,8 @@ def test_cli_and_python_give_identical_numbers_and_files(tmp_path):
     # The bundle writer has no CLI wrapper extras (input report, residue interactions).
     assert set(names["api"]) <= set(names["cli"])
     for d in ("cli", "py", "api"):
-        assert (tmp_path / d / "c_profile.json").read_text() == (tmp_path / "cli" / "c_profile.json").read_text()
-        assert (tmp_path / d / "c_void_cast.json").read_text() == (tmp_path / "cli" / "c_void_cast.json").read_text()
+        assert (tmp_path / d / "c_profile.json").read_text(encoding="utf-8") == (tmp_path / "cli" / "c_profile.json").read_text(encoding="utf-8")
+        assert (tmp_path / d / "c_void_cast.json").read_text(encoding="utf-8") == (tmp_path / "cli" / "c_void_cast.json").read_text(encoding="utf-8")
     assert Path(files["volume_pml"]).is_file() and "volume_vmd" in files
 
 
@@ -157,7 +157,7 @@ def test_settings_round_trip_through_print_config_and_config(tmp_path, capsys):
     assert printed["schema"] == "crevice.settings/1" and printed["geometry"]["samples"] == 31
     assert printed["outputs"]["outputs"] == "figures" and printed["geometry"]["origin"] == [0.0, 0.0, 1.0]
     config = tmp_path / "run.json"
-    config.write_text(json.dumps(printed))
+    config.write_text(json.dumps(printed), encoding="utf-8", newline="\n")
     assert main(["publish", str(pdb), "--config", str(config), "--print-config"]) == 0
     assert json.loads(capsys.readouterr().out) == printed
     # Command-line flags override the file.
@@ -174,7 +174,7 @@ def test_settings_are_validated_before_any_input_is_read(tmp_path, capsys):
     assert main(["residue-evidence", missing, "--volume-dx", str(tmp_path / "no.dx"), "--out-dir", str(tmp_path)]) == 2
     assert "no.dx does not exist" in capsys.readouterr().err
     bad = tmp_path / "bad.json"
-    bad.write_text(json.dumps({"command": "publish", "geometry": {"no_such_option": 1}}))
+    bad.write_text(json.dumps({"command": "publish", "geometry": {"no_such_option": 1}}), encoding="utf-8", newline="\n")
     with pytest.raises(SystemExit):
         main(["publish", missing, "--out-dir", str(tmp_path / "o"), "--config", str(bad)])
     assert not (tmp_path / "o").exists()
@@ -205,5 +205,5 @@ def test_all_records_missing_prerequisites_instead_of_inventing_outputs(tmp_path
     result = run_case("publish-unresolved", tmp_path, ["--all"])
     assert result["exit"] == 0 and result["numbers"]["profile_status"] == "unresolved"
     assert not [f for f in result["files"] if "_profile." in f or "fingerprint" in f]
-    manifest = json.loads((tmp_path / "out" / "p_manifest.json").read_text())
+    manifest = json.loads((tmp_path / "out" / "p_manifest.json").read_text(encoding="utf-8"))
     assert "no through-channel profile" in manifest["run"]["outputs"]["notes"]["fingerprint"]

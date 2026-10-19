@@ -119,6 +119,29 @@ selection record.
    (`chosen_by_side`) and the reason; `settings.probe_radius_A` is the
    smallest chosen probe and each branch records its own `probe_radius_A`.
    `*_path_probes.csv` has one row per candidate and side.
+8. **Left-out routes.** On each side with a chosen probe, every route kept
+   by another searched candidate is compared with the routes of the chosen
+   result under the distinct-route rule below. A route that is not distinct
+   from one of them is the same opening seen at another probe and is not
+   listed. The others are *left out*: they exist at some candidate probe but
+   are not in the result. Going through the candidates in ascending probe
+   order, a left-out route joins the first listed one it is not distinct
+   from, so a route found at several probes is listed once; the first
+   (smallest-probe) instance supplies its width (ranking width), mouth, end
+   type, lattice length and bottleneck (the node of smallest clearance
+   outside the start's free sphere). Its lining residues use the lining shell
+   below, on the unsmoothed lattice nodes: at the bottleneck node, and along
+   its *own* nodes, those farther than one lattice diagonal (√3 × spacing)
+   from every node of the result's routes on that side, in order from the
+   start. `rerun_probe_A` is the largest probe at which the route was found:
+   that candidate's route set contains it, so a fixed run at that probe
+   reports it as a branch (up to the start-snapping caveat of step 3). The
+   list is `settings.probe_selection.left_out_routes` (with
+   `left_out_definition`), `chosen_by_side` counts them per side,
+   `*_path_left_out.csv` has one row each, and the command prints how many
+   were left out. Listing them changes nothing in the result: no centre
+   line, radius profile or scene is computed for them, and the branches,
+   their numbering and every other output are those of the chosen probe.
 
 **Why the smallest probe of the most persistent set.** Within a group the
 routes are the same, so the probe only changes what counts as wall and where
@@ -133,8 +156,8 @@ narrow filter, the filter routes are the only routes and persist up to their
 width, so a small probe is chosen; in a wide vestibule, the wide routes
 persist over many probes while narrow side routes come and go at the
 smallest ones, so a larger probe is chosen and the side routes are left out.
-They remain in the candidate record, and a fixed `--probe-radius` reports
-them.
+They are listed as left-out routes (step 8), and a fixed `--probe-radius`
+reports them.
 
 **Per side.** With `--axis` the two half-space searches are already
 independent (their own distinct routes, their own unresolved status), and the
@@ -246,8 +269,17 @@ lines one of its samples; its anchor is the arc length of its smallest gap.
   concluding that a route is closed.
 * **Automatic probe.** The choice depends on the ladder, the grouping
   tolerances and the grid; narrow side routes seen only at small probes are
-  left out when a wider route set persists. Read `*_path_probes.csv`, and
-  give a fixed `--probe-radius` to report what a particular probe finds.
+  left out when a wider route set persists. They are listed in
+  `*_path_left_out.csv` with their width and probes, but only as lattice
+  routes; give a fixed `--probe-radius` to measure what a particular probe
+  finds. A route kept by none of the searched candidates (for example one
+  beyond `--max-paths` at every probe) is not listed. The rule is not
+  transitive: a route that a candidate keeps as distinct from that
+  candidate's own widest route can still be *not* distinct from the chosen
+  probe's route (mouths and junctions move with the probe), and is then not
+  listed. In the GLUT1 example, secondary −*z* routes that a fixed 0.8 Å
+  probe reports had mouths 11.5–13.7 Å from the chosen route's mouth, at
+  the 12 Å threshold.
 * **Maximin semantics.** The widest route is preferred however long it is;
   the half-space searches (`--axis`) and exposed nodes limit detours but do
   not forbid them. Read each branch's length and lining residues.

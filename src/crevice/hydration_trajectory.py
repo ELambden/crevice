@@ -268,16 +268,16 @@ def analyze_hydration_trajectory(topology,trajectory,*,context_json=None,residue
     context=None;context_arrays=None;context_reader=None;context_verification='not_applicable'
     if context_json is not None:
         if not align:raise ValueError('Cached cavity hydration requires alignment to its reference')
-        path=Path(context_json).resolve(strict=True);context=json.loads(path.read_text())
+        path=Path(context_json).resolve(strict=True);context=json.loads(path.read_text(encoding="utf-8"))
         stem=path.name.removesuffix('_cavity_statistics.json')
-        context_reader=json.loads((path.parent/(stem+'_reader.json')).read_text())
+        context_reader=json.loads((path.parent/(stem+'_reader.json')).read_text(encoding="utf-8"))
         for key,current in [('topology',topology),('trajectory',trajectory)]:
             if Path(context_reader[key]).resolve()!=Path(current).resolve():raise ValueError('Hydration context source differs from the requested '+key)
         provenance=path.parent.parent/'input-provenance.json'
         context_verification='source paths, selected identities, frame indices and timestamps; content hashes not supplied'
         if provenance.is_file():
             import hashlib
-            hashes=json.loads(provenance.read_text());verified=0
+            hashes=json.loads(provenance.read_text(encoding="utf-8"));verified=0
             for current in [topology,trajectory]:
                 key=str(Path(current).resolve())
                 if key in hashes:

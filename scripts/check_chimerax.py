@@ -42,7 +42,7 @@ def main():
     args=parser.parse_args();scene=args.scene.resolve(strict=True);out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
     executable=args.executable or str(local_chimerax())
     prefix=scene.stem.removesuffix('_residue_context');evidence=scene.parent/(prefix+'_residue_evidence.json')
-    overlay=json.loads(evidence.read_text()) if evidence.is_file() else None
+    overlay=json.loads(evidence.read_text(encoding="utf-8")) if evidence.is_file() else None
     inspection=f'''
 from chimerax.core.commands import run
 from chimerax.atomic import AtomicStructure,Atom
@@ -74,7 +74,7 @@ except Exception as error:
     raise
 '''
     with tempfile.TemporaryDirectory(prefix='crevice-chimerax-') as directory:
-        script=Path(directory)/'inspect.py';script.write_text(inspection)
+        script=Path(directory)/'inspect.py';script.write_text(inspection, encoding="utf-8", newline="\n")
         command=[executable,'--silent','--exit',str(script)]
         if args.xvfb:command=['xvfb-run','-a','-s','-screen 0 1280x1024x24',*command]
         else:command.insert(1,'--offscreen')
@@ -84,8 +84,8 @@ except Exception as error:
         except subprocess.TimeoutExpired as error:
             def text(x):return x.decode(errors='replace') if isinstance(x,bytes) else (x or '')
             log=text(error.stdout)+text(error.stderr);code=-1
-    (out/'chimerax.log').write_text(log)
-    path=out/'native_inspection.json';result=json.loads(path.read_text()) if path.is_file() else {'native_execution_passed':False}
+    (out/'chimerax.log').write_text(log, encoding="utf-8", newline="\n")
+    path=out/'native_inspection.json';result=json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {'native_execution_passed':False}
     ok=code==0 and result['native_execution_passed'] and (out/'chimerax_native.png').is_file()
     if ok:
         import numpy as np
@@ -105,7 +105,7 @@ except Exception as error:
             ref=np.load(references[0]);points=ref['surface_vertices'] if 'surface_vertices' in ref else ref['boundary_points']
             error=max(cKDTree(points).query(native['surface_vertices'])[0].max(),cKDTree(native['surface_vertices']).query(points)[0].max())
             result['surface_reference_error_A']=float(error)
-            meta=json.loads(next(scene.parent.glob('*_volume_metadata.json')).read_text())
+            meta=json.loads(next(scene.parent.glob('*_volume_metadata.json')).read_text(encoding="utf-8"))
             # Different contour triangulations need not have identical vertices.
             spacing=float(meta.get('spacing',meta.get('spacing_A',.5)))
             result['surface_reference_bound_A']=spacing*1.8+.001
@@ -116,13 +116,13 @@ except Exception as error:
         metadata_files=list(scene.parent.glob('*_volume_metadata.json'))
         camera_files=[]
         if len(metadata_files)==1:
-            metadata=json.loads(metadata_files[0].read_text())
+            metadata=json.loads(metadata_files[0].read_text(encoding="utf-8"))
             camera_name=metadata.get('files',{}).get('scene_json')
             if camera_name:
                 camera_path=scene.parent/Path(camera_name).name
                 if camera_path.is_file():camera_files=[camera_path]
         if len(camera_files)==1:
-            geometry=json.loads(camera_files[0].read_text())
+            geometry=json.loads(camera_files[0].read_text(encoding="utf-8"))
             expected_rotation=np.asarray(geometry['camera_rotation']).T
             result['camera_rotation_error']=float(np.max(np.abs(np.asarray(result['camera_matrix'])[:,:3]-expected_rotation)))
             ok=ok and result['camera_rotation_error']<1e-8
@@ -132,7 +132,7 @@ except Exception as error:
         result['foreground_fraction']=float(np.any(rgb<245,axis=2).mean());result['border_foreground_fraction']=float(np.any(border<245,axis=1).mean())
         ok=ok and result['foreground_fraction']>.001 and result['border_foreground_fraction']<.01
     result.update(status='passed' if ok else 'failed',returncode=code,scene=str(scene),executable=executable)
-    (out/'chimerax_verification.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps({k:v for k,v in result.items() if k not in {'atom_serials','atom_colors','displayed_stick_serials'}},indent=2))
+    (out/'chimerax_verification.json').write_text(json.dumps(result,indent=2)+'\n', encoding="utf-8", newline="\n");print(json.dumps({k:v for k,v in result.items() if k not in {'atom_serials','atom_colors','displayed_stick_serials'}},indent=2))
     if not ok:raise SystemExit(1)
 
 

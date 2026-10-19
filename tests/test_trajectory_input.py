@@ -180,7 +180,7 @@ def test_missing_trajectory_is_reported(gromacs, tmp_path):
 
 def test_unreadable_topology_names_the_file(tmp_path):
     broken = tmp_path / "broken.gro"
-    broken.write_text("not a gro file\n")
+    broken.write_text("not a gro file\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="MDAnalysis could not read"):
         load_trajectory(broken)
 

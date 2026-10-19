@@ -82,3 +82,93 @@ def test_shared_frame_cache_gives_the_independent_result():
     finally:
         sections._ACTIVE_FRAMES.reset(token)
     assert shared == alone
+
+
+def test_dx_value_rows_equal_formatting_every_value():
+    from crevice.volume_export import dx_value_rows
+
+    def reference(values, spec):
+        return [" ".join(format(v, spec) for v in values[i:i + 3]) for i in range(0, len(values), 3)]
+
+    rng = np.random.default_rng(7)
+    for dtype in (np.float32, np.float64, np.int64):
+        for n in (0, 1, 2, 3, 10, 1001):
+            values = (rng.random(n) * 3).round(3).astype(dtype)
+            if n > 3 and dtype is not np.int64:
+                values[:3] = (-0.0, np.nan, np.inf)
+            for spec in (".6g", ".12g"):
+                assert dx_value_rows(values, spec) == reference(values, spec)
+
+
+def test_pruned_maximum_clearance_equals_the_full_maximum():
+    from crevice.cavity_obstacles import _max_clearance
+    from crevice.rolling import _SphereQueries
+    rng = np.random.default_rng(3)
+    coords = rng.uniform(0, 12, (300, 3))
+    queries = _SphereQueries(coords, rng.choice([1.5, 1.7, 1.8], 300))
+    for shape in ((17, 23, 9), (5, 4, 3), (1, 1, 1)):
+        xyz = np.indices(shape).reshape(3, -1).T * 0.37 - 1.0
+        assert _max_clearance(queries, xyz, shape) == float(queries.points(xyz)[0].max())
+
+
+def test_near_only_regional_distances_are_the_full_ones_within_the_bound():
+    from types import SimpleNamespace
+    from crevice.regional_volume import regional_grid
+    rng = np.random.default_rng(5)
+    points = np.unique(np.rint(rng.normal(0, 1.5, (400, 3)) / 0.4), axis=0) * 0.4
+    make = lambda: SimpleNamespace(points=points, basis=np.eye(3), anchor=np.zeros(3), spacing=0.4)
+    full = regional_grid(make(), 2.0, 1.4, 10_000_000)[3]
+    near = regional_grid(make(), 2.0, 1.4, 10_000_000, near_only=True)[3]
+    within = full < 2.0 + 1.4 + 0.4
+    assert np.array_equal(full[within], near[within]) and np.isinf(near[~within]).all()
+
+
+def test_lateral_exit_legs_do_not_depend_on_the_prefetch_block(monkeypatch):
+    # Segment clearances are prepared per lattice block; the block size (and
+    # so what is prepared ahead) must not change any leg.
+    import sys
+    from pathlib import Path
+    import crevice.channel_exits as exits
+    from crevice.analysis import pore_profile
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_capped_channels import OPTIONS, capped_channel
+    frame = capped_channel(second_portal=True)
+    results = []
+    for block in (1, 2, 4):
+        monkeypatch.setattr(exits, "_BLOCK", block)
+        results.append(pore_profile(frame, lateral_exits=True, **OPTIONS).metadata["exits"])
+    assert results[0] == results[1] == results[2]
+
+
+def test_route_overlap_test_matches_the_plain_definition():
+    from crevice.paths import _min_pair_distance, _routes_overlap
+
+    def plain(pos_a, pos_b, ids_a, ids_b, separation, route_separation):
+        if np.linalg.norm(pos_a[-1] - pos_b[-1]) <= separation:
+            return True
+        shared = 0
+        while shared < min(len(ids_a), len(ids_b)) and ids_a[shared] == ids_b[shared]:
+            shared += 1
+        junction = pos_a[shared - 1] if shared else None
+        one, two = pos_a[shared:], pos_b[shared:]
+        if junction is not None:
+            one = one[np.linalg.norm(one - junction, axis=1) > route_separation]
+            two = two[np.linalg.norm(two - junction, axis=1) > route_separation]
+        return not len(one) or not len(two) or _min_pair_distance(one, two) <= route_separation
+
+    rng = np.random.default_rng(11)
+    seen = set()
+    for _ in range(300):
+        prefix = rng.integers(0, 6)
+        steps_a = rng.choice([-0.5, 0.0, 0.5], (rng.integers(1, 40), 3))
+        steps_b = rng.choice([-0.5, 0.0, 0.5], (rng.integers(1, 40), 3))
+        prefix = min(prefix, len(steps_a), len(steps_b))
+        steps_b[:prefix] = steps_a[:prefix]
+        pos_a, pos_b = np.cumsum(steps_a, axis=0), np.cumsum(steps_b, axis=0)
+        ids_a = list(range(len(pos_a)))
+        ids_b = list(range(prefix)) + list(range(1000, 1000 + len(pos_b) - prefix))
+        for separation, route_separation in ((3.0, 1.0), (12.0, 6.0), (1.0, 0.5)):
+            result = _routes_overlap(pos_a, pos_b, ids_a, ids_b, separation, route_separation)
+            assert result == plain(pos_a, pos_b, ids_a, ids_b, separation, route_separation)
+            seen.add(result)
+    assert seen == {True, False}

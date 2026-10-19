@@ -140,6 +140,9 @@ rescued with their own probe pool with the rest, but their mouths can sit
 slightly differently. Contact networks and correlated motion are associations,
 not pathways. The detailed method is in
 [Trajectory profiles and residue evidence](../TRAJECTORY_RESIDUE_METHODS.md).
+
+[Limitations](../getting-started/limitations.md) collects the caveats shared by
+all tools.
 :::
 
 The [NMR ensemble tutorial](../examples/trajectory-nmr-ensemble.md) runs all

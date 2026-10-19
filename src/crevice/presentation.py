@@ -198,14 +198,14 @@ def write_viewer_structure(frame, path):
     lines.append('END\n')
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(''.join(lines))
+    output.write_text(''.join(lines), encoding="utf-8", newline="\n")
     mapping = {"source": frame.source, "model_index": frame.model_index,
                "atom_count": len(frame.atoms), "coordinate_rounding_A": 0.001,
                "chain_mapping": chain_map,
                "residue_mapping": [{"original": k.label, "viewer_chain": chain_map[k.chain_id],
                                      "viewer_resid": v} for k, v in residues.items()],
                "original_serials_in_viewer_order": [a.serial for a in frame.atoms]}
-    output.with_suffix('.identities.json').write_text(json.dumps(mapping, indent=2)+'\n')
+    output.with_suffix('.identities.json').write_text(json.dumps(mapping, indent=2)+'\n', encoding="utf-8", newline="\n")
     return output
 
 

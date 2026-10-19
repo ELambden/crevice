@@ -1147,7 +1147,7 @@ def read_provenance(path: str | Path) -> DownloadRecord | None:
     sidecar = provenance_path(path)
     if not sidecar.exists():
         return None
-    data = json.loads(sidecar.read_text())
+    data = json.loads(sidecar.read_text(encoding="utf-8"))
     return DownloadRecord(**{**data, "path": Path(data["path"])})
 
 
@@ -1161,7 +1161,7 @@ def write_provenance(record: DownloadRecord) -> None:
         indented, overwriting any existing sidecar).
     """
     sidecar = provenance_path(record.path)
-    sidecar.write_text(json.dumps(record.to_dict(), indent=2, sort_keys=True) + "\n")
+    sidecar.write_text(json.dumps(record.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def verify_cached_structure(path: str | Path) -> DownloadRecord:

@@ -76,7 +76,8 @@ probes**:
   every probe up to their width, and a small probe is chosen.
 - A wide vestibule's routes are found at many probes, while narrow side
   routes appear only at the smallest ones, so a larger probe is chosen and
-  the side routes are left out (they stay listed in `*_path_probes.csv`).
+  the side routes are left out of the result. They are not dropped
+  silently: they are listed (below).
 - With `--axis`, each side gets its own probe.
 - If no probe gives a route, the result is unresolved and lists the probes
   tried.
@@ -91,6 +92,30 @@ The command prints the choice, for
 example `probe=auto chosen: + 0.5 Å, - 0.9 Å`. Give a number, such as
 `--probe-radius 0.8`, to fix the probe; the result is then exactly what that
 probe gives.
+
+### Routes left out by the automatic probe
+
+The result holds the routes of the chosen probe only. Every other route that
+some candidate probe found, and that is distinct from all the result's routes
+on its side (the same distinct-route rule as step 4 above), is listed in
+`*_path_left_out.csv` and in the JSON (`settings.probe_selection.left_out_routes`),
+and the command prints how many there are, for example
+
+```text
+paths probe=auto left out: 1 route found only at other candidate probes (all 1; widest 0.62 Å on side all, found at 0.5;0.55;0.6 Å); listed in protein_path_left_out.csv; --probe-radius 0.6 reports it
+```
+
+For each left-out route the table gives its side, its width (the narrowest
+lattice clearance along it), the probes at which it was found, the probe to
+rerun with (`rerun_probe_A`, the largest of those), the probe chosen for that
+side, how it ends, its length, its mouth and bottleneck, the residues lining
+its bottleneck and the residues lining its own part (beyond where it runs
+alongside a reported route). These come from the unsmoothed lattice route, so
+they locate the route; for its centre line and radius profile, rerun with
+`--probe-radius` set to `rerun_probe_A`. A route found at several probes is
+listed once. Nothing is printed when no route was left out, and the CSV then
+has its header only. A left-out route is not drawn in the figure, scenes or
+HTML view.
 
 ## Options you'll use most
 
@@ -123,6 +148,9 @@ All options are listed under [`crevice paths`](../reference/cli/paths.md).
   their widths, end types and lengths, the route-set group and whether it was
   chosen. The JSON's `settings.probe_selection` has the same, plus the rule
   and the reason for the choice.
+- **`*_path_left_out.csv`** (automatic probe only): one row per route found
+  at a candidate probe but left out of the result (above); header only when
+  there is none.
 - **`*_path_points.csv`**, **`*_path_lining.csv`**,
   **`*_path_junctions.csv`**: samples along each branch, lining residues with
   their positions along the branch, and junctions with their arc length on
@@ -147,4 +175,7 @@ axis clears the probe) and the start
 point; check a finer `--spacing` before concluding that a side is closed.
 Leaving out the membrane can open routes into the bilayer. Lengths near the
 mouths are uncertain by a few Å.
+
+[Limitations](../getting-started/limitations.md) collects the caveats shared by
+all tools.
 :::

@@ -121,11 +121,11 @@ def test_cli_records_the_radius_set_always(tmp_path):
     lines = [f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00 10.00           C"
              for a in cylinder().atoms]
     structure = tmp_path / "cyl.pdb"
-    structure.write_text("\n".join(lines) + "\nEND\n")
+    structure.write_text("\n".join(lines) + "\nEND\n", encoding="utf-8", newline="\n")
     assert main(["profile", str(structure), "--axis", "z", "--enclosure-radius", "0.8", "-o", str(tmp_path / "default.json")]) == 0
     assert main(["profile", str(structure), "--axis", "z", "--enclosure-radius", "0.8", "-o", str(tmp_path / "hole.json"), "--radii", "hole"]) == 0
-    default = json.loads((tmp_path / "default.json").read_text())
-    hole = json.loads((tmp_path / "hole.json").read_text())
+    default = json.loads((tmp_path / "default.json").read_text(encoding="utf-8"))
+    hole = json.loads((tmp_path / "hole.json").read_text(encoding="utf-8"))
     assert default["metadata"]["radii"]["name"] == "default"
     assert hole["metadata"]["radii"]["name"] == "hole"
     assert hole["metadata"]["radii"]["source"] == "HOLE 2.3.1 rad/simple.rad"
@@ -217,7 +217,7 @@ def read_hole_radius_file_from_text(text):
     from pathlib import Path
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "simple.rad"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8", newline="\n")
         return read_hole_radius_file(path)
 
 
@@ -237,7 +237,7 @@ def test_hole_rad_file_uses_first_match_fixed_columns_and_is_hashed(tmp_path):
                     "VDWR C??? ??? 1.90\n"
                     "vdwr o??? ??? 1.40\n"
                     "BOND C??? 0.85\n"
-                    "VDWR ???? ??? 1.70\n")
+                    "VDWR ???? ??? 1.70\n", encoding="utf-8", newline="\n")
     radii = load_radius_file(path)
     assert radii.radius_for_names("CB", "ALA") == 2.00
     assert radii.radius_for_names("CB", "SER") == 1.90
@@ -254,7 +254,7 @@ def test_hole_rad_file_uses_first_match_fixed_columns_and_is_hashed(tmp_path):
                                            ("VDWR\tC??? ??? 1.8\n", "tab")])
 def test_hole_rad_values_that_hole_would_misread_are_refused(tmp_path, line, message):
     path = tmp_path / "bad.rad"
-    path.write_text(line)
+    path.write_text(line, encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match=message):
         load_radius_file(path)
 
@@ -263,7 +263,7 @@ def test_json_radius_file_with_base_and_overrides(tmp_path):
     path = tmp_path / "ions.json"
     path.write_text(json.dumps({"name": "bondi-ionic", "base": "bondi",
                                 "atom_radii": {"SOD:SOD": 1.02, "CLA:CLA": 1.81},
-                                "element_radii": {"C": 1.8}, "citation": "test"}))
+                                "element_radii": {"C": 1.8}, "citation": "test"}), encoding="utf-8", newline="\n")
     radii = load_radius_file(path)
     assert radii.name == "bondi-ionic"
     assert radii.radius_for_names("SOD", "SOD") == 1.02
@@ -272,25 +272,25 @@ def test_json_radius_file_with_base_and_overrides(tmp_path):
     record = radii.provenance()
     assert record["element_overrides_A"] == {"C": 1.8}
     assert record["atom_radii_A"] == {"CLA:CLA": 1.81, "SOD:SOD": 1.02}
-    path.write_text(json.dumps({"element_radii": {"Xx": 1.0}}))
+    path.write_text(json.dumps({"element_radii": {"Xx": 1.0}}), encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="not an element"):
         load_radius_file(path)
-    path.write_text(json.dumps({"radii": {}}))
+    path.write_text(json.dumps({"radii": {}}), encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="unknown keys"):
         load_radius_file(path)
 
 
 def test_csv_radius_file(tmp_path):
     path = tmp_path / "small.csv"
-    path.write_text("# a comment\nkind,key,radius\nelement,C,1.9\natom,OG,1.4\ndefault,,2.0\n")
+    path.write_text("# a comment\nkind,key,radius\nelement,C,1.9\natom,OG,1.4\ndefault,,2.0\n", encoding="utf-8", newline="\n")
     radii = load_radius_file(path)
     assert radii.radius_for_names("CA", "ALA", "C") == 1.9
     assert radii.radius_for_names("OG", "SER") == 1.4
     assert radii.radius_for_names("NZ", "LYS", "N") == 2.0     # no base: default radius
     assert "N" in radii.provenance()["standard_elements_missing"]
-    path.write_text("kind,key,radius\nbase,bondi,\natom,SOD:SOD,1.02\n")
+    path.write_text("kind,key,radius\nbase,bondi,\natom,SOD:SOD,1.02\n", encoding="utf-8", newline="\n")
     assert load_radius_file(path).radius_for_names("NZ", "LYS", "N") == 1.55
-    path.write_text("kind,key,radius\nwhatever,C,1\n")
+    path.write_text("kind,key,radius\nwhatever,C,1\n", encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="kind must be"):
         load_radius_file(path)
 

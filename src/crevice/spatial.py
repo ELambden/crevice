@@ -22,6 +22,7 @@ flexibility and hydrogen atoms that were filtered out before indexing.
 
 from __future__ import annotations
 
+from itertools import chain
 import math
 
 import numpy as np
@@ -222,9 +223,9 @@ class SpatialIndex:
         radius = 0.5 * length + self.nearest_surface_values(midpoint) + self._max_radius
         radius = np.maximum(radius, 0.0) + 1e-6 + np.abs(radius) * 1e-9
         balls = self._tree.query_ball_point(midpoint, radius, return_sorted=False)
-        counts = np.fromiter((len(x) for x in balls), dtype=np.intp, count=len(balls))
+        counts = np.fromiter(map(len, balls), dtype=np.intp, count=len(balls))
         owner = np.repeat(np.arange(len(rows)), counts)
-        index = np.fromiter((i for x in balls for i in x), dtype=np.intp, count=int(counts.sum()))
+        index = np.fromiter(chain.from_iterable(balls), dtype=np.intp, count=int(counts.sum()))
         values = _segment_surface_distances(self._xyz[index], self._radius_array[index], s[owner], e[owner])
         starts_at = np.cumsum(counts) - counts
         out[rows] = np.minimum.reduceat(values, starts_at)
@@ -258,10 +259,10 @@ class SpatialIndex:
         best = nearest_distance - self._radius_array[nearest_index]
         search = np.maximum(np.maximum(nearest_distance, best + self._max_radius), 0.0) + 1e-9
         balls = self._tree.query_ball_point(pts, search, return_sorted=False)
-        counts = np.fromiter((len(b) for b in balls), dtype=np.intp, count=len(balls))
+        counts = np.fromiter(map(len, balls), dtype=np.intp, count=len(balls))
         if counts.sum():
             owner = np.repeat(np.arange(len(pts)), counts)
-            index = np.fromiter((i for b in balls for i in b), dtype=np.intp, count=int(counts.sum()))
+            index = np.fromiter(chain.from_iterable(balls), dtype=np.intp, count=int(counts.sum()))
             values = _point_surface_distances(pts[owner], self._xyz[index], self._radius_array[index])
             nonempty = counts > 0
             starts = (np.cumsum(counts) - counts)[nonempty]

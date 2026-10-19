@@ -88,7 +88,7 @@ def scene_from_binary_volume(frame, volume_path, output_dir, prefix, *, radii: R
     sidecar=Path(volume_path).with_name(Path(volume_path).stem+'_metadata.json')
     if sidecar.is_file():
         try:
-            recorded=json.loads(sidecar.read_text())
+            recorded=json.loads(sidecar.read_text(encoding="utf-8"))
         except ValueError:
             recorded={}
         from .presentation import CHANNEL_CAST_RGB
@@ -164,7 +164,7 @@ def write_companion_contexts(scene, root, prefix, protein_path, membership, view
     if not any(want_vmd) and not want_cxc:
         return paths
     coordinates=root/f'{prefix}_residue_reference.tsv'
-    coordinates.write_text(''.join(f'{serial}\t{a.x:.9f}\t{a.y:.9f}\t{a.z:.9f}\n' for a,serial in zip(frame.atoms,viewer_ids)))
+    coordinates.write_text(''.join(f'{serial}\t{a.x:.9f}\t{a.y:.9f}\t{a.z:.9f}\n' for a,serial in zip(frame.atoms,viewer_ids)), encoding="utf-8", newline="\n")
     definitions='\n'.join(f'set crevice_evidence_serials({role}) {{{" ".join(map(str,ids))}}}' for role,ids in membership.items())
     extra=f'''
 # Matched highlighted residues: opaque sticks, transparent cavity context.
@@ -205,12 +205,12 @@ display update
 '''
     for extension,wanted in zip(['vmd','tcl'],want_vmd):
         if wanted:
-            p=root/f'{prefix}_residue_context.{extension}';p.write_text(tcl.read_text()+extra);paths[f'residue_context_{extension}']=str(p)
+            p=root/f'{prefix}_residue_context.{extension}';p.write_text(tcl.read_text(encoding="utf-8")+extra, encoding="utf-8", newline="\n");paths[f'residue_context_{extension}']=str(p)
     if not want_cxc:
         paths['residue_reference_tsv']=str(coordinates)
         return paths
     # CXC interprets file names relative to the command script's own directory.
-    commands=cxc.read_text().splitlines()
+    commands=cxc.read_text(encoding="utf-8").splitlines()
     commands[0]='open '+json.dumps(protein_path.name)+' id #1'
     volume_ids=[]
     for line in commands:
@@ -218,7 +218,7 @@ display update
         if match:volume_ids.append(match[1])
     commands += ['# Evidence categories use original IDs in the companion report; selection uses verified viewer serials.']
     viewer_residues={}
-    for line in protein_path.read_text().splitlines():
+    for line in protein_path.read_text(encoding="utf-8").splitlines():
         if line.startswith(('ATOM  ','HETATM')):
             viewer_residues[int(line[6:11])]=(line[21:22].strip(),line[22:27].strip())
     for role,color in [('partners','#a34478'),('lining','#d98c33')]:
@@ -230,6 +230,6 @@ display update
                          f'color {spec} {color} target a',f'transparency {spec} 0 target a']
     commands += [f'transparency {model} {100*(1-cast_opacity):g} target s' for model in volume_ids]
     commands += ['view', 'zoom 0.9']
-    p=root/f'{prefix}_residue_context.cxc';p.write_text('\n'.join(commands)+'\n');paths['residue_context_cxc']=str(p)
+    p=root/f'{prefix}_residue_context.cxc';p.write_text('\n'.join(commands)+'\n', encoding="utf-8", newline="\n");paths['residue_context_cxc']=str(p)
     paths['residue_reference_tsv']=str(coordinates)
     return paths

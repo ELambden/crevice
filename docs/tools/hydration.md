@@ -155,12 +155,16 @@ dry.
 :::{admonition} Interpreting results
 :class: crevice-interpret
 
-Water is only seen if it is in the input: a structure without explicit water
+Directional hydrogen bonds need explicit hydrogens. Most static structures
+have none, so there the typed interactions list salt-bridge and aromatic
+candidates but no hydrogen bonds, and a missing hydrogen bond is not evidence
+that none forms. Water is only seen if it is in the input: a structure without explicit water
 gives water contacts marked `unavailable_no_explicit_water` (empty, not zero),
 while SASA is still reported. A contact is proximity, not a hydrogen bond or a
 free energy, and counts depend strongly on the cutoff. Saved frames 100 ps
 apart can't resolve fast exchange, so no lifetimes or rates are fitted, and
 correlations with motion or volume are descriptive. Member counts that simply
 follow the cavity volume at a steady density aren't evidence of wetting or
-drying. Protein and solvent must be imaged consistently in your trajectory.
+drying. Protein and solvent must be imaged consistently in your trajectory. See also
+[Limitations](../getting-started/limitations.md).
 :::

@@ -130,7 +130,7 @@ def write_analysis_assets(analysis, report, output_dir, prefix):
     structure = write_viewer_structure(frame,path('analysis_protein_pdb','_analysis_protein.pdb'))
     files['analysis_protein_identities_json'] = str(structure.with_suffix('.identities.json'))
     records = {r['residue']:r for r in report['residues']}
-    identities = json.loads(structure.with_suffix('.identities.json').read_text())
+    identities = json.loads(structure.with_suffix('.identities.json').read_text(encoding="utf-8"))
     residue_mapping = {r['original']:r for r in identities['residue_mapping']}
     protein_xyz = np.asarray([a.coord for a in frame.atoms])
     atom_indices = np.asarray(analysis['reference_atom_indices'])
@@ -196,7 +196,7 @@ def write_analysis_assets(analysis, report, output_dir, prefix):
     contacts=[]
     interaction_path=root/(prefix+'_interactions.json')
     if analysis.get('interactions') is not None and interaction_path.is_file():
-        interactions=json.loads(interaction_path.read_text())
+        interactions=json.loads(interaction_path.read_text(encoding="utf-8"))
         colors={'hydrogen_bond':[.83,.61,.12],'water_bridge_hbond':[.05,.66,.59],
                 'salt_bridge_candidate':[.65,.30,.65],
                 'aromatic_parallel_candidate':[.30,.45,.70],'aromatic_edge_face_candidate':[.30,.45,.70]}
@@ -236,7 +236,7 @@ def write_analysis_assets(analysis, report, output_dir, prefix):
                 name=prefix+f"_analysis_member_waters_{snapshot['source_frame_index']:06d}.pdb"
                 lines=[f"HETATM{i:5d}  O   HOH W{i:4d}    {p[0]:8.3f}{p[1]:8.3f}{p[2]:8.3f}  1.00  0.00           O"
                        for i,p in enumerate(record['positions_A'],1)]
-                (root/name).write_text('REMARK   CREVICE member water oxygens; residue number is the list position, IDs are in the scene JSON\n'+'\n'.join(lines)+'\nEND\n')
+                (root/name).write_text('REMARK   CREVICE member water oxygens; residue number is the list position, IDs are in the scene JSON\n'+'\n'.join(lines)+'\nEND\n', encoding="utf-8", newline="\n")
                 entry['pdb']=name;files[f"analysis_member_waters_{snapshot['source_frame_index']}_pdb"]=str(root/name)
             member_waters['snapshots'].append(entry)
     np.savez_compressed(path('analysis_geometry_npz','_analysis_geometry.npz'),protein_coords_A=protein_xyz,
@@ -259,7 +259,7 @@ def write_analysis_assets(analysis, report, output_dir, prefix):
            'limitations':['Identified geometric contributors are not proven crucial functional residues.',
                           'Density is a mean spatial observation; a displayed snapshot can differ from that mean.',
                           'Static missing waters are unobserved; chemical classification has separate coverage limits.']}
-    path('analysis_scene_json','_analysis_scene.json').write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n')
+    path('analysis_scene_json','_analysis_scene.json').write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     return files
 
 

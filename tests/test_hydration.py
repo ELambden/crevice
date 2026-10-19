@@ -39,7 +39,7 @@ def test_missing_deposited_waters_is_not_zero_hydration(tmp_path):
     assert np.isnan(result['metrics']['water_count']).all()
     assert result['metrics']['sasa_A2'][0]>100
     paths=write_hydration_bundle(result,tmp_path,dpi=60,replicates=200)
-    data=json.loads(Path(paths['hydration_json']).read_text())
+    data=json.loads(Path(paths['hydration_json']).read_text(encoding="utf-8"))
     assert data['water_status']=='unavailable_no_explicit_water'
     assert data['residues'][0]['statistics']['water_count']['mean'] is None
     assert data['hydrogen_bonds']['status']=='not_assigned'
@@ -123,7 +123,7 @@ def test_untyped_focus_residues_reach_the_hydration_json(tmp_path):
                           atom(2,'CA',(3.8,0,0),resid=2,resname='DLE',hetero=True)))
     result=static_hydration(frame,residue_ids=['A:VAL1','A:DLE2'],sasa_samples=64)
     paths=write_hydration_bundle(result,tmp_path,dpi=60,replicates=200)
-    data=json.loads(Path(paths['hydration_json']).read_text())
+    data=json.loads(Path(paths['hydration_json']).read_text(encoding="utf-8"))
     assert data['settings']['untyped_focus_residues']==[{'residue':'A:DLE2','reason':'hetero_record'}]
 
 
@@ -139,7 +139,7 @@ def md_fixture(tmp_path):
     for a in frame.atoms:
         record='HETATM' if a.hetero else 'ATOM  '
         lines.append(f'{record}{a.serial:5d} {a.name:^4} {a.resname:3} A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00          {a.element:>2}')
-    source.write_text('\n'.join(lines)+'\nEND\n')
+    source.write_text('\n'.join(lines)+'\nEND\n', encoding="utf-8", newline="\n")
     u=mda.Universe(source);trajectory=tmp_path/'input.xtc';coords=u.atoms.positions.copy()
     with mda.Writer(str(trajectory),len(u.atoms),dt=100) as writer:
         for i in range(3):
@@ -169,7 +169,7 @@ def reference_dx(path):
     lines=['object 1 class gridpositions counts 7 7 7','origin 8.5 8.5 11.5','delta 0.5 0 0','delta 0 0.5 0','delta 0 0 0.5',
            'object 2 class gridconnections counts 7 7 7','object 3 class array type double rank 0 items 343 data follows']
     lines+=[' '.join(str(int(x)) for x in grid.ravel())];lines+=['attribute "dep" string "positions"']
-    path.write_text('\n'.join(lines)+'\n');return path
+    path.write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n");return path
 
 
 def test_standard_static_hydration_and_explicit_skip_preserve_geometry(tmp_path):
@@ -177,7 +177,7 @@ def test_standard_static_hydration_and_explicit_skip_preserve_geometry(tmp_path)
     source,_=md_fixture(tmp_path);dx=reference_dx(tmp_path/'ref.dx');before=dx.read_bytes()
     base=['residue-evidence',str(source),'--volume-dx',str(dx),'--dpi','60','--hydration-sasa-points','32']
     assert main(base+['--out-dir',str(tmp_path/'standard'),'--outputs','default,hydration'])==0
-    hydration=json.loads((tmp_path/'standard/crevice_hydration.json').read_text())
+    hydration=json.loads((tmp_path/'standard/crevice_hydration.json').read_text(encoding="utf-8"))
     assert hydration['water_population']==1 and hydration['residue_count']>0
     assert main(base+['--out-dir',str(tmp_path/'skipped'),'--skip-hydration'])==0
     assert not (tmp_path/'skipped/crevice_hydration.json').exists()
@@ -191,13 +191,13 @@ def test_standard_cavity_trajectory_and_subset_keep_original_alignment_reference
     assert main(['cavity-trajectory',str(source),str(trajectory),'--reference-volume-dx',str(dx),'--geometry-mode','reference-region',
       '--max-frames','3','--out-dir',str(output),'--dpi','60','--bootstrap-replicates','200','--hydration-sasa-points','32',
       '--outputs','default,hydration'])==0
-    report=json.loads((output/'crevice_hydration.json').read_text());assert report['frame_count']==3
+    report=json.loads((output/'crevice_hydration.json').read_text(encoding="utf-8"));assert report['frame_count']==3
     cached=output/'crevice_cavity_statistics.json'
     subset=analyze_hydration_trajectory(source,trajectory,context_json=cached,start=2,stop=3,max_frames=1,sasa_samples=32)
     assert subset['arrays']['time_ps'].tolist()==[200]
     assert subset['settings']['alignment_reference_source_index']==0
     assert subset['alignment'][0]['translation_A']==pytest.approx([-29,0,0],abs=1e-4)
-    dx.write_text(dx.read_text()+'# changed reference provenance\n')
+    dx.write_text(dx.read_text(encoding="utf-8")+'# changed reference provenance\n', encoding="utf-8", newline="\n")
     with pytest.raises(ValueError,match='map hash differs'):
         analyze_hydration_trajectory(source,trajectory,context_json=cached,start=2,stop=3,max_frames=1,sasa_samples=32)
 
@@ -218,7 +218,7 @@ def test_confidence_opt_out_and_invalid_parameters_are_explicit(tmp_path):
     from crevice.cli import main
     result=static_hydration(StructureFrame((atom(1,'CA',(0,0,0)),)),sasa_samples=32)
     files=write_hydration_bundle(result,tmp_path/'disabled',confidence=0,dpi=60)
-    report=json.loads(Path(files['hydration_json']).read_text())
+    report=json.loads(Path(files['hydration_json']).read_text(encoding="utf-8"))
     assert report['residues'][0]['statistics']['sasa_A2']['confidence_interval']['status']=='not_requested'
     with pytest.raises(ValueError,match='confidence'):
         write_hydration_bundle(result,tmp_path/'bad',confidence=2,dpi=60)

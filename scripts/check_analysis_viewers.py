@@ -48,7 +48,7 @@ def main():
     parser.add_argument('--reload',action='store_true')
     args=parser.parse_args();scene_path=args.scene.resolve(strict=True);out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
     prefix=scene_path.stem.removesuffix('_network').removesuffix('_analysis')
-    scene=json.loads((scene_path.parent/(prefix+'_analysis_scene.json')).read_text())
+    scene=json.loads((scene_path.parent/(prefix+'_analysis_scene.json')).read_text(encoding="utf-8"))
     w,h=args.width,round(args.width*.75);log=out/'native.log'
     if args.viewer=='pymol':
         program='''
@@ -84,11 +84,11 @@ np.savez_compressed(out/'native_geometry.npz',**arrays)
 (out/'native_inspection.json').write_text(json.dumps(result,indent=2))
 cmd.quit()
 '''.replace('__RELOAD__',str(args.reload)).replace('__OUT__',repr(str(out))).replace('__NETWORK__',str(args.render_network)).replace('__WIDTH__',str(w)).replace('__HEIGHT__',str(h))
-        source=scene_path.read_text().replace('from pymol import cmd','from pymol import cmd\ncmd._pymol.__script__ = '+repr(str(scene_path)),1)
+        source=scene_path.read_text(encoding="utf-8").replace('from pymol import cmd','from pymol import cmd\ncmd._pymol.__script__ = '+repr(str(scene_path)),1)
         script=out/'inspect.pml'
         if args.reload:
-            script.write_text('@'+str(scene_path)+'\n@'+str(scene_path)+'\npython\n'+program+'\npython end\n')
-        else:script.write_text(source.replace('python end',program+'\npython end',1))
+            script.write_text('@'+str(scene_path)+'\n@'+str(scene_path)+'\npython\n'+program+'\npython end\n', encoding="utf-8", newline="\n")
+        else:script.write_text(source.replace('python end',program+'\npython end',1), encoding="utf-8", newline="\n")
         env=dict(os.environ)
         if env.get('PYTHONPATH'):env['PYTHONPATH']=os.pathsep.join(str(Path(p or '.').resolve()) for p in env['PYTHONPATH'].split(os.pathsep))
         command=[sys.executable,'-m','pymol','-cq',str(script)]
@@ -135,7 +135,7 @@ except Exception as error:
     (out/'native_failure.json').write_text(json.dumps({'error':str(error),'traceback':traceback.format_exc()},indent=2))
     raise
 '''.replace('__RELOAD__',str(args.reload)).replace('__OUT__',repr(str(out))).replace('__SCENE__',repr(json.dumps(str(scene_path)))).replace('__NETWORK__',str(args.render_network)).replace('__WIDTH__',str(w)).replace('__HEIGHT__',str(h)).replace('__SNAPSHOTS__',str(len(scene['snapshots'])))
-        script=out/'inspect.py';script.write_text(program);env=None
+        script=out/'inspect.py';script.write_text(program, encoding="utf-8", newline="\n");env=None
         command=['xvfb-run','-a','-s','-screen 0 1280x1024x24',str(local_chimerax().resolve()),'--silent','--exit',str(script)]
     else:
         q=_tcl_word
@@ -181,17 +181,17 @@ close $report
                'foreach matrix {center_matrix rotate_matrix scale_matrix global_matrix} {molinfo $m set $matrix [list [transidentity]]}',
                'render Wavefront [file join $out surface_$key.obj]','mol off $m','}',
                '} err]} {puts stderr "CREVICE_CHECK_ERROR: $err";puts stderr $::errorInfo;exit 1}','quit']
-        script=out/'inspect.tcl';script.write_text('\n'.join(lines));env=None;command=['vmd','-dispdev','text','-e',str(script)]
+        script=out/'inspect.tcl';script.write_text('\n'.join(lines), encoding="utf-8", newline="\n");env=None;command=['vmd','-dispdev','text','-e',str(script)]
     try:
-        with log.open('w') as output:
+        with log.open('w', encoding="utf-8", newline="\n") as output:
             with subprocess.Popen(command,stdin=subprocess.PIPE,stdout=output,stderr=subprocess.STDOUT,env=env) as process:
                 try:code=process.wait(timeout=args.timeout)
                 except subprocess.TimeoutExpired:process.kill();code=process.wait()
-    except OSError as error:log.write_text(str(error));code=-1
-    result={};checks={};message=log.read_text()
+    except OSError as error:log.write_text(str(error), encoding="utf-8", newline="\n");code=-1
+    result={};checks={};message=log.read_text(encoding="utf-8")
     if args.viewer=='vmd' and (out/'native.tsv').exists():
         result={'colors':{},'modes':{},'snapshots':{}};serials=[];coords=[];snapshots={}
-        for line in (out/'native.tsv').read_text().splitlines():
+        for line in (out/'native.tsv').read_text(encoding="utf-8").splitlines():
             row=line.split('|')
             if row[0]=='atom':serials.append(int(row[1]));coords.append(list(map(float,row[2].split())));result['colors'][row[1]]=list(map(float,row[3].split()))
             elif row[0]=='mode':result['modes'][row[1]]=list(map(int,row[2].split()))
@@ -203,14 +203,14 @@ close $report
         for key,value in snapshots.items():arrays['snapshot_'+key]=np.asarray([value[i] for i in sorted(value)])
         for surface in scene['surfaces']:
             p=out/('surface_'+surface['key']+'.obj')
-            if p.is_file():arrays['surface_'+surface['key']]=np.asarray([[float(v) for v in line.split()[1:4]] for line in p.read_text().splitlines() if line.startswith('v ')])
+            if p.is_file():arrays['surface_'+surface['key']]=np.asarray([[float(v) for v in line.split()[1:4]] for line in p.read_text(encoding="utf-8").splitlines() if line.startswith('v ')])
         np.savez_compressed(out/'native_geometry.npz',**arrays)
         from PIL import Image
         for name in ['native','network']:
             p=out/(name+'.tga')
             if p.exists():Image.open(p).save(out/(name+'.png'))
-        (out/'native_inspection.json').write_text(json.dumps(result,indent=2))
-    if (out/'native_inspection.json').exists():result=json.loads((out/'native_inspection.json').read_text())
+        (out/'native_inspection.json').write_text(json.dumps(result,indent=2), encoding="utf-8", newline="\n")
+    if (out/'native_inspection.json').exists():result=json.loads((out/'native_inspection.json').read_text(encoding="utf-8"))
     checks['execution']=code==0 and bool(result) and not any(x in message for x in ['Traceback','CREVICE_CHECK_ERROR','SyntaxError:',' Error:'])
     if checks['execution']:
         from scipy.spatial import cKDTree
@@ -226,7 +226,7 @@ close $report
             wanted=sorted(i for r in scene['residues'] if r['residue'] in shown for i in r['atom_serials']) if mode!='geometry' else []
             checks['sticks_'+mode]=result['modes'][mode]==wanted
         for i,snapshot in enumerate(scene['snapshots'],1):
-            expected=np.asarray([[float(line[k:k+8]) for k in [30,38,46]] for line in (scene_path.parent/snapshot['pdb']).read_text().splitlines() if line.startswith(('ATOM  ','HETATM'))])
+            expected=np.asarray([[float(line[k:k+8]) for k in [30,38,46]] for line in (scene_path.parent/snapshot['pdb']).read_text(encoding="utf-8").splitlines() if line.startswith(('ATOM  ','HETATM'))])
             checks['snapshot_'+str(i)]=bool(np.allclose(actual['snapshot_'+str(i)],expected,atol=.001,rtol=0))
             checks['reference_edges_'+str(i)]=result['snapshots'][str(i)]['reference_edges_visible']==bool(i==1 and scene['contacts'])
         for s in scene['surfaces']:
@@ -248,7 +248,7 @@ close $report
                 checks['image_'+name]=result[name+'_foreground_fraction']>.001 and result[name+'_border_foreground_fraction']<.01
     summary={k:v for k,v in result.items() if k not in {'colors','modes'}}
     summary.update(status='passed' if all(checks.values()) else 'failed',checks=checks,returncode=code,command=command,scene=str(scene_path))
-    (out/'verification.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary,indent=2))
+    (out/'verification.json').write_text(json.dumps(summary,indent=2)+'\n', encoding="utf-8", newline="\n");print(json.dumps(summary,indent=2))
     if summary['status']!='passed':raise SystemExit(1)
 
 if __name__=='__main__':main()

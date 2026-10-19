@@ -49,7 +49,7 @@ def read_binary_dx(path):
         other than 0 and 1 (display fields and densities are refused).
     """
     import numpy as np
-    lines=Path(path).read_text().splitlines()
+    lines=Path(path).read_text(encoding="utf-8").splitlines()
     counts=next(line for line in lines if 'class gridpositions counts' in line)
     shape=tuple(int(v) for v in counts.split()[-3:])
     origin=np.asarray([float(v) for v in next(line for line in lines if line.startswith('origin ')).split()[1:]])
@@ -254,7 +254,7 @@ def restore_viewer_identities(frame,structure_path):
     import re
     path=Path(structure_path).with_suffix('.identities.json')
     if not path.is_file():return frame,{'definition':'input structure identities','sidecar':None}
-    data=json.loads(path.read_text());serials=data.get('original_serials_in_viewer_order',[])
+    data=json.loads(path.read_text(encoding="utf-8"));serials=data.get('original_serials_in_viewer_order',[])
     if len(serials)!=len(frame.atoms) or data.get('atom_count')!=len(frame.atoms):
         raise ValueError('Viewer identity sidecar atom count does not match the structure')
     residues={(r['viewer_chain'],r['viewer_resid']):r['original'] for r in data['residue_mapping']}
@@ -274,7 +274,7 @@ def restore_viewer_identities(frame,structure_path):
 def _viewer_serial_mapping(frame,scene):
     """Validate direct PDB IDs or the exporter's reversible source-ID sidecar."""
     import ast
-    source=scene.read_text()
+    source=scene.read_text(encoding="utf-8")
     body=source.split('python\n',1)[1].rsplit('python end',1)[0]
     tree=ast.parse(body)
     loader=next((node for node in ast.walk(tree) if isinstance(node,ast.Call)
@@ -293,7 +293,7 @@ def _protein_serial_mapping(frame,protein):
     """Match the analysis atoms to the serials of a viewer protein PDB (direct or through its sidecar)."""
     import numpy as np
     coordinates={}
-    for line in protein.read_text().splitlines():
+    for line in protein.read_text(encoding="utf-8").splitlines():
         if line[:6].strip() in {'ATOM','HETATM'}:
             serial=int(line[6:11])
             if serial in coordinates:raise ValueError('Viewer PDB atom serials must be unique')
@@ -303,7 +303,7 @@ def _protein_serial_mapping(frame,protein):
     candidates=[('direct PDB serial identities',ids)]
     sidecar=protein.with_suffix('.identities.json')
     if sidecar.is_file():
-        originals=json.loads(sidecar.read_text()).get('original_serials_in_viewer_order',[])
+        originals=json.loads(sidecar.read_text(encoding="utf-8")).get('original_serials_in_viewer_order',[])
         remap={serial:i for i,serial in enumerate(originals,1)}
         if len(remap)==len(originals) and set(ids)==set(remap):
             candidates.append(('reversible viewer identity sidecar',[remap[i] for i in ids]))
@@ -379,7 +379,7 @@ def select_stick_residues(report,stick_residues=STICK_RESIDUE_DEFAULT):
     else:
         if isinstance(request,str):
             text=request.strip()
-            if text.startswith('@'):text=Path(text[1:]).read_text()
+            if text.startswith('@'):text=Path(text[1:]).read_text(encoding="utf-8")
             requested=[v.strip() for line in text.splitlines() for v in line.split(',') if v.strip() and not v.strip().startswith('#')]
         else:
             requested=[str(v).strip() for v in request]
@@ -590,10 +590,10 @@ python end
 """
         if write_overlay:
             body=extra.split('python\n',1)[1].rsplit('python end',1)[0]
-            base=scene.read_text()
+            base=scene.read_text(encoding="utf-8")
             if base.count('python end')!=1:
                 raise ValueError('The evidence overlay requires one CREVICE volume-scene Python block')
-            overlay.write_text(base.replace('python end',body+'\npython end',1))
+            overlay.write_text(base.replace('python end',body+'\npython end',1), encoding="utf-8", newline="\n")
         report['display_atom_serials']=membership
         if write_overlay:
             paths['residue_context_pml']=str(overlay);paths['residue_reference_npz']=str(coords_path)
@@ -606,7 +606,7 @@ python end
         report['overlay_cast_opacity']=.55
         from .residue_viewers import write_companion_contexts
         paths.update(write_companion_contexts(scene,root,prefix,protein_path,membership,viewer_ids,frame))
-    Path(paths['residue_evidence_json']).write_text(json.dumps(report,indent=2)+'\n')
+    Path(paths['residue_evidence_json']).write_text(json.dumps(report,indent=2)+'\n', encoding="utf-8", newline="\n")
     return drop_blocked(paths)
 
 

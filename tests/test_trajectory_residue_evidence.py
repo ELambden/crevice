@@ -173,7 +173,7 @@ def test_boundary_area_and_nonlocal_partners_survive_rigid_transform():
 
 
 def test_smoothed_dx_is_rejected_for_measured_boundary_analysis(tmp_path):
-    p=tmp_path/'fake.dx';p.write_text('object 1 class gridpositions counts 2 2 2\norigin 0 0 0\ndelta 1 0 0\ndelta 0 1 0\ndelta 0 0 1\nobject 3 class array type double rank 0 items 8 data follows\n0 0 0 0 0 0 0 .7\nattribute "dep" string "positions"\n')
+    p=tmp_path/'fake.dx';p.write_text('object 1 class gridpositions counts 2 2 2\norigin 0 0 0\ndelta 1 0 0\ndelta 0 1 0\ndelta 0 0 1\nobject 3 class array type double rank 0 items 8 data follows\n0 0 0 0 0 0 0 .7\nattribute "dep" string "positions"\n', encoding="utf-8", newline="\n")
     with pytest.raises(ValueError,match='binary'):read_binary_dx(p)
 
 

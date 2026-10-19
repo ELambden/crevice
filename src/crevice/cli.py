@@ -783,6 +783,23 @@ def _error_text(exc: BaseException) -> str:
     return text if text else type(exc).__name__
 
 
+def _tolerate_narrow_console_encodings() -> None:
+    """Escape, rather than fail on, characters the output streams cannot encode.
+
+    Help texts and messages use symbols such as ``≤`` and ``Å``. A stream with a
+    narrow encoding (for example cp1252 when Windows output is redirected to a
+    file or pipe) would otherwise raise ``UnicodeEncodeError``. UTF-8 streams
+    are left untouched.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        encoding = (getattr(stream, "encoding", None) or "").lower().replace("-", "").replace("_", "")
+        if encoding and encoding != "utf8" and hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="backslashreplace")
+            except (OSError, ValueError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the ``crevice`` command line.
 
@@ -820,6 +837,7 @@ def main(argv: list[str] | None = None) -> int:
         ``--help`` exits with 0.
     """
     argv = list(sys.argv[1:] if argv is None else argv)
+    _tolerate_narrow_console_encodings()
     parser = build_parser()
     try:
         config_file, config_values = _apply_config_file(parser, argv)
@@ -919,11 +937,11 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
     result = {"manifest": args._run_manifest, "files": {}, "plan": plan.to_dict() if plan else None}
     if args._run_manifest and Path(args._run_manifest).is_file():
         path = Path(args._run_manifest)
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         data["run"] = run_record(settings, argv, plan, log if plan is not None else None, source=args._run_source)
         if plan is not None:
             result["plan"] = data["run"]["outputs"]
-        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         result["files"] = data.get("files", {})
     return result
 
@@ -944,10 +962,10 @@ def _write_view_html(manifest: Path, plan) -> None:
     except Exception as exc:   # an optional output; never fails the measurement run
         note("viewer-html", f"not written: {_error_text(exc)}")
         return
-    data = json.loads(manifest.read_text())
+    data = json.loads(manifest.read_text(encoding="utf-8"))
     if isinstance(data.get("files"), dict):
         data["files"]["view_html"] = str(target)
-        manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+        manifest.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def _output_plan(args: argparse.Namespace):
@@ -1247,7 +1265,7 @@ def _cmd_network(args: argparse.Namespace) -> None:
     else:
         frame,_,_=_load_input(args)
         profile=None
-    groups = json.loads(Path(args.residue_groups).read_text()) if args.residue_groups else None
+    groups = json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
     contacts = annotate_residues(
         frame,
         profile.points if profile else (),
@@ -1390,13 +1408,13 @@ def _cmd_trajectory(args: argparse.Namespace) -> None:
     analyses = tuple(args.analysis) if args.analysis else ("profile", "features")
     if args.network_json:
         analyses = tuple(dict.fromkeys((*analyses, "network")))
-    groups = json.loads(Path(args.residue_groups).read_text()) if args.residue_groups else None
+    groups = json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
     if args.alignment_residue and args.alignment_residues_json:
         raise ValueError("Choose --alignment-residue or --alignment-residues-json")
-    alignment_residues=json.loads(Path(args.alignment_residues_json).read_text()) if args.alignment_residues_json else args.alignment_residue
+    alignment_residues=json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8")) if args.alignment_residues_json else args.alignment_residue
     if alignment_residues is not None and (not isinstance(alignment_residues,list) or not all(isinstance(r,str) for r in alignment_residues)):
         raise ValueError("Alignment scaffold must be a JSON list of full residue IDs")
-    lining=json.loads(Path(args.lining_evidence).read_text())["lining_residues"] if args.lining_evidence else ()
+    lining=json.loads(Path(args.lining_evidence).read_text(encoding="utf-8"))["lining_residues"] if args.lining_evidence else ()
     stride = 1 if args.topology else args.stride
     frame_progress = _FrameProgress(len(range(0, len(trajectory.frames), stride)), "trajectory frames")
     try:
@@ -1568,7 +1586,7 @@ def _cmd_cast(args: argparse.Namespace) -> None:
         seed=args.seed, seed_tolerance=args.seed_tolerance)
     path = Path(args.out_dir)/f'{prefix}_input_report.json'
     _write_json({'source': source.to_dict(), 'intake': report}, path)
-    saved = json.loads(Path(manifest['manifest_json']).read_text())
+    saved = json.loads(Path(manifest['manifest_json']).read_text(encoding="utf-8"))
     saved['files']['input_report_json'] = str(path)
     _write_json(saved, manifest['manifest_json'])
     from .hydration_workflow import append_static_hydration
@@ -1619,14 +1637,14 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         cast_focus_radius=args.focus_radius,
         cast_min_component_volume=args.min_component_volume,
         cast_max_component_volume=args.max_component_volume,
-        residue_groups=json.loads(Path(args.residue_groups).read_text()) if args.residue_groups else None,
+        residue_groups=json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None,
         entry_end=args.entry_end,
         lining_cutoff=args.lining_cutoff,
         fingerprint=args.fingerprint,
     )
     input_report_path = Path(args.out_dir) / f"{prefix}_input_report.json"
     _write_json({"source": source.to_dict(), "intake": _report}, input_report_path)
-    saved_manifest = json.loads(Path(manifest["manifest_json"]).read_text())
+    saved_manifest = json.loads(Path(manifest["manifest_json"]).read_text(encoding="utf-8"))
     saved_manifest["files"]["input_report_json"] = str(input_report_path)
     _write_json(saved_manifest, manifest["manifest_json"])
     from .hydration_workflow import append_static_hydration
@@ -1926,9 +1944,9 @@ def _add_radii_provenance(path: str | Path) -> None:
     """
     from .radii import radii_fields
     target = Path(path)
-    data = json.loads(target.read_text())
+    data = json.loads(target.read_text(encoding="utf-8"))
     data.update(radii_fields())
-    target.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    target.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def _write_csv_provenance(csv_path: str | Path, command: str) -> None:
@@ -1973,7 +1991,7 @@ def _write_json(data: object, path: str | Path) -> None:
     target = Path(path)
     if target.parent != Path("."):
         target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    target.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def _cmd_residue_evidence(args):
@@ -1981,7 +1999,7 @@ def _cmd_residue_evidence(args):
     frame,source,_=_load_input(args)
     frame,identity_provenance=restore_viewer_identities(frame,args.structure)
     grid,origin,deltas=read_binary_dx(args.volume_dx)
-    groups=json.loads(Path(args.residue_groups).read_text()) if args.residue_groups else None
+    groups=json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
     report=boundary_residue_evidence(frame,grid,origin,deltas,lining_distance=args.lining_distance,
                                     contact_cutoff=args.contact_cutoff,residue_groups=groups)
     report['source_volume_dx']=str(Path(args.volume_dx).resolve())
@@ -2005,7 +2023,7 @@ def _cmd_cavity_trajectory(args):
     root=Path(args.out_dir);root.mkdir(parents=True,exist_ok=True)
     _write_json(reader,root/(args.prefix+'_reader.json'))
     reference=CavityReference.from_dx(args.reference_volume_dx,spacing=args.spacing,axis=args.axis,profile_padding=args.profile_padding,grid_phase=args.grid_phase)
-    scaffold=json.loads(Path(args.alignment_residues_json).read_text()) if args.alignment_residues_json else None
+    scaffold=json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8")) if args.alignment_residues_json else None
     geometry=dict(probe_radius=args.probe_radius,outer_radius=args.outer_radius,selection_mode=args.cavity_selection,
                   enclosure_fraction=args.enclosure_fraction,min_component_volume=args.min_component_volume,max_grid_points=args.max_grid_points)
     obstacles=None
@@ -2048,7 +2066,7 @@ def _cmd_cavity_trajectory(args):
             from .water_membership import viewer_member_waters
             hydration['member_waters']=viewer_member_waters(analysis)
         extra=write_hydration_bundle(hydration,root,prefix=args.prefix,confidence=args.confidence,block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi)
-        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text());data['files'].update(extra);_write_json(data,manifest)
+        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text(encoding="utf-8"));data['files'].update(extra);_write_json(data,manifest)
     elif _interactions_requested(args):
         # Typed residue-residue interactions without the water analyses (0.3 default).
         from .residue_interactions import trajectory_residue_interactions,write_residue_interactions
@@ -2059,7 +2077,7 @@ def _cmd_cavity_trajectory(args):
                 replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
         extra=_optional_analysis('interactions',run_interactions)
         if 'status' in extra:extra={}
-        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text());data['files'].update(extra);_write_json(data,manifest)
+        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text(encoding="utf-8"));data['files'].update(extra);_write_json(data,manifest)
     if waters is not None:
         from .water_membership import write_water_membership_bundle
         import numpy as np
@@ -2068,7 +2086,7 @@ def _cmd_cavity_trajectory(args):
             with np.load(extra['hydration_frames_npz']) as saved:counts=saved['region_water_count'].copy() if 'region_water_count' in saved else None
         extra=write_water_membership_bundle(analysis,root,prefix=args.prefix,confidence=args.confidence,block_length=args.block_length,
             replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi,hydration_region_counts=counts)
-        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text());data['files'].update(extra);_write_json(data,manifest)
+        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text(encoding="utf-8"));data['files'].update(extra);_write_json(data,manifest)
     args._run_manifest=files['manifest_json']
     print(f"cavity trajectory frames={len(trajectory.frames)} statistics={files['statistics_json']}")
 
@@ -2078,7 +2096,7 @@ def _cmd_hydration(args):
     if hydration_dependencies():raise RuntimeError("Hydration needs NumPy, SciPy and Matplotlib, which are required CREVICE dependencies but could not be imported: reinstall CREVICE (pip install --force-reinstall crevice)")
     from .hydration_trajectory import analyze_hydration_trajectory
     from .hydration_export import write_hydration_bundle
-    residues=json.loads(Path(args.residues_json).read_text()) if args.residues_json else None
+    residues=json.loads(Path(args.residues_json).read_text(encoding="utf-8")) if args.residues_json else None
     if args.trajectory:
         result=analyze_hydration_trajectory(args.structure,args.trajectory,context_json=args.cavity_results,residue_ids=residues,
             allow_radii_mismatch=args.allow_radii_mismatch,
@@ -2102,7 +2120,7 @@ def _cmd_region_init(args):
     from .region_definition import file_record,validate_definition,write_json
     target=Path(args.output).resolve()
     if target.exists():raise ValueError('Definition exists; use a new versioned filename')
-    landmarks=json.loads(Path(args.landmarks_json).read_text()) if args.landmarks_json else []
+    landmarks=json.loads(Path(args.landmarks_json).read_text(encoding="utf-8")) if args.landmarks_json else []
     reference={'kind':'existing_dx','asset':file_record(args.reference_volume_dx,target.parent)} if args.reference_volume_dx else {
         'kind':'landmark_sphere','radius_A':args.radius,'max_seed_distance_A':min(3.,args.radius),'ambiguity_distance_A':.5}
     data={'schema_version':1,'region_id':args.region_id,'label':args.region_id,

@@ -38,7 +38,7 @@ def main():
     p.add_argument('scene',type=Path);p.add_argument('--viewer',required=True,choices=['pymol','vmd','chimerax'])
     p.add_argument('--output',required=True,type=Path);p.add_argument('--width',type=int,default=1200)
     args=p.parse_args();scene=args.scene.resolve(strict=True);root=scene.parent;prefix=scene.stem.removesuffix('_review')
-    spec=json.loads((root/(prefix+'_review_scene.json')).read_text());out=args.output.resolve();out.mkdir(parents=True,exist_ok=False)
+    spec=json.loads((root/(prefix+'_review_scene.json')).read_text(encoding="utf-8"));out=args.output.resolve();out.mkdir(parents=True,exist_ok=False)
     width=args.width;height=round(width*.75)
     if args.viewer=='pymol':
         code=r'''import json,numpy as np
@@ -62,7 +62,7 @@ np.savez_compressed(out/'geometry.npz',**arrays);(out/'inspection.json').write_t
 cmd.quit()
 '''
         code=code.replace('__OUT__',repr(str(out))).replace('__WIDTH__',str(width)).replace('__HEIGHT__',str(height))
-        script=out/'inspect.pml';script.write_text('@'+str(scene)+'\n@'+str(scene)+'\npython\n'+code+'\npython end\n')
+        script=out/'inspect.pml';script.write_text('@'+str(scene)+'\n@'+str(scene)+'\npython\n'+code+'\npython end\n', encoding="utf-8", newline="\n")
         command=[sys.executable,'-m','pymol','-cq',str(script)]
     elif args.viewer=='chimerax':
         code=r'''import json,numpy as np
@@ -84,7 +84,7 @@ np.savez_compressed(out/'geometry.npz',serials=serials,protein_coords=protein.at
 run(session,'save '+json.dumps(str(out/'native.png'))+' width __WIDTH__ height __HEIGHT__ supersample 2')
 (out/'inspection.json').write_text(json.dumps(result,indent=2,allow_nan=False))
 '''.replace('__OUT__',repr(str(out))).replace('__SCENE__',repr(json.dumps(str(scene)))).replace('__WIDTH__',str(width)).replace('__HEIGHT__',str(height))
-        script=out/'inspect.py';script.write_text(code)
+        script=out/'inspect.py';script.write_text(code, encoding="utf-8", newline="\n")
         command=['xvfb-run','-a','-s','-screen 0 1280x1024x24',str(local_chimerax().resolve()),'--silent','--exit',str(script)]
     else:
         q=_tcl_word
@@ -114,10 +114,10 @@ close $f
 'foreach m [molinfo list] {mol off $m}','mol on $crevice_volume',
 'foreach matrix {center_matrix rotate_matrix scale_matrix global_matrix} {molinfo $crevice_volume set $matrix [list [transidentity]]}',
 'render Wavefront [file join $out surface.obj]','} err]} {puts stderr "CREVICE_CHECK_ERROR: $err";puts stderr $::errorInfo;exit 1}','quit']
-        script=out/'inspect.tcl';script.write_text('\n'.join(code));command=['vmd','-dispdev','text','-e',str(script)]
+        script=out/'inspect.tcl';script.write_text('\n'.join(code), encoding="utf-8", newline="\n");command=['vmd','-dispdev','text','-e',str(script)]
     env=dict(os.environ);env['VMDFORCECPUCOUNT']='2'
     if env.get('PYTHONPATH'):env['PYTHONPATH']=os.pathsep.join(str(Path(x or '.').resolve()) for x in env['PYTHONPATH'].split(os.pathsep))
-    with (out/'native.log').open('w') as log:
+    with (out/'native.log').open('w', encoding="utf-8", newline="\n") as log:
         try:
             with subprocess.Popen(command,stdin=subprocess.PIPE,stdout=log,stderr=subprocess.STDOUT,env=env) as process:
                 try:returncode=process.wait(timeout=600)
@@ -125,7 +125,7 @@ close $f
         except OSError as error:log.write(str(error));returncode=-1
     if args.viewer=='vmd' and (out/'inspection.tsv').exists():
         serials=[];coords=[];markers=[];r={};sticks=[]
-        for line in (out/'inspection.tsv').read_text().splitlines():
+        for line in (out/'inspection.tsv').read_text(encoding="utf-8").splitlines():
             v=line.split('|')
             if v[0]=='atom':serials.append(int(v[1]));coords.append(list(map(float,v[2].split())))
             elif v[0]=='sticks':sticks=list(map(int,v[1].split()));r['sticks']=sticks
@@ -133,19 +133,19 @@ close $f
             elif v[0]=='camera':r['camera_rotation']=np.array(list(map(float,v[1].replace('{','').replace('}','').split()))).reshape(4,4)[:3,:3].tolist()
             elif v[0]=='molecules':r['protein_objects']=1 if v[1]==v[2] else 0
             elif v[0]=='marker':markers.append(list(map(float,v[1].strip('{}').split())))
-        obj=out/'surface.obj';vertices=np.asarray([[float(x) for x in l.split()[1:4]] for l in obj.read_text().splitlines() if l.startswith('v ')]) if obj.exists() else np.empty((0,3))
+        obj=out/'surface.obj';vertices=np.asarray([[float(x) for x in l.split()[1:4]] for l in obj.read_text(encoding="utf-8").splitlines() if l.startswith('v ')]) if obj.exists() else np.empty((0,3))
         np.savez_compressed(out/'geometry.npz',serials=serials,protein_coords=coords,vertices=vertices,markers=np.asarray(markers).reshape(-1,3))
-        (out/'inspection.json').write_text(json.dumps(r,indent=2))
+        (out/'inspection.json').write_text(json.dumps(r,indent=2), encoding="utf-8", newline="\n")
         if (out/'native.tga').exists():
             from PIL import Image
             Image.open(out/'native.tga').save(out/'native.png')
-    checks={};r={};log=(out/'native.log').read_text()
+    checks={};r={};log=(out/'native.log').read_text(encoding="utf-8")
     checks['native_execution']=returncode==0 and (out/'inspection.json').exists() and not any(s in log for s in ['Traceback','CREVICE_CHECK_ERROR','SyntaxError',' Error:'])
     if checks['native_execution']:
         from scipy.spatial import cKDTree
         from PIL import Image
-        r=json.loads((out/'inspection.json').read_text());a=np.load(out/'geometry.npz')
-        expected=np.asarray([[float(l[k:k+8]) for k in [30,38,46]] for l in (root/spec['protein_pdb']).read_text().splitlines() if l.startswith(('ATOM  ','HETATM'))])
+        r=json.loads((out/'inspection.json').read_text(encoding="utf-8"));a=np.load(out/'geometry.npz')
+        expected=np.asarray([[float(l[k:k+8]) for k in [30,38,46]] for l in (root/spec['protein_pdb']).read_text(encoding="utf-8").splitlines() if l.startswith(('ATOM  ','HETATM'))])
         checks['protein_coordinates']=bool(np.allclose(a['protein_coords'][np.argsort(a['serials'])],expected,rtol=0,atol=.001))
         ids=sorted(i for row in spec['landmarks'] for i in row['residue_atom_serials'])
         checks['landmark_sticks']=r['sticks']==ids
@@ -155,7 +155,7 @@ close $f
         ref=np.load(root/(prefix+'_geometry_geometry_reference.npz'))
         verts=a['vertices'];wanted=ref['surface_vertices']
         error=max(cKDTree(verts).query(wanted)[0].max(),cKDTree(wanted).query(verts)[0].max()) if len(verts) else float('inf')
-        meta=json.loads((root/(prefix+'_geometry_volume_metadata.json')).read_text())
+        meta=json.loads((root/(prefix+'_geometry_volume_metadata.json')).read_text(encoding="utf-8"))
         r['surface_error_A']=float(error) if np.isfinite(error) else None;checks['world_surface']=error<(.005 if args.viewer!='vmd' else 1.8*meta['spacing_A']+.005)
         checks['camera']=bool(np.allclose(r['camera_rotation'],spec['camera']['camera_rotation'],atol=1e-6))
         checks['reload_no_duplicate_protein']=r['protein_objects']==1
@@ -166,7 +166,7 @@ close $f
     checks={k:bool(v) for k,v in checks.items()}
     result={k:v for k,v in r.items() if k not in {'colors','sticks'}}
     result.update(status='passed' if all(checks.values()) else 'failed',checks=checks,command=command,returncode=returncode)
-    (out/'verification.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n');print(json.dumps(result,indent=2,allow_nan=False))
+    (out/'verification.json').write_text(json.dumps(result,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n");print(json.dumps(result,indent=2,allow_nan=False))
     if result['status']!='passed':raise SystemExit(1)
 
 if __name__=='__main__':main()

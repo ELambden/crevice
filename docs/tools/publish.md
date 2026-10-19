@@ -201,6 +201,13 @@ unresolved profile doesn't show the protein is closed: in our runs 4PYP is
 unresolved at every probe, and its fallback cast still measures a large
 cavity. Segment labels are geometry, not transport direction. Open the scenes
 and check them before using them in a figure.
+
+The typed residue interactions count directional hydrogen bonds only between
+explicit hydrogens. Most crystal and cryo-EM structures have none, so for them
+the interactions list salt-bridge and aromatic candidates but no hydrogen
+bonds; a missing hydrogen bond is not evidence that none forms. See
+[Limitations](../getting-started/limitations.md) for the caveats shared by
+all tools.
 :::
 
 To look around a bundle in 3D without a molecular viewer, run

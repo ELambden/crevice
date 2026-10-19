@@ -31,12 +31,12 @@ def test_canonical_publish_numbers_are_unchanged_by_the_compact_defaults(name, s
     assert main(["publish", str(source), "--offline", "--model", "0", "--parser", "gemmi", "--axis", "auto",
                  "--samples", "101", "--section-spacing", spacing, "--cast-spacing", spacing,
                  "--dpi", "100", "--out-dir", str(out), "--prefix", name]) == 0
-    manifest = json.loads((out / f"{name}_manifest.json").read_text())
+    manifest = json.loads((out / f"{name}_manifest.json").read_text(encoding="utf-8"))
     assert manifest["void_cast"]["total_volume"] == expected["volume"]
     status = manifest["profile_status"]["status"]
     assert status == expected["status"]
     if status == "resolved":
-        assert json.loads((out / f"{name}_profile.json").read_text())["min_radius"] == expected["min_radius"]
+        assert json.loads((out / f"{name}_profile.json").read_text(encoding="utf-8"))["min_radius"] == expected["min_radius"]
     else:
         assert not list(out.glob("*_profile.json")) and not list(out.glob("*_profile.csv"))
     assert not list(out.glob("*hydration*")) and not list(out.glob("*.html"))

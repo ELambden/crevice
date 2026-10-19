@@ -108,7 +108,7 @@ class ScientificContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "models.pdb"
             path.write_text("MODEL        1\n" + pdb_line(5) + "ENDMDL\nMODEL        2\n" +
-                            pdb_line(50) + "ENDMDL\nEND\n")
+                            pdb_line(50) + "ENDMDL\nEND\n", encoding="utf-8", newline="\n")
             first = load_structure(path, model_index=0)
             second = load_structure(path, model_index=1)
             self.assertEqual([a.x for a in first.atoms], [5.0])
@@ -122,14 +122,14 @@ class ScientificContracts(unittest.TestCase):
                     "pdbx_PDB_model_num"]
             path.write_text("data_test\nloop_\n" +
                             "".join("_atom_site." + tag + "\n" for tag in tags) +
-                            "ATOM 1 C CA ALA A 1 5 0 0 1\nATOM 2 C CA ALA A 1 50 0 0 2\n#\n")
+                            "ATOM 1 C CA ALA A 1 5 0 0 1\nATOM 2 C CA ALA A 1 50 0 0 2\n#\n", encoding="utf-8", newline="\n")
             self.assertEqual(len(load_structure(path, model_index=0).atoms), 1)
 
     def test_malformed_coordinates_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "invalid.pdb"
             line = pdb_line()
-            path.write_text(line[:30] + " invalid" + line[38:])
+            path.write_text(line[:30] + " invalid" + line[38:], encoding="utf-8", newline="\n")
             with self.assertRaises(ValueError):
                 load_structure(path)
 

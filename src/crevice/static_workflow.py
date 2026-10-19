@@ -263,11 +263,11 @@ def export_rolling_cast(result: RollingCastResult, *, structure_path, output_dir
         end_views = {extension: root/f'{prefix}_end_view.{extension}' for extension in ('pml', 'tcl', 'vmd', 'cxc')}
         end_views = {extension: path for extension, path in end_views.items() if wants(path)}
         if end_views:
-            end_turn = json.loads(Path(manifest['scene_json']).read_text()).get('end_view_turn_degrees', 74)
+            end_turn = json.loads(Path(manifest['scene_json']).read_text(encoding="utf-8")).get('end_view_turn_degrees', 74)
             turns = {'pml': f'turn x, {end_turn:g}', 'tcl': f'rotate x by {end_turn:g}',
                      'vmd': f'rotate x by {end_turn:g}', 'cxc': f'turn x {end_turn:g}'}
             for extension, end_view in end_views.items():
-                end_view.write_text(Path(manifest[f'volume_{extension}']).read_text()+turns[extension]+'\n')
+                end_view.write_text(Path(manifest[f'volume_{extension}']).read_text(encoding="utf-8")+turns[extension]+'\n', encoding="utf-8", newline="\n")
                 manifest[f'end_view_{extension}'] = str(end_view)
         # Each retained region can also be inspected independently in a viewer.
         region_dir = root / 'regions'
@@ -720,7 +720,7 @@ def _export_static(result, *, structure_path, output_dir, prefix, dpi, residue_l
         # The rolling export writes the input copy and viewer PDB of its own atom selection.
         manifest = export_rolling_cast(result.rolling, structure_path=structure_path, output_dir=root, prefix=prefix,
                                        surface_smoothing=surface_smoothing, smooth=smooth)
-        saved = json.loads(Path(manifest['manifest_json']).read_text())
+        saved = json.loads(Path(manifest['manifest_json']).read_text(encoding="utf-8"))
         saved['single_channel_unresolved_reason'] = result.unresolved_reason
         saved['auto_fallback'] = '3D rolling-probe cast; no single-channel profile'
         saved['publication_input_selection'] = {'include_hydrogen': settings['include_hydrogen'],

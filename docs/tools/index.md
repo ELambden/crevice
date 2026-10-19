@@ -216,7 +216,8 @@ not curated references: channel axes and regions are chosen by the analysis
 or by you. Treat a radius, volume or residue list as a well-defined
 measurement, and as a starting point for biological interpretation that still
 needs independent evidence, such as mutagenesis, functional data or other
-structures.
+structures. [Limitations](../getting-started/limitations.md) collects the
+caveats that apply across the tools.
 
 ```{toctree}
 :maxdepth: 1

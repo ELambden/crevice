@@ -192,11 +192,11 @@ def main():
                                             (5, 0, 2), (-5, 0, 2), (0, 5, 2), (0, -5, 2)], 1):
             lines.append(f"ATOM  {serial:5d}  CA  ALA A{serial:4d}    "
                          f"{x:8.3f}{y:8.3f}{z:8.3f}{1:6.2f}{0:6.2f}           C")
-        source.write_text("\n".join(lines) + "\nEND\n")
+        source.write_text("\n".join(lines) + "\nEND\n", encoding="utf-8", newline="\n")
         run(root / "venv/bin/crevice", "--help")
         run(root / "venv/bin/crevice", "profile", source, "--axis", "z", "--samples", "3",
             "--search-radius", "0", "-o", root / "profile.json")
-        profile = json.loads((root / "profile.json").read_text())
+        profile = json.loads((root / "profile.json").read_text(encoding="utf-8"))
         assert profile["point_count"] == 3 and abs(profile["min_radius"] - 3.3) < 1e-8
 
         segments = json.loads(run(python, "-c", SEGMENT_CHECKS))
@@ -206,7 +206,7 @@ def main():
         assert segments["tree"]["blocked"] and segments["uses_scipy"], segments
 
         checks_script = root / "intake_checks.py"
-        checks_script.write_text(INTAKE_CHECKS)
+        checks_script.write_text(INTAKE_CHECKS, encoding="utf-8", newline="\n")
         intake = json.loads(run(python, checks_script))
         assert intake["provenance_verified"] and intake["tamper_detected"]
         assert intake["accession_grammar_ok"], intake
@@ -234,7 +234,7 @@ def main():
               "profile_min_radius_A": profile["min_radius"], "segment_checks": segments,
               "intake_checks": intake}
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, indent=2) + "\n")
+    args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(report, indent=2))
 
 

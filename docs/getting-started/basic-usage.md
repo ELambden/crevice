@@ -217,7 +217,9 @@ maths libraries, a fixed axis and 0.25 Å sections), a 1GRM profile took about
 2.6 s with the automatic probe and about 0.6 s with `--enclosure-radius 0.8`;
 a 3UKM profile with `--lateral-exits` took about 40 s; and a five-frame GLUT1
 `region-trajectory --water-membership` took about 24 s with the default
-workers. Your times will differ.
+workers. Your times will differ. To measure them on your own machine, the
+source repository has `scripts/timing.py`, which times a fixed set of commands
+and writes the wall time, CPU time and peak memory to a CSV file.
 
 ## Where next?
 

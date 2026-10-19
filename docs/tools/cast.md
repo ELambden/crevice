@@ -142,6 +142,9 @@ very small cavities and can keep large voids you don't care about. Probe
 connectivity doesn't show that a space is open to bulk solvent or reachable by
 a substrate, and a cast region is a geometric candidate, not a biological site,
 until other evidence says so.
+
+[Limitations](../getting-started/limitations.md) collects the caveats shared by
+all tools.
 :::
 
 The [4PYP tutorial](../examples/4pyp-cavity-residues.md) casts the GLUT1

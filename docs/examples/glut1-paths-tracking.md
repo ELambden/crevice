@@ -9,7 +9,8 @@ tracks the cavities around the site through all 21 frames of the example.
 ```{admonition} Status
 :class: note
 Run by hand on 15 October 2026 with the commands below (CREVICE 0.3.0
-development branch); not yet run in CI. The numbers are geometric measurements
+development branch), and again on 19 October 2026 for the list of left-out
+routes; not yet run in CI. The numbers are geometric measurements
 under the stated probes. They are not transport pathways, a conformational
 assignment or a functional claim, and the membrane sides of this simulation
 are not assigned to cytoplasm or exterior.
@@ -48,7 +49,9 @@ crevice paths glut1_excerpt.gro --trajectory glut1_excerpt.xtc --frames 0,5,10,1
   side with no route as unresolved.
 - The probe is chosen automatically for each side of each frame (the default
   `--probe-radius auto`); the command prints the choice, for example
-  `paths_f10 probe=auto chosen: + 0.65 Å, - 0.5 Å`.
+  `paths_f10 probe=auto chosen: + 0.65 Å, - 0.5 Å`, and, when a candidate
+  probe found a route that is not in the result, how many were left out
+  (below).
 
 Each frame takes about 45 s with 4 worker processes (about 25 s with a fixed
 `--probe-radius 0.8`) and writes `glut1_f<N>_paths.*`, including
@@ -86,10 +89,31 @@ drawing conclusions.
 Compared with a fixed 0.8 Å probe on all 21 frames, the automatic probe gives
 a widest −*z* route with a bottleneck within 0.1 Å of the fixed-probe one in
 every frame (identical in 10 of 21), finds
-the +*z* routes at 25 ns, and leaves out three narrower secondary −*z* routes
-(1.0–1.9 Å, in frames 0, 8 and 12) whose route set changed from one probe to
-the next; `glut1_f<N>_path_probes.csv` lists them, and `--probe-radius 0.8`
-reports them.
+the +*z* routes at 25 ns, and does not report three narrower secondary −*z*
+routes (1.0–1.9 Å, in frames 0, 8 and 12) that the 0.8 Å probe gives as
+separate branches. At 0.8 Å their mouths lie 11.5–13.7 Å from the mouth of
+the chosen −*z* route, and the one beyond 12 Å (frame 0) comes within 5.9 Å
+of it beyond their junction, so under the distinct-route rule (mouths more
+than 12 Å apart and routes more than 6 Å apart) they leave through the same
+opening as the chosen route and are not counted as left out; `glut1_f<N>_path_probes.csv` shows them as
+the second route of the smaller candidates, and `--probe-radius 0.8` reports
+them.
+
+Routes that are distinct from the result are listed. Of the five frames
+above, frame 5 prints
+
+```text
+paths_f5 probe=auto left out: 1 route found only at other candidate probes (- 1; widest 0.53 Å on side -, found at 0.5 Å); listed in glut1_f5_path_left_out.csv; --probe-radius 0.5 reports it
+```
+
+`glut1_f5_path_left_out.csv` gives a 0.53 Å, 50 Å-long −*z* route with its
+bottleneck between Met180, Gly181 and Lys183 and a lipid (DOPC683) along it,
+seen only at 0.5 Å while the chosen 0.55 Å persists over 15 probes. Over all
+21 frames four routes are left out this way (frames 5 and 7 on −*z*, 8 and
+17 on +*z*), all 0.52–0.59 Å wide and found only at 0.5 or 0.55 Å; in each
+case a fixed run at the listed `rerun_probe_A` reports the route as a
+branch. The other frames print no such line, and their
+`glut1_f<N>_path_left_out.csv` has only its header.
 
 ```{figure} images/glut1_f10_paths.png
 :alt: Free-sphere radius against arc length for the five GLUT1 branches at 50 ns
@@ -144,7 +168,8 @@ sensitive to the probe and the link thresholds.
 
 - Rerun `paths` with `--spacing 0.35` to see whether the narrow +*z* routes
   are lattice effects, and compare a fixed `--probe-radius` with the
-  automatic choice in `*_path_probes.csv`.
+  automatic choice in `*_path_probes.csv` and the routes it left out in
+  `*_path_left_out.csv`.
 - Rerun `track-cavities` with `--link-jaccard 0.1 --link-containment 0`: event
   counts that change a lot are threshold-driven.
 - The full 1001-frame trajectory runs in about an hour with

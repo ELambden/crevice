@@ -216,7 +216,7 @@ def load_mmcif(
     if hetero_policy not in {"group_pdb", "nonpolymer", "auto"}:
         raise ValueError("hetero_policy must be group_pdb, nonpolymer, or auto")
     source = Path(path)
-    block = read_mmcif(source.read_text())
+    block = read_mmcif(source.read_text(encoding="utf-8"))
     rows = atom_site_rows(block)
     model_ids = list(dict.fromkeys(_value(row, "pdbx_PDB_model_num") or "1" for row in rows))
     if model_index >= len(model_ids):

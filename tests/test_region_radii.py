@@ -29,10 +29,10 @@ def test_prepare_writes_schema_2_with_the_default_set(tmp_path):
     data, _ = load_definition(files['definition_json'])
     assert data['schema_version'] == 2
     assert data['radii']['name'] == 'default' and same_radius_set(data['radii'], DEFAULT_RADII)
-    manifest = json.loads((tmp_path / 'review' / 'manifest.json').read_text())
+    manifest = json.loads((tmp_path / 'review' / 'manifest.json').read_text(encoding="utf-8"))
     assert manifest['radii']['name'] == 'default'
     assert manifest['radii_check']['status'] == 'no_declared_set'
-    review = json.loads((tmp_path / 'review' / 'synthetic_review.json').read_text())
+    review = json.loads((tmp_path / 'review' / 'synthetic_review.json').read_text(encoding="utf-8"))
     assert review['radii']['table_sha256'] == DEFAULT_RADII.table_sha256
 
 
@@ -46,10 +46,10 @@ def test_prepare_with_an_explicit_set_stores_it_and_trajectory_uses_it(tmp_path)
     out = tmp_path / 'run'
     assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--dpi', '60']) == 0
-    report = json.loads((out / 'synthetic_cavity_statistics.json').read_text())
+    report = json.loads((out / 'synthetic_cavity_statistics.json').read_text(encoding="utf-8"))
     assert report['settings']['radii']['name'] == 'hole'
     assert report['settings']['region_definition']['radii']['name'] == 'hole'
-    manifest = json.loads((out / 'synthetic_cavity_manifest.json').read_text())
+    manifest = json.loads((out / 'synthetic_cavity_manifest.json').read_text(encoding="utf-8"))
     assert manifest['radii']['name'] == 'hole'
 
 
@@ -61,7 +61,7 @@ def test_region_trajectory_refuses_a_different_set_unless_overridden(tmp_path, c
     assert 'Radius set mismatch' in capsys.readouterr().err
     assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--dpi', '60', '--radii', 'hole', '--allow-radii-mismatch']) == 0
-    provenance = json.loads((out / 'synthetic_region_provenance.json').read_text())
+    provenance = json.loads((out / 'synthetic_region_provenance.json').read_text(encoding="utf-8"))
     assert provenance['radii']['name'] == 'hole'
     assert provenance['radii_check']['status'] == 'mismatch_overridden'
     assert provenance['radii_check']['declared']['name'] == 'default'
@@ -74,7 +74,7 @@ def test_region_trajectory_refuses_a_different_set_unless_overridden(tmp_path, c
 def test_version_1_definitions_still_load_and_mean_the_default_set(tmp_path):
     _, files = prepared(tmp_path)
     path = files['definition_json']
-    data = json.loads(open(path).read())
+    data = json.loads(open(path, encoding="utf-8").read())
     data['schema_version'] = 1
     data.pop('radii')
     write_json(path, data)
@@ -99,11 +99,11 @@ def test_version_1_definitions_still_load_and_mean_the_default_set(tmp_path):
 ])
 def test_schema_2_requires_a_radius_record(tmp_path, change, match):
     _, files = prepared(tmp_path)
-    data = json.loads(open(files['definition_json']).read())
+    data = json.loads(open(files['definition_json'], encoding="utf-8").read())
     change(data)
     with pytest.raises(ValueError, match=match):
         validate_definition(data)
-    legacy = json.loads(open(files['definition_json']).read())
+    legacy = json.loads(open(files['definition_json'], encoding="utf-8").read())
     legacy['schema_version'] = 1
     with pytest.raises(ValueError, match='unknown fields'):
         validate_definition(legacy)
@@ -116,10 +116,10 @@ def test_hydration_cavity_results_uses_or_checks_the_recorded_set(tmp_path):
     assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--dpi', '60']) == 0
     stats = out / 'synthetic_cavity_statistics.json'
-    reader = json.loads((out / 'synthetic_reader.json').read_text())
+    reader = json.loads((out / 'synthetic_reader.json').read_text(encoding="utf-8"))
     with pytest.raises(ValueError, match='Radius set mismatch'):
         analyze_hydration_trajectory(reader['topology'], reader['trajectory'], context_json=stats, radii='bondi')
-    record = json.loads(stats.read_text())['settings']['radii']
+    record = json.loads(stats.read_text(encoding="utf-8"))['settings']['radii']
     used, check = reconcile_recorded_radii(record, None)
     assert used.name == 'hole' and check['status'] == 'recorded_set_used'
     used, check = reconcile_recorded_radii(record, 'bondi', allow_mismatch=True)

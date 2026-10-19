@@ -12,6 +12,74 @@ biological results.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-19
+
+### Added
+
+- `crevice paths --probe-radius auto` lists the routes it leaves out: every
+  route found at a candidate probe that is distinct (distinct-route rule)
+  from all routes of the chosen result on its side, with its width, the
+  probes that found it, the probe to rerun with, its mouth, end type, length,
+  bottleneck and lining residues (from the lattice route). They are recorded
+  in `settings.probe_selection.left_out_routes` and in a new
+  `*_path_left_out.csv` (automatic probe only; header only when none), and
+  the command prints how many were left out and which `--probe-radius`
+  reports the widest. The chosen probe, the branches and every existing
+  CSV, figure and scene file are unchanged (the JSON only gains the new
+  keys); a fixed probe writes nothing new.
+- macOS and Windows are tested automatically: the fast test suite runs on
+  both, on Python 3.10 and 3.13, for every pull request and every change to
+  the main branch. Support for these platforms is new; publishing a release
+  does not wait for these jobs.
+- A [Limitations](docs/getting-started/limitations.md) page collects the
+  caveats that apply across the tools (geometry is not validated biology,
+  chosen axes, atomic radii and atoms without radii, missing hydrogens in
+  static structures, grid, probe and margin dependence, the automatic probe
+  rules, the order-of-magnitude conductance estimate, unresolved profiles and
+  explicit waters), and the tool pages link to it. The hydration,
+  residue-evidence and publish pages note that directional hydrogen bonds
+  need explicit hydrogens.
+
+### Fixed
+
+- Fingerprint `nearest_lining_residue`: when two lining residues are equally
+  close to a sample (symmetric walls, for example 1GRM), the first in residue
+  order is reported. Before, the choice could change between runs.
+- Worker processes (`--workers` in `paths`, `cavity-trajectory`,
+  `region-trajectory` and `track-cavities`) are started with `spawn` on macOS
+  and Windows instead of `fork`, which is unsafe on macOS; Linux still forks.
+  Results do not depend on the start method (checked by tests that force
+  `spawn` on Linux).
+- Text files are read and written as UTF-8 with Unix line endings on every
+  platform. Before, Windows used its locale encoding, which cannot encode
+  symbols such as ≤ and would misread UTF-8 radius and settings files.
+- `crevice --help` and messages no longer fail with `UnicodeEncodeError`
+  when output goes to a stream that cannot encode symbols such as ≤ (for
+  example redirected output on Windows); such characters are escaped.
+- `region-prepare` records the absolute path of a trajectory or topology on
+  another drive than the output directory (Windows), instead of failing to
+  build a relative path; relative paths are written with `/` separators.
+
+### Performance
+
+- Faster without changing any result: every output file is byte for byte the
+  same as in 0.3.1, apart from the run-time fields that `crevice paths` records
+  about itself (`settings.probe_selection` `search_s` and `timing_s`). Measured
+  on one core (median of three runs): `region-trajectory` 1.8× faster (20
+  GLUT1 frames, 90 → 50 s), `paths` 1.6× on a GLUT1 membrane frame
+  (124 → 77 s) and 1.2× on 3UKM, `publish` 1.3–1.4×, `profile --lateral-exits`
+  on 3UKM 1.25× (90 → 72 s). `cavity-trajectory` in rolling mode is unchanged.
+  The changes: reference-region clearances are computed only where they are
+  used, and the obstacle padding bound uses an exact pruned search; the lateral
+  exit search computes segment clearances in batches per lattice block; the
+  `paths` route search runs on plain Python lists and decides overlapping routes
+  with an exact early test; OpenDX maps format each distinct value once.
+- `scripts/timing.py` times a fixed set of commands (`publish` and `profile` on
+  1GRM and 3UKM, `region-trajectory`, `cavity-trajectory` and `paths` on a GLUT1
+  trajectory, `paths` on 3UKM). It writes wall time, CPU time, peak memory, the
+  CREVICE version, the CPU count and the settings to a CSV; `--quick` runs a
+  subset (see CONTRIBUTING).
+
 ## [0.3.1] - 2026-10-16
 
 ### Changed

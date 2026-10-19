@@ -113,7 +113,7 @@ def main():
               "rows": rows, "unexpected_cases": unexpected,
               "source_sha256": {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in sources}}
     path = output / "connectivity_sweep.json"
-    path.write_text(json.dumps(report, indent=2) + "\n")
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
     plot_results(rows, args.spacings, args.phases, output / "connectivity_sweep.png")
     plot_results(rows, args.spacings, args.phases, output / "connectivity_sweep.svg")
     print(json.dumps({"status": report["status"], "cases": len(rows), "unexpected_cases": len(unexpected),

@@ -134,11 +134,11 @@ def test_outputs_written(tmp_path, ybranch):
     names = {p.name for p in files}
     assert {"y_paths.json", "y_paths.csv", "y_path_points.csv", "y_path_lining.csv", "y_path_junctions.csv",
             "y_paths.png", "y_paths.pml", "y_paths.cxc", "y_paths_vmd.tcl"} <= names
-    data = json.loads((tmp_path / "y_paths.json").read_text())
+    data = json.loads((tmp_path / "y_paths.json").read_text(encoding="utf-8"))
     assert data["status"] == "resolved" and len(data["branches"]) == 2
-    rows = list(csv.DictReader((tmp_path / "y_path_points.csv").open()))
+    rows = list(csv.DictReader((tmp_path / "y_path_points.csv").open(encoding="utf-8")))
     assert {"branch", "arc_length_A", "x_A", "y_A", "z_A", "radius_A"} <= set(rows[0])
-    pml = (tmp_path / "y_paths.pml").read_text()
+    pml = (tmp_path / "y_paths.pml").read_text(encoding="utf-8")
     assert "path_1" in pml and "path_2" in pml and "label" not in pml.lower().replace("labels", "")
 
 
@@ -146,7 +146,7 @@ def test_unresolved_outputs(tmp_path):
     frame, _ = _block((-12, 12), (-12, 12), (-12, 12), lambda p: np.linalg.norm(p, axis=1) < 5.0)
     result = find_paths(frame, probe_radius=0.8, seed=(0.0, 0.0, 0.0))
     files = write_paths_outputs(result, tmp_path, prefix="c", frame=frame)
-    rows = list(csv.DictReader((tmp_path / "c_paths.csv").open()))
+    rows = list(csv.DictReader((tmp_path / "c_paths.csv").open(encoding="utf-8")))
     assert rows[0]["status"] == "unresolved_no_bulk_path"
     assert (tmp_path / "c_paths.png").exists()
 

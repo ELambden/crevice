@@ -69,11 +69,11 @@ def test_every_json_interval_statistic_appears_once_in_the_bundle_csvs(tmp_path)
 
     for json_name, csv_name in [('left_cavity_statistics.json', 'left_cavity_statistics_summary.csv'),
                                 ('left_hydration.json', 'left_hydration_summary.csv')]:
-        report = json.loads((runs[0] / json_name).read_text())
+        report = json.loads((runs[0] / json_name).read_text(encoding="utf-8"))
         _, rows = read_rows(runs[0] / csv_name)
         interval_rows = [r for r in rows if r['value'] == '' and 'correlation' not in r['quantity']]
         assert len(interval_rows) == count_statistics(report) > 0
-    manifest = json.loads((runs[0] / 'left_cavity_manifest.json').read_text())
+    manifest = json.loads((runs[0] / 'left_cavity_manifest.json').read_text(encoding="utf-8"))
     assert any(str(p).endswith('_cavity_statistics_summary.csv') for p in json.dumps(manifest).split('"'))
 
     result = compare_regions(runs[0] / 'left_cavity_statistics.json', runs[1] / 'right_cavity_statistics.json',

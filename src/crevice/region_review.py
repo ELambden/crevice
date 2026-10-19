@@ -101,7 +101,7 @@ def write_region_review(frame, reference, report, obstacles, output_dir, prefix,
       'landmarks':report['landmarks'],'coordinate_landmarks':report['coordinate_landmarks'],
       'landmark_rgb':[.88,.53,.12],'coordinate_landmark_rgb':[.60,.34,.72],
       'context_rgb':[.32,.56,.40],'cavity_rgb':[.08,.58,.63],
-      'camera':json.loads(Path(files['scene_json']).read_text()),
+      'camera':json.loads(Path(files['scene_json']).read_text(encoding="utf-8")),
       'caption':report['review']['status'].upper()+' REGION | '+prefix,
       'legend':'Gold: residue landmarks   Purple: transferred site points   Teal: reference region',
       'warnings':report['warnings']}
@@ -110,10 +110,10 @@ def write_region_review(frame, reference, report, obstacles, output_dir, prefix,
         'residue_labels':', '.join(row['residue'] for row in report['landmarks'])},drawn=annotate)
     scene_path=root/(prefix+'_review_scene.json');write_json(scene_path,scene);files['review_scene_json']=str(scene_path)
     ids=sorted(i for row in report['landmarks'] for i in row['residue_atom_serials'])
-    mapping=json.loads(structure.with_suffix('.identities.json').read_text())
+    mapping=json.loads(structure.with_suffix('.identities.json').read_text(encoding="utf-8"))
     mapped={r['original']:(r['viewer_chain'],r['viewer_resid']) for r in mapping['residue_mapping']}
     # The underlying volume scenes supply the same world-coordinate cast and camera.
-    pml=Path(files['volume_pml']).read_text()+f'''\npython
+    pml=Path(files['volume_pml']).read_text(encoding="utf-8")+f'''\npython
 review=json.loads(Path(crevice_input({scene_path.name!r},{str(scene_path)!r})).read_text())
 for name in ['crevice_review_labels','crevice_review_points','crevice_review_context']:
     cmd.delete(name)
@@ -142,12 +142,12 @@ if review['coordinate_landmarks']:
 __REVIEW_LABELS__cmd.set_view(view)
 python end
 '''.replace('__REVIEW_LABELS__',PML_REVIEW_LABELS if annotate else '')
-    target=root/(prefix+'_review.pml');target.write_text(pml);files['review_pml']=str(target)
+    target=root/(prefix+'_review.pml');target.write_text(pml, encoding="utf-8", newline="\n");files['review_pml']=str(target)
     q=_tcl_word
     tcl='''if {[info exists crevice_review_owned]} {
     foreach m $crevice_review_owned {if {[lsearch -exact [molinfo list] $m]>=0} {mol delete $m}}
 }
-'''+Path(files['volume_tcl']).read_text()
+'''+Path(files['volume_tcl']).read_text(encoding="utf-8")
     tcl+='\nmaterial change opacity CREVICEContext 1.0\nmaterial change opacity CREVICECast 0.65\n'
     tcl+='set crevice_review_ids {'+' '.join(map(str,ids))+'}\n'
     tcl+='color change rgb 17 .88 .53 .12\ncolor change rgb 18 .60 .34 .72\ncolor change rgb 19 .32 .56 .40\n'
@@ -170,7 +170,7 @@ python end
             tcl+='graphics $crevice_review_graphics text {'+' '.join(map(str,p))+'} '+q(caption)+' size 0.65 thickness 1.8\n'
     tcl+='foreach m $crevice_review_owned {molinfo $m set {center_matrix rotate_matrix scale_matrix global_matrix} $crevice_saved}\ndisplay update\n'
     for ext in ['tcl','vmd']:
-        target=root/(prefix+'_review.'+ext);target.write_text(tcl);files['review_'+ext]=str(target)
+        target=root/(prefix+'_review.'+ext);target.write_text(tcl, encoding="utf-8", newline="\n");files['review_'+ext]=str(target)
     # A Python loader avoids fixed model IDs and makes actual native reload safe.
     cxc_py=r'''from pathlib import Path
 import json,numpy as np
@@ -217,8 +217,8 @@ for name in ['crevice_region_title','crevice_region_legend']:
     if labels and labels.named_label(name):label_delete(session,[labels.named_label(name)])
 __TITLE_LABELS__run(session,'windowsize 1200 900')
 '''.replace('__ATOM_LABELS__',CXC_REVIEW_ATOM_LABELS if annotate else '').replace('__TITLE_LABELS__',CXC_REVIEW_TITLE_LABELS if annotate else '').replace('__SCENE__',repr(scene_path.name)).replace('__IDS__',repr(ids)).replace('__MESH__',repr(Path(files['pymol_mesh_npz']).name)).replace('__BASIS__',repr(basis.tolist()))
-    loader=root/(prefix+'_review_chimerax.py');loader.write_text(cxc_py);files['review_chimerax_python']=str(loader)
-    target=root/(prefix+'_review.cxc');target.write_text('open '+json.dumps(loader.name)+'\n');files['review_cxc']=str(target)
+    loader=root/(prefix+'_review_chimerax.py');loader.write_text(cxc_py, encoding="utf-8", newline="\n");files['review_chimerax_python']=str(loader)
+    target=root/(prefix+'_review.cxc');target.write_text('open '+json.dumps(loader.name)+'\n', encoding="utf-8", newline="\n");files['review_cxc']=str(target)
     import csv
     target=root/(prefix+'_review_landmarks.csv')
     with target.open('w',newline='',encoding='utf-8') as handle:

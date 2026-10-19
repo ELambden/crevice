@@ -38,7 +38,7 @@ def test_unresolved_profile_completes_requested_extras_without_a_profile(unresol
     from crevice.rolling import _SphereQueries
     from crevice.radii import atom_vdw_radius
     frame, files = unresolved_bundle
-    manifest = json.loads(Path(files["manifest_json"]).read_text())
+    manifest = json.loads(Path(files["manifest_json"]).read_text(encoding="utf-8"))
     for key in EXTRA_FILES:
         assert Path(files[key]).is_file(), key
         assert manifest["files"][key] == files[key]
@@ -46,7 +46,7 @@ def test_unresolved_profile_completes_requested_extras_without_a_profile(unresol
     assert not any(k.startswith(("profile_json", "profile_csv", "profile_radius")) for k in manifest["files"])
     assert manifest["profile_status"]["status"] == "unresolved"
     assert manifest["profile_status"]["reason"] == manifest["single_channel_unresolved_reason"]
-    status = json.loads(Path(files["profile_status_json"]).read_text())
+    status = json.loads(Path(files["profile_status_json"]).read_text(encoding="utf-8"))
     assert status["status"] == "unresolved" and "no pore-radius profile" in status["interpretation"]
     fallback = manifest["fallback_analyses"]
     assert status["fallback_analyses"] == fallback
@@ -59,11 +59,11 @@ def test_unresolved_profile_completes_requested_extras_without_a_profile(unresol
                            np.asarray([atom_vdw_radius(a) for a in frame.atoms]))
     clearance, _ = query.points(samples)
     assert fallback["tunnels"]["start"] == pytest.approx(samples[int(np.argmax(clearance))].tolist(), abs=0)
-    tunnels = json.loads(Path(files["tunnels_json"]).read_text())["tunnels"]
+    tunnels = json.loads(Path(files["tunnels_json"]).read_text(encoding="utf-8"))["tunnels"]
     assert tunnels and len(tunnels) == fallback["tunnels"]["tunnel_count"]
     assert all(t["start"] == pytest.approx(fallback["tunnels"]["start"]) for t in tunnels)
-    assert json.loads(Path(files["cavities_json"]).read_text())["cavities"] == []
-    network = json.loads(Path(files["network_json"]).read_text())["network"]
+    assert json.loads(Path(files["cavities_json"]).read_text(encoding="utf-8"))["cavities"] == []
+    network = json.loads(Path(files["network_json"]).read_text(encoding="utf-8"))["network"]
     region = [n for n in network["nodes"] if n["kind"] == "region"]
     assert len(region) == 1 and region[0]["id"] == "region:void:1"
     assert fallback["network"]["region_sample_count"] == len(samples)
@@ -78,7 +78,7 @@ def test_unresolved_profile_records_skipped_requests(tmp_path):
         files = write_static_publication_bundle(frame, enclosure_radius=0.8, structure_path=source, output_dir=tmp_path / "out",
             cast_spacing=.5, cast_max_grid_points=500000, cast_min_component_volume=30, include_hetero=False,
             include_cavities=False, include_tunnels=False, include_network=False, dpi=60)
-    manifest = json.loads(Path(files["manifest_json"]).read_text())
+    manifest = json.loads(Path(files["manifest_json"]).read_text(encoding="utf-8"))
     assert not any(key in files for key in EXTRA_FILES)
     assert {k: v["status"] for k, v in manifest["fallback_analyses"].items()} == {
         "cavities": "skipped_by_request", "tunnels": "skipped_by_request", "network": "skipped_by_request"}
@@ -91,17 +91,17 @@ def test_resolved_profile_keeps_extras_and_reports_resolved(tmp_path):
     source = write_viewer_structure(frame, tmp_path / "channel.pdb")
     files = write_static_publication_bundle(frame, enclosure_radius=0.8, structure_path=source, output_dir=tmp_path / "out",
         prefix="channel", samples=41, search_radius=8, cast_spacing=.5, dpi=60)
-    manifest = json.loads(Path(files["manifest_json"]).read_text())
+    manifest = json.loads(Path(files["manifest_json"]).read_text(encoding="utf-8"))
     for key in EXTRA_FILES + ("profile_json", "profile_csv"):
         assert Path(files[key]).is_file(), key
     assert manifest["profile_status"]["status"] == "resolved"
     assert "profile_status_json" not in files and "fallback_analyses" not in manifest
-    profile = json.loads(Path(files["profile_json"]).read_text())
+    profile = json.loads(Path(files["profile_json"]).read_text(encoding="utf-8"))
     assert profile["points"] and profile["min_radius"] == pytest.approx(
         pore_profile(frame, enclosure_radius=0.8, samples=41, search_radius=8).min_radius)
     # The resolved path's tunnel call is unchanged: default start and obstacles.
     expected = find_tunnels(frame)
-    assert len(json.loads(Path(files["tunnels_json"]).read_text())["tunnels"]) == len(expected)
+    assert len(json.loads(Path(files["tunnels_json"]).read_text(encoding="utf-8"))["tunnels"]) == len(expected)
 
 
 def test_publish_cli_prints_unresolved_profile(tmp_path, capsys):
@@ -113,7 +113,7 @@ def test_publish_cli_prints_unresolved_profile(tmp_path, capsys):
                      "--cast-spacing", "0.5", "--min-component-volume", "30", "--skip-hydration",
                      "--skip-network", "--dpi", "60", "--outputs", "default,cavities,tunnels"]) == 0
     assert "profile=unresolved" in capsys.readouterr().out
-    manifest = json.loads((tmp_path / "out/pocket_manifest.json").read_text())
+    manifest = json.loads((tmp_path / "out/pocket_manifest.json").read_text(encoding="utf-8"))
     assert manifest["fallback_analyses"]["network"]["status"] == "skipped_by_request"
     assert manifest["fallback_analyses"]["tunnels"]["status"] == "completed"
     assert Path(manifest["files"]["input_report_json"]).is_file()
@@ -134,7 +134,7 @@ def _write(evidence, root, **options):
     frame, files, report = evidence
     paths = write_residue_evidence_bundle(report, frame, root, prefix="ctx", scene_path=files["volume_pml"],
                                           dpi=50, **options)
-    return paths, json.loads(Path(paths["residue_evidence_json"]).read_text())
+    return paths, json.loads(Path(paths["residue_evidence_json"]).read_text(encoding="utf-8"))
 
 
 def _serials(frame, residues):
@@ -143,15 +143,15 @@ def _serials(frame, residues):
 
 def _check_scenes(paths, frame, lining, partners):
     membership = {"lining": _serials(frame, lining), "partners": _serials(frame, partners)}
-    pml = Path(paths["residue_context_pml"]).read_text()
+    pml = Path(paths["residue_context_pml"]).read_text(encoding="utf-8")
     assert "crevice_membership = " + repr(membership) in pml
     assert 'cmd.set("stick_transparency", 0.0, crevice_selected)' in pml
     assert "cmd.set_color(\"crevice_boundary_evidence\", [0.85, 0.55, 0.20])" in pml
-    tcl = Path(paths["residue_context_tcl"]).read_text()
+    tcl = Path(paths["residue_context_tcl"]).read_text(encoding="utf-8")
     for role, ids in membership.items():
         assert f"set crevice_evidence_serials({role}) {{{' '.join(map(str, ids))}}}" in tcl
     assert "material change opacity CREVICEResidues 1.0" in tcl
-    cxc = Path(paths["residue_context_cxc"]).read_text()
+    cxc = Path(paths["residue_context_cxc"]).read_text(encoding="utf-8")
     for role, color in [("partners", "#a34478"), ("lining", "#d98c33")]:
         residues = lining if role == "lining" else partners
         match = re.search(r"^color (\S+) " + color + " target a$", cxc, flags=re.M)
@@ -190,7 +190,7 @@ def test_all_sticks_export_every_boundary_and_partner_residue(evidence, tmp_path
     membership = _check_scenes(paths, frame, sorted(lining), sorted(partners))
     assert saved["display_atom_serials"] == membership
     # The ranked chart/table stay complete and unchanged by the stick choice.
-    rows = Path(paths["residue_evidence_csv"]).read_text().splitlines()
+    rows = Path(paths["residue_evidence_csv"]).read_text(encoding="utf-8").splitlines()
     assert len(rows) == len(report["residues"]) + 1
 
 
@@ -207,7 +207,7 @@ def test_top_n_and_selected_sticks(evidence, tmp_path):
     assert saved["stick_residue_selection"]["mode"] == "selected"
     _check_scenes(paths, frame, saved["display_lining_residues"], saved["display_partner_residues"])
     listing = tmp_path / "ids.txt"
-    listing.write_text("# chosen residues\n" + "\n".join(chosen) + "\n")
+    listing.write_text("# chosen residues\n" + "\n".join(chosen) + "\n", encoding="utf-8", newline="\n")
     _, from_file = _write(evidence, tmp_path / "file", stick_residues="@" + str(listing))
     assert from_file["display_atom_serials"] == saved["display_atom_serials"]
     _, from_list = _write(evidence, tmp_path / "list", stick_residues=chosen)
@@ -241,7 +241,7 @@ def test_residue_evidence_cli_stick_option(evidence, tmp_path):
     assert main(["residue-evidence", files["structure_file"], "--volume-dx", files["volume_dx"],
                  "--out-dir", str(tmp_path), "--prefix", "full", "--scene", files["volume_pml"],
                  "--stick-residues", "all", "--skip-hydration", "--dpi", "50"]) == 0
-    saved = json.loads((tmp_path / "full_residue_evidence.json").read_text())
+    saved = json.loads((tmp_path / "full_residue_evidence.json").read_text(encoding="utf-8"))
     assert saved["stick_residue_selection"]["mode"] == "all"
     assert len(saved["display_lining_residues"]) == sum(r["role"] == "boundary_lining" for r in report["residues"])
     for extension in ("pml", "tcl", "vmd", "cxc"):

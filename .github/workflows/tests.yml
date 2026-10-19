@@ -51,6 +51,39 @@ jobs:
           name: fast-tests-python-${{ matrix.python }}
           path: ci-artifacts/
 
+  platforms:
+    # macOS and Windows: the fast suite (not slow) on the oldest and newest
+    # supported Python, on pushes to main and on pull requests. Worker pools use
+    # the spawn start method and text files are written as UTF-8 there. Not a
+    # release gate: release.yml builds and tests on Linux and does not wait
+    # for these jobs.
+    name: fast tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: Install CREVICE with required and test dependencies
+        run: python -m pip install ".[test]"
+      - name: Fast regression suite (not slow, parallel)
+        run: >-
+          python -m pytest -q -rs -m "not slow" -n auto tests
+          --junitxml=ci-artifacts/pytest-fast.xml
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: fast-tests-${{ matrix.os }}-python-${{ matrix.python }}
+          path: ci-artifacts/
+
   test:
     # Release gate: the full suite (no marker filter) on every supported Python.
     name: tests (Python ${{ matrix.python }})

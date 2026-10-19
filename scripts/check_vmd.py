@@ -60,7 +60,7 @@ def main():
         f"[transaxis {axis} {angle}]" for axis, angle in zip("xyz", args.rotation)) + "]"
         rotation += "\nforeach crevice_molecule [molinfo list] {molinfo $crevice_molecule set rotate_matrix [list $crevice_rotation]}"
     overlay_path=scene.parent/(scene.stem.removesuffix('_residue_context')+'_residue_evidence.json')
-    overlay=json.loads(overlay_path.read_text()) if scene.stem.endswith('_residue_context') and overlay_path.is_file() else None
+    overlay=json.loads(overlay_path.read_text(encoding="utf-8")) if scene.stem.endswith('_residue_context') and overlay_path.is_file() else None
     timed_out = False
     with tempfile.TemporaryDirectory(prefix="crevice-vmd-") as tmp:
         fresh_image = Path(tmp) / "render.tga"
@@ -74,11 +74,11 @@ def main():
             inspection + rotation + f"\ndisplay resize {args.width} {round(args.width*.75)}\ndisplay redraw\ndisplay update\n" +
             "if {[catch {render TachyonInternal " + _tcl_word(str(fresh_image)) + "} " + on_error + "quit\n")
         path = Path(tmp) / "render.tcl"
-        path.write_text(wrapper)
+        path.write_text(wrapper, encoding="utf-8", newline="\n")
         log_path = Path(tmp) / "vmd.log"
         # Keep stdin open: text-mode VMD otherwise exits on EOF between queued
         # scene commands, before the view changes and rendering are complete.
-        with log_path.open("w") as output:
+        with log_path.open("w", encoding="utf-8", newline="\n") as output:
             with subprocess.Popen([executable, "-dispdev", "text", "-e", str(path)],
                                   stdin=subprocess.PIPE, stdout=output,
                                   stderr=subprocess.STDOUT, text=True) as process:
@@ -88,12 +88,12 @@ def main():
                     process.kill()
                     returncode = process.wait()
                     timed_out = True
-        log = log_path.read_text()
-        representations=native_reps.read_text() if native_reps.is_file() else ''
+        log = log_path.read_text(encoding="utf-8")
+        representations=native_reps.read_text(encoding="utf-8") if native_reps.is_file() else ''
         generated = fresh_image.is_file()
         if generated:
             shutil.copyfile(fresh_image, image)
-    (root / "vmd.log").write_text(log)
+    (root / "vmd.log").write_text(log, encoding="utf-8", newline="\n")
     ok = not timed_out and returncode == 0 and generated and "CREVICE_RENDER_ERROR" not in log
     report = {"status": "passed" if ok else ("timeout" if timed_out else "failed"),
               "timeout_seconds": args.timeout, "executable": executable,
@@ -117,7 +117,7 @@ def main():
         report['protein_representations']=[row[0] for row in rows]
         ok=ok and report['residue_sticks_passed']
         report['status']='passed' if ok else ('timeout' if timed_out else 'failed_residue_representations')
-        (root/'native_representations.tsv').write_text(representations)
+        (root/'native_representations.tsv').write_text(representations, encoding="utf-8", newline="\n")
     if ok:
         from PIL import Image
         import numpy as np
@@ -139,7 +139,7 @@ def main():
             report.update(width=rendered.width, height=rendered.height, pixel_std=float(rgb.std()),
                           foreground_fraction=foreground_fraction,
                           preview_png=str(preview))
-    (root / "vmd_verification.json").write_text(json.dumps(report, indent=2) + "\n")
+    (root / "vmd_verification.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(report, indent=2))
     if not ok:
         raise SystemExit(1)

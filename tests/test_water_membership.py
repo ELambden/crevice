@@ -161,7 +161,7 @@ def test_zero_volume_unresolved_and_absent_water_frames_are_explicit(tmp_path):
     json.dumps(report, allow_nan=False)
     files = write_water_membership_bundle(analysis, tmp_path, replicates=200, dpi=50)
     assert all(Path(p).is_file() for p in files.values())
-    summary = Path(files['water_membership_summary_csv']).read_text().splitlines()
+    summary = Path(files['water_membership_summary_csv']).read_text(encoding="utf-8").splitlines()
     assert summary[0].startswith('quantity,item,value,') and len(summary) - 1 >= len(report['statistics'])
     assert Path(files['water_membership_strata_csv']).is_file()
     absent = [{'status': 'unavailable_no_explicit_water', 'water_population': 0}]*3
@@ -238,7 +238,7 @@ def test_cli_membership_is_additive_and_matches_unchanged_fixed_count(tmp_path):
     assert main(common+['--out-dir', str(tmp_path/'plain')]) == 0
     assert main(common+['--out-dir', str(tmp_path/'member'), '--water-membership', '--workers', '2']) == 0
     assert not list((tmp_path/'plain').glob('*water_membership*'))
-    report = json.loads((tmp_path/'member/crevice_water_membership.json').read_text())
+    report = json.loads((tmp_path/'member/crevice_water_membership.json').read_text(encoding="utf-8"))
     assert report['fixed_reference_crosscheck']['status'] == 'identical'
     with np.load(tmp_path/'member/crevice_water_membership_frames.npz') as a:
         assert a['fixed_reference_count'].tolist() == [1, 0, 1]
@@ -248,8 +248,8 @@ def test_cli_membership_is_additive_and_matches_unchanged_fixed_count(tmp_path):
     with np.load(tmp_path/'plain/crevice_hydration_frames.npz') as a, np.load(tmp_path/'member/crevice_hydration_frames.npz') as b:
         assert np.array_equal(a['region_water_count'], b['region_water_count'])
     # Viewer group: own object, on by default, one entry per snapshot, coordinates from the membership pass.
-    plain_scene = json.loads((tmp_path/'plain/crevice_analysis_scene.json').read_text())
-    scene = json.loads((tmp_path/'member/crevice_analysis_scene.json').read_text())
+    plain_scene = json.loads((tmp_path/'plain/crevice_analysis_scene.json').read_text(encoding="utf-8"))
+    scene = json.loads((tmp_path/'member/crevice_analysis_scene.json').read_text(encoding="utf-8"))
     assert plain_scene['member_waters'] is None
     group = scene['member_waters']
     assert group['object'] == 'crevice_member_waters' and group['visible_by_default'] is True
@@ -260,14 +260,14 @@ def test_cli_membership_is_additive_and_matches_unchanged_fixed_count(tmp_path):
         row = frames.index(entry['source_frame_index']); expected = positions[offsets[row]:offsets[row+1]]
         assert entry['count'] == len(expected)
         if entry['pdb']:
-            lines = [l for l in (tmp_path/'member'/entry['pdb']).read_text().splitlines() if l.startswith('HETATM')]
+            lines = [l for l in (tmp_path/'member'/entry['pdb']).read_text(encoding="utf-8").splitlines() if l.startswith('HETATM')]
             got = np.array([[float(l[k:k+8]) for k in (30, 38, 46)] for l in lines])
             assert np.allclose(got, expected, atol=6e-4)
         else:
             assert entry['count'] == 0
     for script in ['crevice_analysis.pml', 'crevice_analysis.vmd', 'crevice_analysis_chimerax.py']:
-        assert 'crevice_member_waters' in (tmp_path/'member'/script).read_text()
-    manifest = json.loads((tmp_path/'member/crevice_cavity_manifest.json').read_text())
+        assert 'crevice_member_waters' in (tmp_path/'member'/script).read_text(encoding="utf-8")
+    manifest = json.loads((tmp_path/'member/crevice_cavity_manifest.json').read_text(encoding="utf-8"))
     assert 'water_membership_json' in manifest['files']
     with pytest.raises(ValueError, match='unwrap'):
         WaterSource(source, trajectory, protein_selection='protein', reference_frame=None, frame_times={}, pbc='unwrap')

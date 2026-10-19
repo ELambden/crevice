@@ -110,9 +110,9 @@ def test_bundle_files(tmp_path):
     frame = _ring_frame(lambda z: "LEU" if z < 0 else "SER")
     fp = pore_fingerprint(frame, profile_along_path(frame, [(0.0, 0.0, z/2) for z in range(-20, 21)]))
     files = write_fingerprint_bundle(fp, tmp_path, "syn", dpi=60)
-    rows = list(csv.DictReader(open(files["fingerprint_csv"])))
+    rows = list(csv.DictReader(open(files["fingerprint_csv"], encoding="utf-8")))
     assert len(rows) == 41 and {"s_A", "radius_A", "hydrophobicity_kcal_mol", "segment"} <= set(rows[0])
-    summary = json.loads(open(files["fingerprint_json"]).read())
+    summary = json.loads(open(files["fingerprint_json"], encoding="utf-8").read())
     assert summary["conductance"]["electrolyte"] == "kcl-150mm" and "not a measurement" in summary["conductance"]["caveat"]
     assert open(files["fingerprint_png"], "rb").read(8) == b"\x89PNG\r\n\x1a\n"
 
@@ -130,3 +130,20 @@ def test_count_path_waters_assigns_nearest_sample_inside_free_sphere():
     oxygens = [(0.0, 0.0, 0.1), (0.4, 0.0, 1.0), (1.2, 0.0, 1.0), (0.0, 0.0, 2.4), (0.0, 0.0, 9.0)]
     counts = count_path_waters(centres, [0.5, 1.0, -0.2], oxygens)
     assert counts.tolist() == [1.0, 1.0, 0.0]   # (1.2,0,1) outside r=1; sample 2 occluded (negative clearance)
+
+
+def test_nearest_lining_residue_ties_do_not_depend_on_hash_order():
+    """Samples midway between two rings are equally close to both; the choice must be reproducible."""
+    import os
+    import subprocess
+    import sys
+    code = ("import sys; sys.path.insert(0, 'tests'); import test_fingerprint as t; "
+            "fp = t.pore_fingerprint(t._ring_frame(lambda z: 'LEU'), t._cylinder_profile(2.0, 20.0)); "
+            "print([r['nearest_lining_residue'] for r in fp.samples])")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    outputs = set()
+    for seed in ("1", "2", "3", "4"):
+        env = dict(os.environ, PYTHONHASHSEED=seed)
+        outputs.add(subprocess.run([sys.executable, "-c", code], cwd=root, env=env, capture_output=True,
+                                   text=True, encoding="utf-8", check=True).stdout)
+    assert len(outputs) == 1

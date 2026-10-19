@@ -131,7 +131,7 @@ def test_quaternion_matches_the_native_camera_rotation():
 def test_standalone_html_is_self_contained(published, tmp_path):
     v = view(published)
     path = v.save_html(tmp_path / "view.html")
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert text.startswith("<!DOCTYPE html>") and "3Dmol.js 2.5.5" in text and "BSD-3-Clause" in text
     assert "Copyright (c) 2014, University of Pittsburgh" in text
     assert not re.search(r"<script[^>]+src=", text) and "<link" not in text
@@ -146,7 +146,7 @@ def test_cli_view_writes_the_html_with_requested_layers(published, tmp_path, cap
     out = tmp_path / "v.html"
     assert main(["view", str(published), "-o", str(out), "--show", "lining_lumen", "--hide", "protein"]) == 0
     assert f"view file={out}" in capsys.readouterr().out
-    scene = json.loads(re.search(r"var creviceScene = (\{.*?\});\n", out.read_text(), re.S).group(1)
+    scene = json.loads(re.search(r"var creviceScene = (\{.*?\});\n", out.read_text(encoding="utf-8"), re.S).group(1)
                        .replace("<\\/", "</"))
     state = {layer["name"]: layer["visible"] for layer in scene["layers"]}
     assert state["lining_lumen"] and not state["protein"] and state["lumen"]
@@ -162,9 +162,9 @@ def test_region_scene_shows_surfaces_member_waters_and_snapshots(tmp_path):
     write_scalar_dx((x**2 + y**2 + z**2 < 9).astype(float), np.zeros(3), 1.0, tmp_path / "r_display.dx")
     pdb = "ATOM      1  CA  ALA A   1       1.000   2.000   3.000  1.00  0.00           C\nEND\n"
     for i in (0, 5):
-        (tmp_path / f"r_analysis_frame_{i:06d}.pdb").write_text(pdb)
+        (tmp_path / f"r_analysis_frame_{i:06d}.pdb").write_text(pdb, encoding="utf-8", newline="\n")
     (tmp_path / "r_w_000005.pdb").write_text(
-        "HETATM    1  O   HOH W   1       4.000   4.000   4.000  1.00  0.00           O\nEND\n")
+        "HETATM    1  O   HOH W   1       4.000   4.000   4.000  1.00  0.00           O\nEND\n", encoding="utf-8", newline="\n")
     scene = {"prefix": "r", "protein_pdb": "r_analysis_frame_000000.pdb",
              "surfaces": [{"key": "cavity", "dx": "r_display.dx", "level": .5, "color_rgb": [.69, .73, .73],
                            "opacity": .18, "meaning": "reference cavity display"}],
@@ -175,7 +175,7 @@ def test_region_scene_shows_surfaces_member_waters_and_snapshots(tmp_path):
              "member_waters": {"color_rgb": [1., .5, 0.], "sphere_radius_A": .7, "definition": "geometric",
                                "snapshots": [{"source_frame_index": 0, "pdb": None},
                                              {"source_frame_index": 5, "pdb": "r_w_000005.pdb"}]}}
-    (tmp_path / "r_analysis_scene.json").write_text(json.dumps(scene))
+    (tmp_path / "r_analysis_scene.json").write_text(json.dumps(scene), encoding="utf-8", newline="\n")
     first = view(tmp_path)
     assert first.layer_names == ["protein", "region", "lining_region"]
     last = view(tmp_path, snapshot=-1)

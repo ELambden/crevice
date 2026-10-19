@@ -616,7 +616,7 @@ def write_radius_template(path, *, elements=(), base: str = "default") -> Path:
              "kind,key,radius", f"base,{preset.name},"]
     lines += [f"# element,{str(e).strip().upper()},<radius in angstrom>" for e in elements]
     lines += ["# atom,RESNAME:ATOMNAME,<radius in angstrom>"]
-    target.write_text("\n".join(lines) + "\n")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     return target
 
 
@@ -1312,7 +1312,7 @@ def read_hole_radius_file(path) -> tuple:
         would silently give zero or divide it by 1000).
     """
     records = []
-    for number, raw in enumerate(Path(path).read_text().splitlines(), 1):
+    for number, raw in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         line = raw.upper()
         if not line.startswith("VDWR"):
             continue
@@ -1387,7 +1387,7 @@ def load_radius_file(path) -> RadiusSet:
         return RadiusSet(path.stem, hole_records=read_hole_radius_file(path), source=str(path),
                          source_sha256=digest, citation="")
     if suffix == ".json":
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ValueError(f"{path}: expected a JSON object")
         unknown = set(data) - {"name", "base", "default_radius", "element_radii", "atom_radii", "ion_radii",
@@ -1401,7 +1401,7 @@ def load_radius_file(path) -> RadiusSet:
                     atom_radii=data.get("atom_radii"), default_radius=data.get("default_radius", DEFAULT_RADIUS),
                     base=data.get("base"), citation=str(data.get("citation") or ""), ion_radii=data.get("ion_radii"))
     elif suffix == ".csv":
-        lines = [line for line in path.read_text().splitlines() if line.strip() and not line.lstrip().startswith("#")]
+        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")]
         rows = list(csv.DictReader(lines))
         if not lines or not {"kind", "key", "radius"} <= {h.strip().lower() for h in (csv.DictReader(lines).fieldnames or [])}:
             raise ValueError(f"{path}: CSV needs a header with kind,key,radius")

@@ -131,20 +131,20 @@ def test_bundle_draws_each_segment_and_lining_group_as_its_own_object(caged, tmp
     viewer = write_viewer_structure(frame, tmp_path/"v.pdb")
     files = write_volume_viewer_bundle(cast, structure_path=viewer, output_dir=tmp_path, prefix="t", frame=frame,
                                        profile=profile, segments=segments, lining=lining)
-    pml = (tmp_path/"t_volume.pml").read_text()
+    pml = (tmp_path/"t_volume.pml").read_text(encoding="utf-8")
     assert "crevice_surface('crevice_lumen', 'lumen')" in pml and "crevice_surface('crevice_exit_1', 'exit_1')" in pml
     assert 'crevice_surface("crevice_volume"' not in pml
     assert "cmd.disable('crevice_lumen_lining')" in pml and "cmd.disable('crevice_exit_1_lining')" in pml
     assert 'cmd.extend("crevice_lining", crevice_lining)' in pml and "cmd.label" not in pml
-    tcl = (tmp_path/"t_volume.tcl").read_text()
+    tcl = (tmp_path/"t_volume.tcl").read_text(encoding="utf-8")
     assert "mol rename $crevice_volume crevice_lumen" in tcl and "mol rename $crevice_segment crevice_exit_1" in tcl
     assert "mol showrep $crevice_protein $crevice_lining_rep(lumen) off" in tcl
-    cxc = (tmp_path/"t_volume.cxc").read_text()
+    cxc = (tmp_path/"t_volume.cxc").read_text(encoding="utf-8")
     assert "rename #2 crevice_lumen" in cxc and "crevice_exit_1" in cxc and f"{SEGMENT_HEX['exit']}" in cxc
     assert "name frozen crevice_lumen_lining #1/A:" in cxc
-    scene = json.loads((tmp_path/"t_scene.json").read_text())
+    scene = json.loads((tmp_path/"t_scene.json").read_text(encoding="utf-8"))
     assert [s["pymol_object"] for s in scene["cast_segments"]] == ["crevice_lumen", "crevice_exit_1"]
-    metadata = json.loads((tmp_path/"t_volume_metadata.json").read_text())
+    metadata = json.loads((tmp_path/"t_volume_metadata.json").read_text(encoding="utf-8"))
     # The display objects partition the displayed cast exactly once.
     assert sum(s["display_points"] for s in metadata["cast_segments"]) == metadata["display_points"]
     assert metadata["measured_volume_A3"] == cast.total_volume
@@ -165,30 +165,30 @@ def test_exit_casts_alone_still_get_their_own_objects(tmp_path):
     viewer = write_viewer_structure(frame, tmp_path/"v.pdb")
     write_volume_viewer_bundle(cast, structure_path=viewer, output_dir=tmp_path, prefix="t", frame=frame,
                                profile=profile, exit_casts=lateral_exit_casts(frame, profile, cast))
-    pml = (tmp_path/"t_volume.pml").read_text()
+    pml = (tmp_path/"t_volume.pml").read_text(encoding="utf-8")
     assert "crevice_surface('crevice_exit_1', 'exit_1')" in pml and "crevice_exit_1_color" in pml
 
 
 def test_publish_reports_segments_and_lining(tmp_path):
     out = _publish_capped(tmp_path, "--lining-cutoff", "3.0")
-    cast = json.loads((out/"capped_void_cast.json").read_text())
+    cast = json.loads((out/"capped_void_cast.json").read_text(encoding="utf-8"))
     meta = cast["metadata"]
     names = [r["segment"] for r in meta["cast_segments"]]
     assert names == ["lumen", "exit_1"] and meta["segment_label_rule"]["rule"] == "capped_end_exits"
     assert meta["cast_segments"][0]["volume_A3"] == cast["total_volume"]
     assert meta["segments_total_volume_A3"] == pytest.approx(sum(r["volume_A3"] for r in meta["cast_segments"]))
     assert meta["lining_cutoff_A"] == 3.0
-    manifest = json.loads((out/"capped_manifest.json").read_text())
+    manifest = json.loads((out/"capped_manifest.json").read_text(encoding="utf-8"))
     assert set(manifest["profile_status"]["cast_segment_volumes_A3"]) == {"lumen", "exit_1"}
-    rows = list(csv.DictReader((out/"capped_cast_segments.csv").open()))
+    rows = list(csv.DictReader((out/"capped_cast_segments.csv").open(encoding="utf-8")))
     assert [r["segment"] for r in rows] == ["lumen", "exit_1"]
-    lining = list(csv.DictReader((out/"capped_lining_residues.csv").open()))
+    lining = list(csv.DictReader((out/"capped_lining_residues.csv").open(encoding="utf-8")))
     assert {r["segment"] for r in lining} == {"lumen", "exit_1"}
     assert all(float(r["min_distance_A"]) <= 3.0 for r in lining)
-    contacts = list(csv.DictReader((out/"capped_residue_contacts.csv").open()))
+    contacts = list(csv.DictReader((out/"capped_residue_contacts.csv").open(encoding="utf-8")))
     lumen = {r["residue"] for r in lining if r["segment"] == "lumen"}
     assert all((r["lumen_lining"] == "True") == (r["residue"] in lumen) for r in contacts)
     (tmp_path/"flip").mkdir()
     flipped = _publish_capped(tmp_path/"flip", "--entry-end", "end")
-    meta = json.loads((flipped/"capped_void_cast.json").read_text())["metadata"]
+    meta = json.loads((flipped/"capped_void_cast.json").read_text(encoding="utf-8"))["metadata"]
     assert [r["segment"] for r in meta["cast_segments"]] == ["entry_1", "lumen"]

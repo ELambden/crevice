@@ -79,6 +79,21 @@ python -m twine check --strict dist/*
 python scripts/check_wheel.py dist/crevice-*.whl --report dist/wheel-check.json
 ```
 
+To time a fixed set of commands (`publish`, `profile`, `paths` and the
+trajectory commands) and record wall time, CPU time, peak memory, version and
+CPU count in a CSV:
+
+```bash
+python scripts/timing.py --fetch --repeat 3 --out timing.csv            # full set
+python scripts/timing.py --fetch --quick --out timing_quick.csv         # a few minutes
+```
+
+The trajectory cases need a prepared region definition (`--region`; by default
+the GLUT1 excerpt from `crevice fetch-example glut1-excerpt`). A change that is
+meant only to make CREVICE faster should leave every output file byte for byte
+the same; `--keep-outputs DIR` keeps the outputs of each run for that
+comparison.
+
 ## Building the documentation
 
 The Read the Docs site is built with Sphinx from `docs/` (MyST Markdown). Use a

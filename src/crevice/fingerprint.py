@@ -576,7 +576,8 @@ def pore_fingerprint(frame, profile, *, cast=None, entry_end: str | None = "auto
         row["lining_residue_count"] = len(keys)
         for c in CHEMISTRY_CLASSES:
             row[f"n_{c}"] = sum(c in by_key[k]["classes"] for k in keys)
-        nearest = min(keys, key=lambda k: records[k]["gap"], default=None)
+        # Equal gaps (symmetric walls) go to the first residue in key order, not set order.
+        nearest = min(keys, key=lambda k: (records[k]["gap"], k), default=None)
         row["nearest_lining_residue"] = nearest.label if nearest else ""
     segments = []
     names = list(dict.fromkeys(r["segment"] for r in rows))
@@ -901,7 +902,7 @@ def write_fingerprint_csv(fp: PoreFingerprint, path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     fields = list(SAMPLE_FIELDS) + [f for f in ENSEMBLE_FIELDS if fp.samples and f in fp.samples[0]]
-    with path.open("w", newline="") as handle:
+    with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields, extrasaction="ignore")
         writer.writeheader()
         for row in fp.samples:
@@ -934,11 +935,11 @@ def write_fingerprint_bundle(fp: PoreFingerprint, output_dir, prefix: str = "cre
     root.mkdir(parents=True, exist_ok=True)
     out = {"fingerprint_csv": str(write_fingerprint_csv(fp, root/f"{prefix}_fingerprint.csv"))}
     path = root/f"{prefix}_fingerprint.json"
-    path.write_text(json.dumps(fp.to_dict(), indent=2, default=str)+"\n")
+    path.write_text(json.dumps(fp.to_dict(), indent=2, default=str)+"\n", encoding="utf-8", newline="\n")
     out["fingerprint_json"] = str(path)
     if fp.frames:
         frames = root/f"{prefix}_fingerprint_frames.csv"
-        with frames.open("w", newline="") as handle:
+        with frames.open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(fp.frames[0]))
             writer.writeheader()
             writer.writerows(fp.frames)

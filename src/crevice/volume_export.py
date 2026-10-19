@@ -473,6 +473,41 @@ def constrained_display_field(grid, spacing, smooth_A, k: int = 2):
     return rounded.astype(np.float32)
 
 
+def dx_value_rows(values, spec):
+    """OpenDX data lines: ``values`` in order, three per line, each ``format(value, spec)``.
+
+    The text equals formatting every element in turn, but each distinct
+    value (by bit pattern, so ``-0.0`` and ``0.0`` stay distinct) is
+    formatted only once, which matters for large grids holding few values.
+
+    Parameters
+    ----------
+    values : numpy.ndarray, shape (n,)
+        Flat values; each is formatted as the array's own element type.
+    spec : str
+        Format specification, for example ``".6g"``.
+
+    Returns
+    -------
+    list of str
+        One line (without newline) per group of three values; the last
+        line holds the remaining one or two values.
+    """
+    import numpy as np
+    values = np.asarray(values)
+    bits = {1: np.uint8, 2: np.uint16, 4: np.uint32, 8: np.uint64}.get(values.dtype.itemsize)
+    if values.ndim != 1 or values.dtype.hasobject or bits is None or values.size == 0:
+        return [" ".join(format(v, spec) for v in values[i:i + 3]) for i in range(0, len(values), 3)]
+    _, first, inverse = np.unique(np.ascontiguousarray(values).view(bits), return_index=True,
+                                  return_inverse=True)
+    texts = np.array([format(values[i], spec) for i in first.tolist()], dtype=object)[inverse.ravel()]
+    full = len(texts) // 3 * 3
+    rows = list(map(" ".join, texts[:full].reshape(-1, 3).tolist()))
+    if full < len(texts):
+        rows.append(" ".join(texts[full:].tolist()))
+    return rows
+
+
 def write_void_cast_dx(cast: VoidCast, path, *, component_id: int | None = None,
                        surface_smoothing: float = 0., smoothing: DisplaySmoothing | None = None) -> Path:
     """Write OpenDX scalar data in x/y/z order (z varies fastest).
@@ -512,7 +547,7 @@ def write_void_cast_dx(cast: VoidCast, path, *, component_id: int | None = None,
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     counts = " ".join(str(n) for n in grid.shape)
-    with output.open("w") as handle:
+    with output.open("w", encoding="utf-8", newline="\n") as handle:
         handle.write("# CREVICE selected-void "+("presentation" if shown else "binary")+" grid; isovalue 0.5; units Angstrom\n")
         handle.write(f"object 1 class gridpositions counts {counts}\n")
         handle.write("origin " + " ".join(f"{v:.9g}" for v in origin) + "\n")
@@ -522,8 +557,9 @@ def write_void_cast_dx(cast: VoidCast, path, *, component_id: int | None = None,
         handle.write(f"object 2 class gridconnections counts {counts}\n")
         handle.write(f"object 3 class array type double rank 0 items {grid.size} data follows\n")
         values = grid.ravel(order="C")
-        for i in range(0, len(values), 3):
-            handle.write(" ".join(f"{v:.6g}" for v in values[i:i + 3]) + "\n")
+        # Chunks of a multiple of three values keep the lines and bound the memory.
+        for start in range(0, len(values), 3*65536):
+            handle.writelines(line + "\n" for line in dx_value_rows(values[start:start + 3*65536], ".6g"))
         handle.write('attribute "dep" string "positions"\nobject "crevice_cast" class field\n')
         for name, number in (("positions", 1), ("connections", 2), ("data", 3)):
             handle.write(f'component "{name}" value {number}\n')
@@ -768,7 +804,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     geometry_path = root / f"{prefix}_scene.json"
     write_scene = wants(geometry_path)
     if write_scene:
-        geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
+        geometry_path.write_text(json.dumps(geometry, indent=2)+'\n', encoding="utf-8", newline="\n")
     basis = cast.metadata.get('grid_basis', ((1,0,0),(0,1,0),(0,0,1)))
     matrix = [basis[j][i] if j < 3 else 0 for i in range(3) for j in range(4)] + [0,0,0,1]
     manifest = {"volume_dx": str(dx), "display_dx": str(shown_dx),
@@ -826,7 +862,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
                                 'volume_dx':str(world_path), 'pymol_local_dx':str(local_path)})
         region_manifest = root/f'{prefix}_display_regions.json'
         if wants(region_manifest):
-            region_manifest.write_text(json.dumps(region_rows,indent=2)+'\n')
+            region_manifest.write_text(json.dumps(region_rows,indent=2)+'\n', encoding="utf-8", newline="\n")
         manifest['display_regions_json'] = str(region_manifest)
     segment_rows = []
     from .cast_segments import SEGMENT_RGB
@@ -888,7 +924,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
                                                              'pymol_selection', 'chimerax_name', 'shown_by_default')}
                                          for r in lining_rows]
         if write_scene:
-            geometry_path.write_text(json.dumps(geometry, indent=2)+'\n')
+            geometry_path.write_text(json.dumps(geometry, indent=2)+'\n', encoding="utf-8", newline="\n")
     if write_reference:
         np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
                             surface_vertices=np.concatenate(expected_surfaces),
@@ -1035,7 +1071,7 @@ def crevice_render(path=None):
 cmd.extend("crevice_render", crevice_render)
 # Type crevice_render for the final 3200 x 2400 image.
 python end
-''')
+''', encoding="utf-8", newline="\n")
     manifest["volume_pml"] = str(pml)
     rotation = geometry['camera_rotation']
     center = geometry['center']
@@ -1150,11 +1186,11 @@ proc crevice_render {{}} {{
 # Type crevice_render for the final 2400 x 1800 image.
 ''')
     if wants(tcl):
-        tcl.write_text(tcl_text)
+        tcl.write_text(tcl_text, encoding="utf-8", newline="\n")
     manifest["volume_tcl"] = str(tcl)
     vmd=root/f"{prefix}_volume.vmd"
     if wants(vmd):
-        vmd.write_text(tcl_text)
+        vmd.write_text(tcl_text, encoding="utf-8", newline="\n")
     manifest["volume_vmd"]=str(vmd)
     bild = root / f"{prefix}_mouths.bild"
     bild_lines = ['.color 0.90 0.52 0.12']
@@ -1167,7 +1203,7 @@ proc crevice_render {{}} {{
             for a, b in zip(leg['points'], leg['points'][1:]):
                 bild_lines.append('.cylinder '+' '.join(f'{v:.9g}' for v in (*a,*b))+ ' 0.12')
     if wants(bild):
-        bild.write_text('\n'.join(bild_lines)+'\n')
+        bild.write_text('\n'.join(bild_lines)+'\n', encoding="utf-8", newline="\n")
     manifest['mouth_guides_bild'] = str(bild)
     camera_matrix = [rotation[j][i] if j<3 else center[i]+rotation[2][i]*geometry['radius']*3
                      for i in range(3) for j in range(4)]
@@ -1211,10 +1247,10 @@ proc crevice_render {{}} {{
                         'style crevice_lumen_lining stick; hide crevice_lumen_lining atoms')
     commands += ["windowsize 900 675", "view matrix camera "+','.join(f'{v:.12g}' for v in camera_matrix), "view", "zoom 0.9"]
     if wants(cxc):
-        cxc.write_text("\n".join(commands) + "\n")
+        cxc.write_text("\n".join(commands) + "\n", encoding="utf-8", newline="\n")
     manifest["volume_cxc"] = str(cxc)
     render_cxc = root / f'{prefix}_render.cxc'
-    (render_cxc.write_text if wants(render_cxc) else _no_write)(f'open {json.dumps(cxc.name)}\nsave {json.dumps(prefix+"_chimerax.png")} width 2400 height 1800 supersample 3\n')
+    (render_cxc.write_text if wants(render_cxc) else _no_write)(f'open {json.dumps(cxc.name)}\nsave {json.dumps(prefix+"_chimerax.png")} width 2400 height 1800 supersample 3\n', encoding="utf-8", newline="\n")
     manifest['chimerax_render_cxc'] = str(render_cxc)
     display_smoothing = smoothing.metadata(display.spacing, cast_grid(display)[0].shape)
     info = root / f"{prefix}_volume_metadata.json"
@@ -1257,10 +1293,10 @@ proc crevice_render {{}} {{
                   "connectivity": cast.metadata.get("connectivity"),
                   "component_ids": [c.id for c in cast.components],
                   "display_regions": region_rows,
-                  "files": manifest}, indent=2) + "\n")
+                  "files": manifest}, indent=2) + "\n", encoding="utf-8", newline="\n")
     manifest["volume_metadata_json"] = str(info)
     return drop_blocked(manifest)
 
 
-def _no_write(_text) -> None:
+def _no_write(_text, **_options) -> None:
     """Stand-in for ``Path.write_text`` when the output plan skips a file."""

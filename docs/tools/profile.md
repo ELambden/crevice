@@ -204,6 +204,9 @@ inward-open transporter, gives no through-profile, which fits its structure
 but doesn't test it. The software is checked on synthetic walls with known
 answers; the real-protein numbers in these pages are observations, not
 validated biology.
+
+[Limitations](../getting-started/limitations.md) collects the caveats shared by
+all tools.
 :::
 
 See it in action in the [1GRM](../examples/1grm-profile-cast.md),

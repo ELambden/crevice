@@ -164,9 +164,9 @@ def trajectory_residue_interactions(topology, trajectory, *, residue_ids=None, c
     from .trajectory import _element_names, _open_universe, load_trajectory_report
     if context_json is not None:
         path = Path(context_json).resolve(strict=True)
-        context = json.loads(path.read_text())
+        context = json.loads(path.read_text(encoding="utf-8"))
         stem = path.name.removesuffix('_cavity_statistics.json')
-        reader = json.loads((path.parent / (stem + '_reader.json')).read_text())
+        reader = json.loads((path.parent / (stem + '_reader.json')).read_text(encoding="utf-8"))
         indices = list(range(*reader['frame_indices']))
         chosen = [f for f in indices if f >= start and (stop is None or f < stop) and (f - start) % stride == 0]
         if not chosen:
@@ -245,7 +245,7 @@ def write_residue_interactions(result, output_dir, prefix, *, times=None, confid
         path = root / (prefix + '_interactions.json')
         path.write_text(json.dumps({'status': 'unavailable_no_identified_residues', 'edges': [], 'residues': [],
                                     'interpretation': 'No residue focus was available; not evidence of absent interactions'},
-                                   indent=2) + '\n')
+                                   indent=2) + '\n', encoding="utf-8", newline="\n")
         return {'interaction_json': str(path)}
     return write_interaction_bundle(result, root, prefix, times=times, confidence=confidence,
                                     block_length=block_length, replicates=replicates, seed=seed)

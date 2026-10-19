@@ -103,6 +103,47 @@ def aligned_obstacle_images(atoms, coordinates, lower, upper, *, rotation, trans
                           'periodic':box is not None,'clearance_bound_padding_A':float(padding)}
 
 
+def _max_clearance(queries, xyz, shape, stride=4):
+    """Largest nearest-surface clearance over a regular grid, exactly, with few queries.
+
+    Equal to ``float(queries.points(xyz)[0].max())``. Clearance is 1-Lipschitz,
+    so a node can exceed the largest value found on a coarse sub-lattice
+    (every ``stride``-th node along each axis, plus the last) only if its
+    coarse neighbour's clearance plus their distance does; only those nodes
+    are queried. Every value compared is a full-precision query of that node.
+
+    Parameters
+    ----------
+    queries : crevice.rolling._SphereQueries
+        Obstacle spheres.
+    xyz : numpy.ndarray, shape (n, 3)
+        Grid nodes in C order of ``shape``.
+    shape : tuple of int
+        Grid shape.
+    stride : int, default 4
+        Coarse sub-lattice step.
+
+    Returns
+    -------
+    float
+    """
+    import numpy as np
+    shape = tuple(int(n) for n in shape)
+    axes = [np.unique(np.r_[np.arange(0, n, stride), n-1]) for n in shape]
+    coarse = np.ravel_multi_index(np.meshgrid(*axes, indexing='ij'), shape).ravel()
+    values = np.full(len(xyz), np.nan)
+    values[coarse] = queries.points(xyz[coarse])[0]
+    best = float(np.max(values[coarse]))
+    index = np.indices(shape).reshape(3, -1)
+    near = np.minimum(np.rint(index/stride).astype(np.int64)*stride, np.asarray(shape)[:, None]-1)
+    near = np.ravel_multi_index(near, shape)
+    bound = values[near] + np.linalg.norm(xyz-xyz[near], axis=1) + 1e-6
+    candidates = np.flatnonzero(bound >= best)
+    if len(candidates):
+        best = max(best, float(queries.points(xyz[candidates])[0].max()))
+    return best
+
+
 class ObstacleSource:
     """Read only one physical-obstacle snapshot at a time, reopening after fork.
 
@@ -269,12 +310,12 @@ class ObstacleSource:
         from .regional_volume import regional_grid
         from .rolling import _SphereQueries
         from .radii import atom_vdw_radius
-        _,xyz,_,_,_,_ = regional_grid(reference,margin,probe_radius,max_grid_points)
+        _,xyz,shape,_,_,_ = regional_grid(reference,margin,probe_radius,max_grid_points,near_only=True)
         protein = aligned.selected_atoms(include_hydrogen=False,include_hetero=False)
         q = _SphereQueries(np.asarray([a.coord for a in protein]),np.asarray([atom_vdw_radius(a) for a in protein]))
         # Upper bound from protein alone: an excluded atom cannot be the nearest
         # sphere at any grid sample or block an eligible segment between samples.
-        maximum = max(float(q.points(xyz)[0].max()),probe_radius+reference.spacing,1.5)
+        maximum = max(_max_clearance(q, xyz, shape),probe_radius+reference.spacing,1.5)
         coords, box = self.snapshot(frame.frame_index)
         atoms, report = aligned_obstacle_images(self.atoms,coords,xyz.min(0),xyz.max(0),
             rotation=fit['rotation_rows'],translation=fit['translation_A'],

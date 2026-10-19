@@ -47,7 +47,7 @@ def _numeric(version: str) -> tuple[int, ...]:
 
 
 def _pyproject() -> dict:
-    return tomllib.loads((ROOT / "pyproject.toml").read_text())
+    return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("module", sorted(REQUIRED.values()))
@@ -75,7 +75,7 @@ def test_installed_required_libraries_meet_declared_floors():
 @needs_toml
 def test_minimum_constraints_pin_the_declared_floors():
     pins = {}
-    for line in (ROOT / ".github/constraints/minimum.txt").read_text().splitlines():
+    for line in (ROOT / ".github/constraints/minimum.txt").read_text(encoding="utf-8").splitlines():
         line = line.split("#", 1)[0].strip()
         if line:
             name, version = line.split("==")
@@ -103,7 +103,7 @@ def test_version_is_single_sourced_from_package():
     assert "version" not in project["project"]
     assert "version" in project["project"]["dynamic"]
     source = project["tool"]["hatch"]["version"]["path"]
-    text = (ROOT / source).read_text()
+    text = (ROOT / source).read_text(encoding="utf-8")
     assert re.findall(r'^__version__ = "([^"]+)"$', text, re.M) == [crevice.__version__]
 
 
@@ -115,7 +115,7 @@ def test_version_is_semantic():
 
 
 def test_ci_does_not_hard_code_the_wheel_version():
-    workflow = (ROOT / ".github/workflows/tests.yml").read_text()
+    workflow = (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8")
     assert f"crevice-{crevice.__version__}" not in workflow
 
 
@@ -131,7 +131,7 @@ def test_missing_required_library_hint_asks_for_reinstall_not_an_extra(tmp_path,
     args = argparse.Namespace(skip_hydration=False, prefix="demo", out_dir=str(tmp_path))
     files = {}
     hydration_workflow.append_static_hydration(args, None, tmp_path / "demo.pdb", files)
-    record = json.loads((tmp_path / "demo_hydration.json").read_text())
+    record = json.loads((tmp_path / "demo_hydration.json").read_text(encoding="utf-8"))
     assert record["status"] == "unavailable_missing_required_dependencies"
     assert record["missing"] == ["scipy"]
     assert "reinstall" in record["install"] and "[" not in record["install"]
@@ -141,7 +141,7 @@ def test_install_hints_only_name_existing_optional_extras():
     extras = set(_pyproject()["project"]["optional-dependencies"]) if tomllib else None
     named = set()
     for path in (ROOT / "src/crevice").glob("*.py"):
-        named |= set(re.findall(r"crevice\[([A-Za-z0-9_-]+)\]", path.read_text()))
+        named |= set(re.findall(r"crevice\[([A-Za-z0-9_-]+)\]", path.read_text(encoding="utf-8")))
     assert named, "expected at least one install-extra hint"
     assert "science" not in named, "required libraries must not be attributed to an extra"
     if extras is not None:

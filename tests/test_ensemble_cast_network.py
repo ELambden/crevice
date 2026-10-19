@@ -65,7 +65,7 @@ def test_exact_frame_quantiles_and_csv(tmp_path):
         assert row["upper_radius"] == pytest.approx(2.8)
         assert row["n_frames"] == 2
     write_profile_distribution_csv(distribution, tmp_path / "band.csv")
-    with (tmp_path / "band.csv").open() as handle:
+    with (tmp_path / "band.csv").open(encoding="utf-8") as handle:
         assert len(list(csv.DictReader(handle))) == 3
 
 
@@ -171,7 +171,7 @@ def test_map_preserves_branches_and_components(tmp_path):
     from scipy.ndimage import label
     assert label(grid)[1] == 2
     path = write_void_cast_dx(cast, tmp_path / "cast.dx")
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     values = text.split("data follows\n")[1].split("attribute")[0].split()
     assert np.array([float(v) for v in values]).reshape(grid.shape).tolist() == grid.tolist()
     assert origin.tolist() == [-1, -1, -1]
@@ -183,17 +183,17 @@ def test_all_viewers_share_map(tmp_path):
                      profile=pore_profile(frame, search_radius=0, samples=13))
     manifest = write_volume_viewer_bundle(cast, structure_path=tmp_path / "protein.pdb",
                                          output_dir=tmp_path / "with spaces")
-    metadata = json.loads(__import__("pathlib").Path(manifest["volume_metadata_json"]).read_text())
+    metadata = json.loads(__import__("pathlib").Path(manifest["volume_metadata_json"]).read_text(encoding="utf-8"))
     assert metadata["boundary_validation"] == "not_continuously_validated"
     assert metadata["connectivity"]["edge_rule"] == "continuous_atom_sphere_clearance"
     for path in manifest.values():
         assert __import__("pathlib").Path(path).exists()
-    pml = __import__("pathlib").Path(manifest["volume_pml"]).read_text()
+    pml = __import__("pathlib").Path(manifest["volume_pml"]).read_text(encoding="utf-8")
     compile(pml.split("python\n", 1)[1].split("python end")[0], "scene", "exec")
     assert 'cmd.load_cgo' in pml
     assert metadata['pymol_representation']=='standalone_triangle_mesh'
-    assert "Isosurface 0.5" in __import__("pathlib").Path(manifest["volume_tcl"]).read_text()
-    assert "surfaceSmoothing false" in __import__("pathlib").Path(manifest["volume_cxc"]).read_text()
+    assert "Isosurface 0.5" in __import__("pathlib").Path(manifest["volume_tcl"]).read_text(encoding="utf-8")
+    assert "surfaceSmoothing false" in __import__("pathlib").Path(manifest["volume_cxc"]).read_text(encoding="utf-8")
 
 
 def test_sidechain_evidence_and_full_identity():

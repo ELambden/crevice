@@ -26,7 +26,7 @@ import math
 from .radii import RadiusSet, radii_option
 
 
-def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000):
+def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000,*,near_only=False):
     """Grid covering a reference neighbourhood, cached on the reference.
 
     The grid uses the reference's basis, spacing and anchor, and spans the
@@ -43,6 +43,11 @@ def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000
     probe_radius : float, default 1.4
         Probe radius in Å (finite, positive).
     max_grid_points : int, default 2000000
+    near_only : bool, default False
+        Compute ``distance`` only up to ``margin + probe_radius + spacing``
+        (``inf`` beyond), the farthest distance the regional measurements
+        compare it with. Much faster; every value within that bound is the
+        one of the full query.
 
     Returns
     -------
@@ -64,7 +69,7 @@ def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000
     if not math.isfinite(probe_radius) or probe_radius<=0:raise ValueError('region probe radius must be finite and positive')
     h=reference.spacing;basis=reference.basis;anchor=reference.anchor
     cache=getattr(reference,'_regional_cache',{})
-    key=(margin,probe_radius,max_grid_points,h,tuple(anchor),tuple(basis.ravel()))
+    key=(margin,probe_radius,max_grid_points,h,tuple(anchor),tuple(basis.ravel()))+(('near_only',) if near_only else ())
     if key not in cache:
         local=(reference.points-anchor)@basis.T
         padding=margin+2*probe_radius+2*h
@@ -73,7 +78,8 @@ def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000
         if math.prod(shape)>max_grid_points:raise ValueError('Reference neighborhood exceeds max_grid_points')
         index=np.indices(shape).reshape(3,-1).T+low
         xyz=index*h@basis+anchor;tree=cKDTree(reference.points)
-        distance=tree.query(xyz)[0].reshape(shape)
+        bound=margin+probe_radius+h if near_only else math.inf
+        distance=tree.query(xyz,distance_upper_bound=bound)[0].reshape(shape)
         cache[key]=(index,xyz,shape,distance,tree,low);reference._regional_cache=cache
     return cache[key]
 
@@ -134,12 +140,17 @@ def regional_probe_cast(frame,reference,*,margin=2.,probe_radius=1.4,max_grid_po
     from .radii import atom_vdw_radius
     from .models import ChannelPoint,VoidComponent,VoidCast
     h=reference.spacing;basis=reference.basis;anchor=reference.anchor
-    index,xyz,shape,distance,tree,low=regional_grid(reference,margin,probe_radius,max_grid_points)
+    index,xyz,shape,distance,tree,low=regional_grid(reference,margin,probe_radius,max_grid_points,near_only=True)
     atoms=frame.selected_atoms(include_hydrogen=False,include_hetero=False) if obstacle_atoms is None else tuple(obstacle_atoms)
     if not atoms:raise ValueError("Regional geometry needs physical obstacles")
     coords=np.asarray([a.coord for a in atoms])@basis.T
     queries=_SphereQueries(coords,np.asarray([atom_vdw_radius(a) for a in atoms]))
-    clearance,nearest=queries.points(xyz@basis.T);clearance=clearance.reshape(shape)
+    # Clearances are read only where a node can be a probe centre or in the
+    # domain (distance <= margin + probe radius); elsewhere they stay -inf.
+    # Per-node values are those of a query over the whole grid.
+    need=np.flatnonzero(distance.ravel()<=margin+probe_radius+1e-9)
+    clearance=np.full(len(xyz),-np.inf);nearest=np.zeros(len(xyz),dtype=np.int32)
+    clearance[need],nearest[need]=queries.points((xyz@basis.T)[need]);clearance=clearance.reshape(shape)
     domain=distance<=margin+1e-9
     centers=(distance<=margin+probe_radius+1e-9)&(clearance>=probe_radius)
     origin=anchor@basis.T+low*h

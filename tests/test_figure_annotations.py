@@ -134,7 +134,7 @@ def _scene_files(root):
 
 
 def _text_commands(path):
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     return [p.pattern for p in SCENE_TEXT if p.search(source)]
 
 
@@ -152,10 +152,10 @@ def test_hydration_scenes_have_no_text_by_default_and_annotate_restores_it(tmp_p
         assert not _text_commands(path), (path.name, _text_commands(path))
     annotated = {p.name: _text_commands(p) for p in _scene_files(drawn)}
     assert annotated['toy_analysis.pml'] and annotated['toy_analysis_chimerax.py'] and annotated['toy_analysis.vmd']
-    scene = json.loads((clean/'toy_analysis_scene.json').read_text())
+    scene = json.loads((clean/'toy_analysis_scene.json').read_text(encoding="utf-8"))
     assert scene['annotations']['drawn'] is False
     assert scene['annotations']['texts']['colour_scale_caption'] == 'Observed snapshot contact'
-    assert json.loads((drawn/'toy_analysis_scene.json').read_text())['annotations']['drawn'] is True
+    assert json.loads((drawn/'toy_analysis_scene.json').read_text(encoding="utf-8"))['annotations']['drawn'] is True
     # No HTML report is written; figure descriptions stay in the PNG metadata.
     assert not list(clean.glob('*.html')) and not list(drawn.glob('*.html'))
     assert 'water-contact occupancy' in figure_description(clean/'toy_analysis_overview.png')['Description']
@@ -165,7 +165,7 @@ def test_hydration_scenes_have_no_text_by_default_and_annotate_restores_it(tmp_p
         if path.suffix == '.png' or path.name.endswith(SCENE_SUFFIXES) or path.name in presentation:
             continue
         assert _normalised(path, clean) == _normalised(drawn/path.name, drawn), path.name
-    other = json.loads((drawn/'toy_analysis_scene.json').read_text())
+    other = json.loads((drawn/'toy_analysis_scene.json').read_text(encoding="utf-8"))
     scene.pop('annotations'); other.pop('annotations')
     assert json.dumps(scene).replace(str(clean), '') == json.dumps(other).replace(str(drawn), '')
 
@@ -179,10 +179,10 @@ def test_region_review_scene_labels_are_opt_in(tmp_path):
     for key in ['review_pml', 'review_vmd', 'review_tcl', 'review_chimerax_python']:
         assert not _text_commands(Path(clean[key])), key
         assert _text_commands(Path(drawn[key])), key
-    scene = json.loads(Path(clean['review_scene_json']).read_text())
+    scene = json.loads(Path(clean['review_scene_json']).read_text(encoding="utf-8"))
     assert scene['annotations']['drawn'] is False and scene['annotations']['texts']['residue_labels']
     assert 'review_html' not in clean and not list((tmp_path/'clean').glob('*.html'))
-    assert Path(clean['review_landmarks_csv']).read_text().splitlines()[0].startswith('residue,anchor_atoms,nearest_reference_sample_A')
+    assert Path(clean['review_landmarks_csv']).read_text(encoding="utf-8").splitlines()[0].startswith('residue,anchor_atoms,nearest_reference_sample_A')
 
 
 def test_member_water_group_has_no_text(tmp_path):

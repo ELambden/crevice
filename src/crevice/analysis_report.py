@@ -81,12 +81,12 @@ def write_analysis_report(output_dir,prefix,files,*,dpi=200,annotate=None):
     root=Path(output_dir);extra={}
     def path(key,suffix):
         p=root/(prefix+suffix);extra[key]=str(p);return p
-    scene=json.loads((root/(prefix+'_analysis_scene.json')).read_text())
-    hydration=json.loads((root/(prefix+'_hydration.json')).read_text())
+    scene=json.loads((root/(prefix+'_analysis_scene.json')).read_text(encoding="utf-8"))
+    hydration=json.loads((root/(prefix+'_hydration.json')).read_text(encoding="utf-8"))
     interaction_path=root/(prefix+'_interactions.json')
-    interactions=json.loads(interaction_path.read_text()) if 'interaction_json' in files and interaction_path.exists() else {'edges':[],'residues':[],'metadata':{'status':'not_requested'}}
+    interactions=json.loads(interaction_path.read_text(encoding="utf-8")) if 'interaction_json' in files and interaction_path.exists() else {'edges':[],'residues':[],'metadata':{'status':'not_requested'}}
     density_path=root/(prefix+'_water_density.json')
-    density=json.loads(density_path.read_text()) if 'water_density_json' in files and density_path.exists() else {'status':'not_requested'}
+    density=json.loads(density_path.read_text(encoding="utf-8")) if 'water_density_json' in files and density_path.exists() else {'status':'not_requested'}
     with np.load(root/(prefix+'_hydration_frames.npz')) as loaded:arrays={k:loaded[k] for k in loaded.files}
     ids=list(arrays['residue_ids']);times=arrays['time_ps']/1000
     chemicals={r['residue']:r for r in interactions['residues']}
@@ -104,12 +104,12 @@ def write_analysis_report(output_dir,prefix,files,*,dpi=200,annotate=None):
         row.update({k:v for k,v in chemicals.get(r['residue'],{}).items() if k!='residue'})
         rows.append(row)
     fields=list(dict.fromkeys(k for r in rows for k in r))
-    with path('analysis_evidence_csv','_analysis_evidence.csv').open('w',newline='') as f:
+    with path('analysis_evidence_csv','_analysis_evidence.csv').open('w',newline='', encoding="utf-8") as f:
         writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader();writer.writerows(rows)
     context=hydration['settings'].get('context_statistics_json')
     context_coverage=None
     if context and Path(context).is_file():
-        source=Path(context);context_report=json.loads(source.read_text())
+        source=Path(context);context_report=json.loads(source.read_text(encoding="utf-8"))
         context_coverage=context_report.get('frame_count',context_report.get('summary',{}).get('frame_count'))
         stem=source.name.removesuffix('_cavity_statistics.json')
         for suffix,key in [('_cavity_radius_profile.png','geometry_radius_png'),('_cavity_diameter_profile.png','geometry_diameter_png'),('_cavity_volume_timeseries.png','geometry_volume_png')]:

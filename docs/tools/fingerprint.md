@@ -118,6 +118,9 @@ for gramicidin A it comes out 10–40 times above the measured value (2–7 time
 with HOLE's correction), so compare it between channels or frames as an order
 of magnitude, never as a prediction of function. The
 [method note](../methods/fingerprint.md#limitations) lists every assumption.
+
+[Limitations](../getting-started/limitations.md) collects the caveats shared by
+all tools.
 :::
 
 Try it in the [pore fingerprint tutorial](../examples/pore-fingerprint.md),

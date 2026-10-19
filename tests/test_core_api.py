@@ -28,7 +28,7 @@ class CoreApiTests(unittest.TestCase):
     def test_loads_pdb_and_groups_residues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "mini.pdb"
-            path.write_text(_pdb_fixture())
+            path.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             frame = load_structure(path)
 
@@ -82,10 +82,10 @@ class CoreApiTests(unittest.TestCase):
             write_profile_pdb(profile, out / "profile.pdb")
             write_residue_contacts_csv(contacts, out / "contacts.csv")
 
-            data = json.loads((out / "profile.json").read_text())
+            data = json.loads((out / "profile.json").read_text(encoding="utf-8"))
             self.assertEqual(data["point_count"], 5)
-            self.assertIn("HETATM", (out / "profile.pdb").read_text())
-            self.assertIn("residue", (out / "contacts.csv").read_text().splitlines()[0])
+            self.assertIn("HETATM", (out / "profile.pdb").read_text(encoding="utf-8"))
+            self.assertIn("residue", (out / "contacts.csv").read_text(encoding="utf-8").splitlines()[0])
 
     def test_cli_profile(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -94,7 +94,7 @@ class CoreApiTests(unittest.TestCase):
             output = root / "profile.json"
             csv_output = root / "profile.csv"
             pdb_output = root / "profile.pdb"
-            structure.write_text(_pdb_fixture())
+            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             status = main([
                 "profile",
@@ -122,13 +122,13 @@ class CoreApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             structure = root / "mini.pdb"
-            structure.write_text(_pdb_fixture())
+            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
             status = main(["profile", str(structure), "--axis", "z", "--samples", "5", "--search-radius", "0",
                            "-o", str(root / "out" / "run.json")])
             self.assertEqual(status, 0)
-            header = (root / "out" / "run.csv").read_text().splitlines()[0]
+            header = (root / "out" / "run.csv").read_text(encoding="utf-8").splitlines()[0]
             self.assertTrue(header.startswith("index,x_A,y_A,z_A,radius_A"))
-            self.assertEqual(len((root / "out" / "run.csv").read_text().splitlines()), 6)
+            self.assertEqual(len((root / "out" / "run.csv").read_text(encoding="utf-8").splitlines()), 6)
 
 
 def _channel_frame() -> StructureFrame:

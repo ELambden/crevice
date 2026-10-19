@@ -12,7 +12,7 @@ def _load_result(path, definition_path=None, input_provenance=None):
     ending='_cavity_statistics.json'
     if not path.name.endswith(ending):raise ValueError('Expected a cavity_statistics.json bundle')
     prefix=path.name[:-len(ending)];root=path.parent
-    report=json.loads(path.read_text());reader=json.loads((root/(prefix+'_reader.json')).read_text())
+    report=json.loads(path.read_text(encoding="utf-8"));reader=json.loads((root/(prefix+'_reader.json')).read_text(encoding="utf-8"))
     metadata=report['settings'].get('region_definition')
     if definition_path:
         definition,_=load_definition(definition_path)
@@ -25,7 +25,7 @@ def _load_result(path, definition_path=None, input_provenance=None):
     else:raise ValueError('Legacy observations require an explicit prepared region definition')
     if not metadata:
         if input_provenance is None:raise ValueError('Legacy observations require historical input provenance with recorded SHA256 digests')
-        historical=json.loads(Path(input_provenance).read_text())
+        historical=json.loads(Path(input_provenance).read_text(encoding="utf-8"))
         if isinstance(historical.get('files'),list):historical={r['path']:r for r in historical['files']}
         for key in ['topology','trajectory']:
             source=str(Path(reader[key]).resolve())
@@ -52,7 +52,7 @@ def _load_result(path, definition_path=None, input_provenance=None):
     if len(indices)!=report['frame_count'] or not np.array_equal(arrays['time_ps'],reader['frame_times_ps']):raise ValueError('Result frame indices or timestamps differ from its reader record')
     hydration=None;hp=root/(prefix+'_hydration.json')
     if hp.exists():
-        hydration=json.loads(hp.read_text())
+        hydration=json.loads(hp.read_text(encoding="utf-8"))
         if hydration['frame_count']!=report['frame_count']:raise ValueError('Hydration frame count differs from geometry')
         for key in ['topology','trajectory']:
             if Path(hydration['reader'][key]).resolve()!=Path(reader[key]).resolve():raise ValueError('Hydration source differs from geometry')
@@ -63,7 +63,7 @@ def _load_result(path, definition_path=None, input_provenance=None):
     pp=root/(prefix+'_cavity_profile_statistics.json')
     profile_extra=None
     if pp.exists():
-        profile_extra=json.loads(pp.read_text());profile_rows=profile_extra['profiles']['section']['rows']
+        profile_extra=json.loads(pp.read_text(encoding="utf-8"));profile_rows=profile_extra['profiles']['section']['rows']
         profile_confidence=profile_extra['statistical_options']['confidence']
         positions=np.asarray([r['position_A'] for r in profile_rows])
         expected_positions=np.asarray([r['position_A'] for r in report['profile']['rows']])
@@ -219,7 +219,7 @@ def compare_regions(left_path,right_path,output_dir,*,left_definition=None,right
     for item in [left,right]:
         p=item['root']/(item['prefix']+'_interactions.json')
         if p.exists():
-            d=json.loads(p.read_text());interactions.append({(e['kind'],*sorted([e['source'],e['target']])) for e in d['edges']})
+            d=json.loads(p.read_text(encoding="utf-8"));interactions.append({(e['kind'],*sorted([e['source'],e['target']])) for e in d['edges']})
         else:interactions.append(None)
     if all(i is not None for i in interactions):
         summary['typed_contact_scope']={'left_ever_edges':len(interactions[0]),'right_ever_edges':len(interactions[1]),'shared_ever_edges':len(interactions[0]&interactions[1]),
@@ -233,7 +233,7 @@ def compare_regions(left_path,right_path,output_dir,*,left_definition=None,right
     write_json(root/'comparison.json',summary)
     from .io import write_summary_statistics_csv
     write_summary_statistics_csv(summary,root/'comparison_summary.csv')
-    with (root/'residue_comparison.csv').open('w',newline='') as f:
+    with (root/'residue_comparison.csv').open('w',newline='', encoding="utf-8") as f:
         w=csv.DictWriter(f,fieldnames=list(rows[0]) if rows else ['residue']);w.writeheader();w.writerows(rows)
     arrays={'source_frame_indices':left['indices'],'time_ps':a['time_ps'],'left_volume_A3':a['volume_A3'],'right_volume_A3':b['volume_A3']}
     if 'region_water_count' in a and 'region_water_count' in b:arrays.update(left_region_water_count=a['region_water_count'],right_region_water_count=b['region_water_count'])

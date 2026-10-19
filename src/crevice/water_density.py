@@ -53,11 +53,11 @@ def write_scalar_dx(values, origin, spacing, path, *, basis=None):
     lines += ['delta ' + ' '.join(f'{v:.12g}' for v in row) for row in (np.eye(3) if basis is None else np.asarray(basis))*spacing]
     lines += [f'object 2 class gridconnections counts {nx} {ny} {nz}',
               f'object 3 class array type double rank 0 items {values.size} data follows']
-    flat = values.ravel(order='C')
-    lines += [' '.join(f'{v:.12g}' for v in flat[i:i+3]) for i in range(0, len(flat), 3)]
+    from .volume_export import dx_value_rows
+    lines += dx_value_rows(values.ravel(order='C'), '.12g')
     lines += ['attribute "dep" string "positions"', 'object "water density" class field',
               'component "positions" value 1', 'component "connections" value 2', 'component "data" value 3']
-    Path(path).write_text('\n'.join(lines)+'\n')
+    Path(path).write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n")
     return str(path)
 
 

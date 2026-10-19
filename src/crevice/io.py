@@ -813,7 +813,7 @@ def write_points_pdb(points: Iterable[ChannelPoint], path: str | Path, *, resnam
             f"{x:8.3f}{y:8.3f}{z:8.3f}{1.00:6.2f}{radius:6.2f}          X "
         )
     lines.append("END")
-    Path(path).write_text("\n".join(lines) + "\n")
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 def export_pymol_script(
@@ -938,11 +938,11 @@ spectrum b, blue_white_red, {object_name}
 orient crevice_cartoon or {object_name} or crevice_pore_fill
 zoom crevice_cartoon or {object_name} or crevice_pore_fill, 6
 {png_block}"""
-    Path(script_path).write_text(script)
+    Path(script_path).write_text(script, encoding="utf-8", newline="\n")
 
 def _write_json(data: object, path: str | Path) -> None:
     _ensure_parent(path)
-    Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def _ensure_parent(path: str | Path) -> None:

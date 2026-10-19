@@ -160,9 +160,9 @@ def test_bundle_metadata_mesh_and_measured_dx(channel_display, tmp_path):
     assert cast.to_dict(include_points=True) == before
     display_shape = cast_grid(extend_channel_cast(cast, frame, 2))[0].shape
     for name, files in runs.items():
-        meta = json.loads(Path(files['volume_metadata_json']).read_text())
+        meta = json.loads(Path(files['volume_metadata_json']).read_text(encoding="utf-8"))
         smoothing = meta['display_smoothing']
-        text = Path(files['display_dx']).read_text().splitlines()
+        text = Path(files['display_dx']).read_text(encoding="utf-8").splitlines()
         counts = tuple(int(v) for v in text[1].split()[-3:])
         delta = float(np.linalg.norm([float(v) for v in text[3].split()[1:]]))
         k = smoothing['supersample_factor']

@@ -205,7 +205,7 @@ def _domain_keys(reference, margin, probe_radius, max_grid_points):
     cache = getattr(reference, '_membership_domain_cache', {})
     key = (margin, probe_radius, max_grid_points)
     if key not in cache:
-        index, _, _, distance, _, _ = regional_grid(reference, margin, probe_radius, max_grid_points)
+        index, _, _, distance, _, _ = regional_grid(reference, margin, probe_radius, max_grid_points, near_only=True)
         cache[key] = np.sort(voxel_keys(index[distance.ravel() <= margin+1e-9]))
         reference._membership_domain_cache = cache
     return cache[key]
@@ -812,8 +812,8 @@ def write_water_membership_bundle(analysis, output_dir, *, prefix='crevice', con
         target = root/(prefix+suffix); files[key] = str(target); return target
     def table(target, rows):
         if not rows:
-            target.write_text(''); return
-        with target.open('w', newline='') as f:
+            target.write_text('', encoding="utf-8", newline="\n"); return
+        with target.open('w', newline='', encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
     path('water_membership_json', '_water_membership.json').write_text(json.dumps(report, indent=2, allow_nan=False, ensure_ascii=False)+'\n', encoding='utf-8')
     from .io import write_summary_statistics_csv
