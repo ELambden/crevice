@@ -1,0 +1,26 @@
+# Machine: Intel(R) Core(TM) Ultra 7 268V, 8 logical CPUs, Linux-7.0.0-31-generic-x86_64-with-glibc2.39, Python 3.13.13; load average at start [0.93115234375, 3.1669921875, 2.13818359375]. Shared machine: timings depend on load (see load columns).
+case,tool,repeats,median_wall_s,median_cpu_s,max_peak_rss_mb,failed_runs,load_1min_range
+profile_1GRM,HOLE 2.3.1,3,0.0612,0.0601,19.2227,0,0.9-0.9
+profile_1GRM,CREVICE profile (auto probe),3,2.3935,2.3930,87.0898,0,0.9-0.9
+profile_1GRM,CREVICE profile (probe 0.65 A fixed),3,0.4996,0.4992,78.0508,0,0.9-0.9
+profile_1OED,HOLE 2.3.1,3,0.1388,0.1386,19.2227,0,0.9-0.9
+profile_1OED,CREVICE profile (auto probe),3,6.1059,6.0829,142.4062,0,0.9-1.0
+profile_1OED,CREVICE profile (probe 2.2 A fixed),3,0.7987,0.7983,91.7070,0,1.0-1.0
+profile_3UKM,HOLE 2.3.1,3,0.1064,0.1063,19.2227,0,1.0-1.0
+profile_3UKM,CREVICE profile (auto probe),3,45.5933,45.5646,286.9727,0,1.0-1.0
+profile_3UKM,CREVICE profile (probe 0.55 A fixed),3,12.8816,12.8670,252.2344,0,1.0-1.0
+tunnels_1CQW,CAVER 3.0.3,3,0.8486,4.2627,447.3086,0,1.0-1.3
+tunnels_1CQW,"CREVICE paths (probe auto, 1 worker)",3,6.9968,6.9827,244.7539,0,1.3-1.3
+tunnels_1CQW,"CREVICE paths (probe 0.9, 1 worker)",3,3.4389,3.4379,245.6562,0,1.3-1.3
+tunnels_1MJ5,CAVER 3.0.3,3,0.9276,4.8090,446.4062,0,1.3-1.4
+tunnels_1MJ5,"CREVICE paths (probe auto, 1 worker)",3,5.7196,5.7065,239.0859,0,1.3-1.4
+tunnels_1MJ5,"CREVICE paths (probe 0.9, 1 worker)",3,3.3134,3.3034,238.0195,0,1.3-1.3
+tunnels_1EA5,CAVER 3.0.3,3,1.0374,4.8468,446.5273,0,1.3-1.6
+tunnels_1EA5,"CREVICE paths (probe auto, 1 worker)",3,14.2547,14.2389,328.8008,0,1.4-1.5
+tunnels_1EA5,"CREVICE paths (probe 0.9, 1 worker)",3,5.3846,5.3711,328.8086,0,1.3-1.3
+volumes_1L83,CREVICE cast (defaults),3,2.1011,2.0971,182.9180,0,1.2-1.2
+volumes_1L83,pyKVFinder 0.9.5 (defaults),3,0.2016,0.9745,36.8711,0,1.2-1.2
+volumes_1L83,POVME 3.0.34,3,13.5649,13.5269,12812.4102,0,1.1-1.2
+volumes_2NNQ,CREVICE cast (defaults),3,1.8804,1.8717,161.1641,0,1.1-1.1
+volumes_2NNQ,pyKVFinder 0.9.5 (defaults),3,0.1648,0.7377,35.3828,0,1.1-1.1
+volumes_2NNQ,POVME 3.0.34,3,19.8576,19.8459,12799.7070,0,1.1-1.2

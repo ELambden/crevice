@@ -1,0 +1,17 @@
+# Pocket/cavity volumes by tool; same atoms, seed and Bondi radii; each tool's own volume definition (see volumes_vs_comparators.py). Not a validated biological volume.
+id,name,kind,curation,tool,settings,volume_A3,seed_to_centre_A,seed_to_cavity_point_A,note,wall_s,exit_code
+1L83,T4 lysozyme L99A,buried cavity,curated,crevice_cast,"probe 0.8 A, grid 0.5 A, outer probe 6 A (defaults)",384.5000,,,,7.6486,0
+1L83,T4 lysozyme L99A,buried cavity,curated,crevice_cavities,"probe 1.4 A (centre volume), grid 0.5 A",30.8862,0.2820,,enclosed cavity whose centre is nearest the seed,7.9219,0
+1L83,T4 lysozyme L99A,buried cavity,curated,pykvfinder_probe_in_1.4,"probe in 1.4 A, probe out 4 A, step 0.6 A",196.3400,,0.3090,cavity KAA of 5; pyKVFinder 0.9.5,1.2840,0
+1L83,T4 lysozyme L99A,buried cavity,curated,pykvfinder_probe_in_0.8,"probe in 0.8 A, probe out 4 A, step 0.6 A",374.7600,,0.3090,cavity KAB of 18; pyKVFinder 0.9.5,3.9680,0
+1L83,T4 lysozyme L99A,buried cavity,curated,povme,"inclusion sphere 12 A, seed sphere 2 A, grid 0.5 A, distance cutoff 1.09 A, convex hull",65.3750,,,,90.1552,0
+2NNQ,human adipocyte fatty-acid-binding protein FABP4,large internal pocket,curated,crevice_cast,"probe 0.8 A, grid 0.5 A, outer probe 6 A (defaults)",1041.8750,,,,6.1616,0
+2NNQ,human adipocyte fatty-acid-binding protein FABP4,large internal pocket,curated,crevice_cavities,"probe 1.4 A (centre volume), grid 0.5 A",354.9543,0.7853,,enclosed cavity whose centre is nearest the seed,10.7084,0
+2NNQ,human adipocyte fatty-acid-binding protein FABP4,large internal pocket,curated,pykvfinder_probe_in_1.4,"probe in 1.4 A, probe out 4 A, step 0.6 A",949.1000,,0.1609,cavity KAA of 4; pyKVFinder 0.9.5,1.7381,0
+2NNQ,human adipocyte fatty-acid-binding protein FABP4,large internal pocket,curated,pykvfinder_probe_in_0.8,"probe in 0.8 A, probe out 4 A, step 0.6 A",1280.8800,,0.1609,cavity KAA of 8; pyKVFinder 0.9.5,1.9495,0
+2NNQ,human adipocyte fatty-acid-binding protein FABP4,large internal pocket,curated,povme,"inclusion sphere 12 A, seed sphere 2 A, grid 0.5 A, distance cutoff 1.09 A, convex hull",579.0000,,,,107.6671,0
+4PYP,human glucose transporter GLUT1 (inward-open),open central cavity,curated,crevice_cast,"probe 0.8 A, grid 0.5 A, outer probe 6 A (defaults)",3245.2500,,,,25.0335,0
+4PYP,human glucose transporter GLUT1 (inward-open),open central cavity,curated,crevice_cavities,"probe 1.4 A (centre volume), grid 0.5 A",,,,no enclosed cavity,18.1592,0
+4PYP,human glucose transporter GLUT1 (inward-open),open central cavity,curated,pykvfinder_probe_in_1.4,"probe in 1.4 A, probe out 4 A, step 0.6 A",1329.4800,,0.3460,cavity KAL of 36; pyKVFinder 0.9.5,2.4755,0
+4PYP,human glucose transporter GLUT1 (inward-open),open central cavity,curated,pykvfinder_probe_in_0.8,"probe in 0.8 A, probe out 4 A, step 0.6 A",4272.4800,,0.3460,cavity KAA of 21; pyKVFinder 0.9.5,4.3125,0
+4PYP,human glucose transporter GLUT1 (inward-open),open central cavity,curated,povme,"inclusion sphere 12 A, seed sphere 2 A, grid 0.5 A, distance cutoff 1.09 A, convex hull",912.1250,,,,143.9348,0

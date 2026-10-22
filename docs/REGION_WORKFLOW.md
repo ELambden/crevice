@@ -7,12 +7,12 @@ status. It never promotes a candidate to a biological assignment automatically.
 ## Commands
 
 ```bash
-crevice region-init system.gro --trajectory run.xtc \
+crevice region init system.gro --trajectory run.xtc \
   --region-id site_candidate --landmarks-json landmarks.json \
   --obstacle-selection 'not resname TIP3' --spacing .2 \
   --output site-request.json
-crevice region-prepare site-request.json --out-dir site-review
-crevice region-trajectory site-review/site_candidate_region.json \
+crevice region prepare site-request.json --out-dir site-review
+crevice trajectory --region site-review/site_candidate_region.json \
   --out-dir site-trajectory --max-frames 1100 --workers 2
 ```
 
@@ -31,7 +31,7 @@ Use the identities actually present in the input; chain names, insertion codes
 and modified residue names matter. Missing or ambiguous atoms are errors. A
 landmark's terminal-atom centroid is an analysis choice, not a ligand pose.
 
-For an existing reference, supply `--reference-volume-dx` to `region-init`.
+For an existing reference, supply `--reference-volume-dx` to `region init`.
 Landmarks are optional in this mode. Static PDB, mmCIF and GRO snapshots can be
 prepared without `--trajectory`. Static mmCIF uses the canonical entity-aware
 parser and original chain/residue identities; MDAnalysis evaluates selections on
@@ -42,7 +42,7 @@ GRO and trajectory physical obstacles retain the declared periodic treatment.
 
 Preparation and analysis require empty output directories. Alternative reference
 regions use distinct IDs and directories. Existing evidence is never replaced by
-these commands. `region-trajectory` produces the normal geometry and typed interaction
+these commands. `trajectory --region` produces the normal geometry and typed interaction
 outputs by default; hydration, density and the viewer scenes are added with
 `--water-membership`, `--outputs default,hydration` or `--all` (CREVICE 0.3
 output policy), and the standard opt-outs and sampling/uncertainty options
@@ -59,14 +59,14 @@ probe, margin, axis, grid phase and allocation limit; and residue/coordinate
 landmarks; and `radii`, the atomic radius set used at preparation (name,
 source, table hash; see [Atomic radii](methods/atomic-radii.md)). Paths
 resolve relative to the definition, independent of the working directory.
-Large input files are hashed incrementally. `region-init` writes a version 1
-request without `radii`; `region-prepare` writes version 2. Later steps use the
-stored set (`region-trajectory`, `hydration --cavity-results`) or check it
-(`region-compare`), and stop on a different set unless
+Large input files are hashed incrementally. `region init` writes a version 1
+request without `radii`; `region prepare` writes version 2. Later steps use the
+stored set (`trajectory --region`, `trajectory --water --cavity-results`) or check it
+(`region compare`), and stop on a different set unless
 `--allow-radii-mismatch` is given. A version 1 definition is read as the
 default radius set; its reference map is not recomputed.
 
-`region-prepare` writes a companion binary reference DX, an identity/coordinate
+`region prepare` writes a companion binary reference DX, an identity/coordinate
 fingerprint for the selected reference frame, a resolved definition, diagnostics,
 and PML/VMD/TCL/CXC review scenes. These viewer bundles are portable when their
 companion assets are kept together. The simulation inputs are not copied into
@@ -121,14 +121,14 @@ axis, attractive cast, or a spherical probe.
 ## Comparing regions
 
 ```bash
-crevice region-compare original/original_pocket_cavity_statistics.json \
+crevice region compare original/original_pocket_cavity_statistics.json \
   site-trajectory/site_candidate_cavity_statistics.json --out-dir comparison
 ```
 
 The comparison requires identical source hashes, saved frames/times, protein
 identities, alignment and relevant geometric/obstacle settings. Each region keeps
 its own reference and profile coordinate origin. A bundle without region
-provenance (for example one written by `cavity-trajectory`) requires an explicit
+provenance (for example one written by `trajectory --cavities`) requires an explicit
 prepared `--left-definition` or `--right-definition`, together with the input-hash
 record of the run that produced it, supplied as `--left-input-provenance` or
 `--right-input-provenance`. Source, reference and numerical settings are checked
@@ -146,10 +146,10 @@ Different crops measure different spaces. Their volume difference is not a
 transport-state change, and residue boundary ranks are not functional importance
 scores. Typed-edge counts depend on the region-specific residue focus; an edge
 absent from a focus is not an observed zero contact occupancy. Hydration maps and
-the standard regional water counts refer to fixed neighbourhoods. `region-trajectory
---water-membership` adds a separate, paired count of oxygens inside each frame's
+the standard regional water counts refer to fixed neighbourhoods. `trajectory --region
+DEFINITION --water-membership` adds a separate, paired count of oxygens inside each frame's
 measured region ([definition](HYDRATION_METHODS.md#instantaneous-measured-region-water-membership));
-`region-compare` does not yet compare that observable.
+`region compare` does not yet compare that observable.
 
 ## Example: literature landmarks for GLUT1
 

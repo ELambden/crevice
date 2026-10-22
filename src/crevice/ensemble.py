@@ -83,7 +83,14 @@ def profile_distribution(
         frames), ``mean_radius``, ``median_radius``, ``lower_radius`` and
         ``upper_radius`` (Å; ``None`` without coverage) and, with
         ``confidence``, ``mean_ci_lower``/``mean_ci_upper`` (pointwise) and
-        ``mean_band_lower``/``mean_band_upper`` (simultaneous). Top-level keys
+        ``mean_band_lower``/``mean_band_upper`` (simultaneous), plus (since
+        0.4) the position's ``sampling_status``, ``effective_sample_size``,
+        ``integrated_autocorrelation_time_frames``,
+        ``blocking_standard_error`` (Å) and ``blocking_block_size_frames``,
+        and a moving-block bootstrap of the mean
+        (``block_bootstrap_status``, ``block_bootstrap_lower``/``upper`` in Å,
+        ``block_bootstrap_block_length_frames``); see
+        :func:`crevice.uncertainty.sampling_uncertainty`. Top-level keys
         record the axis, probe radius, frame counts, the interval result and
         the definitions used (``band_kind="empirical_frame_quantiles"``,
         ``interpolation="linear_no_extrapolation"``), plus
@@ -180,6 +187,7 @@ def profile_distribution(
     for i,x,y in zip(profile_indices,coordinates,radii):
         matrix[i]=np.interp(grid,x,y,left=np.nan,right=np.nan)
     interval = None
+    from .uncertainty import sampling_uncertainty
     if confidence is not None:
         from .uncertainty import block_mean_confidence
         aligned = assume_aligned or (isinstance(trajectory,TrajectoryAnalysis) and trajectory.metadata.get("aligned_to_first_frame",False))
@@ -209,6 +217,13 @@ def profile_distribution(
             for source,target in [("pointwise_lower","mean_ci_lower"),("pointwise_upper","mean_ci_upper"),
                                   ("simultaneous_lower","mean_band_lower"),("simultaneous_upper","mean_band_upper")]:
                 rows[-1][target]=interval.get(source,[None]*len(grid))[index]
+            # Added in 0.4: per-position effective sample size, blocking SE and moving-block bootstrap.
+            if interval.get("status")!="unavailable_unvalidated_axis_scan":
+                sampling=sampling_uncertainty(matrix[:,index],confidence=confidence,block_length=block_length,
+                                              replicates=bootstrap_replicates,seed=seed)
+                for key in SAMPLING_ROW_FIELDS:
+                    rows[-1][key]=sampling[key]
+                rows[-1]["sampling_status"]=sampling["status"]
     return {"rows": rows, "total_frame_count":len(frames),"confidence_interval":interval,
             "summary_population":"all frames" if len(profiles)==len(frames) else "conditional on resolved profiles", "quantiles": list(quantiles), "frame_count": len(profiles),
             "missing_profile_count": len(frames) - len(profiles), "units": "angstrom",
@@ -220,7 +235,14 @@ def profile_distribution(
                                          if p.metadata.get("enclosure_radius_A") is not None})}
 
 
-DISTRIBUTION_COLUMNS = {"coordinate": "coordinate_A", "mean_radius": "mean_radius_A", "median_radius": "median_radius_A",
+#: Per-position sampling fields added to the rows with ``confidence`` (0.4).
+SAMPLING_ROW_FIELDS = ("effective_sample_size", "integrated_autocorrelation_time_frames", "blocking_standard_error",
+                       "blocking_block_size_frames", "block_bootstrap_status", "block_bootstrap_lower",
+                       "block_bootstrap_upper", "block_bootstrap_block_length_frames")
+
+DISTRIBUTION_COLUMNS = {"blocking_standard_error": "blocking_standard_error_A",
+                        "block_bootstrap_lower": "block_bootstrap_lower_A",
+                        "block_bootstrap_upper": "block_bootstrap_upper_A","coordinate": "coordinate_A", "mean_radius": "mean_radius_A", "median_radius": "median_radius_A",
                         "lower_radius": "lower_radius_A", "upper_radius": "upper_radius_A",
                         "mean_ci_lower": "mean_ci_lower_A", "mean_ci_upper": "mean_ci_upper_A",
                         "mean_band_lower": "mean_band_lower_A", "mean_band_upper": "mean_band_upper_A"}

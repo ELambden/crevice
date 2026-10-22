@@ -104,7 +104,7 @@ def test_landmark_proposal_is_connected_and_excludes_atom_cores(tmp_path):
 def test_region_cli_runs_each_frame_and_retains_region_provenance(tmp_path):
     path,_,_=definition(tmp_path);files=prepare_region(path,tmp_path/'review')
     out=tmp_path/'run'
-    code=main(['region-trajectory',files['definition_json'],'--out-dir',str(out),'--skip-hydration','--max-frames','2','--confidence','.95','--dpi','60'])
+    code=main(['trajectory', '--region',files['definition_json'],'--out-dir',str(out),'--skip-hydration','--max-frames','2','--confidence','.95','--dpi','60'])
     assert code==0
     report=json.loads((out/'synthetic_cavity_statistics.json').read_text(encoding="utf-8"))
     assert report['frame_count']==2
@@ -112,7 +112,7 @@ def test_region_cli_runs_each_frame_and_retains_region_provenance(tmp_path):
     assert report['settings']['region_definition']['review']['status']=='candidate'
     a=np.load(out/'synthetic_cavity_frames.npz')
     assert a['volume_A3'][0]==a['volume_A3'][1]
-    assert main(['region-trajectory',files['definition_json'],'--out-dir',str(out),'--skip-hydration'])==2
+    assert main(['trajectory', '--region',files['definition_json'],'--out-dir',str(out),'--skip-hydration'])==2
 
 
 def test_static_mmcif_preserves_canonical_identity_and_nonprotein_obstacles(tmp_path):
@@ -155,7 +155,7 @@ def test_comparison_rejects_unpaired_frames_and_preserves_region_identity(tmp_pa
         data['region_id']=name;write_json(path,data)
         prepared=prepare_region(path,tmp_path/(name+'-review'))
         out=tmp_path/name
-        assert main(['region-trajectory',prepared['definition_json'],'--out-dir',str(out),'--skip-hydration','--stop',str(stop),'--dpi','60'])==0
+        assert main(['trajectory', '--region',prepared['definition_json'],'--out-dir',str(out),'--skip-hydration','--stop',str(stop),'--dpi','60'])==0
         files.append(out/(name+'_cavity_statistics.json'))
     result=compare_regions(files[0],files[1],tmp_path/'comparison')
     assert result['frame_count']==2

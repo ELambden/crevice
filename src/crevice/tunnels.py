@@ -7,7 +7,7 @@ Waals sphere. Among all such paths, CREVICE keeps the *widest* ones: those
 that maximise the bottleneck (the smallest clearance along the path), with
 shorter length breaking ties.
 
-Main entry points: :func:`find_tunnels` (command ``crevice tunnels``),
+Main entry points: :func:`find_tunnels` (command ``crevice cavities --tunnels``),
 :func:`rank_tunnels`, :func:`cluster_tunnels`, :func:`tunnel_profile`.
 
 Each tunnel point's ``t`` is the cumulative path length in Å from the start,

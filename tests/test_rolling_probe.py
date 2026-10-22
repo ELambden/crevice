@@ -145,14 +145,14 @@ def test_cli_cast_does_not_require_a_through_channel(pocket,tmp_path,capsys):
     from crevice.presentation import write_viewer_structure
     frame,_=pocket
     source=write_viewer_structure(frame,tmp_path/'input.pdb')
-    main(['cast',str(source),'--out-dir',str(tmp_path/'bundle'),'--spacing','0.5','--min-component-volume','30',
+    main(['cavities', '--cast',str(source),'--out-dir',str(tmp_path/'bundle'),'--spacing','0.5','--min-component-volume','30',
           '--outputs','default,extra-views'])   # end views are opt-in since 0.3
     manifest=json.loads((tmp_path/'bundle/input_manifest.json').read_text(encoding="utf-8"))
     assert manifest['void_cast']['total_volume']>100
     assert manifest['channel_profile_status']=='not_assigned_by_3D_void_detection'
     assert 'profile_json' not in manifest['files']
-    assert Path(manifest['files']['volume_pml']).exists()
-    assert Path(manifest['files']['end_view_tcl']).exists()
+    assert (tmp_path/'bundle'/manifest['files']['volume_pml']).exists()   # relative to the manifest
+    assert (tmp_path/'bundle'/manifest['files']['end_view_tcl']).exists()
 
 
 def test_publication_auto_falls_back_without_inventing_a_profile(pocket,tmp_path):
@@ -203,12 +203,12 @@ def test_variable_sphere_union_fills_between_qualified_centers():
 def test_new_cast_cli_defaults_and_explicit_enumeration():
     from crevice.cli import build_parser
     parser=build_parser()
-    args=parser.parse_args(['cast','input.pdb','--out-dir','out'])
+    args=parser.parse_args(['cavities', '--cast','input.pdb','--out-dir','out'])
     assert args.max_components==1 and args.cavity_selection=='dominant'
     assert args.surface_smoothing is None and args.smooth is None  # --smooth default applies
-    args=parser.parse_args(['cast','input.pdb','--out-dir','out','--max-cavities','8','--cavity-selection','all'])
+    args=parser.parse_args(['cavities', '--cast','input.pdb','--out-dir','out','--max-cavities','8','--cavity-selection','all'])
     assert args.max_components==8 and args.cavity_selection=='all'
-    args=parser.parse_args(['publish','input.pdb','--out-dir','out','--cast-max-cavities','4'])
+    args=parser.parse_args(['report','input.pdb','--out-dir','out','--cast-max-cavities','4'])
     assert args.cast_max_components==4 and args.cast_selection=='dominant'
 
 

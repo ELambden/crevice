@@ -77,7 +77,7 @@ class CreviceApiTests(unittest.TestCase):
             structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             network_status = main([
-                "network",
+                "residues", "--network",
                 str(structure),
                 "--axis",
                 "z",
@@ -176,7 +176,8 @@ class CreviceApiTests(unittest.TestCase):
                 self.assertEqual(image.format, "PNG")
                 self.assertGreaterEqual(round(image.info.get("dpi", (0, 0))[0]), 399)
             script = pml.read_text(encoding="utf-8")
-            self.assertIn("cmd.load(_crevice_input", script)
+            self.assertIn("cmd.load(crevice_input('mini.pdb')", script)
+            self.assertNotIn(str(root), script)
             self.assertIn("cmd.ray(2400, 1800)", script)
             self.assertIn("cmd.png(_png_target, dpi=400)", script)
             self.assertIn("crevice_cartoon", script)
@@ -245,7 +246,7 @@ class CreviceApiTests(unittest.TestCase):
                 str(root / "render.png"),
             ])
             network_status = main([
-                "network",
+                "residues", "--network",
                 str(structure),
                 "--axis",
                 "z",
@@ -259,7 +260,7 @@ class CreviceApiTests(unittest.TestCase):
                 str(chord_png),
             ])
             publish_status = main([
-                "publish",
+                "report",
                 str(structure),
                 "--axis",
                 "z",
@@ -311,7 +312,7 @@ class CreviceApiTests(unittest.TestCase):
             (cache / "1GRM.pdb").write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
 
             status = main([
-                "static-suite",
+                "report", "--suite",
                 "1GRM",
                 "--cache-dir",
                 str(cache),

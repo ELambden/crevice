@@ -38,8 +38,8 @@ def test_legend_is_below_every_label(tmp_path, monkeypatch, count, name_length, 
         original(fig, path, **kwargs)
 
     monkeypatch.setattr(figures, "_save_figure", capture)
-    out = plot_network_chord(network(count, name_length), tmp_path / "chord.png", top_n=top_n, dpi=60)
-    assert out.is_file()
+    plot_network_chord(network(count, name_length), tmp_path / "chord.png", top_n=top_n, dpi=60)
+    assert (tmp_path / "chord.png").is_file()
     assert len(captured["legends"]) == 1
     legend = captured["legends"][0]
     assert len(captured["labels"]) == min(top_n, count + 1)

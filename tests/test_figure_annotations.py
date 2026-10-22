@@ -235,7 +235,8 @@ def test_cli_annotate_is_one_flag_on_every_figure_command(tmp_path):
     figure_commands = {'region-prepare', 'region-compare', 'region-trajectory', 'hydration', 'cavity-trajectory',
                        'cast', 'profile', 'residues', 'cavities', 'network', 'residue-evidence',
                        'trajectory', 'publish', 'analyze', 'static-suite', 'fingerprint',
-                       'paths', 'track-cavities'}
+                       'paths', 'track-cavities',
+                       'report'}   # 0.4: 'report' is the publish parser; 'region' only dispatches its actions
     for name, sub in commands.items():
         flags = {s for action in sub._actions for s in action.option_strings}
         assert ('--annotate' in flags) == (name in figure_commands), name

@@ -1,6 +1,6 @@
 # Biological identity and region review
 
-CREVICE's benchmark registry (`crevice fetch --list`, `crevice benchmark`) names
+CREVICE's benchmark registry (`crevice fetch --list`, `crevice report --benchmark`) names
 a small set of public PDB entries used to exercise the workflows. Their deposited
 records support specific identities and assemblies, summarised below. These
 records do not validate the regions CREVICE selects, and they do not establish

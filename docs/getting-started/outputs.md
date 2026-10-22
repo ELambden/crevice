@@ -5,17 +5,17 @@ means when an analysis comes back unresolved.
 
 ## What a run writes
 
-The low-level commands (`profile`, `residues`, `cavities`, `tunnels`, `network`,
-`features`) write the main result file you name with `-o`. `profile`,
-`cavities`, `tunnels`, `network` and `features` also write their tables as CSV
+The low-level commands (`profile`, `residues`, `cavities`, `cavities --tunnels`, `residues --network`,
+`residues --features`) write the main result file you name with `-o`. `profile`,
+`cavities`, `cavities --tunnels`, `residues --network` and `residues --features` also write their tables as CSV
 beside it, with the same stem (for example `-o 1GRM_profile.json` gives
 `1GRM_profile.csv`, and `-o net.json` gives `net_nodes.csv` and
 `net_edges.csv`); `profile --csv PATH` chooses another path for the profile
 table, and `residues -o` is itself a CSV. Other files (`--pdb`, `--png`, ...)
 are written only when you ask for them.
 
-The workflow commands (`cast`, `publish`, `residue-evidence`, `hydration`,
-`trajectory`, `cavity-trajectory`, `region-trajectory`, `analyze`) write a
+The workflow commands (`cavities --cast`, `report`, `residues --evidence`, `trajectory --water`,
+`trajectory`, `trajectory --cavities`, `trajectory --region`, `report --analyze`) write a
 directory (`--out-dir`) with a `*_manifest.json` that lists every file and
 records the run: CREVICE version, command line, every effective setting with
 where it came from (default, `--config` file or command line), units, the
@@ -36,7 +36,7 @@ By default a bundle command writes:
 - **data**, always: the manifest, the JSON records, every CSV table, NPZ arrays
   and the measured DX maps that later commands read (`*_volume.dx`);
 - **key figures**: the figure that sums up the run (for example
-  `*_profile_radius.png` and `*_residue_contacts.png` for `publish`,
+  `*_profile_radius.png` and `*_residue_contacts.png` for `report`,
   `*_residue_evidence.png`, `*_hydration_residues.png`, or the cavity volume,
   radius and residue figures of the trajectory commands);
 - **one scene set per native viewer**: PyMOL (`.pml`), VMD (`.vmd`/`.tcl`) and
@@ -47,11 +47,11 @@ By default a bundle command writes:
 
 The **water analyses** (water contacts and occupancy, solvent-accessible area,
 water bridges, water density and the hydration scenes) no longer run by default
-in `cast`, `publish`, `analyze`, `residue-evidence`, `trajectory`,
-`cavity-trajectory` and `region-trajectory`. Request them with
+in `cavities --cast`, `report`, `report --analyze`, `residues --evidence`, `trajectory`,
+`trajectory --cavities` and `trajectory --region`. Request them with
 `--outputs default,hydration` or `--all`. They still run by default where
-water is the point of the command: `hydration`, and `cavity-trajectory` /
-`region-trajectory` with `--water-membership`. `publish` also no longer runs
+water is the point of the command: `trajectory --water`, and `trajectory --cavities` /
+`trajectory --region` with `--water-membership`. `report` also no longer runs
 the separate cavity search, tunnel search and residue network unless asked
 (`--outputs default,cavities,tunnels,network`). Residue contacts, lining
 residues and cast segments are always written.
@@ -60,17 +60,17 @@ residues and cast segments are always written.
 
 | Command | Written by default | Added by `--all` |
 |---|---|---|
-| `publish` | data; `*_profile_radius.png` and `*_residue_contacts.png`; one PyMOL, VMD and ChimeraX scene of the cast and its entry, lumen and exit segments; lining residues; typed residue interactions | cavity search, tunnel search and residue network (tables and figures); hydration; pore fingerprint; the annotated radius figure; input copy and dummy-atom PDBs; `*_pore_cast.*` and `*_pore_spheres.pml` scenes; HTML view |
-| `cast` | data, including one map per region in `regions/`; PyMOL, VMD and ChimeraX scenes of the cast; typed residue interactions | hydration (with its scenes and figures); input copy; `*_pore_cast.*` and `*_end_view.*` scenes; HTML view |
-| `analyze` | data only: the CSV and JSON of each `--analysis`, and typed residue interactions | figures (as `--png`); hydration with its scenes; HTML view |
-| `residue-evidence` | data; `*_residue_evidence.png`; PyMOL, VMD and ChimeraX `*_residue_context.*` scenes; typed residue interactions | hydration (with its scenes and figures); HTML view |
-| `hydration` | data and water-density maps; `*_hydration_residues.png`; PyMOL, VMD and ChimeraX hydration scenes; typed residue interactions | the other figures (overview, legend, density projections, trajectory heatmaps and time series); HTML view |
-| `cavity-trajectory`, `region-trajectory` | data; `*_cavity_volume_timeseries.png`, `*_cavity_radius_profile.png` and `*_cavity_residues.png`; typed residue interactions (with `--water-membership`, also hydration, its scenes and the membership files) | hydration and its scenes; every other figure (width and residue heatmaps, partner, section and free-sphere figures) |
+| `report` | data; `*_profile_radius.png` and `*_residue_contacts.png`; one PyMOL, VMD and ChimeraX scene of the cast and its entry, lumen and exit segments; lining residues; typed residue interactions | cavity search, tunnel search and residue network (tables and figures); hydration; pore fingerprint; the annotated radius figure; input copy and dummy-atom PDBs; `*_pore_cast.*` and `*_pore_spheres.pml` scenes; HTML view |
+| `cavities --cast` | data, including one map per region in `regions/`; PyMOL, VMD and ChimeraX scenes of the cast; typed residue interactions | hydration (with its scenes and figures); input copy; `*_pore_cast.*` and `*_end_view.*` scenes; HTML view |
+| `report --analyze` | data only: the CSV and JSON of each `--analysis`, and typed residue interactions | figures (as `--png`); hydration with its scenes; HTML view |
+| `residues --evidence` | data; `*_residue_evidence.png`; PyMOL, VMD and ChimeraX `*_residue_context.*` scenes; typed residue interactions | hydration (with its scenes and figures); HTML view |
+| `trajectory --water` | data and water-density maps; `*_hydration_residues.png`; PyMOL, VMD and ChimeraX hydration scenes; typed residue interactions | the other figures (overview, legend, density projections, trajectory heatmaps and time series); HTML view |
+| `trajectory --cavities`, `trajectory --region` | data; `*_cavity_volume_timeseries.png`, `*_cavity_radius_profile.png` and `*_cavity_residues.png`; typed residue interactions (with `--water-membership`, also hydration, its scenes and the membership files) | hydration and its scenes; every other figure (width and residue heatmaps, partner, section and free-sphere figures) |
 | `trajectory` | data (`-o` JSON, `*_frames.csv`, `*_profiles.csv`, per-frame residue interactions) and any file you name (`--png`, `--distribution-csv`, `--network-json`) | per-frame hydration bundles with their figures and scenes |
 
 "Data" always includes the manifest, the CSV tables, the JSON records and the
 measured maps. The low-level commands (`profile`, `residues`, `cavities`,
-`tunnels`, `network`, `features`, `fingerprint`, `paths`, `track-cavities`,
+`cavities --tunnels`, `residues --network`, `residues --features`, `profile --fingerprint`, `paths`, `trajectory --track`,
 `view`) don't take `--outputs`; they write the files described on their tool
 pages.
 
@@ -88,7 +88,7 @@ the command's defaults):
 | `extra-views` | alias and variant scenes: `*_pore_cast.*`, `*_end_view.*`, `*_pore_spheres.pml` |
 | `hydration` | the water analyses (implies `interactions`) |
 | `interactions` | typed residue–residue interactions and conformations |
-| `cavities`, `tunnels`, `network`, `fingerprint` | the extra `publish` analyses |
+| `cavities`, `tunnels`, `network`, `fingerprint` | the extra `report` analyses |
 | `default` | the command's default selection |
 | `none` | data only |
 
@@ -112,33 +112,32 @@ invented profile). The `--skip-*` flags still remove an analysis, also from
 | `--skip-interactions` | the typed residue interactions (and, with hydration, the water bridges) |
 | `--skip-water-density` | 3D water-density maps (hydration) |
 | `--skip-analysis-views` | the hydration scenes, evidence table and overview figures (the numbers are still written) |
-| `publish --skip-cavities / --skip-tunnels / --skip-network` | the extra grid searches and network |
+| `report --skip-cavities / --skip-tunnels / --skip-network` | the extra grid searches and network |
 
 The plan is printed on standard error before any work when standard error is a
 terminal (or with `CREVICE_PROGRESS=1`). `--dry-run` validates the settings,
 prints the plan and exits without reading an input or writing a file.
 
-`--legacy-outputs` reproduces the CREVICE 0.2 file set exactly (including
-hydration and all extras). It is **deprecated**: it is kept during the 0.3
-series and will be removed in a later minor release. See
-{doc}`Upgrading from 0.2 to 0.3 <upgrading-0.3>`.
+`--legacy-outputs`, which reproduced the CREVICE 0.2 file set during the 0.3
+series, was removed in 0.4; `--all` writes every file kind and optional
+analysis. See {doc}`Upgrading to 0.4 <upgrading-0.4>`.
 
 Files written by the synthetic test cases (`tests/inventory_cases.py`) and by
-`publish 1GRM|4PYP --parser gemmi --samples 101` with `--section-spacing` and
+`report 1GRM|4PYP --parser gemmi --samples 101` with `--section-spacing` and
 `--cast-spacing` 0.25 Å (1GRM) or 0.5 Å (4PYP), `--hydration-sasa-points 512`
 and `--dpi 400`:
 
 | Command | 0.2 default | 0.3 default | 0.3 `--all` |
 |---|---|---|---|
-| `publish` (1GRM) | 96 | 40 | |
-| `publish` (4PYP, no channel resolves) | 86 | 29 | |
-| `publish` (synthetic channel) | 90 | 34 | 94 |
-| `cast` (synthetic pocket) | 72 | 28 | 73 |
-| `analyze` (profile, residues) | 42 | 10 | 45 |
-| `residue-evidence` | 72 | 32 | 73 |
-| `hydration` (static / trajectory) | 43 / 53 | 40 / 48 | 44 / 54 |
-| `cavity-trajectory` | 86 | 27 | 87 |
-| `region-trajectory` | 80 | 28 | 80 |
+| `report` (1GRM) | 96 | 40 | |
+| `report` (4PYP, no channel resolves) | 86 | 29 | |
+| `report` (synthetic channel) | 90 | 34 | 94 |
+| `cavities --cast` (synthetic pocket) | 72 | 28 | 73 |
+| `report --analyze` (profile, residues) | 42 | 10 | 45 |
+| `residues --evidence` | 72 | 32 | 73 |
+| `trajectory --water` (static / trajectory) | 43 / 53 | 40 / 48 | 44 / 54 |
+| `trajectory --cavities` | 86 | 27 | 87 |
+| `trajectory --region` | 80 | 28 | 80 |
 | `trajectory` (2 static frames) | 79 | 15 | 79 |
 
 The numbers are the same in every mode: the selection changes which files are
@@ -185,21 +184,65 @@ JSON is kept only where a nested, machine-readable record is needed:
 |---|---|
 | `*_manifest.json`, `*_hydration_manifest.json`, `*_cavity_manifest.json`, `*_evidence_manifest.json`, `manifest.json` | file index, settings and status of a run |
 | `*_input_report.json`, `*_reader.json`, `reader.json`, `request.json`, `*_region_provenance.json`, `*_selection.json`, `*_hydration_alignment.json`, `*_cavity_frame_diagnostics.json` | input, reader, atom-selection and alignment provenance |
-| `*_profile.json`, `*_void_cast.json`, `*_cavities.json`, `*_tunnels.json`, `*_network.json`, `*_connectivity.json`, `*_residue_evidence.json`, `*_interactions.json`, `*_hydration.json`, `*_water_density.json`, `*_water_membership.json`, `*_cavity_statistics.json`, `*_cavity_profile_statistics.json`, `comparison.json` | full structured records (settings, metadata, nested statistics and intervals) that other commands read, for example `hydration --cavity-results`, `region-compare` and `trajectory --lining-evidence` |
+| `*_profile.json`, `*_void_cast.json`, `*_cavities.json`, `*_tunnels.json`, `*_network.json`, `*_connectivity.json`, `*_residue_evidence.json`, `*_interactions.json`, `*_hydration.json`, `*_water_density.json`, `*_water_membership.json`, `*_cavity_statistics.json`, `*_cavity_profile_statistics.json`, `comparison.json` | full structured records (settings, metadata, nested statistics and intervals) that other commands read, for example `hydration --cavity-results`, `region compare` and `trajectory --lining-evidence` |
 | `*_scene.json`, `*_analysis_scene.json`, `*_review_scene.json`, `*_volume_metadata.json`, `*_region_annotations.json`, `*.identities.json` | scene definitions and identity maps read by the viewer scripts |
 | `*_region.json`, `*_review.json` | versioned region definitions and their review diagnostics |
-| `-o` results of `profile`, `cavities`, `tunnels`, `network`, `features`, `trajectory`, and `--network-json`, `--report-json`, `fetch --json`, `benchmark --output` | the file you named; its tables are also written as CSV |
+| `-o` results of `profile`, `cavities`, `cavities --tunnels`, `residues --network`, `residues --features`, `trajectory`, and `--network-json`, `--report-json`, `fetch --json`, `report --benchmark --output` | the file you named; its tables are also written as CSV |
 
 NPZ and DX files hold grids and arrays (measured and display maps, density,
 per-frame arrays) that viewers and later commands load; their tabular content is
 also in the CSV files.
 
+(recorded-paths)=
+## Recorded paths and moving an output folder
+
+From 0.4.0, every file path that an output records (manifest file indexes,
+run records, scene and metadata JSON, region and comparison records, suite and
+benchmark summaries) is written **relative to the directory of the file that
+records it**, with `/` separators on every operating system. A manifest's
+`"files": {"volume_dx": "p_volume.dx", ...}` means `p_volume.dx` next to the
+manifest. An output folder can therefore be moved, copied to another machine
+or opened on another operating system as a whole.
+
+Some paths stay absolute (with `/` separators, for example `C:/data/prot.pdb`
+on Windows), because they point outside the folder and cannot move with it:
+input files elsewhere on disk (the run record keeps each input's SHA-256 next
+to it, so a copied input can be checked), a trajectory on another drive, and
+the reference map of a region prepared in another folder. The command line
+(`run.argv`), the input arguments (`run.inputs[].argument`) and the settings
+(`run.settings`) are recorded as typed, so that `--config` reads them back.
+
+`crevice view`, `region-compare`, `hydration --cavity-results` and the Python
+API resolve a relative path against the recording file's directory. They also
+read 0.3.x folders, whose manifests hold absolute paths of the machine that
+wrote them: a path that no longer exists is looked for inside the folder.
+`crevice.config.run` returns the file index as absolute paths. If you read a
+manifest yourself, join each path with the manifest's directory
+(`Path(manifest).parent / value`; an absolute value is used as it is).
+
+The viewer scripts (PyMOL, VMD, ChimeraX) contain no absolute path of the
+machine that wrote them. Each script names its data files relative to its own
+folder and looks for them next to itself, then in the working directory; if a
+file is in neither place the script stops with an error naming that file. Keep
+a script together with the other files of its folder (moving or copying the
+whole folder is fine). The one exception to "next to the script" is
+`profile --pymol` on a structure stored elsewhere: the script names it by a
+relative path such as `../inputs/prot.pdb` (by its file name alone when the
+two share no folder below the root), so keep the two folders in the same
+relative position or copy the structure next to the script.
+
+VMD's `-e` option does not tell a script where it is, so with `vmd -e` the
+script finds its files only in the working directory: start VMD in the output
+folder (`cd out; vmd -e 1GRM_volume.vmd`), or type `source /path/to/1GRM_volume.vmd`
+in VMD's console, which works from any folder. PyMOL and ChimeraX know the
+script's location and work from any folder.
+
 No command writes HTML unless asked: every value is in the CSV and JSON files
 above, and `--outputs viewer-html` (or `--all`) adds the interactive view.
 
-`residue-evidence --stick-residues` controls which residues its viewer
+`residues --evidence --stick-residues` controls which residues its viewer
 overlays draw as sticks (default `top:12`; see
-[`residue-evidence`](../tools/residue-evidence.md#choosing-which-residues-are-drawn-as-sticks)).
+[`residues --evidence`](../tools/residue-evidence.md#choosing-which-residues-are-drawn-as-sticks)).
 
 ## Unresolved, missing and zero are different
 
@@ -224,16 +267,16 @@ does not show that the protein is closed. A zero volume in a declared region doe
 not show a closed gate. Water absent from a static structure is not evidence of
 a dry pocket.
 
-### The `publish` fallback
+### The `report` fallback
 
-When `publish` cannot resolve a unique through-profile, it warns, records the
+When `report` cannot resolve a unique through-profile, it warns, records the
 reason and writes a 3D rolling-probe cast. It does not make up a profile. The
 cavity, tunnel and network analyses you requested (`--outputs` or `--all`)
 still run.
 `<prefix>_profile_status.json` and the manifest's `profile_status` and
 `fallback_analyses` entries record what was completed, what was skipped on
 request and what could not be completed. See
-[`publish`](../tools/publish.md#when-no-channel-resolves).
+[`report`](../tools/publish.md#when-no-channel-resolves).
 
 ## Figure and scene text (`--annotate`)
 
@@ -285,7 +328,7 @@ vision deficiency, from the channel teal and profile blue, the exit-leg green
 red-to-blue hydration scale.
 
 A resolved channel cast is split into separate objects (see
-{doc}`publish <../tools/publish>`, "Cast segments"): `crevice_entry_N` yellow
+{doc}`report <../tools/publish>`, "Cast segments"): `crevice_entry_N` yellow
 (`#f0d43a`), `crevice_lumen` teal and `crevice_exit_N` rust (`#c2410c`), each
 recolourable and hideable on its own. "Entry" and "exit" are geometric labels,
 not a transport direction. Residues lining each segment (atom centre within
@@ -303,7 +346,7 @@ Cast, evidence and hydration bundles include scene scripts for PyMOL (`.pml`),
 VMD (`.vmd`/`.tcl`) and ChimeraX (`.cxc`) by default (`--outputs pymol` etc.
 choose fewer). Keep the whole output directory
 together, because scripts refer to companion meshes, maps, PDB files and
-identity sidecars by relative path. `crevice_render` (PyMOL/VMD) and `*_render.cxc`
+identity sidecars by relative path (see {ref}`recorded-paths`). `crevice_render` (PyMOL/VMD) and `*_render.cxc`
 (ChimeraX) make high-resolution images.
 
 Always open a scene and have a look before you use it in a figure: a script
@@ -321,7 +364,7 @@ the binary map only. Display smoothing changes how the surface looks, not what
 was measured. Give the binary map, not a display map, to commands that take
 `--volume-dx` or `--reference-volume-dx`.
 
-`cast` and `publish` take `--smooth X` (X in Å, default 0.4; `0` shows the raw
+`cavities --cast` and `report` take `--smooth X` (X in Å, default 0.4; `0` shows the raw
 voxel boundary; Python `smooth=X`). It applies constrained Gaussian twicing on
 a supersampled display grid, so every measured sample keeps its inside/outside
 state and the surface moves only within boundary grid cells. The simpler

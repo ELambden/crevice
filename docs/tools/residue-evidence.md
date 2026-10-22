@@ -1,6 +1,6 @@
 # Boundary residues and their partners
 
-Once you have a cast, `crevice residue-evidence` tells you which residues form
+Once you have a cast, `crevice residues --evidence` tells you which residues form
 its wall and how much of the surface each one contributes. It also finds the
 residues that touch those wall residues from further away in the sequence, the
 second shell that holds the wall in place, and writes matching PyMOL, VMD and
@@ -9,8 +9,8 @@ ChimeraX scenes so you can look at both.
 ## Quick start
 
 ```bash
-crevice cast 4PYP --out-dir 4PYP_cast
-crevice residue-evidence 4PYP_cast/4PYP_viewer.pdb \
+crevice cavities --cast 4PYP --out-dir 4PYP_cast
+crevice residues --evidence 4PYP_cast/4PYP_viewer.pdb \
     --volume-dx 4PYP_cast/4PYP_volume.dx --out-dir 4PYP_evidence --prefix 4PYP
 ```
 
@@ -52,7 +52,7 @@ for each partner, how much of the wall it touches (right).
    sidecar that restores the original chain, residue number and insertion
    code; in 4PYP, viewer Trp380 maps back to Trp388.
 
-Use the measured binary map from `cast` or `publish`; smoothed display maps
+Use the measured binary map from `cavities --cast` or `report`; smoothed display maps
 are rejected. The map and the structure must share coordinates, so use the
 same structure that produced the cast.
 
@@ -87,7 +87,7 @@ of each.
 | `--outputs`, `--all`, `--dry-run` | compact default | add hydration, more figures or an HTML view ({ref}`output-policy`) |
 
 All options, including the shared ones, are listed under
-[`crevice residue-evidence`](../reference/cli/residue-evidence.md).
+[`crevice residues --evidence`](../reference/cli/residues.md).
 
 ## What you get
 

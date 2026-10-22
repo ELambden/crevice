@@ -1525,7 +1525,7 @@ def use_radii(radii: "RadiusSet | str | os.PathLike | None"):
     it is private to the current thread (and asyncio task) and is restored when
     the block ends, even on error.
 
-    Worker processes: ``crevice cavity-trajectory``/``region-trajectory``
+    Worker processes: ``crevice trajectory --cavities``/``trajectory --region``
     worker pools receive the set explicitly (as an initialiser argument) and
     enter it in each worker, so forked and spawned workers use the same set.
     Threads you start yourself do not inherit it; pass ``radii=`` to the
@@ -1644,7 +1644,7 @@ def radius_set_from_provenance(provenance: Mapping, *, base_dir=None) -> RadiusS
     """Rebuild the :class:`RadiusSet` that a ``radii`` provenance record describes.
 
     Used where a later step must measure with the same radii as an earlier
-    one (``region-trajectory`` with a prepared region definition,
+    one (``trajectory --region`` with a prepared region definition,
     ``hydration --cavity-results``). Candidates are tried in order and the
     first whose :attr:`RadiusSet.table_sha256` equals the recorded
     ``table_sha256`` is returned:

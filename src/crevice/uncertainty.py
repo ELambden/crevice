@@ -223,3 +223,419 @@ def block_mean_confidence(matrix, *, confidence=.95, block_length=None,
                   simultaneous_critical_value=critical,
                   half_mean_difference=(y[n//2:].mean(axis=0)-y[:n//2].mean(axis=0)).tolist())
     return result
+
+
+# ---------------------------------------------------------------------------
+# Effective sample size, blocking and moving-block bootstrap of one series.
+# ---------------------------------------------------------------------------
+
+#: Methods behind :func:`sampling_uncertainty`, recorded with every result.
+SAMPLING_METHODS = {
+    "effective_sample_size": (
+        "N / tau_int with the integrated autocorrelation time tau_int(M) = 1 + 2 * sum_{t=1..M} rho(t) "
+        "(FFT autocorrelation) and Sokal's automatic window: the smallest M with M >= 5 * tau_int(M) "
+        "(A. D. Sokal, 'Monte Carlo methods in statistical mechanics: foundations and new algorithms', "
+        "Cargese lecture notes 1996, publ. 1997; same estimator as emcee.autocorr.integrated_time)"),
+    "blocking": (
+        "Flyvbjerg-Petersen blocking (H. Flyvbjerg and H. G. Petersen, J. Chem. Phys. 91, 461 (1989)): "
+        "repeated pairwise averaging; the level is chosen automatically with the lag-one test of "
+        "M. Jonsson, Phys. Rev. E 98, 043304 (2018), as in the author's reference implementation "
+        "(github.com/computative/block, python/tictoc.py: first level k with M_k < chi2_0.99(k+1)); "
+        "an odd trailing frame is dropped at each level instead of truncating to a power of two"),
+    "block_bootstrap": (
+        "moving-block bootstrap of the mean (H. R. Kuensch, Ann. Statist. 17, 1217 (1989)): ceil(N/L) "
+        "overlapping blocks of L frames drawn with replacement; percentile interval and bootstrap SD; "
+        "L = ceil(5 * tau_int) unless given, and at least 8 blocks (N/L >= 8) are required"),
+}
+
+
+def _autocorrelation(x):
+    """Normalised autocorrelation of a centred series by zero-padded FFT."""
+    import numpy as np
+    n = len(x)
+    size = 1 << (2 * n - 1).bit_length()
+    f = np.fft.rfft(x, n=size)
+    ac = np.fft.irfft(f * f.conj(), n=size)[:n]
+    return ac / ac[0]
+
+
+def _finite_series(values):
+    import numpy as np
+    x = np.asarray(values, dtype=float)
+    if x.ndim != 1 or len(x) < 2 or not np.isfinite(x).all():
+        raise ValueError("A finite one-dimensional series of at least two values is required")
+    return x
+
+
+def integrated_autocorrelation_time(values, *, window_constant=5.0):
+    """Integrated autocorrelation time with Sokal's automatic window.
+
+    ``tau_int(M) = 1 + 2 * sum_{t=1}^{M} rho(t)`` (so ``tau_int = 1`` for
+    uncorrelated frames and the effective sample size is ``N / tau_int``); the
+    window ``M`` is the smallest lag with ``M >= window_constant * tau_int(M)``
+    (Sokal 1997; the estimator of ``emcee.autocorr.integrated_time``).
+
+    Parameters
+    ----------
+    values : sequence of float
+        Finite series of at least two values, in time order.
+    window_constant : float, default 5.0
+        Sokal's ``c``.
+
+    Returns
+    -------
+    dict
+        ``tau_int_frames`` (clipped to ``[1, N]``), ``window_frames`` ``M``,
+        ``window_converged`` (``False`` when no lag satisfied the rule, so the
+        last lag was used and ``tau_int`` is a lower bound) and
+        ``effective_sample_size`` ``N / tau_int``. A constant series gives
+        ``tau_int = 1``.
+
+    Raises
+    ------
+    ValueError
+        For a non-finite or too short series.
+
+    Examples
+    --------
+    >>> from crevice.uncertainty import integrated_autocorrelation_time
+    >>> integrated_autocorrelation_time([1.0, -1.0] * 50)["tau_int_frames"]
+    1.0
+    """
+    import numpy as np
+    x = _finite_series(values)
+    n = len(x)
+    x = x - x.mean()
+    if np.dot(x, x) <= np.finfo(float).eps * n:
+        return {"tau_int_frames": 1.0, "window_frames": 0, "window_converged": True, "effective_sample_size": float(n)}
+    tau = 2.0 * np.cumsum(_autocorrelation(x)) - 1.0
+    lags = np.arange(n)
+    passed = lags >= window_constant * tau
+    window = int(np.argmax(passed)) if passed.any() else n - 1
+    value = float(min(n, max(1.0, tau[window])))
+    return {"tau_int_frames": value, "window_frames": window, "window_converged": bool(passed.any()),
+            "effective_sample_size": n / value}
+
+
+def blocking_standard_error(values):
+    """Flyvbjerg–Petersen blocking estimate of the standard error of the mean.
+
+    The series is repeatedly averaged in adjacent pairs (block size ``2**k``
+    frames at level ``k``). The level is chosen automatically with the lag-one
+    autocovariance test of Jonsson (2018) as in his reference implementation:
+    ``M_k = sum_{j>=k} n_j (gamma_j / s_j)**2`` and the first level with
+    ``M_k < chi2.ppf(0.99, k + 1)``. The standard error is ``sqrt(s_k / n_k)``
+    with the population variance ``s_k`` of the ``n_k`` block means.
+
+    Parameters
+    ----------
+    values : sequence of float
+        Finite series of at least two values, in time order.
+
+    Returns
+    -------
+    dict
+        ``standard_error``, ``block_size_frames`` (``2**k``), ``level`` ``k``,
+        ``levels`` and ``converged`` (``False`` when the test never accepted a
+        level before the last one: more data are needed and the standard error
+        is likely an underestimate).
+
+    Raises
+    ------
+    ValueError
+        For a non-finite or too short series.
+
+    Examples
+    --------
+    >>> from crevice.uncertainty import blocking_standard_error
+    >>> r = blocking_standard_error([0.0, 1.0] * 32)   # alternating: pairs average to a constant
+    >>> r["block_size_frames"], r["standard_error"]
+    (2, 0.0)
+    """
+    import numpy as np
+    from scipy.stats import chi2
+    x = _finite_series(values)
+    mu = x.mean()
+    variances, gammas, sizes = [], [], []
+    while len(x) >= 2:
+        n = len(x)
+        gammas.append(float(np.sum((x[:-1] - mu) * (x[1:] - mu)) / n))
+        variances.append(float(x.var()))
+        sizes.append(n)
+        if n % 2:
+            x = x[:-1]
+        x = 0.5 * (x[0::2] + x[1::2])
+    s, g, n_k = np.asarray(variances), np.asarray(gammas), np.asarray(sizes, dtype=float)
+    levels = len(s)
+    if s[0] <= np.finfo(float).eps * max(1.0, abs(mu)):
+        return {"standard_error": 0.0, "block_size_frames": 1, "level": 0, "levels": levels, "converged": True}
+    with np.errstate(divide="ignore", invalid="ignore"):
+        terms = np.where(s > 0, n_k * (g / s) ** 2, 0.0)
+    statistic = np.cumsum(terms[::-1])[::-1]
+    level = levels - 1
+    for k in range(levels):
+        if statistic[k] < chi2.ppf(0.99, k + 1):
+            level = k
+            break
+    return {"standard_error": float(np.sqrt(s[level] / n_k[level])), "block_size_frames": int(2 ** level),
+            "level": int(level), "levels": int(levels), "converged": bool(level < levels - 1)}
+
+
+def moving_block_bootstrap(values, *, block_length, confidence=0.95, replicates=2000, seed=20261020):
+    """Moving-block bootstrap of the mean of a serially correlated series.
+
+    ``ceil(N / L)`` of the ``N - L + 1`` overlapping blocks of ``L`` frames are
+    drawn with replacement; each replicate mean is the mean of the drawn block
+    means (Künsch 1989).
+
+    Parameters
+    ----------
+    values : sequence of float
+        Finite series, in time order.
+    block_length : int
+        Block length ``L`` in frames, ``1 <= L <= N``.
+    confidence : float, default 0.95
+        Level of the two-sided percentile interval.
+    replicates : int, default 2000
+        Bootstrap replicates.
+    seed : int, default 20261020
+        Seed of the NumPy generator (reproducible).
+
+    Returns
+    -------
+    dict
+        ``standard_error`` (SD of the replicate means), ``lower``, ``upper``,
+        ``block_length_frames``, ``block_count`` and ``replicates``.
+
+    Examples
+    --------
+    >>> from crevice.uncertainty import moving_block_bootstrap
+    >>> r = moving_block_bootstrap([1.0, 2.0, 3.0, 4.0] * 10, block_length=4)
+    >>> r["block_count"], round(r["standard_error"], 3)
+    (10, 0.0)
+    """
+    import numpy as np
+    x = _finite_series(values)
+    n = len(x)
+    length = int(block_length)
+    if not 1 <= length <= n:
+        raise ValueError("block_length must lie between 1 and the series length")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence must lie strictly between 0 and 1")
+    cumulative = np.concatenate(([0.0], np.cumsum(x)))
+    block_means = (cumulative[length:] - cumulative[:-length]) / length
+    count = int(math.ceil(n / length))
+    rng = np.random.default_rng(seed)
+    means = np.empty(int(replicates))
+    for first in range(0, int(replicates), 512):
+        stop = min(int(replicates), first + 512)
+        means[first:stop] = block_means[rng.integers(0, len(block_means), size=(stop - first, count))].mean(axis=1)
+    alpha = (1 - confidence) / 2
+    lower, upper = np.quantile(means, [alpha, 1 - alpha])
+    return {"standard_error": float(means.std(ddof=1)), "lower": float(lower), "upper": float(upper),
+            "block_length_frames": length, "block_count": count, "replicates": int(replicates)}
+
+
+#: Fields of :func:`sampling_uncertainty` repeated as columns by the summary tables.
+SAMPLING_FIELDS = (
+    "status", "effective_sample_size", "integrated_autocorrelation_time_frames", "autocorrelation_window_frames",
+    "blocking_standard_error", "blocking_block_size_frames", "block_bootstrap_status",
+    "block_bootstrap_lower", "block_bootstrap_upper", "block_bootstrap_standard_error",
+    "block_bootstrap_block_length_frames",
+)
+
+
+def sampling_uncertainty(values, *, confidence=0.95, replicates=2000, seed=20261020, block_length=None,
+                         regular=True, min_frames=20, min_blocks=8):
+    """Effective sample size, blocking standard error and block-bootstrap interval of a frame series.
+
+    Additive companion of the batch-bootstrap ``confidence_interval``
+    reported by :func:`crevice.cavity_trajectory.describe_series` (which is
+    unchanged): the methods are listed in :data:`SAMPLING_METHODS`.
+
+    Parameters
+    ----------
+    values : sequence of float
+        One value per frame in time order; NaN marks a missing frame.
+    confidence : float or None, default 0.95
+        Level of the bootstrap interval; ``None`` or 0 skips the bootstrap
+        (effective sample size and blocking are still reported).
+    replicates : int, default 2000
+        Bootstrap replicates.
+    seed : int, default 20261020
+        Bootstrap seed.
+    block_length : int, optional
+        Bootstrap block length in frames; default ``ceil(5 * tau_int)``.
+    regular : bool, default True
+        Whether frames are evenly spaced in time; ``False`` withholds every estimate.
+    min_frames : int, default 20
+        Fewer frames withhold every estimate.
+    min_blocks : int, default 8
+        The bootstrap needs ``N / L >= min_blocks``.
+
+    Returns
+    -------
+    dict
+        ``status`` (``"estimated"``, ``"unavailable_missing_frames"``,
+        ``"unavailable_irregular_timestamps"``, ``"unavailable_too_few_frames"``,
+        ``"unavailable_observed_constant"``), ``frame_count``,
+        ``effective_sample_size``, ``integrated_autocorrelation_time_frames``,
+        ``autocorrelation_window_frames``, ``autocorrelation_window_converged``,
+        ``blocking_standard_error``, ``blocking_block_size_frames``,
+        ``blocking_converged``, ``block_bootstrap_status`` (``"estimated"``,
+        ``"insufficient_blocks"``, ``"not_requested"`` or the overall
+        status), ``block_bootstrap_lower``/``block_bootstrap_upper`` (bounds
+        on the mean), ``block_bootstrap_standard_error``,
+        ``block_bootstrap_block_length_frames``,
+        ``block_bootstrap_block_length_source`` (``"ceil(5*tau_int)"`` or
+        ``"user"``), ``block_bootstrap_block_count``, ``confidence``,
+        ``replicates``, ``seed`` and ``methods``. Estimates absent for a status
+        are ``None``.
+
+    Notes
+    -----
+    All three estimates assume a stationary series and are biased low when
+    the series is short compared with its correlation time (see
+    the AR(1) table in the uncertainty method note); a
+    non-converged window or blocking level flags that case. They describe
+    sampling uncertainty of the mean only, not force-field or model error.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from crevice.uncertainty import sampling_uncertainty
+    >>> r = sampling_uncertainty(np.random.default_rng(0).normal(size=400))
+    >>> r["status"], r["block_bootstrap_status"], round(r["integrated_autocorrelation_time_frames"]) == 1
+    ('estimated', 'estimated', True)
+    """
+    import numpy as np
+    x = np.asarray(values, dtype=float)
+    n = int(len(x))
+    result = {"status": "estimated", "frame_count": n, "effective_sample_size": None,
+              "integrated_autocorrelation_time_frames": None, "autocorrelation_window_frames": None,
+              "autocorrelation_window_converged": None, "blocking_standard_error": None,
+              "blocking_block_size_frames": None, "blocking_converged": None,
+              "block_bootstrap_status": None, "block_bootstrap_lower": None, "block_bootstrap_upper": None,
+              "block_bootstrap_standard_error": None, "block_bootstrap_block_length_frames": None,
+              "block_bootstrap_block_length_source": None, "block_bootstrap_block_count": None,
+              "confidence": confidence or None, "replicates": int(replicates), "seed": seed,
+              "methods": SAMPLING_METHODS,
+              "assumptions": "stationary representative trajectory; frames evenly spaced in time"}
+    if x.ndim != 1 or n == 0 or np.isinf(x).any():
+        raise ValueError("values must be a one-dimensional series without infinities")
+    if not np.isfinite(x).all():
+        status = "unavailable_missing_frames"
+    elif not regular:
+        status = "unavailable_irregular_timestamps"
+    elif n < min_frames:
+        status = "unavailable_too_few_frames"
+    elif np.ptp(x) == 0:
+        status = "unavailable_observed_constant"
+    else:
+        status = None
+    if status is not None:
+        result.update(status=status, block_bootstrap_status=status)
+        return result
+    tau = integrated_autocorrelation_time(x)
+    blocking = blocking_standard_error(x)
+    result.update(effective_sample_size=tau["effective_sample_size"],
+                  integrated_autocorrelation_time_frames=tau["tau_int_frames"],
+                  autocorrelation_window_frames=tau["window_frames"],
+                  autocorrelation_window_converged=tau["window_converged"],
+                  blocking_standard_error=blocking["standard_error"],
+                  blocking_block_size_frames=blocking["block_size_frames"],
+                  blocking_converged=blocking["converged"])
+    if not confidence:
+        result["block_bootstrap_status"] = "not_requested"
+        return result
+    if block_length is not None:
+        length, source = int(block_length), "user"
+    else:
+        length, source = max(1, int(math.ceil(5 * tau["tau_int_frames"]))), "ceil(5*tau_int)"
+    result.update(block_bootstrap_block_length_frames=length, block_bootstrap_block_length_source=source)
+    if length > n or n / length < min_blocks:
+        result["block_bootstrap_status"] = "insufficient_blocks"
+        return result
+    boot = moving_block_bootstrap(x, block_length=length, confidence=confidence, replicates=replicates, seed=seed)
+    result.update(block_bootstrap_status="estimated", block_bootstrap_lower=boot["lower"],
+                  block_bootstrap_upper=boot["upper"], block_bootstrap_standard_error=boot["standard_error"],
+                  block_bootstrap_block_count=boot["block_count"])
+    return result
+
+
+def trajectory_frame_statistics(analysis, *, confidence=0.95, block_length=None, replicates=2000, seed=20260913):
+    """Per-frame summary statistics of a :func:`crevice.trajectory.analyze_trajectory` result.
+
+    Every per-frame quantity of the analyses that were run (the numeric
+    columns of ``*_frames.csv``: ``min_radius_A``, ``mean_radius_A``,
+    ``max_radius_A`` and ``bottleneck_axis_position_A`` for profiles;
+    ``residue_contact_count``; ``cavity_count``; ``tunnel_count``;
+    ``network_node_count`` and ``network_edge_count``) is described with
+    :func:`crevice.cavity_trajectory.describe_series`: frame quantiles, the
+    batch-bootstrap ``confidence_interval`` and the ``sampling_uncertainty``
+    record (effective sample size, blocking standard error and moving-block
+    bootstrap interval with the block sizes used). Frames without a profile are
+    missing values, so profile quantities of such a trajectory get coverage
+    only and no interval.
+
+    Parameters
+    ----------
+    analysis : TrajectoryAnalysis
+        Result of :func:`crevice.trajectory.analyze_trajectory`.
+    confidence : float, default 0.95
+        Interval level; 0 or ``None`` reports descriptive statistics,
+        effective sample sizes and blocking only (no intervals).
+    block_length : int, optional
+        Bootstrap block length in frames (both bootstraps); automatic by default.
+    replicates : int, default 2000
+        Bootstrap replicates.
+    seed : int, default 20260913
+        Bootstrap seed.
+
+    Returns
+    -------
+    dict
+        ``quantities`` (name to statistics record), ``frame_count``,
+        ``time_ps`` (first, last), ``regular_sampling``, ``analyses``,
+        ``definition`` and ``methods``. Flatten with
+        :func:`crevice.io.summary_statistics_rows`.
+    """
+    import numpy as np
+    from .cavity_trajectory import describe_series
+    frames = list(analysis.frames)
+    n = len(frames)
+    times = [f.time for f in frames]
+    known = [t for t in times if t is not None]
+    regular = len(known) == n and (n < 3 or bool(np.allclose(np.diff(known), np.diff(known)[0], rtol=1e-7, atol=1e-7)))
+    regular = regular and (n < 2 or bool(np.all(np.diff(known) > 0)))
+
+    def series(get):
+        return np.asarray([np.nan if (value := get(f)) is None or value == "" else float(value) for f in frames])
+
+    analyses = set(analysis.analyses)
+    wanted = {}
+    if "profile" in analyses:
+        wanted.update(min_radius_A=lambda f: f.profile.min_radius if f.profile else None,
+                      mean_radius_A=lambda f: f.profile.mean_radius if f.profile else None,
+                      max_radius_A=lambda f: f.profile.max_radius if f.profile else None,
+                      bottleneck_axis_position_A=lambda f: f.profile.bottleneck.t if f.profile else None)
+    if "residues" in analyses:
+        wanted["residue_contact_count"] = lambda f: len(f.residue_contacts)
+    if "cavities" in analyses:
+        wanted["cavity_count"] = lambda f: len(f.cavities)
+    if "tunnels" in analyses:
+        wanted["tunnel_count"] = lambda f: len(f.tunnels)
+    if "network" in analyses:
+        wanted["network_node_count"] = lambda f: len(f.network.nodes) if f.network else (f.metadata or {}).get("network_node_count")
+        wanted["network_edge_count"] = lambda f: len(f.network.edges) if f.network else (f.metadata or {}).get("network_edge_count")
+    options = dict(confidence=confidence or 0.95, block_length=block_length, replicates=replicates, seed=seed,
+                   regular=regular and bool(confidence))
+    quantities = {name: describe_series(series(get), **options) for name, get in wanted.items()}
+    return {"quantities": quantities, "frame_count": n,
+            "time_ps": [known[0], known[-1]] if known else None, "regular_sampling": regular,
+            "analyses": sorted(analyses), "confidence": confidence or None,
+            "definition": "statistics over analysed frames in time order; missing values are frames without the "
+                          "quantity (for example an unresolved profile)",
+            "methods": SAMPLING_METHODS,
+            "limitations": "sampling uncertainty of the mean for a stationary trajectory only; not force-field, "
+                           "model or geometric-definition error (see --sensitivity for definitions)"}

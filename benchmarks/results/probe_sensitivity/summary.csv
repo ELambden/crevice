@@ -1,0 +1,13 @@
+# Per channel: how many of the 13 variants change the status, the chosen probe or the minimum radius (> 0.01 A).
+id,options_used,default_status,default_probe_A,default_min_radius_A,variants,status_changed,probe_changed,min_radius_changed_gt_0.01A,max_abs_min_radius_change_A,wall_s
+1GRM,default,resolved,0.8000,1.3379,13,0,0,0,0.0000,3.5466
+1K4C,default,unresolved,,,13,0,0,0,,5.6301
+1LNQ,default,unresolved,,,13,0,0,0,,2.2259
+1J4N,lateral_exits,resolved,0.7000,1.8487,13,2,2,0,0.0000,345.8866
+2OMF,lateral_exits,resolved,1.4000,3.7248,13,1,1,0,0.0000,52.5190
+4HFI,default,resolved,2.0000,2.7237,13,2,2,0,0.0000,12.7127
+2BG9,lateral_exits,resolved,2.2000,2.7158,13,3,3,0,0.0000,89.5864
+1OED,default,resolved,2.4000,3.2653,13,2,4,0,0.0011,11.8957
+2VV5,lateral_exits_search12,resolved,2.4000,6.1829,13,2,2,0,0.0000,444.5061
+2OAU,lateral_exits,resolved,1.2000,2.5794,13,0,1,0,0.000129121,697.5251
+3UKM,lateral_exits,resolved,0.5500,0.6367,13,3,3,0,0.0000,87.6657

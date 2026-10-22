@@ -96,7 +96,7 @@ def manifest_for(out_dir, prefix):
 
 def test_analyze_accepts_a_local_file(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--samples", "5", "--search-radius", "0"]) == 0
     data = manifest_for(out, "local")
     assert data["source"]["kind"] == "local_file"
@@ -106,7 +106,7 @@ def test_analyze_accepts_a_local_file(tmp_path, local_cif, network):
 
 def test_analyze_accepts_an_accession_and_fetches_it(tmp_path, network):
     out = tmp_path / "out"
-    assert main(["analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
+    assert main(["report", "--analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
                  "--out-dir", str(out), "--samples", "5", "--search-radius", "0"]) == 0
     data = manifest_for(out, "1GRM")
     assert data["source"]["kind"] == "downloaded"
@@ -117,26 +117,26 @@ def test_analyze_accepts_an_accession_and_fetches_it(tmp_path, network):
 def test_a_cached_accession_is_not_refetched(tmp_path, network):
     cache = tmp_path / "cache"
     for index in range(2):
-        assert main(["analyze", "1GRM", "--cache-dir", str(cache),
+        assert main(["report", "--analyze", "1GRM", "--cache-dir", str(cache),
                      "--out-dir", str(tmp_path / f"out{index}"),
                      "--samples", "5", "--search-radius", "0"]) == 0
     assert len(network) == 1
 
 
 def test_offline_uncached_accession_fails_with_advice(tmp_path, network, capsys):
-    assert main(["analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
+    assert main(["report", "--analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
                  "--out-dir", str(tmp_path / "out"), "--offline"]) == 2
     assert "--offline" in capsys.readouterr().err
     assert network == []
 
 
 def test_an_unresolvable_argument_is_reported(tmp_path, network, capsys):
-    assert main(["analyze", "not-a-thing", "--out-dir", str(tmp_path / "out")]) == 2
+    assert main(["report", "--analyze", "not-a-thing", "--out-dir", str(tmp_path / "out")]) == 2
     assert "neither an existing file nor a PDB accession" in capsys.readouterr().err
 
 
 def test_assembly_flag_reaches_the_download_url(tmp_path, network):
-    assert main(["analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
+    assert main(["report", "--analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
                  "--assembly", "1", "--out-dir", str(tmp_path / "out"),
                  "--samples", "5", "--search-radius", "0"]) == 0
     assert network == ["https://files.rcsb.org/download/1GRM-assembly1.cif"]
@@ -144,7 +144,7 @@ def test_assembly_flag_reaches_the_download_url(tmp_path, network):
 
 def test_parser_choice_is_recorded_in_the_manifest(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out), "--parser", "builtin",
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out), "--parser", "builtin",
                  "--samples", "5", "--search-radius", "0"]) == 0
     assert manifest_for(out, "local")["parser_report"]["parser"] == "builtin"
 
@@ -152,7 +152,7 @@ def test_parser_choice_is_recorded_in_the_manifest(tmp_path, local_cif, network)
 def test_default_parser_is_the_validated_one(tmp_path, local_cif, network):
     pytest.importorskip("gemmi")
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--samples", "5", "--search-radius", "0"]) == 0
     assert manifest_for(out, "local")["parser_report"]["parser"] == "gemmi"
 
@@ -161,7 +161,7 @@ def test_default_parser_is_the_validated_one(tmp_path, local_cif, network):
 
 def test_default_analyses_are_profile_and_residues(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--samples", "5", "--search-radius", "0"]) == 0
     data = manifest_for(out, "local")
     assert data["analyses"] == ["profile", "residues"]
@@ -174,7 +174,7 @@ def test_default_analyses_are_profile_and_residues(tmp_path, local_cif, network)
 
 def test_requested_analyses_select_the_outputs(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--analysis", "cavities", "--analysis", "features",
                  "--samples", "5", "--search-radius", "0",
                  "--cavity-spacing", "3"]) == 0
@@ -183,12 +183,13 @@ def test_requested_analyses_select_the_outputs(tmp_path, local_cif, network):
     assert "cavities.json" in data["files"]
     assert "profile.json" not in data["files"]
     for path in data["files"].values():
+        path = out / path   # recorded relative to the manifest
         assert Path(path).is_file()
 
 
 def test_repeated_analyses_are_deduplicated(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--analysis", "profile", "--analysis", "profile",
                  "--samples", "5", "--search-radius", "0"]) == 0
     assert manifest_for(out, "local")["analyses"] == ["profile"]
@@ -198,19 +199,20 @@ def test_repeated_analyses_are_deduplicated(tmp_path, local_cif, network):
 def test_every_analysis_choice_runs_and_writes_its_outputs(tmp_path, local_cif, network, analysis):
     """Each choice must actually execute; a subset check hid a missing import."""
     out = tmp_path / analysis
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--analysis", analysis, "--samples", "5", "--search-radius", "0",
                  "--cavity-spacing", "3", "--tunnel-spacing", "3"]) == 0
     data = manifest_for(out, "local")
     assert data["analyses"] == [analysis]
     assert data["files"], f"{analysis} wrote no files"
     for path in data["files"].values():
+        path = out / path   # recorded relative to the manifest
         assert Path(path).is_file(), f"{analysis} listed a file it did not write"
 
 
 def test_all_analyses_together_run_in_one_invocation(tmp_path, local_cif, network):
     out = tmp_path / "all"
-    command = ["analyze", str(local_cif), "--out-dir", str(out),
+    command = ["report", "--analyze", str(local_cif), "--out-dir", str(out),
                "--samples", "5", "--search-radius", "0",
                "--cavity-spacing", "3", "--tunnel-spacing", "3"]
     for analysis in ANALYSES:
@@ -219,24 +221,25 @@ def test_all_analyses_together_run_in_one_invocation(tmp_path, local_cif, networ
     data = manifest_for(out, "local")
     assert data["analyses"] == list(ANALYSES)
     for path in data["files"].values():
+        path = out / path   # recorded relative to the manifest
         assert Path(path).is_file()
 
 
 def test_unknown_analysis_is_rejected_by_the_parser(tmp_path, local_cif):
     with pytest.raises(SystemExit):
-        main(["analyze", str(local_cif), "--out-dir", str(tmp_path), "--analysis", "magic"])
+        main(["report", "--analyze", str(local_cif), "--out-dir", str(tmp_path), "--analysis", "magic"])
 
 
 def test_manifest_states_that_nothing_is_curated(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out),
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--samples", "5", "--search-radius", "0"]) == 0
     assert "no curated axis" in manifest_for(out, "local")["interpretation"]
 
 
 def test_prefix_overrides_the_output_names(tmp_path, local_cif, network):
     out = tmp_path / "out"
-    assert main(["analyze", str(local_cif), "--out-dir", str(out), "--prefix", "run7",
+    assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out), "--prefix", "run7",
                  "--samples", "5", "--search-radius", "0"]) == 0
     assert (out / "run7_manifest.json").is_file()
 

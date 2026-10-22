@@ -20,6 +20,8 @@ import itertools
 import json
 import math
 from pathlib import Path
+from ._portable_paths import dumps_record
+from ._script_paths import PYMOL_INPUT, script_relative, tcl_input_proc
 
 from .models import VoidCast
 
@@ -620,7 +622,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
         (:func:`crevice.channel_exits.lateral_exit_casts`), written as
         ``PREFIX_exit_casts.dx``. Without ``segments`` each leg is drawn as an
         EXIT segment (``crevice_exit_N``); ``PREFIX_volume.dx`` and the
-        measured volume stay those of ``cast``.
+        measured volume stay those of ``cavities --cast``.
     mouth_guides : bool, optional
         Draw the channel-mouth rings. ``None`` (default) follows
         :func:`crevice.presentation.mouth_guides_enabled` (off unless
@@ -636,7 +638,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     segments : sequence of VoidComponent, optional
         ENTRY/EXIT segment casts on the cast's lattice
         (:func:`crevice.cast_segments.segment_casts`; metadata ``segment``).
-        When given (even empty) the scene draws ``cast`` as ``crevice_lumen``
+        When given (even empty) the scene draws ``cavities --cast`` as ``crevice_lumen``
         and each segment as its own object instead of ``crevice_volume``;
         display extension nodes beyond a mouth that has a segment are dropped.
         Cannot be combined with ``regions``.
@@ -730,6 +732,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     root = Path(output_dir).resolve()
     root.mkdir(parents=True, exist_ok=True)
     structure = Path(structure_path).resolve()
+    structure_ref = script_relative(structure, root)
     dx = write_void_cast_dx(cast, root / f"{prefix}_volume.dx")
     display = extend_channel_cast(cast, frame, cast_extension) if frame is not None else cast
     channel_display = display
@@ -804,7 +807,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
     geometry_path = root / f"{prefix}_scene.json"
     write_scene = wants(geometry_path)
     if write_scene:
-        geometry_path.write_text(json.dumps(geometry, indent=2)+'\n', encoding="utf-8", newline="\n")
+        geometry_path.write_text(dumps_record(geometry, geometry_path, indent=2)+'\n', encoding="utf-8", newline="\n")
     basis = cast.metadata.get('grid_basis', ((1,0,0),(0,1,0),(0,0,1)))
     matrix = [basis[j][i] if j < 3 else 0 for i in range(3) for j in range(4)] + [0,0,0,1]
     manifest = {"volume_dx": str(dx), "display_dx": str(shown_dx),
@@ -853,7 +856,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
                 f'cmd.color("crevice_region_color_{index}", {obj!r})',
                 f'cmd.set("cgo_transparency", {1-opacity}, {obj!r})']
             color_id = 17+(index-1)%8
-            region_tcl += [f'set crevice_region [mol new [file join $crevice_root {_tcl_word(world_path.name)}] type dx waitfor all]',
+            region_tcl += [f'set crevice_region [mol new [crevice_input {_tcl_word(world_path.name)}] type dx waitfor all]',
                 'mol delrep 0 $crevice_region', 'mol representation Isosurface 0.5 0 0 0 1 1',
                 f'mol color ColorID {color_id}', 'mol material '+('CREVICEOtherVoid' if opacity<1 else 'CREVICECast'), 'mol addrep $crevice_region',
                 f'color change rgb {color_id} '+' '.join(str(x) for x in color),
@@ -862,7 +865,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
                                 'volume_dx':str(world_path), 'pymol_local_dx':str(local_path)})
         region_manifest = root/f'{prefix}_display_regions.json'
         if wants(region_manifest):
-            region_manifest.write_text(json.dumps(region_rows,indent=2)+'\n', encoding="utf-8", newline="\n")
+            region_manifest.write_text(dumps_record(region_rows,region_manifest,indent=2)+'\n', encoding="utf-8", newline="\n")
         manifest['display_regions_json'] = str(region_manifest)
     segment_rows = []
     from .cast_segments import SEGMENT_RGB
@@ -924,7 +927,7 @@ def write_volume_viewer_bundle(cast: VoidCast, *, structure_path, output_dir,
                                                              'pymol_selection', 'chimerax_name', 'shown_by_default')}
                                          for r in lining_rows]
         if write_scene:
-            geometry_path.write_text(json.dumps(geometry, indent=2)+'\n', encoding="utf-8", newline="\n")
+            geometry_path.write_text(dumps_record(geometry, geometry_path, indent=2)+'\n', encoding="utf-8", newline="\n")
     if write_reference:
         np.savez_compressed(reference_path, points=reference_points, boundary_points=boundary_points,
                             surface_vertices=np.concatenate(expected_surfaces),
@@ -985,22 +988,15 @@ import json
 from pymol import cmd
 from pymol.cgo import CYLINDER, BEGIN, END, TRIANGLES, NORMAL, VERTEX
 import numpy as np
-_crevice_script_root = Path(getattr(cmd._pymol, "__script__",
-    inspect.currentframe().f_code.co_filename)).resolve().parent
-def crevice_input(name, fallback):
-    for directory in (_crevice_script_root, Path.cwd(), Path(fallback).parent):
-        path = directory / name
-        if path.is_file():
-            return str(path)
-    raise FileNotFoundError(name)
+{PYMOL_INPUT}
 for name in ("crevice_protein", "crevice_volume", "crevice_mouths"):
     cmd.delete(name)
 cmd.delete("crevice_volume_region_*")
 cmd.delete("crevice_grid")
 cmd.delete("crevice_region_grid*")
-cmd.load(crevice_input({structure.name!r}, {str(structure)!r}), "crevice_protein", state=1)
+cmd.load(crevice_input({structure_ref!r}), "crevice_protein", state=1)
 # Standalone triangle surfaces survive map deletion and later scene rebuilds.
-crevice_mesh = np.load(crevice_input({mesh_path.name!r}, {str(mesh_path)!r}), allow_pickle=False)
+crevice_mesh = np.load(crevice_input({script_relative(mesh_path, root)!r}), allow_pickle=False)
 def crevice_surface(name, key):
     faces = crevice_mesh[key+"_faces"]
     body = np.empty((len(faces), 3, 8), dtype=float)
@@ -1049,7 +1045,7 @@ cmd.set("ambient_occlusion_smooth", 10)
 cmd.set("specular", 0.08)
 cmd.set("shininess", 18)
 cmd.set("antialias", 2)
-with open(crevice_input({geometry_path.name!r}, {str(geometry_path)!r})) as handle:
+with open(crevice_input({script_relative(geometry_path, root)!r})) as handle:
     crevice_scene = json.load(handle)
 crevice_cgo = []
 for ring in (crevice_scene["mouth_rings"] if crevice_scene.get("mouth_rings_drawn") else []):
@@ -1105,7 +1101,7 @@ python end
                 segment_tcl.append('mol rename $crevice_volume crevice_lumen')
                 continue
             color_id = 26 if row['segment_type'] == 'entry' else 27
-            segment_tcl += [f'set crevice_segment [mol new [file join $crevice_root {_tcl_word(Path(row["display_dx"]).name)}] type dx waitfor all]',
+            segment_tcl += [f'set crevice_segment [mol new [crevice_input {_tcl_word(Path(row["display_dx"]).name)}] type dx waitfor all]',
                             'mol delrep 0 $crevice_segment', 'mol representation Isosurface 0.5 0 0 0 1 1',
                             f'mol color ColorID {color_id}', 'mol material CREVICECast', 'mol addrep $crevice_segment',
                             f'mol rename $crevice_segment {row["vmd_molecule"]}',
@@ -1126,8 +1122,7 @@ python end
         segment_list = ' $crevice_segment_molecules'
     tcl_text = (f'''# Measured grid: {dx.name}; display-only continuation: {shown_dx.name}
 set crevice_root [file dirname [file normalize [info script]]]
-set crevice_structure [file join $crevice_root {_tcl_word(structure.name)}]
-if {{![file exists $crevice_structure]}} {{set crevice_structure {_tcl_word(str(structure))}}}
+{tcl_input_proc()}set crevice_structure [crevice_input {_tcl_word(structure_ref)}]
 set crevice_protein [mol new $crevice_structure waitfor all]
 mol delrep 0 $crevice_protein
 if {{[lsearch -exact [material list] CREVICEContext] < 0}} {{material add CREVICEContext}}
@@ -1140,7 +1135,7 @@ mol selection all
 mol color ColorID 2
 mol material CREVICEContext
 mol addrep $crevice_protein
-set crevice_volume [mol new [file join $crevice_root {_tcl_word(vmd_main_dx.name)}] type dx waitfor all]
+set crevice_volume [mol new [crevice_input {_tcl_word(vmd_main_dx.name)}] type dx waitfor all]
 mol delrep 0 $crevice_volume
 mol selection all
 mol representation Isosurface 0.5 0 0 0 1 1
@@ -1211,7 +1206,7 @@ proc crevice_render {{}} {{
     # ChimeraX changes to the command script's directory while opening .cxc.
     # Its APBS/OpenDX reader ignores off-diagonal delta directions. Load the
     # orthogonal local map and explicitly place each model in input coordinates.
-    commands = [f"open {json.dumps(structure.name if structure.parent == root else str(structure))} id #1",
+    commands = [f"open {json.dumps(structure_ref)} id #1",
                 f"open {json.dumps(Path(segment_rows[0]['display_local_dx']).name if segment_rows and segment_rows[0]['segment'] == 'lumen' else local_dx.name)} id #2",
                 "view matrix models #2,"+",".join(f"{v:.12g}" for v in matrix[:12]),
                 "hide #1 atoms", "cartoon #1", "color #1 #8fa1b3",
@@ -1255,7 +1250,7 @@ proc crevice_render {{}} {{
     display_smoothing = smoothing.metadata(display.spacing, cast_grid(display)[0].shape)
     info = root / f"{prefix}_volume_metadata.json"
     drop_blocked(manifest)
-    (info.write_text if wants(info) else _no_write)(json.dumps({"spacing_A": cast.spacing, "isovalue": 0.5,
+    (info.write_text if wants(info) else _no_write)(dumps_record({"spacing_A": cast.spacing, "isovalue": 0.5,
                   "grid_value": "selected_void_occupancy", "smoothing": smoothing.width_A > 0,
                   "surface_smoothing_A": smoothing.width_A if smoothing.option == 'surface_smoothing' else None,
                   "smooth_A": smoothing.width_A if smoothing.option != 'surface_smoothing' else None,
@@ -1293,7 +1288,7 @@ proc crevice_render {{}} {{
                   "connectivity": cast.metadata.get("connectivity"),
                   "component_ids": [c.id for c in cast.components],
                   "display_regions": region_rows,
-                  "files": manifest}, indent=2) + "\n", encoding="utf-8", newline="\n")
+                  "files": manifest}, info, indent=2) + "\n", encoding="utf-8", newline="\n")
     manifest["volume_metadata_json"] = str(info)
     return drop_blocked(manifest)
 

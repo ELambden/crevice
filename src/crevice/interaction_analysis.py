@@ -14,6 +14,7 @@ Interpretation
     descriptive, not interaction energies or evidence of functional control.
 """
 from pathlib import Path
+from ._portable_paths import dumps_record
 from collections import defaultdict
 import csv
 import json
@@ -242,7 +243,7 @@ def write_interaction_bundle(result, output_dir, prefix, *, times=None, hydratio
     <prefix>_interactions.json : JSON
         Full structured report (edge occupancy statistics with example and
         reference observations, conformation summaries, chemistry metadata),
-        read by the analysis scenes and ``region-compare``.
+        read by the analysis scenes and ``region compare``.
     <prefix>_interaction_edges.csv : table
         One row per typed residue pair: ``kind``, ``source``, ``target``,
         observed and denominator frames, ``observed_occupancy``,
@@ -348,7 +349,7 @@ def write_interaction_bundle(result, output_dir, prefix, *, times=None, hydratio
               'residues':conformations,'residue_ids':ids,
               'torsion_interpretation':'circular summaries and coarse chi1 bins; endpoint hydration/step associations are descriptive, with no causal or kinetic claim',
               'confidence_interpretation':'pointwise approximate occupancy intervals only; no simultaneous family-wide confidence or chemistry/systematic uncertainty'}
-    path('interaction_json','_interactions.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('interaction_json','_interactions.json')).write_text(dumps_record(report,_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     edge_fields = ['kind','source','target','observed_frames','denominator_frames','observed_occupancy',
                    'mean_minimum_contact_distance_A','mean_observed_angle_degrees','example_frame_row',
                    'CI_status','mean_occupancy_lower','mean_occupancy_upper']

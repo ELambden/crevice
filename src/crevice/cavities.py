@@ -16,7 +16,7 @@ Assumptions and limitations
     connected to bulk by a channel narrower than the probe, or than the grid
     can resolve, is reported as buried. Open pockets and channels are
     deliberately not cavities here; use :func:`crevice.rolling.rolling_probe_cast`
-    (command ``crevice cast``) for pockets and open regions. A cavity is a
+    (command ``crevice cavities --cast``) for pockets and open regions. A cavity is a
     geometric finding, not evidence of function or of water occupancy.
 """
 

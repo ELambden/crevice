@@ -126,7 +126,7 @@ def test_option_resolution_and_conflict():
 def test_cli_smooth_options():
     from crevice.cli import build_parser
     parser = build_parser()
-    for command in (['cast', 'input.pdb', '--out-dir', 'out'], ['publish', 'input.pdb', '--out-dir', 'out']):
+    for command in (['cavities', '--cast', 'input.pdb', '--out-dir', 'out'], ['report', 'input.pdb', '--out-dir', 'out']):
         args = parser.parse_args(command)
         assert args.smooth is None and args.surface_smoothing is None
         assert parser.parse_args(command+['--smooth', '0.9']).smooth == .9
@@ -168,7 +168,7 @@ def test_bundle_metadata_mesh_and_measured_dx(channel_display, tmp_path):
         k = smoothing['supersample_factor']
         assert counts == tuple(k*(n-1)+1 for n in display_shape)
         assert delta == pytest.approx(cast.spacing/k)
-        assert meta['unsmoothed_reference_dx'] == files['volume_dx']
+        assert meta['unsmoothed_reference_dx'] == Path(files['volume_dx']).name   # relative to the metadata file
         assert meta['measured_volume_A3'] == cast.total_volume
         if name == 'raw':
             assert smoothing['method'] == 'none' and k == 1 and meta['smoothing'] is False

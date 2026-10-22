@@ -12,7 +12,7 @@ run records it in its input report or manifest, so you can always check.
 | PDB (`.pdb`) | built-in parser | ATOM/HETATM records; one model is selected (`--model`) |
 | mmCIF (`.cif`) | Gemmi when the `structures` extra is installed, otherwise the built-in parser | Gemmi reads `_entity` types, so modified polymer residues deposited as HETATM stay in the polymer |
 | GRO snapshot (`.gro`) | MDAnalysis | coordinates converted from nm to Å; `--md-selection` chooses atoms |
-| MD trajectory plus topology | MDAnalysis | used by `trajectory`, `cavity-trajectory`, `hydration`, `region-*`; GRO + XTC is the most exercised combination |
+| MD trajectory plus topology | MDAnalysis | used by `trajectory`, `trajectory --cavities`, `trajectory --water`, `region-*`; GRO + XTC is the most exercised combination |
 | Several static files | built-in / Gemmi | `trajectory a.pdb b.pdb ...` treats them as frames |
 
 CREVICE does not expand biological-assembly operators while loading. To analyse
@@ -26,7 +26,7 @@ never replaced by a download.
 
 ```bash
 crevice fetch 1GRM 4PYP --cache-dir .crevice/pdb --json downloads.json
-crevice analyze 6MVY --assembly 1 --out-dir results/6mvy-assembly
+crevice report --analyze 6MVY --assembly 1 --out-dir results/6mvy-assembly
 ```
 
 Downloads go to `--cache-dir` (default `.crevice/pdb`) and are reused later.
@@ -49,7 +49,7 @@ read like any other PDB or mmCIF file.
 
 ```bash
 crevice fetch AF-P02920-F1 --format pdb
-crevice cast AF-P02920-F1 --format pdb --out-dir results/lacy-model
+crevice cavities --cast AF-P02920-F1 --format pdb --out-dir results/lacy-model
 ```
 
 Without a version, a cached copy is reused if there is one; otherwise the
@@ -83,12 +83,35 @@ input report records both:
 
 | | Gemmi (`--parser gemmi`, default when installed) | Built-in (`--parser builtin`, and all PDB files) |
 |---|---|---|
-| What counts as a heteroatom | non-polymer entities (`hetero_definition: nonpolymer`), so a modified residue deposited as HETATM stays in the polymer | the HETATM record type (`group_pdb`) |
+| What counts as a heteroatom | non-polymer entities (`hetero_definition: nonpolymer`) | HETATM records except polymer residues found by peptide bonds (`group_pdb_except_polymer`) |
 | Zero-occupancy atoms | dropped (`zero_occupancy_policy: excluded`) | kept (`retained`) |
 
-This matters for `--exclude-hetero` and for residue-level analyses. In 1GRM,
-for example, the D-amino acids are HETATM records: the built-in reader treats
-them as heteroatoms and the Gemmi reader as polymer.
+### Polymer residues recorded as HETATM
+
+PDB files record non-standard polymer residues as HETATM: D-amino acids,
+selenomethionine (MSE), phosphoserine (SEP) and other modified residues, and
+caps such as ACE. CREVICE treats them as protein, like the residues around
+them, so `--exclude-hetero`, `cavities --cast --selection protein` and the
+residue analyses keep them. Waters, ions and other ligands stay heteroatoms.
+
+- **Gemmi (mmCIF).** Polymer membership comes from the file's `_entity`
+  types.
+- **Built-in reader (every PDB file, and mmCIF without Gemmi or without
+  `_entity` types).** A HETATM residue is polymer when the file lists it in
+  `MODRES`, or when it is peptide-bonded (its `N` or `C` within 1.75 Å of a
+  `C` or `N` of another residue of the same chain) into a run of residues that
+  contains an ATOM record or whose names all appear in the chain's `SEQRES`.
+- **MDAnalysis (GRO, trajectories, Universe input).** Residues outside the
+  MDAnalysis `protein` selection that are peptide-bonded to it (by the same
+  distance rule, in the first frame read) are added to the selection
+  `protein` and are not heteroatoms. Other selection strings are used as
+  written.
+
+The input report lists the residues included (`polymer_hetatm_residues`), and
+commands reading a PDB file print a note. For 1GRM the PDB and mmCIF files
+then give the same 272 protein heavy atoms. `--hetero-polymer exclude` (Python:
+`hetero_polymer="exclude"`) makes every HETATM record a heteroatom, as
+CREVICE 0.3 did for PDB files.
 
 Residues are labelled `CHAIN:RESNAMEnumber[insertion]`, for example `B:ALA3`.
 GRO input has no chain field and uses `SYSTEM`, for example `SYSTEM:GLN282`.
@@ -140,7 +163,7 @@ sets its radius.
   ```bash
   python -c "from crevice.radii import write_radius_template as w; w('radii.csv', elements=['GD'])"
   # edit radii.csv: uncomment and fill e.g.  element,GD,2.10  or  atom,XGD:GD1,2.10
-  crevice cast designed.pdb --radii radii.csv --out-dir results/designed
+  crevice cavities --cast designed.pdb --radii radii.csv --out-dir results/designed
   ```
 
   The template starts from the default set (`base,default,`), so only the new
@@ -188,12 +211,12 @@ The atom-selection flags differ between commands:
 | Command(s) | Flag | Meaning |
 |---|---|---|
 | structure commands with GRO input | `--md-selection` (default `protein`) | MDAnalysis selection applied when reading a GRO file |
-| `profile`, `residues`, `network`, `features`, `publish`, `analyze` | `--exclude-hetero` | drop HETATM records (kept by default) |
-| `cavities`, `tunnels` (standalone) | `--include-hetero` | keep HETATM records (dropped by default; `analyze` keeps them) |
+| `profile`, `residues`, `residues --network`, `residues --features`, `report`, `report --analyze` | `--exclude-hetero` | drop HETATM records (kept by default) |
+| `cavities`, `cavities --tunnels` (standalone) | `--include-hetero` | keep HETATM records (dropped by default; `report --analyze` keeps them) |
 | most structure commands | `--include-hydrogen` | keep H atoms (dropped by default) |
-| `cast` | `--selection protein\|all` | `protein`: polymer heavy atoms; `all`: also ligands and waters |
-| `trajectory`, `cavity-trajectory`, `hydration`, `region-init` | `--selection` | MDAnalysis selection string (for example `protein and not name H*`) |
-| `cavity-trajectory`, `region-init` | `--obstacle-selection` | separate MDAnalysis selection of atoms that act as walls |
+| `cavities --cast` | `--selection protein\|all` | `protein`: polymer heavy atoms; `all`: also ligands and waters |
+| `trajectory`, `trajectory --cavities`, `trajectory --water`, `region init` | `--selection` | MDAnalysis selection string (for example `protein and not name H*`) |
+| `trajectory --cavities`, `region init` | `--obstacle-selection` | separate MDAnalysis selection of atoms that act as walls |
 
 ### Walls versus displayed atoms
 
@@ -201,11 +224,11 @@ Keep two decisions separate: which atoms are **physical obstacles** in the
 geometry, and which atoms are **shown or analysed as residues**. Removing water,
 lipids and ligands gives a clean protein geometry. It also removes membrane and
 ligand barriers, so the measured space can reach into regions that are
-physically blocked. `cavity-trajectory --obstacle-selection` keeps chosen
+physically blocked. `trajectory --cavities --obstacle-selection` keeps chosen
 non-protein atoms as walls while residue evidence stays protein-only. See the
 [obstacle note](../CAVITY_OBSTACLES.md).
 
-Static `publish` keeps heteroatoms unless you pass `--exclude-hetero`. `cast
+Static `report` keeps heteroatoms unless you pass `--exclude-hetero`. `cavities --cast
 --selection protein` drops them. Record the command you ran and check the input
 report.
 
@@ -214,7 +237,7 @@ report.
 Coordinates, radii, spacings and cutoffs are in ångström (Å). Volumes are in
 Å³ and areas in Å². GRO/XTC nanometres are converted on reading. Coordinate
 options take `x,y,z` without spaces (for example `--origin 0,0,12.5`).
-`publish --focus X Y Z` is the exception: it takes three separate numbers.
+`report --focus X Y Z` is the exception: it takes three separate numbers.
 
 ## Trajectories: frames, alignment and periodic boundaries
 
@@ -237,7 +260,7 @@ Method detail: [Trajectory profiles and residue evidence](../TRAJECTORY_RESIDUE_
 ## Worked example: a GRO snapshot
 
 ```bash
-crevice cast system.gro --md-selection protein --out-dir output/system
+crevice cavities --cast system.gro --md-selection protein --out-dir output/system
 ```
 
 `--md-selection protein` removes water, ions and lipids before the cast.

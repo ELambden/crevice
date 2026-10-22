@@ -36,13 +36,13 @@ with `my_radii.json`:
 
 | Radius set | Minimum radius (Å) | Nearest residue at the bottleneck |
 |---|---:|---|
-| standard (Bondi) | 1.324 | A:TRP13 |
-| `hole` (C 1.85, O 1.65, N 1.75 Å, ...) | 1.180 | A:TRP13 |
-| `my_radii.json` (O 1.60 Å) | 1.282 | A:TRP11 |
+| standard (Bondi) | 1.337 | A:TRP13 |
+| `hole` (C 1.85, O 1.65, N 1.75 Å, ...) | 1.201 | B:TRP15 |
+| `my_radii.json` (O 1.60 Å) | 1.288 | A:TRP11 |
 
-Larger atoms leave a narrower channel, and with the larger oxygen radius a
-different residue limits the narrowest sample. The difference between the
-standard and `hole` sets (0.14 Å) is larger than many effects one might want
+Larger atoms leave a narrower channel, and with other radii a different residue
+limits the narrowest sample (with the `hole` set it is also at the other end of
+the channel). The difference between the standard and `hole` sets (0.14 Å) is larger than many effects one might want
 to interpret, so always state the radius set.
 
 When you choose a set, the output records it under `metadata.radii`: its
@@ -57,7 +57,7 @@ from crevice import load_structure, pore_profile
 
 frame = load_structure(".crevice/pdb/1GRM.cif")
 profile = pore_profile(frame, axis="auto", enclosure_radius=0.75, radii="my_radii.json")
-print(round(profile.min_radius, 3), profile.metadata["radii"]["name"])   # 1.282 bondi-larger-oxygen
+print(round(profile.min_radius, 3), profile.metadata["radii"]["name"])   # 1.288 bondi-larger-oxygen
 ```
 
 ## Clean figures and `--annotate`
@@ -76,7 +76,7 @@ crevice profile 1GRM --axis auto --enclosure-radius 0.75 --annotate -o annotated
 
 `annotated.png`: the figure of `standard.png` (shown clean in the
 [1GRM example](1grm-profile-cast.md)) with the title "CREVICE pore radius
-profile" and the bottleneck value "1.32 Å". The two mouth labels with their
+profile" and the bottleneck value "1.34 Å". The two mouth labels with their
 axial positions (−11.67 Å and 11.60 Å) are drawn only when the mouth guides
 are also requested (`--annotate --mouth-guides`). The data, colours and axes are the
 same; the measurement files are identical.
@@ -94,10 +94,10 @@ print(info["Description"])
 
 ```text
 omitted (recorded here; draw with annotate=True or --annotate)
-Pore radius against axial coordinate for one resolved channel profile; minimum radius 1.324 Å at the bottleneck (sample 73, t = 9.56 Å, nearest residue A:TRP13); mean radius 1.563 Å over 81 samples
-Label: 1.32 Å
-Note: Lower mouth -11.67 Å
-Note: Upper mouth 11.60 Å
+Pore radius against axial coordinate for one resolved channel profile; minimum radius 1.337 Å at the bottleneck (sample 73, t = 9.56 Å, nearest residue A:TRP13); mean radius 1.571 Å over 81 samples
+Label: 1.34 Å
+Note: Lower mouth at -11.67 Å (bracket -11.68 to -11.66 Å); mouth guides not drawn
+Note: Upper mouth at 11.60 Å (bracket 11.59 to 11.61 Å); mouth guides not drawn
 Title: CREVICE pore radius profile
 ```
 
@@ -109,7 +109,7 @@ and residue labels.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The numbers above were produced with CREVICE 0.1.0. They show how much a
+The numbers above were produced with CREVICE 0.1.0 and re-run with 0.4.0. They show how much a
 setting can move a measurement, which is exactly why the radius set belongs in
 your methods section; none of them is a biological reference value.
 :::

@@ -26,7 +26,7 @@ How wide a channel is along its length, and where it is narrowest.
 
 The 3D shape and volume of a pocket, cavity or channel.
 
-`crevice cast`
+`crevice cavities --cast`
 :::
 
 :::{container} crevice-card
@@ -36,7 +36,7 @@ The 3D shape and volume of a pocket, cavity or channel.
 
 Radius, lining hydrophobicity and chemistry, water and a geometric conductance estimate along one channel.
 
-`crevice fingerprint`
+`crevice profile --fingerprint`
 :::
 
 :::{container} crevice-card
@@ -70,7 +70,7 @@ Enclosed empty spaces inside the protein.
 
 The widest routes from a site to the outside.
 
-`crevice tunnels`
+`crevice cavities --tunnels`
 :::
 
 ::::
@@ -96,7 +96,7 @@ Which residues line a channel, and which one makes the bottleneck.
 
 Which residues form the wall of a cast, and which other residues touch them.
 
-`crevice residue-evidence`
+`crevice residues --evidence`
 :::
 
 :::{container} crevice-card crevice-entry
@@ -104,7 +104,7 @@ Which residues form the wall of a cast, and which other residues touch them.
 
 Which residues contact each other and the channel or cavity.
 
-`crevice network`
+`crevice residues --network`
 :::
 
 ::::
@@ -118,7 +118,7 @@ Which residues contact each other and the channel or cavity.
 
 Where the waters are, how exposed each residue is, and which waters sit inside a cavity.
 
-`crevice hydration`
+`crevice trajectory --water`
 :::
 
 ::::
@@ -138,11 +138,19 @@ How a channel's width and lining change from frame to frame.
 :::
 
 :::{container} crevice-card crevice-exit
+**[Permeation and conductance](permeation.md)**
+
+Which water molecules and ions cross a channel, water permeabilities pf and pd, and ion current.
+
+`crevice trajectory --permeation`
+:::
+
+:::{container} crevice-card crevice-exit
 **[Cavities over a trajectory](cavity-trajectory.md)**
 
 A cavity's volume, width and wall residues through a simulation.
 
-`crevice cavity-trajectory`
+`crevice trajectory --cavities`
 :::
 
 :::{container} crevice-card crevice-exit
@@ -152,7 +160,7 @@ A cavity's volume, width and wall residues through a simulation.
 
 Persistent identities for every cavity near a site, with births, deaths, splits and merges.
 
-`crevice track-cavities`
+`crevice trajectory --track`
 :::
 
 :::{container} crevice-card crevice-exit
@@ -176,7 +184,7 @@ Define a region once, review it, and compare it fairly across runs.
 
 The main tables, key figures and PyMOL, VMD and ChimeraX scenes for a structure in one run; cavities, tunnels, hydration and a fingerprint on request.
 
-`crevice publish`
+`crevice report`
 :::
 
 :::{container} crevice-card crevice-violet
@@ -234,6 +242,7 @@ residue-evidence
 network
 hydration
 trajectory
+permeation
 cavity-trajectory
 cavity-tracking
 regions

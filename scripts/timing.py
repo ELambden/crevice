@@ -38,7 +38,7 @@ The structures are read from ``--cache-dir`` (``1GRM.cif`` and
 ``crevice fetch``. The trajectory cases need a prepared region definition
 (``--region``): its topology, trajectory and reference map are taken from the
 definition. By default the definition of the GLUT1 excerpt from
-``crevice fetch-example glut1-excerpt`` is used when it is present. Cases whose
+``crevice fetch --example glut1-excerpt`` is used when it is present. Cases whose
 inputs are missing are reported as skipped.
 
 Examples

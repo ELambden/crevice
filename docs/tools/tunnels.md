@@ -1,6 +1,6 @@
 # Access tunnels
 
-`crevice tunnels` starts from a point inside the protein, such as a buried
+`crevice cavities --tunnels` starts from a point inside the protein, such as a buried
 active site, and finds the routes that lead out to the surroundings. For each
 route it tells you how narrow it gets at its tightest point. Among all the
 routes a probe can follow, CREVICE keeps the *widest*: those whose narrowest
@@ -9,7 +9,7 @@ point is as wide as possible, with shorter routes winning ties.
 ## Quick start
 
 ```bash
-crevice tunnels 4PYP -o 4PYP_tunnels.json --pdb 4PYP_tunnels.pdb
+crevice cavities --tunnels 4PYP -o 4PYP_tunnels.json --pdb 4PYP_tunnels.pdb
 ```
 
 ```python
@@ -52,7 +52,7 @@ Heteroatoms are left out unless you pass `--include-hetero`.
 In Python, `max_grid_points` (120 000) caps the grid; a box that would need
 more points gets a coarser spacing, and the JSON records both the requested
 and the spacing actually used. All options are listed under
-[`crevice tunnels`](../reference/cli/tunnels.md).
+[`crevice cavities --tunnels`](../reference/cli/cavities.md).
 
 ## What you get
 

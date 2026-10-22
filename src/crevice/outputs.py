@@ -7,8 +7,8 @@ commands read), a few key figures and one scene set for each native viewer
 in commands whose purpose they are; the typed residue–residue interactions
 still run by default. Everything else is
 opt-in with ``--outputs`` (CLI) or ``outputs=`` (Python), ``--all`` writes
-every applicable output, and ``--legacy-outputs`` reproduces the CREVICE 0.2
-file set exactly (deprecated; kept for the 0.3 series).
+every applicable output. (``--legacy-outputs``, which reproduced the CREVICE
+0.2 file set during the 0.3 series, was removed in 0.4; use ``--all``.)
 
 The vocabulary has two kinds of token:
 
@@ -48,10 +48,10 @@ written.
                    conformations of the lining/boundary residues; on by
                    default (``--skip-interactions`` turns it off). Water
                    bridges need ``hydration``
-``cavities``       separate cavity search (``publish``)
-``tunnels``        tunnel search (``publish``)
-``network``        residue/channel contact network (``publish``)
-``fingerprint``    pore fingerprint of a resolved channel (``publish``)
+``cavities``       separate cavity search (``report``)
+``tunnels``        tunnel search (``report``)
+``network``        residue/channel contact network (``report``)
+``fingerprint``    pore fingerprint of a resolved channel (``report``)
 =================  ==========================================================
 
 ``default`` stands for the command's default selection and ``none`` for data
@@ -93,7 +93,7 @@ META = ("default", "none")
 #: Figure file-name endings (after the prefix) that count as key figures.
 KEY_FIGURES = ("_profile_radius.png", "_residue_contacts.png", "_residue_evidence.png", "_hydration_residues.png",
                "_cavity_volume_timeseries.png", "_cavity_radius_profile.png", "_cavity_residues.png",
-               "_fingerprint.png")
+               "_fingerprint.png", "_permeation.png")
 
 #: Descriptions printed by ``--outputs help`` and in the plan.
 DESCRIPTIONS = {
@@ -133,8 +133,6 @@ class CommandOutputs:
         File kinds the command can write.
     default_formats : tuple of str
         File kinds written by default (``data`` is implied).
-    legacy_analyses : tuple of str
-        Optional analyses CREVICE 0.2 ran by default (``--legacy-outputs``).
     core : str
         Human-readable list of the analyses that always run.
     """
@@ -143,7 +141,6 @@ class CommandOutputs:
     default_analyses: tuple = ()
     formats: tuple = FORMATS
     default_formats: tuple = ("key-figures", "pymol", "vmd", "chimerax")
-    legacy_analyses: tuple = ()
     core: str = ""
 
 
@@ -153,21 +150,18 @@ _WATER = ("hydration", "interactions")
 COMMANDS = {
     "publish": CommandOutputs(analyses=("hydration", "interactions", "cavities", "tunnels", "network", "fingerprint"),
                               default_analyses=("interactions",),
-                              legacy_analyses=("hydration", "interactions", "cavities", "tunnels", "network"),
                               core="profile, cast (with ENTRY/LUMEN/EXIT segments), residue contacts"),
-    "cast": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), legacy_analyses=_WATER,
-                           core="rolling-probe cast"),
+    "cast": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), core="rolling-probe cast"),
     "analyze": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), default_formats=(),
-                              legacy_analyses=_WATER, core="the --analysis selection (default profile, residues)"),
-    "residue-evidence": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), legacy_analyses=_WATER,
+                              core="the --analysis selection (default profile, residues)"),
+    "residue-evidence": CommandOutputs(analyses=_WATER, default_analyses=("interactions",),
                                        core="boundary residue evidence"),
     "hydration": CommandOutputs(analyses=(), core="hydration (with water density and typed interactions)"),
-    "cavity-trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), legacy_analyses=_WATER,
+    "cavity-trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",),
                                         core="per-frame cavity geometry and statistics"),
-    "region-trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), legacy_analyses=_WATER,
+    "region-trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",),
                                         core="per-frame region geometry and statistics"),
     "trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), default_formats=(),
-                                 legacy_analyses=_WATER,
                                  formats=("data", "key-figures", "figures", "pymol", "vmd", "chimerax", "scenes"),
                                  core="the --analysis selection (default profile, features); explicit paths "
                                       "(--png, --distribution-csv, --network-json) as given"),
@@ -175,7 +169,7 @@ COMMANDS = {
 
 
 class OutputSelectionError(ValueError):
-    """An invalid or contradictory ``--outputs``/``--all``/``--legacy-outputs`` selection."""
+    """An invalid or contradictory ``--outputs``/``--all`` selection."""
 
 
 @dataclass(frozen=True)
@@ -186,7 +180,7 @@ class OutputPlan:
     ----------
     command : str
         Command name (a key of :data:`COMMANDS`).
-    mode : {"default", "selected", "all", "legacy"}
+    mode : {"default", "selected", "all"}
         How the plan was chosen.
     formats : frozenset of str
         File kinds written (``data`` always; ``scenes`` added with any viewer).
@@ -204,11 +198,6 @@ class OutputPlan:
     analyses: frozenset
     requested: tuple = ()
     skipped: tuple = ()
-
-    @property
-    def legacy(self) -> bool:
-        """True for ``--legacy-outputs`` (every 0.2 file is written)."""
-        return self.mode == "legacy"
 
     @property
     def viewers(self) -> tuple:
@@ -241,8 +230,6 @@ class OutputPlan:
         -------
         bool
         """
-        if self.legacy:
-            return kind != "viewer-html"
         if kind == "key-figures":
             return bool({"key-figures", "figures"} & self.formats)
         return kind in self.formats
@@ -259,8 +246,6 @@ class OutputPlan:
         -------
         bool
         """
-        if self.legacy:
-            return True
         kind, viewer = file_kind(path)
         if kind == "extra-views":
             return "extra-views" in self.formats and (viewer is None or viewer in self.formats)
@@ -296,12 +281,11 @@ class OutputPlan:
         """
         policy = COMMANDS[self.command]
         label = {"default": "default outputs", "selected": "--outputs " + ",".join(self.requested),
-                 "all": "--all", "legacy": "--legacy-outputs (CREVICE 0.2 file set; deprecated)"}[self.mode]
+                 "all": "--all"}[self.mode]
         kinds = [f for f in FORMATS if f in self.formats and f in policy.formats]
-        if self.legacy:
-            kinds = [f for f in policy.formats if f != "viewer-html"]
         not_kinds = [f for f in policy.formats if f not in kinds and not (f == "key-figures" and "figures" in kinds)]
-        lines = [f"crevice {self.command} plan ({label}):", f"  core analyses: {policy.core}"]
+        from .cli import command_form
+        lines = [f"{command_form(self.command)} plan ({label}):", f"  core analyses: {policy.core}"]
         if policy.analyses:
             run = [a for a in policy.analyses if a in self.analyses]
             off = [a for a in policy.analyses if a not in self.analyses]
@@ -310,7 +294,7 @@ class OutputPlan:
         lines.append("  file kinds: " + ", ".join(kinds) + (f"; not written: {', '.join(not_kinds)}" if not_kinds else ""))
         if self.mode == "default":
             lines.append("  add files or analyses with --outputs (e.g. --outputs default,hydration), "
-                         "everything with --all, the 0.2 set with --legacy-outputs")
+                         "everything with --all")
         return "\n".join(lines)
 
 
@@ -386,7 +370,7 @@ def _tokens(outputs) -> list:
     return tokens
 
 
-def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False, legacy: bool = False,
+def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False,
                     skip: Iterable[str] = (), default_analyses: Iterable[str] | None = None) -> OutputPlan:
     """Resolve an output selection into an :class:`OutputPlan`.
 
@@ -401,8 +385,6 @@ def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False, le
         empty: the command's defaults.
     all_outputs : bool, default False
         ``--all``: every file kind and optional analysis of the command.
-    legacy : bool, default False
-        ``--legacy-outputs``: the CREVICE 0.2 analyses and file set.
     skip : iterable of str, default ()
         Optional analyses removed by ``--skip-*`` flags (for example
         ``"hydration"``); naming one of them in ``outputs`` is an error.
@@ -434,18 +416,12 @@ def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False, le
     policy = COMMANDS[command]
     tokens = _tokens(outputs)
     skip = tuple(dict.fromkeys(s for s in skip if s))
-    modes = [name for name, on in (("--outputs", bool(tokens)), ("--all", all_outputs),
-                                   ("--legacy-outputs", legacy)) if on]
-    if len(modes) > 1:
-        raise OutputSelectionError(f"choose one of {' and '.join(modes)}")
+    if tokens and all_outputs:
+        raise OutputSelectionError("choose one of --outputs and --all")
+    if "legacy" in tokens:
+        raise OutputSelectionError("the CREVICE 0.2 file set ('legacy', --legacy-outputs) was removed in 0.4; "
+                                   "use --all (Python: outputs='all') or list the outputs you need")
     defaults = tuple(policy.default_analyses if default_analyses is None else default_analyses)
-    if legacy:
-        analyses = set(policy.legacy_analyses) | (set(defaults) & set(policy.analyses))
-        analyses = {a for a in analyses if a not in skip}
-        if "hydration" not in analyses:
-            analyses.discard("interactions")   # in 0.2 the typed interactions ran only inside hydration
-        return OutputPlan(command, "legacy", frozenset(f for f in policy.formats if f != "viewer-html"),
-                          frozenset(analyses), (), skip)
     if all_outputs:
         formats, analyses, mode = set(policy.formats), set(policy.analyses), "all"
     else:
@@ -586,7 +562,7 @@ def writes(kind: str) -> bool:
     if plan is None:
         return True
     if kind == "viewers":
-        return plan.legacy or bool(plan.viewers)
+        return bool(plan.viewers)
     return plan.writes(kind)
 
 
@@ -636,8 +612,8 @@ def plan_from(command: str, outputs) -> OutputPlan | None:
         Command whose policy applies.
     outputs : None, str, sequence of str or OutputPlan
         ``None`` keeps the active plan (everything when none is active);
-        ``"all"`` is :func:`resolve_outputs` with ``all_outputs=True``,
-        ``"legacy"`` with ``legacy=True``; other strings and sequences are
+        ``"all"`` is :func:`resolve_outputs` with ``all_outputs=True``;
+        other strings and sequences are
         ``--outputs`` tokens.
 
     Returns
@@ -650,8 +626,6 @@ def plan_from(command: str, outputs) -> OutputPlan | None:
         return outputs
     if outputs == "all":
         return resolve_outputs(command, all_outputs=True)
-    if outputs == "legacy":
-        return resolve_outputs(command, legacy=True)
     return resolve_outputs(command, outputs)
 
 

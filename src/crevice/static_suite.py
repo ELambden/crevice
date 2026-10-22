@@ -7,6 +7,7 @@ import json
 import shutil
 import time
 from pathlib import Path
+from ._portable_paths import dumps_record
 from typing import Sequence
 
 from .analysis import annotate_residues, detect_cavities, pore_profile
@@ -74,7 +75,7 @@ def run_static_benchmark_suite(
     enclosure_radius: float | None = None,
     radii: RadiusSet | str | None = None,
 ) -> dict[str, object]:
-    """Run the static analyses of ``crevice static-suite`` across benchmark systems.
+    """Run the static analyses of ``crevice report --suite`` across benchmark systems.
 
     For each configured benchmark entry, the structure is loaded (optionally
     fetched), profiled at each probe radius, and its residue contacts, void
@@ -100,7 +101,10 @@ def run_static_benchmark_suite(
     search_radius : float, default 3.0
         Centre-refinement radius (Å).
     refinement_steps : int, default 4
-        Centre-refinement iterations.
+        Slice-centre refinement (:meth:`crevice.sections.SectionGeometry.refine`):
+        0 keeps the grid-point centres; a positive value converges each centre
+        to its local clearance maximum (0.0001 Å) with at least this many step
+        halvings.
     probe_radii : sequence of float, default (0.0, 1.0, 1.4)
         Measurement probe radii (Å) for the sensitivity rows. Each row keeps
         the system's enclosure probe fixed; a row whose probe does not pass
@@ -656,8 +660,10 @@ SUMMARY_COLUMNS = {
 
 def _write_summary_csv(rows: Sequence[dict[str, object]], path: str | Path) -> None:
     """One row per system; column names carry units (see ``SUMMARY_COLUMNS``); ``error`` holds a failure message."""
+    from ._portable_paths import portable_json
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
+    rows = portable_json(list(rows), output.parent)    # paths relative to the CSV's directory, "/" separators
     with output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(SUMMARY_COLUMNS.values()))
         writer.writeheader()
@@ -683,4 +689,4 @@ def _write_rows_csv(rows: Sequence[dict[str, object]], path: str | Path) -> None
 def _write_json(data: object, path: str | Path) -> None:
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    output.write_text(dumps_record(data, output, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

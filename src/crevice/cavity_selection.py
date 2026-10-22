@@ -4,7 +4,7 @@ These transparent geometric heuristics rank cavity regions, not biological
 channels. Requested counts are upper limits applied after qualification.
 
 Used by :func:`crevice.rolling.rolling_probe_cast` with
-``selection_mode="dominant"`` (the default of ``crevice cast``). The idea is
+``selection_mode="dominant"`` (the default of ``crevice cavities --cast``). The idea is
 to report the one or few *substantial* buried chambers of a protein rather
 than every small crevice: a chamber is found as a *core* of high clearance,
 and its volume is then filled with the largest atom-clear spheres centred in
@@ -77,6 +77,38 @@ def _paint_balls(indices, radii, spacing, score, labels, label):
         take = (margin >= -1e-10) & (margin > score[box]+1e-10)
         score[box][take] = margin[take]
         labels[box][take] = label
+
+
+def _grouping_sensitivity(groups, clearance, depth, rays, required_rays, probe_radius, spacing):
+    """Which separately grouped cores a neck within one grid tolerance of the probe would join.
+
+    Diagnostic only; it changes no result. Supports are connected at the probe
+    radius on the grid, so a neck whose continuum clearance is within about
+    ``spacing * sqrt(3) / 2`` of the probe radius can be found at one spacing or
+    grid offset and missed at another, and the region then switches between
+    one lobe and several (a discontinuous volume change). Buried nodes are
+    relabelled at ``probe - tolerance`` (clearance and envelope depth, same
+    enclosure rays, face connectivity); qualified-core groups of the same chain
+    that this joins are reported as ``joined_groups`` (lists of core ids).
+    """
+    import numpy as np
+    from scipy import ndimage
+    tolerance = spacing*math.sqrt(3)/2
+    report = {'tolerance_A': tolerance, 'joined_groups': [],
+              'definition': ('qualified-core groups in different probe-radius supports that are joined when '
+                             'buried nodes are connected at probe radius minus spacing*sqrt(3)/2; such a '
+                             'grouping (and the region volume) can change discontinuously with grid spacing '
+                             'or offset')}
+    if len(groups) < 2:
+        return report
+    relaxed = (clearance >= probe_radius-tolerance) & (depth > probe_radius-tolerance) & (rays >= required_rays)
+    labels, _ = ndimage.label(relaxed)
+    joined = {}
+    for (parent, chain), rows in groups.items():
+        label = int(labels[tuple(rows[0][1][0])])
+        joined.setdefault((label, chain), []).append(sorted(row[0] for row in rows))
+    report['joined_groups'] = [sorted(sum(v, [])) for v in joined.values() if len(v) > 1]
+    return report
 
 
 def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
@@ -157,7 +189,8 @@ def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
     if not math.isfinite(core_fraction) or not 0 < core_fraction <= 1:
         raise ValueError('core_fraction must be in (0, 1]')
     required_rays = math.ceil(26*enclosure_fraction)
-    buried = centers & (_ray_enclosure(clearance < probe_radius) >= required_rays)
+    rays = _ray_enclosure(clearance < probe_radius)
+    buried = centers & (rays >= required_rays)
     empty = np.zeros(clearance.shape, dtype=np.int32)
     if not buried.any():
         return empty, np.zeros(1, dtype=int), {
@@ -204,6 +237,7 @@ def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
         # Multiple strong subunit interiors in larger multimers may remain
         # separate regions even when their mouths share a support component.
         groups.setdefault((parent,chain), []).append((label,idx))
+    sensitivity = _grouping_sensitivity(groups, clearance, depth, rays, required_rays, probe_radius, spacing)
     candidates = []
     represented = set()
     for (parent,chain), rows in groups.items():
@@ -258,7 +292,7 @@ def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
         'algorithm':'dominant_core_variable_sphere_fill',
         'core_radius_A':core_radius, 'core_volume_fraction':core_fraction,
         'minimum_core_points':minimum, 'qualified_count':len(rows),
-        'candidates':decisions, 'regions':rows,
+        'candidates':decisions, 'regions':rows, 'grouping_sensitivity':sensitivity,
         'interface_rule':'independent support; at least 3 chains block >=6 rays each; no chain >13; support >=max(8 A^3, min_volume/4) and >=50% of strongest shared support',
         'fill_definition':'union of atom-clear spheres centered on qualified cores; each radius=min(atom clearance, outer-sweep distance)',
         'interpretation':'geometric cavity-region heuristic; not a biological channel classifier',

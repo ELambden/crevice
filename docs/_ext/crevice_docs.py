@@ -28,7 +28,8 @@
 
 6. ``crevice-cli`` and ``crevice-cli-options`` directives render the command
    line reference from ``crevice.cli.build_parser()``: one compact page per
-   command (its own arguments and options as tables) plus one shared page for
+   public command, with a section per mode (``{crevice-cli} cavities --cast``),
+   each with its own arguments and options as tables, plus one shared page for
    the option families that many commands accept (structure input, atomic
    radii, figure text, channel-profile and hydration settings).  A build check
    warns when a command has no page under ``reference/cli/``.
@@ -263,21 +264,36 @@ CLI_FAMILIES = {
                                             "water_density_spacing", "water_density_smoothing",
                                             "water_density_level", "skip_water_density", "skip_interactions",
                                             "skip_analysis_views", "skip_hydration"]),
-    "outputs": ("Output selection", 3, ["outputs", "all_outputs", "legacy_outputs", "dry_run"]),
+    "outputs": ("Output selection", 3, ["outputs", "all_outputs", "dry_run"]),
     "settings": ("Settings files", 1, ["config", "print_config"]),
 }
 
 
 def _cli_commands():
-    """Return ``{name: (subparser, one-line help)}`` for every ``crevice`` subcommand, in parser order."""
+    """Return ``{form: (subparser, one-line help)}`` for every mode of every public ``crevice`` command.
+
+    ``form`` is the command as typed without ``crevice`` (``"cavities"``,
+    ``"cavities --cast"``, ``"region init"``), in the order of
+    :data:`crevice.cli.COMMAND_LAYOUT`; the subparser is the analysis parser that
+    the mode runs.
+    """
     import argparse
 
-    from crevice.cli import build_parser
+    from crevice.cli import COMMAND_LAYOUT, build_parser
 
     parser = build_parser()
     sub = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
-    helps = {a.dest: a.help for a in sub._choices_actions}
-    return {name: (p, helps.get(name, "")) for name, p in sub.choices.items()}
+    result = {}
+    for command, modes in COMMAND_LAYOUT.items():
+        for mode in modes:
+            form = command + (f" {mode.flag}" if mode.flag else "")
+            result[form] = (sub.choices[mode.analysis], mode.summary)
+    return result
+
+
+def _page_of(form: str) -> str:
+    """The reference page (public command) of a command form."""
+    return form.split()[0]
 
 
 def _cli_options(subparser):
@@ -402,10 +418,11 @@ class CreviceCliDirective(Directive):
     """Render one ``crevice`` subcommand: usage, arguments and its own options."""
 
     required_arguments = 1
+    final_argument_whitespace = True
     has_content = False
 
     def run(self) -> list[nodes.Node]:
-        name = self.arguments[0]
+        name = " ".join(self.arguments[0].split())
         commands = _cli_commands()
         if name not in commands:
             raise self.error(f"crevice has no command {name!r}")
@@ -415,9 +432,15 @@ class CreviceCliDirective(Directive):
         shared_ids = {id(a) for members in shared.values() for a in members}
         own = [a for a in _cli_options(parser) if id(a) not in shared_ids]
 
-        usage_parts = ["crevice", name]
-        for action in positionals:
+        from crevice.cli import COMMAND_LAYOUT
+        usage_parts = ["crevice", *name.split()]
+        value_mode = next((m for m in COMMAND_LAYOUT[_page_of(name)] if m.flag and name.endswith(m.flag)
+                           and m.takes_value), None)
+        for index, action in enumerate(positionals):
             meta = (action.metavar or action.dest).upper()
+            if value_mode is not None and index == 0:
+                usage_parts[-1] = f"{value_mode.flag} {meta}"
+                continue
             usage_parts.append(f"{meta} ..." if action.nargs in ("+", "*") else meta)
         usage_parts.append("[options]")
         result: list[nodes.Node] = [nodes.literal_block("", " ".join(usage_parts), language="text",
@@ -469,7 +492,7 @@ class CreviceCliOptionsDirective(Directive):
         for i, name in enumerate(users):
             if i:
                 para += nodes.Text(", ")
-            para += _doc_link(f"/reference/cli/{name}", name, literal=True)
+            para += _doc_link(f"/reference/cli/{_page_of(name)}", name, literal=True)
         return [para, _table(["Option", "Default", "Description"], _option_rows(ordered), [30, 12, 58],
                              ["crevice-cli-options"])]
 
@@ -477,7 +500,7 @@ class CreviceCliOptionsDirective(Directive):
 def _check_cli_pages(app: Sphinx) -> None:
     folder = Path(app.srcdir) / "reference" / "cli"
     pages = {p.stem for p in folder.glob("*.md")} - {"index", "common-options"}
-    names = set(_cli_commands())
+    names = {_page_of(form) for form in _cli_commands()}
     for name in sorted(names - pages):
         logger.warning(f"crevice command {name!r} has no page reference/cli/{name}.md", type="crevice", subtype="cli")
     for name in sorted(pages - names):

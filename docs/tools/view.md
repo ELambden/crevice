@@ -15,7 +15,7 @@ for it: run `crevice view` afterwards, or add `--outputs default,viewer-html`
 ## Quick start
 
 ```bash
-crevice publish 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
+crevice report 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
     --out-dir 3UKM_bundle --prefix 3UKM
 crevice view 3UKM_bundle --open
 ```
@@ -41,8 +41,8 @@ side EXITs (rust) inside the protein cartoon.
 
 ## How it works
 
-`crevice view` reads the manifest or scene JSON of a `publish`, `cast`,
-`region-trajectory`, `cavity-trajectory` or `hydration` run and builds one
+`crevice view` reads the manifest or scene JSON of a `report`, `cavities --cast`,
+`trajectory --region`, `trajectory --cavities` or `trajectory --water` run and builds one
 layer per object:
 
 - **Cast surfaces** are the display surfaces of the native PyMOL, VMD and
@@ -51,8 +51,8 @@ layer per object:
   `*_volume.dx` grids and live in the tables, not in the picture.
 - **Lining residues** and the **profile centre line** start hidden; switch them
   on with a checkbox, `--show` or `.toggle()`.
-- **Member waters** come from one of the frames a `region-trajectory
-  --water-membership` run saved (`--snapshot`: 0 the first, 1 the middle, -1
+- **Member waters** come from one of the frames a `trajectory --region
+  DEFINITION --water-membership` run saved (`--snapshot`: 0 the first, 1 the middle, -1
   the last).
 
 The two trajectory commands write a scene only with the hydration analysis
@@ -108,5 +108,5 @@ more control over lighting and resolution.
 
 Try it in the [Explore results interactively](../examples/explore-interactively.md)
 tutorial. Profiles and casts come from [`profile`](profile.md),
-[`cast`](cast.md) and [`publish`](publish.md); a
+[`cavities --cast`](cast.md) and [`report`](publish.md); a
 [pore fingerprint](fingerprint.md) gives the same channel as a set of curves.

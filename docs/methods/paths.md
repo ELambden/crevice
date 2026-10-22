@@ -28,7 +28,7 @@ and the absence of a route on the grid does not prove that none exists.
 
 ## Bulk, exposed nodes and the mouth
 
-* **Bulk** is the rolling-probe definition used by `crevice cast` and the
+* **Bulk** is the rolling-probe definition used by `crevice cavities --cast` and the
   lateral exits of `crevice profile`: nodes with clearance ≥ `--bulk-radius`
   (default 6 Å) connected along atom-clear segments to the faces of the grid
   box are bulk-probe centres, and a point lies in bulk when it is within
@@ -57,7 +57,7 @@ the snap distance is recorded. A maximin (widest-path) Dijkstra then labels
 every reachable free node with its widest route from the start, the route
 whose narrowest node clearance is largest; equally wide routes prefer the
 shorter one, then lattice order, so results are deterministic. This is the
-same ordering as `crevice tunnels` and the lateral-exit search. The route's
+same ordering as `crevice cavities --tunnels` and the lateral-exit search. The route's
 **ranking width** ignores nodes inside the start's own free sphere, which
 every route shares; the reported bottleneck includes them.
 

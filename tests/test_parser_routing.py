@@ -121,7 +121,7 @@ def test_modified_polymer_residue_survives_hetero_filtering(tmp_path):
     assert "O" not in [atom.name for atom in kept]
 
     legacy, legacy_report = load_structure_report(path, parser="builtin")
-    assert legacy_report["hetero_definition"] == "group_pdb"
+    assert legacy_report["hetero_definition"] == "group_pdb_except_polymer"
     legacy_kept = legacy.selected_atoms(include_hydrogen=False, include_hetero=False)
     assert "SE" not in [atom.name for atom in legacy_kept]
 
@@ -132,7 +132,7 @@ def test_entity_free_mmcif_falls_back_to_the_record_type(tmp_path):
                                  type_symbol="O", label_comp_id="HOH", Cartn_x=9.0)],
                  entities=None)
     _, report = load_structure_report(path)
-    assert report["hetero_definition"] == "group_pdb"
+    assert report["hetero_definition"] == "group_pdb_except_polymer"
 
 
 def test_model_index_is_honoured_through_routing(tmp_path):

@@ -161,7 +161,7 @@ def test_streaming_hydration_preserves_water_ids_and_periodic_alignment(tmp_path
     assert result['arrays']['sasa_A2'][0]==pytest.approx(result['arrays']['sasa_A2'][2],abs=1e-10)
     files=write_hydration_bundle(result,tmp_path/'bundle',dpi=60,replicates=200)
     assert all(Path(p).is_file() for p in files.values())
-    assert main(['hydration',str(source),'--trajectory',str(trajectory),'--out-dir',str(tmp_path/'cli'),'--max-frames','3','--hydration-sasa-points','32','--dpi','60'])==0
+    assert main(['trajectory', '--water',str(source),'--trajectory',str(trajectory),'--out-dir',str(tmp_path/'cli'),'--max-frames','3','--hydration-sasa-points','32','--dpi','60'])==0
 
 
 def reference_dx(path):
@@ -175,7 +175,7 @@ def reference_dx(path):
 def test_standard_static_hydration_and_explicit_skip_preserve_geometry(tmp_path):
     from crevice.cli import main
     source,_=md_fixture(tmp_path);dx=reference_dx(tmp_path/'ref.dx');before=dx.read_bytes()
-    base=['residue-evidence',str(source),'--volume-dx',str(dx),'--dpi','60','--hydration-sasa-points','32']
+    base=['residues', '--evidence',str(source),'--volume-dx',str(dx),'--dpi','60','--hydration-sasa-points','32']
     assert main(base+['--out-dir',str(tmp_path/'standard'),'--outputs','default,hydration'])==0
     hydration=json.loads((tmp_path/'standard/crevice_hydration.json').read_text(encoding="utf-8"))
     assert hydration['water_population']==1 and hydration['residue_count']>0
@@ -188,7 +188,7 @@ def test_standard_cavity_trajectory_and_subset_keep_original_alignment_reference
     from crevice.cli import main
     from crevice.hydration_trajectory import analyze_hydration_trajectory
     source,trajectory=md_fixture(tmp_path);dx=reference_dx(tmp_path/'ref.dx');output=tmp_path/'standard'
-    assert main(['cavity-trajectory',str(source),str(trajectory),'--reference-volume-dx',str(dx),'--geometry-mode','reference-region',
+    assert main(['trajectory', '--cavities',str(source),str(trajectory),'--reference-volume-dx',str(dx),'--geometry-mode','reference-region',
       '--max-frames','3','--out-dir',str(output),'--dpi','60','--bootstrap-replicates','200','--hydration-sasa-points','32',
       '--outputs','default,hydration'])==0
     report=json.loads((output/'crevice_hydration.json').read_text(encoding="utf-8"));assert report['frame_count']==3
@@ -222,5 +222,5 @@ def test_confidence_opt_out_and_invalid_parameters_are_explicit(tmp_path):
     assert report['residues'][0]['statistics']['sasa_A2']['confidence_interval']['status']=='not_requested'
     with pytest.raises(ValueError,match='confidence'):
         write_hydration_bundle(result,tmp_path/'bad',confidence=2,dpi=60)
-    assert main(['hydration','missing.pdb','--out-dir',str(tmp_path/'early'),'--hydration-cutoff','-1'])==2
+    assert main(['trajectory', '--water','missing.pdb','--out-dir',str(tmp_path/'early'),'--hydration-cutoff','-1'])==2
     assert not (tmp_path/'early').exists()

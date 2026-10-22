@@ -172,7 +172,7 @@ def test_publish_records_the_choice_or_the_refusal(tmp_path):
             for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
         out = tmp_path / name
         with pytest.warns(RuntimeWarning) if not resolved else _no_warning_check():
-            assert main(["publish", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,-4",
+            assert main(["report", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,-4",
                          "--search-radius", "7", "--samples", "25", "--section-spacing", "0.5",
                          "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "40"]) == 0
         manifest = json.loads((out / f"{name}_manifest.json").read_text(encoding="utf-8"))
@@ -334,7 +334,7 @@ def test_static_suite_and_benchmark_default_to_auto(tmp_path, short_ladder):
     assert len(short_ladder) == 1   # sensitivity rows reuse the system's probe
     for label, extra in (("auto", []), ("fixed", ["--enclosure-radius", "0.8"])):
         output = tmp_path / f"benchmark_{label}.json"
-        assert main(["benchmark", "1GRM", "--cache-dir", str(cache), "--format", "pdb", "--samples", "11",
+        assert main(["report", "--benchmark", "1GRM", "--cache-dir", str(cache), "--format", "pdb", "--samples", "11",
                      "--search-radius", "8", "--output", str(output), *extra]) == 0
         row = json.loads(output.read_text(encoding="utf-8"))["benchmarks"][0]
         assert row["status"] == "ok" and row["enclosure_probe_mode"] == ("auto" if not extra else "explicit")

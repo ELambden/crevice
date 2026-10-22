@@ -1,7 +1,7 @@
 """Interactive 3D views of CREVICE results in Jupyter and in a standalone HTML file.
 
-:func:`view` builds a :class:`CreviceView` from a ``publish``/``cast`` output
-directory, a ``region-trajectory``/``cavity-trajectory`` hydration output
+:func:`view` builds a :class:`CreviceView` from a ``report``/``cavities --cast`` output
+directory, a ``trajectory --region``/``trajectory --cavities`` hydration output
 directory, or in-memory results (a structure frame plus a cast, its ENTRY/EXIT
 segments and a channel profile). The view holds a plain scene description:
 the protein as a cartoon, each displayed cast surface as its own triangle
@@ -43,7 +43,9 @@ import html
 import json
 import math
 from dataclasses import dataclass, field as _dc_field
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
+
+from ._portable_paths import is_absolute_text, record_path, resolve_recorded
 
 import numpy as np
 
@@ -467,7 +469,15 @@ class CreviceView:
         """
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(self.to_html(inline_js=inline_js), encoding="utf-8")
+        source = self.source
+        # Record a source file relative to the page (portable folders); a label
+        # such as "crevice.paths" that names no file is kept as it is.
+        if source and source != "memory" and (is_absolute_text(source) or Path(source).exists()):
+            self.source = record_path(source, out.parent)
+        try:
+            out.write_text(self.to_html(inline_js=inline_js), encoding="utf-8")
+        finally:
+            self.source = source
         return out
 
     def jupyter_html(self, width=720, height=520, offline=False):
@@ -604,21 +614,16 @@ window.creviceReady = CreviceView.build(creviceViewer, document.getElementById("
 # --------------------------------------------------------------------------
 
 def _resolve(path_text, directory):
-    """Manifest paths are absolute at write time; fall back to the bundle directory.
+    """The file a manifest entry names, or None.
 
-    The fallback takes the file name with either separator, so a bundle written
-    on Windows and moved to Linux or macOS (or the reverse) still opens.
+    0.4.0 and later record paths relative to the manifest's directory; 0.3.x
+    recorded absolute paths of the writing machine. A path that does not exist
+    is looked for inside the bundle directory by its trailing components and
+    file name, with either separator, so a moved bundle, or one written on
+    Windows and opened on Linux or macOS (or the reverse), still opens.
     """
-    if not path_text:
-        return None
-    path = Path(path_text)
-    if path.is_file():
-        return path
-    for name in dict.fromkeys((path.name, PureWindowsPath(path_text).name)):
-        local = Path(directory) / name
-        if name and local.is_file():
-            return local
-    return None
+    path = resolve_recorded(path_text, directory, must_exist=True)
+    return path if path is not None and path.is_file() else None
 
 
 def _mesh_layer(name, label, color, mesh, opacity=1.0, visible=True, description=""):
@@ -822,9 +827,9 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
     Parameters
     ----------
     source : str or Path, optional
-        Output directory (or its manifest/scene JSON) of ``crevice publish``,
-        ``crevice cast``, ``crevice region-trajectory``, ``crevice
-        cavity-trajectory`` or ``crevice hydration``, or of ``crevice paths``
+        Output directory (or its manifest/scene JSON) of ``crevice report``,
+        ``crevice cavities --cast``, ``crevice trajectory --region``, ``crevice
+        trajectory --cavities`` or ``crevice trajectory --water``, or of ``crevice paths``
         (a ``*_paths.json``: one line layer per branch). Omit it to view
         in-memory results instead.
     frame : StructureFrame, optional

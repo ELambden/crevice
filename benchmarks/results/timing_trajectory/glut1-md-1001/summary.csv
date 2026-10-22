@@ -1,0 +1,7 @@
+# System: glut1-md-1001. Mutant GLUT1 membrane MD (prod.gro + prod2_short.xtc, 1001 frames, CHARMM naming) with a prepared candidate-site region (reference frame 0, 0.2 A grid, probe 1.4 A, margin 2 A). GLUT1 has no through-channel, so no profile cases.
+# Machine: Intel(R) Core(TM) Ultra 7 268V, 8 logical CPUs, Linux-7.0.0-31-generic-x86_64-with-glibc2.39, Python 3.13.13; load average at start [1.11083984375, 1.453125, 1.68115234375]. CPUs allowed per run: 1 (max MHz 5000); frames: 1000; repeats: 3. Timings depend on machine load (see the load columns).
+case,tool,status,repeats,failed_runs,frames,frames_written,frames_with_result,spacing_A,grid,cpus,cpu_max_mhz,workers,median_wall_s,median_cpu_s,cpu_per_wall,frames_per_s,s_per_frame,max_peak_rss_mb,max_peak_tree_rss_mb,load_1min_range
+crevice_region,CREVICE trajectory --region,ok,3,0,1000,1000,1000,0.2000,volume grid,1,5000,1,1664.7599,1664.5361,0.9999,0.6007,1.6648,7569.6797,7553.4609,1.1-2.2
+crevice_region_0.35,CREVICE trajectory --cavities (reference region at 0.35 A),ok,3,0,1000,1000,1000,0.3500,volume grid,1,5000,1,606.5856,606.4621,0.9998,1.6486,0.6066,7449.7227,7449.2773,2.1-2.3
+crevice_region_0.5,CREVICE trajectory --cavities (reference region at 0.5 A),ok,3,0,1000,1000,1000,0.5000,volume grid,1,5000,1,431.9415,431.8656,0.9998,2.3151,0.4319,7403.2891,7402.6758,2.1-2.3
+crevice_region_0.7,CREVICE trajectory --cavities (reference region at 0.7 A),ok,3,0,1000,1000,1000,0.7000,volume grid,1,5000,1,370.0575,369.9812,0.9998,2.7023,0.3701,7309.5625,7309.6211,2.1-2.3

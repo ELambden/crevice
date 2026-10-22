@@ -30,27 +30,27 @@ crevice fetch 1GRM --format pdb --cache-dir "$cache" | tee -a "$log"
 # 1GRM: pore radius profile and channel cast
 run 1grm profile 1GRM --cache-dir "$cache" --axis auto -o 1GRM_profile.json \
     --png 1GRM_profile.png --annotated-png 1GRM_profile_residues.png --dpi 150
-run 1grm publish 1GRM --cache-dir "$cache" --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
+run 1grm report 1GRM --cache-dir "$cache" --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
     --outputs default,figures,cavities,tunnels,network
 run 1grm view 1GRM_bundle -o 1GRM_view.html
 
 # 3UKM: a capped channel with lateral exits
 run 3ukm profile 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
     -o 3UKM_profile.json --png 3UKM_profile.png --dpi 150
-run 3ukm publish 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
+run 3ukm report 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
     --enclosure-radius 0.55 --out-dir 3UKM_bundle --prefix 3UKM --dpi 150
 run 3ukm view 3UKM_bundle -o 3UKM_view.html
 
 # 1OED: a wide pore with gaps in its wall
 run 1oed profile 1OED --cache-dir "$cache" -o 1OED_profile.json --png 1OED_profile.png --dpi 150
-run 1oed profile 1OED --cache-dir "$cache" --enclosure-radius 2.0 -o 1OED_profile_2.0.json
-run 1oed residues 1OED --cache-dir "$cache" --enclosure-radius 2.0 -o 1OED_residues.csv \
+run 1oed profile 1OED --cache-dir "$cache" --enclosure-radius 2.2 -o 1OED_profile_2.2.json
+run 1oed residues 1OED --cache-dir "$cache" --enclosure-radius 2.2 -o 1OED_residues.csv \
     --png 1OED_residues.png --dpi 150
 
 # 4PYP: interior cavity cast and its boundary residues (the profile is expected to fail)
 run 4pyp profile 4PYP --cache-dir "$cache" -o 4PYP_profile.json || echo "[4pyp] profile unresolved, as expected" | tee -a "$log"
-run 4pyp cast 4PYP --cache-dir "$cache" --out-dir 4PYP_cast
-run 4pyp residue-evidence 4PYP_cast/4PYP_viewer.pdb --volume-dx 4PYP_cast/4PYP_volume.dx \
+run 4pyp cavities --cast 4PYP --cache-dir "$cache" --out-dir 4PYP_cast
+run 4pyp residues --evidence 4PYP_cast/4PYP_viewer.pdb --volume-dx 4PYP_cast/4PYP_volume.dx \
     --scene 4PYP_cast/4PYP_volume.pml --out-dir 4PYP_evidence --prefix 4PYP --dpi 150
 
 # Atomic radii and figure text

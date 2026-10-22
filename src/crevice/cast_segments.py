@@ -220,7 +220,7 @@ def segment_casts(frame, profile, cast, *, entry_end: str | None = "auto", bulk_
                   lateral_casts=None) -> tuple:
     """ENTRY and EXIT segment casts beyond the two mouths of a channel cast.
 
-    The lumen is ``cast`` itself and is not modified. Rules: module docstring.
+    The lumen is ``cavities --cast`` itself and is not modified. Rules: module docstring.
 
     Parameters
     ----------

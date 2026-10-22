@@ -1,4 +1,4 @@
-"""Static-structure workflow of ``crevice publish`` and ``crevice cast``, split into compute and export.
+"""Static-structure workflow of ``crevice report`` and ``crevice cavities --cast``, split into compute and export.
 
 :func:`compute_static_workflow` and :func:`compute_rolling_cast` measure and
 return results without writing any file; :func:`export_static_workflow` and
@@ -66,7 +66,7 @@ class RollingCastResult:
 
 @dataclass
 class StaticWorkflowResult:
-    """Everything ``crevice publish`` measures for one structure (no files).
+    """Everything ``crevice report`` measures for one structure (no files).
 
     Attributes
     ----------
@@ -202,7 +202,7 @@ def compute_rolling_cast(frame, *, spacing=.5, probe_radius=.8, outer_radius=6.,
 
 def export_rolling_cast(result: RollingCastResult, *, structure_path, output_dir, prefix="crevice",
                         surface_smoothing=None, smooth=None) -> dict:
-    """Write a :class:`RollingCastResult` as the ``crevice cast`` bundle.
+    """Write a :class:`RollingCastResult` as the ``crevice cavities --cast`` bundle.
 
     The files are those of :func:`crevice.figures.write_rolling_probe_bundle`,
     filtered by the active output plan (:mod:`crevice.outputs`).
@@ -426,7 +426,7 @@ def compute_static_workflow(
     fingerprint: bool = False,
     radii: RadiusSet | str | None = None,
 ) -> StaticWorkflowResult:
-    """Measure everything ``crevice publish`` reports, without writing any file.
+    """Measure everything ``crevice report`` reports, without writing any file.
 
     Parameters are those of :func:`crevice.figures.write_static_publication_bundle`
     that affect measurements (the display-only ones belong to
@@ -656,7 +656,7 @@ def export_static_workflow(result: StaticWorkflowResult, *, structure_path, outp
                            dpi: int = 200, residue_label_every: int = 5, cast_extension: float = 2.0,
                            surface_smoothing: float | None = None, smooth: float | None = None, outputs=None,
                            annotate: bool | None = None) -> dict:
-    """Write a :class:`StaticWorkflowResult` as the ``crevice publish`` bundle.
+    """Write a :class:`StaticWorkflowResult` as the ``crevice report`` bundle.
 
     The files and manifest are those of
     :func:`crevice.figures.write_static_publication_bundle`, filtered by the
@@ -682,7 +682,7 @@ def export_static_workflow(result: StaticWorkflowResult, *, structure_path, outp
     surface_smoothing, smooth : float, optional
         Display-surface smoothing (Å); see :func:`crevice.volume_export.resolve_display_smoothing`.
     outputs : None, str, sequence of str or OutputPlan, optional
-        Output selection for this call (policy of ``crevice publish``, see
+        Output selection for this call (policy of ``crevice report``, see
         :mod:`crevice.outputs`); ``None`` keeps the active plan.
     annotate : bool, optional
         Draw explanatory text in the figures; ``None`` inherits the surrounding setting.

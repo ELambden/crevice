@@ -119,9 +119,9 @@ def test_bundle_files(tmp_path):
 
 def test_cli_parser_has_fingerprint():
     from crevice.cli import build_parser
-    args = build_parser().parse_args(["fingerprint", "x.pdb", "--out-dir", "o", "--electrolyte", "kcl-1m"])
+    args = build_parser().parse_args(["profile", "--fingerprint", "x.pdb", "--out-dir", "o", "--electrolyte", "kcl-1m"])
     assert args.func.__name__ == "_cmd_fingerprint" and args.electrolyte == "kcl-1m"
-    assert build_parser().parse_args(["publish", "x.pdb", "--out-dir", "o", "--fingerprint"]).fingerprint
+    assert build_parser().parse_args(["report", "x.pdb", "--out-dir", "o", "--fingerprint"]).fingerprint
 
 
 def test_count_path_waters_assigns_nearest_sample_inside_free_sphere():

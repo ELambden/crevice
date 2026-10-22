@@ -62,7 +62,7 @@ def test_example_missing_from_source_dir_is_explained(tmp_path, one_file_dataset
 
 def test_cli_fetch_example_404_is_one_error_line(tmp_path, one_file_dataset, monkeypatch, capsys):
     monkeypatch.setattr(urllib.request, "urlopen", _http_404)
-    assert main(["fetch-example", "fake", "--cache-dir", str(tmp_path)]) == 2
+    assert main(["fetch", "--example", "fake", "--cache-dir", str(tmp_path)]) == 2
     err = capsys.readouterr().err
     lines = err.strip().splitlines()
     assert len(lines) == 1 and lines[0].startswith("crevice: error: Example file t.xtc was not found")
@@ -93,18 +93,18 @@ def test_structure_network_failure_suggests_offline(tmp_path, monkeypatch):
 # --- CLI error handling ------------------------------------------------------
 
 def test_key_error_message_is_not_quoted(capsys):
-    assert main(["fetch-example", "no-such-dataset"]) == 2
+    assert main(["fetch", "--example", "no-such-dataset"]) == 2
     assert capsys.readouterr().err.startswith("crevice: error: Unknown example dataset 'no-such-dataset'")
 
 
 def test_debug_prints_the_traceback(capsys, monkeypatch):
     monkeypatch.delenv("CREVICE_DEBUG", raising=False)
-    assert main(["fetch-example", "no-such-dataset"]) == 2
+    assert main(["fetch", "--example", "no-such-dataset"]) == 2
     assert "Traceback" not in capsys.readouterr().err
-    assert main(["fetch-example", "no-such-dataset", "--debug"]) == 2
+    assert main(["fetch", "--example", "no-such-dataset", "--debug"]) == 2
     assert "Traceback" in capsys.readouterr().err
     monkeypatch.setenv("CREVICE_DEBUG", "1")
-    assert main(["fetch-example", "no-such-dataset"]) == 2
+    assert main(["fetch", "--example", "no-such-dataset"]) == 2
     assert "Traceback" in capsys.readouterr().err
 
 
@@ -119,7 +119,7 @@ def test_unresolved_channel_error_gets_a_hint(monkeypatch, capsys):
     err = capsys.readouterr().err.strip().splitlines()
     assert err[0].startswith("crevice: error: No enclosure probe resolved")
     assert err[1] == f"crevice: hint: {UNRESOLVED_CHANNEL_HINT}"
-    for option in ("--axis", "--lateral-exits", "--enclosure-radius", "crevice cast", "crevice cavities"):
+    for option in ("--axis", "--lateral-exits", "--enclosure-radius", "crevice cavities --cast", "crevice cavities"):
         assert option in UNRESOLVED_CHANNEL_HINT
 
 

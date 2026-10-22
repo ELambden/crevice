@@ -1,6 +1,6 @@
 # Cavity and channel casts
 
-`crevice cast` shows you the 3D shape of the space inside a protein and
+`crevice cavities --cast` shows you the 3D shape of the space inside a protein and
 measures its volume. It fills the interior with spheres that don't touch any
 atom, so the result follows the real shape of a pocket, a buried cavity or an
 irregular channel. Unlike a [profile](profile.md), a cast doesn't need a
@@ -10,7 +10,7 @@ which has no through-channel, casts happily.
 ## Quick start
 
 ```bash
-crevice cast 4PYP --out-dir 4PYP_cast
+crevice cavities --cast 4PYP --out-dir 4PYP_cast
 ```
 
 ```python
@@ -63,8 +63,15 @@ Two other modes are useful:
   Here a non-zero `--enclosure-fraction` trims away unburied centres before
   the regions are formed; the metadata records which rule applied.
 
-By default the walls are the protein's heavy atoms (`--selection protein`,
-including modified residues deposited as HETATM when Gemmi reads the mmCIF).
+By default the walls are the protein's heavy atoms (`--selection protein`),
+including polymer residues deposited as HETATM: D-amino acids,
+selenomethionine and other modified residues (see
+[polymer residues recorded as HETATM](../getting-started/inputs-and-selections.md#polymer-residues-recorded-as-hetatm)).
+PDB and mmCIF files of the same entry therefore give the same walls; for
+gramicidin (1GRM) both give 272 heavy atoms and the same cast. With
+`--hetero-polymer exclude` those residues are heteroatoms and are left out,
+and the command warns when a dropped residue is peptide-bonded into a chain
+(`polymer_hetero_residues_excluded` in the atom-selection record).
 Ligands, cofactors, waters and membrane only count as walls with
 `--selection all`. Leaving them out can let a cast grow into space that is
 really occupied, so choose deliberately. The grid is never coarsened behind
@@ -79,7 +86,7 @@ as wall, and the radii don't depend on it as long as the channel resolves, so a
 rule can pick it. In a cast, the probe centres define the space that is kept
 and the swept spheres define its volume and shape: a different probe gives a
 different, equally valid cast. Choosing it automatically would quietly change
-volumes, so keep 0.8 Å or pass the probe you want and report it. `publish`
+volumes, so keep 0.8 Å or pass the probe you want and report it. `report`
 uses the same 0.8 Å cast as its fallback when no channel resolves.
 
 ## Options you'll use most
@@ -100,7 +107,7 @@ uses the same 0.8 Å cast as its fallback when no channel resolves.
 ([Surface smoothing](../SURFACE_SMOOTHING.md)). Atomic radii, figure text,
 hydration settings, output selection and structure input are
 [shared options](../reference/cli/common-options.md); every option is listed
-under [`crevice cast`](../reference/cli/cast.md).
+under [`crevice cavities --cast`](../reference/cli/cavities.md).
 
 ## What you get
 
@@ -126,15 +133,21 @@ A directory containing:
 
 There is no Matplotlib preview: open a scene, or render one with
 `*_render.cxc`. A cast of this kind has no channel axis, so it isn't split into
-entry, lumen and exit segments; [`publish`](publish.md) does that for a
+entry, lumen and exit segments; [`report`](publish.md) does that for a
 resolved channel.
 
 :::{admonition} Interpreting results
 :class: crevice-interpret
 
 A cast volume depends on the grid spacing, the probe radius and which atoms
-count as walls: in our 4PYP example, a cast with every heavy atom (including
-deposited heteroatoms) as walls on a 0.5 Å grid measured 2439.6 Å³, and the
+count as walls. Volumes shrink smoothly as the grid coarsens (see
+[grid resolution](../methods/uncertainty.md#cast-volume-and-region-selection-on-a-grid)),
+and two grid decisions can make them jump: which of two similar regions is
+kept, and whether two lobes joined by a neck about as wide as the probe count
+as one region. The command warns when either applies
+(`selection_stability` in the cast metadata); compare a finer `--spacing`
+before using such a volume. In our 4PYP example, a cast with every heavy
+atom (including deposited heteroatoms) as walls on a 0.5 Å grid measured 2439.6 Å³, and the
 protein-only default gives a different number. Compare a few settings before
 reading much into a volume ([Physical obstacles and numerical
 sensitivity](../CAVITY_OBSTACLES.md)). The method can miss weakly enclosed or

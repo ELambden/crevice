@@ -5,9 +5,9 @@ trajectory it belongs to (with SHA-256 hashes), the protein and obstacle atom
 selections, the alignment scaffold, the grid geometry, the reference region
 (an existing DX map, or a sphere around residue landmarks to be proposed),
 the landmarks and their evidence, and a review status. ``crevice
-region-init`` writes a candidate definition, ``crevice region-prepare``
+region init`` writes a candidate definition, ``crevice region prepare``
 (:func:`prepare_region`) fixes its reference region in the declared frame and
-writes the review scenes, and ``crevice region-trajectory``
+writes the review scenes, and ``crevice trajectory --region``
 (:func:`trajectory_arguments`) measures the fixed region in every frame.
 
 Schema versions
@@ -21,7 +21,7 @@ Schema versions
   is not recomputed, only the per-frame measurements use the new radii.
 * ``schema_version: 2``: as version 1 plus a required top-level ``radii``
   object, the provenance of the radius set
-  (:meth:`crevice.radii.RadiusSet.provenance`). ``region-prepare`` always
+  (:meth:`crevice.radii.RadiusSet.provenance`). ``region prepare`` always
   writes version 2. Later steps rebuild that set
   (:func:`crevice.radii.radius_set_from_provenance`) and use it, or refuse a
   different explicitly chosen set unless ``allow_radii_mismatch`` /
@@ -32,6 +32,7 @@ module. Preparing a reference fixes its domain; it is not re-centred per frame.
 """
 from copy import deepcopy
 from pathlib import Path
+from ._portable_paths import dumps_record
 import hashlib
 import json
 import math
@@ -47,7 +48,7 @@ SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 CURRENT_SCHEMA_VERSION = 2
 
 
-def write_json(path, value):
+def write_json(path, value, portable=True):
     """Write ``value`` as indented JSON (``allow_nan=False``) with a trailing newline.
 
     Parameters
@@ -56,8 +57,13 @@ def write_json(path, value):
         Output file; overwritten.
     value : object
         JSON-serialisable value. NaN or infinity raises ``ValueError``.
+    portable : bool, default True
+        Record paths relative to the file's directory with ``/`` separators
+        (:func:`crevice._portable_paths.portable_json`); ``False`` writes
+        ``value`` as it is (the copy of a user's request).
     """
-    Path(path).write_text(json.dumps(value, indent=2, allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    text = dumps_record(value, path, indent=2, allow_nan=False) if portable else json.dumps(value, indent=2, allow_nan=False)
+    Path(path).write_text(text+'\n', encoding="utf-8", newline="\n")
 
 
 def sha256(path):
@@ -395,7 +401,7 @@ def frame_contract(frame):
         ``source_frame_index``, ``atom_count``, ``identities_sha256`` (residue
         label, atom name, altloc, element and hetero flag of every atom, in
         order), ``coordinates_float32_sha256`` (little-endian float32
-        coordinates) and ``coordinate_convention``. ``region-trajectory``
+        coordinates) and ``coordinate_convention``. ``trajectory --region``
         requires the current inputs to reproduce it exactly.
     """
     import numpy as np
@@ -655,10 +661,10 @@ def prepare_region(path, output_dir, *, annotate=None, radii: RadiusSet | str | 
     (``landmark_sphere``). Diagnostics (volume, obstacle overlap, landmark
     distances, warnings) and a prepared, versioned definition are written, and
     :func:`crevice.region_review.write_region_review` writes the native review
-    scenes and page (``crevice region-prepare``).
+    scenes and page (``crevice region prepare``).
 
     The radius set is chosen by :func:`resolve_region_radii`: an unprepared
-    request (from ``region-init``) takes ``radii`` or the set in effect; a
+    request (from ``region init``) takes ``radii`` or the set in effect; a
     definition that already declares a set uses it, and a different
     explicitly chosen set is refused unless ``allow_radii_mismatch``. The
     prepared definition is written as schema version 2 with that set's
@@ -667,7 +673,7 @@ def prepare_region(path, output_dir, *, annotate=None, radii: RadiusSet | str | 
     Parameters
     ----------
     path : str or Path
-        Region definition JSON (for example from ``crevice region-init``).
+        Region definition JSON (for example from ``crevice region init``).
     output_dir : str or Path
         New or empty output directory.
     annotate : bool, optional
@@ -751,7 +757,7 @@ def _prepare_region(path, output_dir, used, check):
     landmarks=resolve_landmarks(frame,data['landmarks'])
     _,fit=align_frame_report(frame,frame,residues=data['alignment']['residues'])
     root.mkdir(parents=True,exist_ok=True)
-    write_json(root/'request.json',data)
+    write_json(root/'request.json',data,portable=False)   # the request as given (paths relative to its own file)
     write_json(root/'reader.json',reader)
     prefix=data['region_id'];g=data['geometry']
     if data['reference']['kind']=='landmark_sphere':
@@ -815,7 +821,7 @@ def trajectory_arguments(path, output_dir, *, radii=None, allow_radii_mismatch=F
     Parameters
     ----------
     path : str or Path
-        Prepared definition (``REGION_region.json`` from ``region-prepare``).
+        Prepared definition (``REGION_region.json`` from ``region prepare``).
     output_dir : str or Path
         Output directory passed on as ``--out-dir``.
     radii : RadiusSet, str, os.PathLike or None, optional
@@ -827,7 +833,7 @@ def trajectory_arguments(path, output_dir, *, radii=None, allow_radii_mismatch=F
     Returns
     -------
     argv : list of str
-        ``crevice cavity-trajectory`` arguments: topology, trajectory,
+        ``crevice trajectory --cavities`` arguments: topology, trajectory,
         reference map, selections, PBC, ``--geometry-mode reference-region``
         and the definition's grid geometry.
     metadata : dict
@@ -846,9 +852,9 @@ def trajectory_arguments(path, output_dir, *, radii=None, allow_radii_mismatch=F
         without ``allow_radii_mismatch``.
     """
     data,assets=load_definition(path)
-    if 'prepared' not in data or data['reference']['kind']!='existing_dx':raise ValueError('Run region-prepare before region-trajectory')
-    if assets['trajectory'] is None:raise ValueError('region-trajectory requires a declared trajectory')
-    if data['system']['reference_frame']!=0:raise ValueError('region-trajectory currently requires source reference frame 0')
+    if 'prepared' not in data or data['reference']['kind']!='existing_dx':raise ValueError("Run 'crevice region prepare' before 'crevice trajectory --region'")
+    if assets['trajectory'] is None:raise ValueError('trajectory --region requires a declared trajectory')
+    if data['system']['reference_frame']!=0:raise ValueError('trajectory --region currently requires source reference frame 0')
     from .trajectory import load_trajectory_report
     t,_=load_trajectory_report(assets['topology'],assets['trajectory'],selection=data['system']['protein_selection'],stop=1,pbc=data['system']['pbc'])
     resolve_landmarks(t.frames[0],data['landmarks'])

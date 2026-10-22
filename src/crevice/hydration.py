@@ -22,7 +22,7 @@ Probe-accessible surface area (SASA)
 
 Periodic systems are handled with MDAnalysis minimum-image distances.
 
-Main entry points: :func:`static_hydration` (command ``crevice hydration``
+Main entry points: :func:`static_hydration` (command ``crevice trajectory --water``
 on one structure), :class:`HydrationTopology` (per-frame measurement, used by
 :func:`crevice.hydration_trajectory.analyze_hydration_trajectory`) and
 :func:`sampled_sasa`.

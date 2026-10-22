@@ -1,6 +1,6 @@
 # Cavities over a trajectory
 
-`crevice cavity-trajectory` follows a cavity through every frame of a
+`crevice trajectory --cavities` follows a cavity through every frame of a
 simulation. It tells you how the cavity's volume and widths change, which
 residues form its wall and how often, and how precisely the averages are
 known. It works on pockets and one-sided cavities, so the cavity doesn't need
@@ -9,11 +9,11 @@ to run right through the protein.
 ## Quick start
 
 You need a reference: a measured cast map of the cavity in the coordinates of
-the first frame, for example from [`cast`](cast.md) run on that frame, or from
+the first frame, for example from [`cavities --cast`](cast.md) run on that frame, or from
 a prepared [named region](regions.md).
 
 ```bash
-crevice cavity-trajectory system.gro run.xtc \
+crevice trajectory --cavities system.gro run.xtc \
     --reference-volume-dx reference_volume.dx --out-dir cavity --workers 4
 ```
 
@@ -77,7 +77,7 @@ Two options are worth knowing about:
 | `--outputs`, `--all`, `--dry-run` | data and key figures | add hydration, scenes and the other figures ({ref}`output-policy`) |
 
 Everything is listed under
-[`crevice cavity-trajectory`](../reference/cli/cavity-trajectory.md).
+[`crevice trajectory --cavities`](../reference/cli/trajectory.md).
 
 ## What you get
 
@@ -88,8 +88,8 @@ Everything is listed under
   partner and contact tables, and `*_cavity_statistics_summary.csv`, which puts
   every summary statistic on its own row.
 - **`*_cavity_statistics.json`**: the structured report, which
-  [`hydration --cavity-results`](hydration.md) and
-  [`region-compare`](regions.md) read later.
+  [`trajectory --water --cavity-results`](hydration.md) and
+  [`region compare`](regions.md) read later.
 - **Key figures** (by default): the volume time series, the radius profile
   (a violet band for the frame range, a violet line for the mean and an
   orange band for the mean interval) and the residue boundary areas.

@@ -75,7 +75,7 @@ an individual atom gets.
 
 | Where | How |
 |---|---|
-| Command line | `--radii default`, `--radii bondi`, `--radii hole`, `--radii charmm_like` or `--radii PATH` on every command that measures geometry (`profile`, `residues`, `cavities`, `tunnels`, `network`, `features`, `cast`, `publish`, `analyze`, `residue-evidence`, `hydration`, `trajectory`, `cavity-trajectory`, `region-prepare`, `region-trajectory`, `benchmark`, `static-suite`) |
+| Command line | `--radii default`, `--radii bondi`, `--radii hole`, `--radii charmm_like` or `--radii PATH` on every command that measures geometry (`profile`, `residues`, `cavities`, `cavities --tunnels`, `residues --network`, `residues --features`, `cavities --cast`, `report`, `report --analyze`, `residues --evidence`, `trajectory --water`, `trajectory`, `trajectory --cavities`, `region prepare`, `trajectory --region`, `report --benchmark`, `report --suite`) |
 | Python, one call | `radii=` on every analysis that uses radii, for example `pore_profile(frame, radii="hole")`, `rolling_probe_cast(frame, radii=my_set)`, `write_static_publication_bundle(..., radii="path/to/radii.json")` |
 | Python, a block of code | `with crevice.radii.use_radii("hole"): ...` |
 
@@ -227,7 +227,7 @@ hydration) therefore use the same set.
 - **Threads.** The variable is private to each thread. A thread you start
   yourself does not inherit the set: pass `radii=` to the analysis inside the
   thread or run it in `contextvars.copy_context()`.
-- **Worker processes.** `cavity-trajectory` and `region-trajectory` with
+- **Worker processes.** `trajectory --cavities` and `trajectory --region` with
   `--workers N` pass the set to each worker explicitly (as an initialiser
   argument) and enter it there, so forked and spawned workers measure with the
   same radii. A test checks that two workers give the same volumes as one.
@@ -243,14 +243,14 @@ default set:
 
 - in the `metadata` of results that have one (profiles, casts, tunnels,
   networks, trajectory analyses), and hence in their JSON files;
-- in every manifest: `publish`, `cast`, `analyze`, `static-suite` (per system and
-  in the summary), `benchmark`, `residue-evidence`, `cavity-trajectory` and
-  `region-trajectory` (cavity manifest and region provenance), hydration
-  manifests and `region-prepare`;
-- in the JSON outputs of `cavities`, `tunnels`, `residues --json`, `network`,
-  `network --connectivity-json`, `features`, `trajectory` (and its
+- in every manifest: `report`, `cavities --cast`, `report --analyze`, `report --suite` (per system and
+  in the summary), `report --benchmark`, `residues --evidence`, `trajectory --cavities` and
+  `trajectory --region` (cavity manifest and region provenance), hydration
+  manifests and `region prepare`;
+- in the JSON outputs of `cavities`, `cavities --tunnels`, `residues --json`, `residues --network`,
+  `residues --network --connectivity-json`, `residues --features`, `trajectory` (and its
   `--distribution-csv` JSON and `--network-json`), and in the settings of
-  `cavity-trajectory` statistics and trajectory hydration results;
+  `trajectory --cavities` statistics and trajectory hydration results;
 - beside every CSV: each CSV is written next to a JSON output or manifest that
   carries `radii`; `residues` without `--json` writes
   `<stem>_provenance.json` for that purpose. CSV files themselves carry no
@@ -276,16 +276,16 @@ CHARMM `SOD`/`POT` names as sulfur/phosphorus).
 
 Steps that build on earlier outputs measure with the same radii:
 
-- **Region definitions** store their radius set. `region-prepare` writes the
+- **Region definitions** store their radius set. `region prepare` writes the
   prepared definition as schema version 2 with a `radii` record of the set it
-  used (`--radii`, or the default). `region-trajectory` measures with that set.
+  used (`--radii`, or the default). `trajectory --region` measures with that set.
   A schema version 1 definition (no `radii`) is read as the default set.
-- **`hydration --cavity-results`** uses the set recorded in the cavity results
+- **`trajectory --water --cavity-results`** uses the set recorded in the cavity results
   (their statistics settings or region provenance).
-- **`region-compare`** checks that both runs recorded the same set.
+- **`region compare`** checks that both runs recorded the same set.
 
-If you pass a different `--radii` to `region-prepare` (for a definition that
-already declares a set), `region-trajectory` or `hydration --cavity-results`,
+If you pass a different `--radii` to `region prepare` (for a definition that
+already declares a set), `trajectory --region` or `trajectory --water --cavity-results`,
 or compare runs with different sets, the command stops with an error naming
 both sets. `--allow-radii-mismatch` proceeds anyway and records the outcome as
 `radii_check` (`mismatch_overridden`). Results that recorded no set (earlier
@@ -310,7 +310,7 @@ set with any comparison between tools.
 
 ## Limitations
 
-- A region's fixed reference map is computed once, at `region-prepare`.
+- A region's fixed reference map is computed once, at `region prepare`.
   Reading a version 1 definition as the default set does not recompute that
   map; only the per-frame measurements use the current radii.
 - Ions are recognised by name only (the ion table); an ion with another

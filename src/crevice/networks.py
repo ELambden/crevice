@@ -6,7 +6,7 @@ a distance cutoff (4.5 Å by default). Two distance metrics are available:
 ``"surface"`` (default of the Python functions)
     Van der Waals surface gap: centre distance minus both atomic radii.
     Negative for overlapping spheres, such as covalently bonded neighbours.
-``"center"`` (default of ``crevice network``)
+``"center"`` (default of ``crevice residues --network``)
     Plain atom-centre distance, the usual definition for residue contact
     networks.
 
@@ -19,7 +19,7 @@ it.
 
 Main entry points: :func:`build_residue_network`,
 :func:`build_cavity_network`, :func:`network_metrics`,
-:func:`compare_networks`. Command: ``crevice network``.
+:func:`compare_networks`. Command: ``crevice residues --network``.
 
 Limitations
     Edges are geometric proximity with chemical-class labels. They are not
@@ -76,15 +76,15 @@ def build_residue_network(
         Include hydrogen atoms in the distance search.
     include_hetero : bool, default False
         Include HETATM residues (ligands, waters, ions) as nodes. Note that
-        ``crevice network`` keeps heteroatoms, while the networks written by
-        ``publish`` and ``analyze`` use this default.
+        ``crevice residues --network`` keeps heteroatoms, while the networks written by
+        ``report`` and ``report --analyze`` use this default.
     residue_groups : mapping of str to str, optional
         Residue label to group name (for example a helix name); stored in each
         node's ``metadata["group"]`` (``"unassigned"`` otherwise). Every key
         must be a residue in the selection.
     distance_metric : {"surface", "center"}, default "surface"
-        See the module description. ``crevice network`` and ``crevice
-        trajectory`` default to ``"center"``; ``publish`` and ``analyze`` use
+        See the module description. ``crevice residues --network`` and ``crevice
+        trajectory`` default to ``"center"``; ``report`` and ``report --analyze`` use
         this default. Unifying the defaults is an open interface decision; the
         metric used is recorded in ``metadata["distance_metric"]``.
     radii : RadiusSet, str or None, optional

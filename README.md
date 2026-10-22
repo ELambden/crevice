@@ -69,12 +69,12 @@ entries are downloaded once and cached with a provenance record.
 crevice profile 1GRM --axis auto -o 1GRM_profile.json --png 1GRM_profile_radius.png
 
 # 3D cast of the dominant interior cavity of GLUT1, with viewer scenes
-crevice cast 4PYP --out-dir 4PYP_cast
+crevice cavities --cast 4PYP --out-dir 4PYP_cast
 
 # One structure: profile, cast, lining residues, typed residue interactions,
 # key figures and PyMOL/VMD/ChimeraX scenes (--all adds cavities, tunnels,
 # network, hydration, every figure and an HTML view; --dry-run shows the plan)
-crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
+crevice report 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
 The same profile from Python:
@@ -99,33 +99,30 @@ are called separately.
 
 | Command | Question it answers |
 | --- | --- |
-| `profile` | How wide is a through-channel along its axis? |
-| `cast` | What 3D space does a pocket, cavity or channel occupy? |
-| `cavities` | Are there enclosed grid voids? |
-| `tunnels` | Which widest grid paths lead from a point to the outside? |
-| `residues` | Which residues line a sampled profile? |
-| `network` | Which residues touch each other and the channel? |
-| `residue-evidence` | Which residues form a measured cavity boundary, and which residues contact them? |
-| `hydration` | Where are explicit waters, and how exposed are residues? |
-| `trajectory` | How do through-channel profiles and contacts vary across frames? |
-| `cavity-trajectory` | How do a cavity's volume, widths and boundary residues change over an MD run? |
-| `region-init`, `region-prepare`, `region-trajectory`, `region-compare` | How do named, versioned regions behave over identical frames? |
-| `publish` | A complete static-structure bundle in one run |
-| `fetch`, `analyze`, `features`, `benchmark`, `static-suite` | Downloads, selected analyses and batch runs |
+| `profile` | How wide is a through-channel along its axis? (`--fingerprint`: lining chemistry, water and a geometric conductance estimate along it) |
+| `cavities` | Are there enclosed grid voids? (`--cast`: what 3D space does a pocket, cavity or channel occupy? `--tunnels`: which widest grid paths lead from a point to the outside?) |
+| `paths` | Which curved or branched widest routes lead from a seed, residues or region to bulk? |
+| `residues` | Which residues line a sampled profile? (`--network`: which residues touch each other and the channel? `--evidence`: which residues form a measured cavity boundary, and which residues contact them? `--features`: descriptors) |
+| `report` | A complete static-structure bundle in one run (`--analyze`: selected analyses; `--suite`, `--benchmark`: batch runs) |
+| `trajectory` | How do through-channel profiles and contacts vary across frames? (`--cavities`: a cavity's volume, widths and boundary residues over an MD run; `--region DEFINITION`: a named, versioned region; `--water`: where are explicit waters, and how exposed are residues?; `--track`: cavity identities, births and deaths) |
+| `region` | `init`, `prepare`, `compare`: define, check and compare named regions |
+| `fetch`, `view` | Downloads and example datasets; an interactive 3D HTML view |
 
-Run `crevice <command> --help` for every option.
+Run `crevice <command> --help` for every option (`crevice cavities --cast --help` for one mode). The
+CREVICE 0.3 command names (`cavities --cast`, `report`, `trajectory --cavities` ...) still work as deprecated aliases;
+see [Upgrading to 0.4](docs/getting-started/upgrading-0.4.md).
 
 A trajectory example (GRO/XTC or any format MDAnalysis reads):
 
 ```bash
-crevice cavity-trajectory system.gro run.xtc \
+crevice trajectory --cavities system.gro run.xtc \
   --reference-volume-dx pocket_volume.dx --geometry-mode reference-region \
   --probe-radius 1.4 --region-margin 2 --spacing 0.2 --axis 0,0,1 \
   --max-frames 1100 --workers 4 --out-dir trajectory-results --prefix system
 ```
 
-The reference map must be a measured binary map (`*_volume.dx` from `cast` or
-`publish`) in the first frame's coordinates. `--max-frames` is a guard against
+The reference map must be a measured binary map (`*_volume.dx` from `cavities --cast` or
+`report`) in the first frame's coordinates. `--max-frames` is a guard against
 loading too many frames by accident, not a stride.
 
 ## Outputs

@@ -123,7 +123,7 @@ contact-filtered correlation network is not causal information flow.
 
 In the `trajectory --network-json` workflow described here, reference lining
 membership is fixed from the supplied measured reference map. The separate
-`cavity-trajectory` workflow computes per-frame boundary membership, lining
+`trajectory --cavities` workflow computes per-frame boundary membership, lining
 occupancy and evolving boundary areas; see
 [CAVITY_TRAJECTORY_METHODS.md](CAVITY_TRAJECTORY_METHODS.md).
 The output distinguishes lining–lining pairs from lining–nonlining partners.
@@ -154,7 +154,7 @@ contain a simultaneous membrane-spanning open channel.
 structure. A static enclosed pocket or one-sided cavity is a valid geometric
 result.
 
-`crevice cast --seed x,y,z --probe-radius R` optionally retains the interior
+`crevice cavities --cast --seed x,y,z --probe-radius R` optionally retains the interior
 probe-center component connected to the specified site. Coordinates and radii
 are in Å. The seed itself must accommodate the probe; the default maximum grid
 snap distance is 0.75 Å, and the complete snap segment must clear every selected
@@ -212,4 +212,4 @@ verify the actual displayed sticks. ChimeraX uses corresponding viewer residue
 IDs. By default the sticks are the plotted top 12 residues per role;
 `--stick-residues all|top:N|IDS|@FILE` chooses another set (for example every
 boundary residue and partner) without changing the plot or tables. See
-[`residue-evidence`](tools/residue-evidence.md).
+[`residues --evidence`](tools/residue-evidence.md).

@@ -16,11 +16,12 @@ Time-series summaries
     lifetimes.
 
 Main entry point: :func:`analyze_hydration_trajectory` (command
-``crevice hydration`` with a trajectory, or ``crevice region-trajectory``).
+``crevice trajectory --water`` with a trajectory, or ``crevice trajectory --region``).
 """
 from pathlib import Path
 import json
 from .radii import RadiusSet, radii_option
+from .mdinput import accepts_md_objects as _accepts_md_objects
 
 
 def sampled_survival(history,times,max_lag=20):
@@ -165,7 +166,8 @@ def _environment_radii(atoms,elements,indices,radii=None):
 
 
 @radii_option
-def analyze_hydration_trajectory(topology,trajectory,*,context_json=None,residue_ids=None,
+@_accepts_md_objects()
+def analyze_hydration_trajectory(topology,trajectory=None,*,context_json=None,residue_ids=None,
                                   selection='protein and not name H*',water_selection=None,
                                   start=0,stop=None,stride=1,max_frames=500,pbc='check',
                                   cutoff=3.5,sasa_probe=1.4,sasa_samples=256,alignment_residues=None,
@@ -175,10 +177,12 @@ def analyze_hydration_trajectory(topology,trajectory,*,context_json=None,residue
 
     Parameters
     ----------
-    topology, trajectory : str or pathlib.Path
-        MD files readable by MDAnalysis.
+    topology, trajectory : str, Path, Universe or AtomGroup
+        MD files readable by MDAnalysis, or a loaded ``MDAnalysis.Universe``
+        or ``AtomGroup`` as ``topology`` with ``trajectory`` omitted (an
+        AtomGroup replaces ``selection``; see :mod:`crevice.mdinput`).
     context_json : str or pathlib.Path, optional
-        ``*_cavity_statistics.json`` from ``crevice cavity-trajectory``. When
+        ``*_cavity_statistics.json`` from ``crevice trajectory --cavities``. When
         given, its sibling reader, frame and provenance files are checked
         against these inputs (paths, frame indices and times, and SHA-256
         hashes when recorded), and its frames, atom selection, alignment
@@ -266,19 +270,26 @@ def analyze_hydration_trajectory(topology,trajectory,*,context_json=None,residue
     from .trajectory import load_trajectory_report,_open_universe,_element_names,align_frame_report
     from .hydration import HydrationTopology,DEFAULT_WATER_SELECTION,minimum_vectors,METRICS
     context=None;context_arrays=None;context_reader=None;context_verification='not_applicable'
+    from .mdinput import md_input_paths
+    source_paths=md_input_paths(topology,trajectory)  # file names behind a Universe, for the provenance checks
     if context_json is not None:
         if not align:raise ValueError('Cached cavity hydration requires alignment to its reference')
         path=Path(context_json).resolve(strict=True);context=json.loads(path.read_text(encoding="utf-8"))
         stem=path.name.removesuffix('_cavity_statistics.json')
         context_reader=json.loads((path.parent/(stem+'_reader.json')).read_text(encoding="utf-8"))
-        for key,current in [('topology',topology),('trajectory',trajectory)]:
+        from ._portable_paths import resolve_recorded   # 0.4: relative to the record; 0.3: absolute
+        for key in ('topology','trajectory'):
+            if context_reader.get(key):context_reader[key]=str(resolve_recorded(context_reader[key],path.parent))
+        if (context.get('reference') or {}).get('source_path'):
+            context['reference']['source_path']=str(resolve_recorded(context['reference']['source_path'],path.parent))
+        for key,current in zip(('topology','trajectory'),source_paths):
             if Path(context_reader[key]).resolve()!=Path(current).resolve():raise ValueError('Hydration context source differs from the requested '+key)
         provenance=path.parent.parent/'input-provenance.json'
         context_verification='source paths, selected identities, frame indices and timestamps; content hashes not supplied'
         if provenance.is_file():
             import hashlib
             hashes=json.loads(provenance.read_text(encoding="utf-8"));verified=0
-            for current in [topology,trajectory]:
+            for current in source_paths:
                 key=str(Path(current).resolve())
                 if key in hashes:
                     h=hashlib.sha256()
@@ -290,7 +301,7 @@ def analyze_hydration_trajectory(topology,trajectory,*,context_json=None,residue
         region=context['settings'].get('region_definition')
         if region:
             from .region_definition import sha256
-            for key,current in [('topology',topology),('trajectory',trajectory)]:
+            for key,current in zip(('topology','trajectory'),source_paths):
                 if sha256(current)!=region['definition']['system'][key]['sha256']:
                     raise ValueError('Hydration source SHA256 differs from the named region geometry')
             context_verification='topology and trajectory SHA256 verified against named region definition; identities, frames and timestamps checked'

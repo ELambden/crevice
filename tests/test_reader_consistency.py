@@ -91,7 +91,7 @@ def test_deliberate_differences_are_stated_in_the_report(tmp_path):
     frame, report = load_structure_report(write(tmp_path, rows), parser="builtin")
     assert len(frame.atoms) == 2
     assert report["zero_occupancy_policy"] == "retained"
-    assert report["hetero_definition"] == "group_pdb"
+    assert report["hetero_definition"] == "group_pdb_except_polymer"
     gemmi = pytest.importorskip("gemmi")
     frame, report = load_structure_report(write(tmp_path, rows), parser="gemmi")
     assert len(frame.atoms) == 1

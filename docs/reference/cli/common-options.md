@@ -60,16 +60,15 @@ Commands that analyse explicit water share these settings; see
 (cli-outputs)=
 ## Output selection
 
-The bundle commands (`publish`, `cast`, `analyze`, `residue-evidence`,
-`hydration`, `trajectory`, `cavity-trajectory`, `region-trajectory`) write a
+The bundle commands (`report`, `cavities --cast`, `report --analyze`, `residues --evidence`,
+`trajectory --water`, `trajectory`, `trajectory --cavities`, `trajectory --region`) write a
 compact default set: data, the manifest, key figures and PyMOL, VMD and
 ChimeraX scenes, plus the typed residue interactions. `--outputs` chooses file
 kinds and optional analyses (`--outputs help` lists the values and defaults of
 a command), `--all` writes everything, `--dry-run` prints the plan without
-reading or writing anything, and the deprecated `--legacy-outputs` reproduces
-the 0.2 file set during the 0.3 series. See
+reading or writing anything (`--legacy-outputs` was removed in 0.4). See
 {ref}`Outputs <output-policy>`
-and [Upgrading from 0.2 to 0.3](../../getting-started/upgrading-0.3.md).
+and [Upgrading to 0.4](../../getting-started/upgrading-0.4.md).
 
 ```{crevice-cli-options} outputs
 ```
@@ -95,8 +94,8 @@ the manifest records each value with its source. Python:
 Every command accepts `-q/--quiet` and `--debug`, before or after the command
 name.
 
-- Long runs (the frames of `trajectory`, `cavity-trajectory`,
-  `region-trajectory` and `hydration --trajectory`, and the automatic
+- Long runs (the frames of `trajectory`, `trajectory --cavities`,
+  `trajectory --region` and `trajectory --water --trajectory`, and the automatic
   enclosure-probe ladder) show progress on standard error while it is a
   terminal. Nothing is printed when standard error is redirected to a file or
   a pipe, or with `--quiet`; set `CREVICE_PROGRESS=1` to log plain progress
@@ -122,7 +121,7 @@ command page, but they follow the same pattern:
   which is quick and keeps files small; use `--dpi 400` (Python `dpi=400`)
   for print or publication figures. Native-viewer renders are sized
   separately (see the `crevice_render` helpers).
-- Commands that write a whole set of files, such as `publish`, `cast` and the
+- Commands that write a whole set of files, such as `report`, `cavities --cast` and the
   trajectory commands, take `--out-dir` and record what they wrote, with the
   settings used, in a `*_manifest.json`; [Output selection](#cli-outputs)
   chooses which files they write.

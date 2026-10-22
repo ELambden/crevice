@@ -1,5 +1,6 @@
 """Hydration tables, all-frame histories and figures with explicit evidence limits."""
 from pathlib import Path
+from ._portable_paths import dumps_record
 import json,csv
 
 from .presentation import FigureText, annotate_option
@@ -16,7 +17,7 @@ LIMITATIONS = [
 
 @annotate_option
 def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95,block_length=None,replicates=2000,seed=20260914,dpi=200,roles=None,annotate=None):
-    """Write the statistics, tables, figures and scenes of ``crevice hydration``.
+    """Write the statistics, tables, figures and scenes of ``crevice trajectory --water``.
 
     For every focused residue and frame, ``analysis`` holds the unique explicit
     water oxygens within the contact cutoff of any residue heavy atom and the
@@ -212,7 +213,7 @@ def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95
         if not rows and not fields:p.write_text('', encoding="utf-8", newline="\n");return
         with p.open('w',newline='',encoding='utf-8') as f:
             w=csv.DictWriter(f,fieldnames=list(fields or rows[0]));w.writeheader();w.writerows(rows)
-    path('hydration_json','_hydration.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('hydration_json','_hydration.json')).write_text(dumps_record(report,_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     from .io import write_summary_statistics_csv
     write_summary_statistics_csv(report,path('hydration_summary_csv','_hydration_summary.csv'))
     table_rows=[]
@@ -241,7 +242,7 @@ def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95
     if not static:
         table(path('hydration_episodes_csv','_hydration_observed_episodes.csv'),contact_episodes(histories,times,ids))
         table(path('hydration_survival_csv','_hydration_sampled_survival.csv'),[{'residue':key,**row} for key,s in report['sampled_survival'].items() for row in s['rows']])
-        path('hydration_alignment_json','_hydration_alignment.json').write_text(json.dumps({'fits':analysis['alignment'],'boxes':analysis['boxes']},indent=2)+'\n', encoding="utf-8", newline="\n")
+        (_t:=path('hydration_alignment_json','_hydration_alignment.json')).write_text(dumps_record({'fits':analysis['alignment'],'boxes':analysis['boxes']},_t,indent=2)+'\n', encoding="utf-8", newline="\n")
     plt=_pyplot();ranked=sorted(range(r),key=lambda j:(records[j]['role'] not in {'ever_boundary','boundary_lining'},-(records[j].get('mean_boundary_area_A2') or 0),-(records[j]['statistics']['water_count']['mean'] or 0),ids[j]))[:24]
     labels=[str(ids[j]) for j in ranked]
     text=FigureText(f"Water contacts and geometric solvent exposure of {len(ranked)} focused residues "
@@ -292,7 +293,7 @@ def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95
             hydration_arrays=arrays,confidence=confidence,block_length=block_length,replicates=replicates,seed=seed))
         report['hydrogen_bonds']={'status':analysis['interactions']['metadata']['hydrogen_bond_status'],
                                  'details':Path(files['interaction_json']).name}
-        Path(files['hydration_json']).write_text(json.dumps(report,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+        Path(files['hydration_json']).write_text(dumps_record(report,files['hydration_json'],indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     from .outputs import drop_blocked,writes
     if 'reference_frame' in analysis and (writes('viewers') or writes('viewer-html')):
         # The coordinated scenes are written only when a viewer is among the outputs.
@@ -308,7 +309,7 @@ def write_hydration_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95
     manifest={'files':files,'frame_count':n,'residue_count':r,'water_status':report['water_status'],'limitations':LIMITATIONS,**used}
     if 'radii_check' in analysis.get('settings',{}):manifest['radii_check']=analysis['settings']['radii_check']
     if 'hydration_mobility_csv' in files:manifest['hydration_mobility']=MOBILITY_NOTES
-    path('hydration_manifest_json','_hydration_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('hydration_manifest_json','_hydration_manifest.json')).write_text(dumps_record(manifest,_t,indent=2)+'\n', encoding="utf-8", newline="\n")
     return files
 
 

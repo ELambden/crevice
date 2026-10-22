@@ -1,5 +1,6 @@
 """Portable coordinated scenes for measured hydration and residue chemistry."""
 from pathlib import Path
+from ._portable_paths import dumps_record
 from itertools import combinations
 import json
 import math
@@ -259,7 +260,7 @@ def write_analysis_assets(analysis, report, output_dir, prefix):
            'limitations':['Identified geometric contributors are not proven crucial functional residues.',
                           'Density is a mean spatial observation; a displayed snapshot can differ from that mean.',
                           'Static missing waters are unobserved; chemical classification has separate coverage limits.']}
-    path('analysis_scene_json','_analysis_scene.json').write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('analysis_scene_json','_analysis_scene.json')).write_text(dumps_record(scene,_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     return files
 
 

@@ -186,7 +186,8 @@ def load_mmcif(
         entry IDs in assembly files), the selection and policies, counts of
         excluded atoms by reason (``alternate_location``, ``zero_occupancy``,
         ``nonpolymer``, ``hydrogen_or_deuterium``), per-chain summaries,
-        polymer HETATM retained, elements without a tabulated radius, the
+        polymer HETATM retained (atoms, and residues per name in
+        ``polymer_hetatm_residues``), elements without a tabulated radius, the
         coordinate bounds (Å), assembly definitions and counts of unobserved
         residue/atom records. ``completeness_validated`` is always ``False``.
 
@@ -240,6 +241,7 @@ def load_mmcif(
     chains: dict[str, dict] = {}
     excluded = Counter()
     polymer_hetero = 0
+    polymer_hetero_residues = set()
     for row in rows:
         alt = _value(row, "label_alt_id")
         if alt and alt != chosen[residue_id(row)]:
@@ -280,7 +282,9 @@ def load_mmcif(
             raise ValueError(f"Duplicate selected atom identity: {identity}; use label chain IDs")
         seen.add(identity)
         atoms.append(atom)
-        polymer_hetero += int(is_polymer and _value(row, "group_PDB") == "HETATM")
+        if is_polymer and _value(row, "group_PDB") == "HETATM":
+            polymer_hetero += 1
+            polymer_hetero_residues.add(atom.residue_key)
         info = chains.setdefault(chain, {"atom_count": 0, "auth_asym_ids": set(),
                                          "label_asym_ids": set(), "entity_ids": set(),
                                          "polymer": is_polymer})
@@ -315,6 +319,8 @@ def load_mmcif(
         "polymer_chain_count": (sum(info["polymer"] for info in chains.values())
                                 if entity_types_available else None),
         "polymer_hetatm_retained": polymer_hetero if entity_types_available else None,
+        "polymer_hetatm_residues": (dict(sorted(Counter(key.resname for key in polymer_hetero_residues).items()))
+                                    if entity_types_available else None),
         "unsupported_radius_elements": sorted({a.element for a in atoms} - VDW_RADII.keys()),
         "bounds_A": frame.bounding_box(), "coordinate_units": "Angstrom",
         "assembly_definitions": category_rows(block, "_pdbx_struct_assembly."),

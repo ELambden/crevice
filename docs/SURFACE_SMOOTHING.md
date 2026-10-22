@@ -72,11 +72,11 @@ Examples:
 
 ```bash
 # Default display smoothing (X = 0.4 Å)
-crevice publish 1GRM.cif --cast-spacing 0.25 --section-spacing 0.25 --out-dir out/1GRM
+crevice report 1GRM.cif --cast-spacing 0.25 --section-spacing 0.25 --out-dir out/1GRM
 # Raw voxel surface for an unsmoothed comparison figure
-crevice publish 1GRM.cif --cast-spacing 0.25 --section-spacing 0.25 --smooth 0 --out-dir out/1GRM-raw
+crevice report 1GRM.cif --cast-spacing 0.25 --section-spacing 0.25 --smooth 0 --out-dir out/1GRM-raw
 # Slightly stronger smoothing of a large 0.5 Å cavity cast
-crevice cast 4PYP.cif --spacing 0.5 --smooth 0.6 --out-dir out/4PYP
+crevice cavities --cast 4PYP.cif --spacing 0.5 --smooth 0.6 --out-dir out/4PYP
 ```
 
 ```python
@@ -111,5 +111,5 @@ not biological validation. At `X = 0.4` Å:
 | Max atom-sphere penetration of display vertices | 0.10 Å (raw 0.12 Å) | 0.24 Å (raw 0.25 Å) |
 | Surface roughness, as normal deviation (raw → `--surface-smoothing 0.6` → `--smooth 0.4`) | 21.0° → 14.6° → 4.6° | 17.3° → 5.6° → 3.5° |
 
-All the 1GRM and 4PYP measurement outputs from `publish` were byte-identical
+All the 1GRM and 4PYP measurement outputs from `report` were byte-identical
 with and without smoothing.

@@ -24,9 +24,9 @@ python -m pip install "crevice[view]"
 The examples below use the output directories of two earlier tutorials:
 `3UKM_bundle` from [3UKM: a capped channel with side exits](3ukm-lateral-exits.md)
 and `glut1-run` from
-[A membrane MD trajectory](glut1-trajectory.md). Any `publish`, `cast`
-or `hydration` output directory works the same way, and so does a
-`region-trajectory` or `cavity-trajectory` directory that has the hydration
+[A membrane MD trajectory](glut1-trajectory.md). Any `report`, `cavities --cast`
+or `trajectory --water` output directory works the same way, and so does a
+`trajectory --region` or `trajectory --cavities` directory that has the hydration
 scene (written with `--water-membership`, `--outputs default,hydration` or
 `--all`; the default trajectory bundle is data and figures only).
 
@@ -94,7 +94,7 @@ larger for every view.
 
 ## Trajectory regions and member waters
 
-For a `region-trajectory` run with `--water-membership`, the view shows the
+For a `trajectory --region` run with `--water-membership`, the view shows the
 region cast (pale grey), the mean water density (teal) and the waters inside
 the measured region in one saved frame (orange spheres):
 
@@ -133,8 +133,8 @@ v = crevice.view(frame=frame, cast=cast, segments=segments, profile=profile,
 ```
 
 The surfaces are computed from the cast you pass, on its own grid and without
-the short display continuation that `publish` adds beyond each mouth, so they
-can look coarser than those of a `publish` bundle (which uses a 0.5 Å grid).
+the short display continuation that `report` adds beyond each mouth, so they
+can look coarser than those of a `report` bundle (which uses a 0.5 Å grid).
 
 ## What you are looking at
 

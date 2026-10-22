@@ -60,7 +60,7 @@ installed:
 |---|---|---|---|
 | `structures` | Gemmi | validated, entity-aware mmCIF reading | built-in mmCIF parser; `--parser gemmi` fails and names the extra |
 | `hydration` | MDTraj | DSSP secondary structure in hydration reports | DSSP reported as explicitly unavailable |
-| `networks` | NetworkX | weighted residue paths (`network --connectivity-json`, {mod}`crevice.connectivity`) | those functions raise an error naming the extra |
+| `networks` | NetworkX | weighted residue paths (`residues --network --connectivity-json`, {mod}`crevice.connectivity`) | those functions raise an error naming the extra |
 | `ml` | scikit-learn | PCA in {func}`crevice.ml.reduce_dimensions` | column truncation, which is not PCA |
 | `view` | py3Dmol | interactive 3D views in Jupyter ({func}`crevice.view`, `.show()`) | `.show()` raises an error naming the extra; `crevice view` and `.save_html()` still work |
 | `science` | Gemmi, MDTraj, NetworkX and scikit-learn | every optional scientific library (not `view`) | — |

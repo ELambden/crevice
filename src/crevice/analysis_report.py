@@ -108,6 +108,9 @@ def write_analysis_report(output_dir,prefix,files,*,dpi=200,annotate=None):
         writer=csv.DictWriter(f,fieldnames=fields);writer.writeheader();writer.writerows(rows)
     context=hydration['settings'].get('context_statistics_json')
     context_coverage=None
+    if context:
+        from ._portable_paths import resolve_recorded   # relative to the hydration record (0.4) or absolute
+        context=resolve_recorded(context,root)
     if context and Path(context).is_file():
         source=Path(context);context_report=json.loads(source.read_text(encoding="utf-8"))
         context_coverage=context_report.get('frame_count',context_report.get('summary',{}).get('frame_count'))

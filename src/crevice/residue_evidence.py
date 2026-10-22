@@ -1,8 +1,8 @@
 """Explain a measured void boundary and its nonlocal residue contacts.
 
-This is the engine of ``crevice residue-evidence`` (and of the boundary
-evidence inside ``cavity-trajectory``). The 0.5 surface of a measured binary
-volume map (a ``*_volume.dx`` from ``cast`` or ``publish``) is triangulated;
+This is the engine of ``crevice residues --evidence`` (and of the boundary
+evidence inside ``trajectory --cavities``). The 0.5 surface of a measured binary
+volume map (a ``*_volume.dx`` from ``cavities --cast`` or ``report``) is triangulated;
 each triangle's area is assigned to the residue(s) whose van der Waals sphere
 is nearest (:func:`boundary_residue_evidence`). Residues with assigned area
 *line* the boundary; residues that do not line it but make a nonlocal contact
@@ -18,6 +18,7 @@ support follow-up hypotheses; neither establishes functional control.
 from __future__ import annotations
 import csv,json,math
 from pathlib import Path
+from ._portable_paths import dumps_record
 
 from .presentation import FigureText, annotate_option
 from .radii import RadiusSet, radii_option
@@ -283,9 +284,10 @@ def _viewer_serial_mapping(frame,scene):
                  and node.args and isinstance(node.args[0],ast.Call)
                  and isinstance(node.args[0].func,ast.Name) and node.args[0].func.id=='crevice_input'),None)
     if loader is None:raise ValueError('Cannot identify the CREVICE scene protein input')
-    local,fallback=(ast.literal_eval(v) for v in loader.args[0].args[:2])
-    protein=scene.parent/local
-    if not protein.is_file():protein=Path(fallback)
+    # 0.4 scenes name the file relative to the script; 0.3 scenes add an absolute fallback.
+    names=[ast.literal_eval(v) for v in loader.args[0].args[:2]]
+    protein=scene.parent/names[0]
+    if not protein.is_file() and len(names)>1:protein=Path(names[1])
     return _protein_serial_mapping(frame,protein)
 
 
@@ -398,7 +400,7 @@ def select_stick_residues(report,stick_residues=STICK_RESIDUE_DEFAULT):
 @annotate_option
 def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',scene_path=None,volume_path=None,dpi=200,
                                   stick_residues=STICK_RESIDUE_DEFAULT,annotate=None):
-    """Write the tables, figure and viewer overlays of ``crevice residue-evidence``.
+    """Write the tables, figure and viewer overlays of ``crevice residues --evidence``.
 
     ``report`` (from :func:`boundary_residue_evidence`) assigns every boundary
     face of a measured binary cast to the nearest atom within
@@ -558,7 +560,7 @@ def write_residue_evidence_bundle(report,frame,output_dir,*,prefix='crevice',sce
             np.savez_compressed(coords_path,protein_coords=np.asarray([a.coord for a in frame.atoms]),atom_serials=np.asarray(viewer_ids))
         extra=f"""\npython
 # Background protein stays cartoon; identified residues also show opaque sticks.
-crevice_reference = np.load(crevice_input({coords_path.name!r}, {str(coords_path)!r}), allow_pickle=False)
+crevice_reference = np.load(crevice_input({coords_path.name!r}), allow_pickle=False)
 crevice_expected = crevice_reference["protein_coords"]
 crevice_ids = crevice_reference["atom_serials"].tolist()
 crevice_model = cmd.get_model("crevice_protein", state=1)
@@ -606,7 +608,7 @@ python end
         report['overlay_cast_opacity']=.55
         from .residue_viewers import write_companion_contexts
         paths.update(write_companion_contexts(scene,root,prefix,protein_path,membership,viewer_ids,frame))
-    Path(paths['residue_evidence_json']).write_text(json.dumps(report,indent=2)+'\n', encoding="utf-8", newline="\n")
+    Path(paths['residue_evidence_json']).write_text(dumps_record(report,paths['residue_evidence_json'],indent=2)+'\n', encoding="utf-8", newline="\n")
     return drop_blocked(paths)
 
 

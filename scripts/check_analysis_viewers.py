@@ -1,7 +1,7 @@
 """Native validation of coordinated hydration scenes, identities and controls.
 
 Opens a unified analysis scene (``PREFIX_analysis.pml``, ``.vmd`` or
-``.cxc`` written by ``crevice hydration``, ``publish``, ``cavity-trajectory``
+``.cxc`` written by ``crevice trajectory --water``, ``publish``, ``cavity-trajectory``
 or ``region-trajectory``) in the real viewer, renders it and checks what the
 viewer actually shows against the scene JSON: residue colours, the stick
 residues of each view mode (``crevice_view``/``creviceView``), snapshot

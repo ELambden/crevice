@@ -130,7 +130,7 @@ def _publish_capped(tmp_path, *extra):
         f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
         for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
     out = tmp_path / "out"
-    assert main(["publish", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,0",
+    assert main(["report", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,0",
                  "--search-radius", "7", "--samples", "25", "--section-spacing", "0.5",
                  "--enclosure-radius", "0.8", "--lateral-exits", "--skip-cavities", "--skip-tunnels", "--skip-network",
                  "--skip-hydration", "--dpi", "60", *extra]) == 0

@@ -24,7 +24,7 @@ suitable enclosure probe and measures the radius of the largest atom-free
 sphere at each point along the channel. It prints a one-line summary:
 
 ```text
-profile points=81 min_radius=1.324 mean_radius=1.563 bottleneck_index=73
+profile points=81 min_radius=1.337 mean_radius=1.571 bottleneck_index=73
 enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
 ```
 
@@ -49,10 +49,10 @@ transporters and enzymes, and it does not mean the protein is closed; a cast
 ### Cast a cavity
 
 ```bash
-crevice cast 4PYP --out-dir 4PYP_cast
+crevice cavities --cast 4PYP --out-dir 4PYP_cast
 ```
 
-`cast` fills the largest interior space of GLUT1 with atom-clear probe
+`cavities --cast` fills the largest interior space of GLUT1 with atom-clear probe
 spheres. You get the cast as a 3D map (`4PYP_volume.dx`), its volume
 (`4PYP_void_cast.csv`), the typed interactions of the residues around it,
 ready-made PyMOL, VMD and ChimeraX scenes and a `*_manifest.json` listing every
@@ -63,10 +63,10 @@ Ask for more than one region with `--max-cavities N`. The
 ### Everything at once
 
 ```bash
-crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
+crevice report 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
-`publish` runs the profile, the cast (split into entry, lumen and exit
+`report` runs the profile, the cast (split into entry, lumen and exit
 segments), the lining residues and the typed residue interactions in one go.
 By default it writes 40 files for 1GRM:
 
@@ -87,19 +87,19 @@ Everything else is one option away, on every command that writes a directory:
 
 ```bash
 # what you can ask for, and this command's defaults
-crevice publish 1GRM --outputs help
+crevice report 1GRM --outputs help
 # add the water analyses
-crevice publish 1GRM --out-dir r --outputs default,hydration
+crevice report 1GRM --out-dir r --outputs default,hydration
 # add the cavity and tunnel searches and the residue network
-crevice publish 1GRM --out-dir r --outputs default,cavities,tunnels,network
+crevice report 1GRM --out-dir r --outputs default,cavities,tunnels,network
 # every figure and an interactive HTML view
-crevice publish 1GRM --out-dir r --outputs default,figures,viewer-html
+crevice report 1GRM --out-dir r --outputs default,figures,viewer-html
 # data and the PyMOL scene only
-crevice publish 1GRM --out-dir r --outputs pymol
+crevice report 1GRM --out-dir r --outputs pymol
 # everything this command can write
-crevice publish 1GRM --out-dir r --all
+crevice report 1GRM --out-dir r --all
 # show the plan, write nothing
-crevice publish 1GRM --out-dir r --all --dry-run
+crevice report 1GRM --out-dir r --all --dry-run
 ```
 
 `default` keeps the standard set, so `--outputs default,hydration` means
@@ -116,8 +116,8 @@ it back with `--config`. Options on the command line still win, and the
 structure always comes from the command line:
 
 ```bash
-crevice publish 1GRM --out-dir results/1GRM --print-config > publish.json
-crevice publish 1GRM --config publish.json --samples 101
+crevice report 1GRM --out-dir results/1GRM --print-config > publish.json
+crevice report 1GRM --config publish.json --samples 101
 ```
 
 Settings are checked before anything is read, so a typo or an impossible
@@ -170,18 +170,46 @@ from crevice import plot_profile_radius, write_profile_csv, write_profile_json
 
 write_profile_json(profile, "1GRM_profile.json")
 write_profile_csv(profile, "1GRM_profile.csv")
-plot_profile_radius(profile, "1GRM_profile_radius.png")
+fig = plot_profile_radius(profile, "1GRM_profile_radius.png")  # also returns the Figure
 ```
+
+Every `plot_*` function returns the matplotlib `Figure`; leave out the path to
+get the figure without writing a file.
 
 Trajectories work the same way: {func}`crevice.load_trajectory` reads a
 topology and trajectory through MDAnalysis, and
-{func}`crevice.analyze_trajectory` runs the analyses frame by frame.
+{func}`crevice.analyze_trajectory` runs the analyses frame by frame. If you
+already have an MDAnalysis `Universe` or `AtomGroup`, pass it instead of the
+file paths:
+
+```python
+import MDAnalysis as mda
+from crevice import analyze_trajectory, load_structure, load_trajectory
+
+u = mda.Universe("system.gro", "production.xtc")
+frame = load_structure(u)                                   # the current frame
+traj = load_trajectory(u.select_atoms("protein"), stride=10)
+result = analyze_trajectory(traj)
+```
 
 ## A few things worth knowing
 
 - **Settings matter.** Radii and volumes depend on the grid spacing, probe
   radii, atom selection and atomic radius set. CREVICE records all of them in
   its output; report them alongside your numbers.
+- **Uncertainty is correlation-aware.** Trajectory summaries report an
+  effective sample size, a blocking standard error and a block-bootstrap
+  interval for each mean, with the block size used; trust them when the
+  trajectory is long compared with its correlation time (see
+  [Uncertainty, sensitivity and grid resolution](../methods/uncertainty.md)).
+- **Check definition sensitivity.** `--sensitivity` (on `profile`, `cavities --cast`,
+  `report`, `trajectory --cavities` and `trajectory --region`) reruns the headline
+  numbers over neighbouring probe radii, grid 0.25/0.5 Å and, for regions,
+  margin ±1 Å, and writes the spread to `PREFIX_sensitivity.csv`. It costs
+  roughly one extra run per variant, so it is off by default.
+- **Narrow channels need fine grids.** A warning (also recorded in the
+  manifest) appears when the narrowest clearance is below two grid spacings;
+  use a spacing of 0.35 Å or less for narrow channels.
 - **Figures are clean by default.** Add `--annotate` (or `annotate=True`) for
   titles, labels and legends. They are written at 200 dpi; use `--dpi 400` for
   print.
@@ -196,8 +224,8 @@ topology and trajectory through MDAnalysis, and
 Most single-structure commands take seconds to a minute. A few settings make a
 big difference when you run many structures or long trajectories:
 
-- **Trajectories use several cores.** `cavity-trajectory` and
-  `region-trajectory` start up to four worker processes by default (fewer with
+- **Trajectories use several cores.** `trajectory --cavities` and
+  `trajectory --region` start up to four worker processes by default (fewer with
   few CPUs, few frames or little free memory). Set `--workers N` to choose;
   the results are the same for any worker count.
 - **Fix the enclosure probe once you know it.** With `--enclosure-radius auto`
@@ -216,7 +244,7 @@ As an example on one 8-core desktop shared with other jobs (single-threaded
 maths libraries, a fixed axis and 0.25 Å sections), a 1GRM profile took about
 2.6 s with the automatic probe and about 0.6 s with `--enclosure-radius 0.8`;
 a 3UKM profile with `--lateral-exits` took about 40 s; and a five-frame GLUT1
-`region-trajectory --water-membership` took about 24 s with the default
+`trajectory --region --water-membership` took about 24 s with the default
 workers. Your times will differ. To measure them on your own machine, the
 source repository has `scripts/timing.py`, which times a fixed set of commands
 and writes the wall time, CPU time and peak memory to a CSV file.
@@ -229,6 +257,7 @@ and writes the wall time, CPU time and peak memory to a CSV file.
 inputs-and-selections
 outputs
 cli-vs-python
+upgrading-0.4
 upgrading-0.3
 ```
 

@@ -3,7 +3,7 @@
 This example measures the gramicidin A channel,
 [PDB 1GRM](https://www.rcsb.org/structure/1GRM) (a solution NMR structure; the
 first model is used), with [`profile`](../tools/profile.md), then writes the
-complete static bundle with [`publish`](../tools/publish.md): the 3D channel
+complete static bundle with [`report`](../tools/publish.md): the 3D channel
 cast, residue contacts, cavities, tunnels, the residue network and viewer
 scenes. It takes about a minute.
 
@@ -32,7 +32,7 @@ crevice profile 1GRM --axis auto -o 1GRM_profile.json \
 ```
 
 ```text
-profile points=81 min_radius=1.324 mean_radius=1.563 bottleneck_index=73
+profile points=81 min_radius=1.337 mean_radius=1.571 bottleneck_index=73
 enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
 ```
 
@@ -40,7 +40,7 @@ enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved 
 connected, laterally enclosed run of sections and two open ends. The enclosure
 probe was chosen automatically: the channel resolved at five probes of the
 0.5–3.0 Å ladder (0.75–1.1 Å), and the smallest of them, 0.75 Å, was used. The
-narrowest sample is 1.324 Å from the nearest atom surface (sample 73, nearest
+narrowest sample is 1.337 Å from the nearest atom surface (sample 73, nearest
 residue A:TRP13). Files written:
 
 - `1GRM_profile.json`: every sample, the axis, mouths, the probe choice
@@ -52,8 +52,8 @@ residue A:TRP13). Files written:
 
 ```text
 index,x_A,y_A,z_A,radius_A,raw_clearance_A,axis_position_A,nearest_atom_serial,nearest_residue
-0,-0.1885,-11.6853,3.3339,1.6850,1.6850,-11.6599,235,B:TRP13
-1,-0.2821,-11.3977,3.4458,1.6625,1.6625,-11.3693,272,B:ETA16
+0,-0.1888,-11.6853,3.3340,1.6853,1.6853,-11.6599,231,B:DLE12
+1,-0.2674,-11.3972,3.4440,1.6690,1.6690,-11.3693,235,B:TRP13
 ```
 
 (values rounded here; the file keeps full precision)
@@ -64,7 +64,7 @@ index,x_A,y_A,z_A,radius_A,raw_clearance_A,axis_position_A,nearest_atom_serial,n
 
 `1GRM_profile.png`. Blue line and light-blue fill: pore radius (Å) at each
 sample against the axial coordinate (Å). Red dashed line and dot: the
-bottleneck (1.324 Å near t = 9.6 Å). Light grey: outside the two channel
+bottleneck (1.337 Å near t = 9.6 Å). Light grey: outside the two channel
 mouths, where lateral enclosure is lost (`--mouth-guides` adds orange mouth
 bands and lines; the positions are always in the JSON and PNG metadata). The figure
 is clean by default; the values are in its PNG metadata, and `--annotate`
@@ -88,7 +88,7 @@ from crevice import load_structure, pore_profile, write_profile_csv
 
 frame = load_structure(".crevice/pdb/1GRM.cif")
 profile = pore_profile(frame, axis="auto")          # enclosure probe chosen automatically
-print(round(profile.min_radius, 3), profile.bottleneck.nearest_residue)   # 1.324 A:TRP13
+print(round(profile.min_radius, 3), profile.bottleneck.nearest_residue)   # 1.337 A:TRP13
 print(profile.metadata["enclosure_probe_selection"]["chosen_A"])          # 0.75
 write_profile_csv(profile, "1GRM_profile.csv")
 ```
@@ -96,7 +96,7 @@ write_profile_csv(profile, "1GRM_profile.csv")
 ## Complete bundle with the channel cast
 
 ```bash
-crevice publish 1GRM --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
+crevice report 1GRM --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
     --outputs default,figures,cavities,tunnels,network
 ```
 
@@ -106,7 +106,7 @@ publish files=52 out_dir=1GRM_bundle profile=resolved
 
 `--outputs default,figures,cavities,tunnels,network` adds every figure and the
 separate cavity search, tunnel search and residue network to the default
-bundle; plain `publish` writes 40 files, and `--all` also adds the water
+bundle; plain `report` writes 40 files, and `--all` also adds the water
 analysis (1GRM has no explicit water), the fingerprint and an HTML view. The
 bundle holds the same 81-sample profile (`1GRM_profile.csv`), the measured
 channel cast and its scenes, residue contacts, typed residue interactions,
@@ -178,7 +178,9 @@ contact network.
 :class: crevice-interpret
 
 The printed values were first recorded with CREVICE 0.1.0 and re-run with
-0.3.0 (same numbers; file counts as 0.3 writes them by default). They are
+0.3.0 (same numbers; file counts as 0.3 writes them by default). The radii were
+re-run with 0.4.0, whose converged slice centres raise them slightly (minimum
+1.324 Å before); the cast volumes did not change. They are
 measurements with the settings shown; gramicidin A is a convenient, well-known
 test case, not a curated reference, so treat them as such (see
 [How far to trust the numbers](../tools/index.md#how-far-to-trust-the-numbers)).

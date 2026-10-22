@@ -121,6 +121,7 @@ transport pathways, permeation mechanisms or functional assignments; the
 absence of a route on the grid does not prove that none exists.
 """
 from __future__ import annotations
+from ._portable_paths import dumps_record
 
 from dataclasses import dataclass, field
 import heapq
@@ -134,7 +135,7 @@ PATH_DEFINITION = (
     "maximum without dropping below the lattice bottleneck")
 BULK_DEFINITION = (
     "space within bulk_radius of a bulk-probe centre: a node with clearance >= bulk_radius face-connected along "
-    "atom-clear segments to the faces of the padded grid box (rolling-probe envelope, as crevice cast and lateral exits)")
+    "atom-clear segments to the faces of the padded grid box (rolling-probe envelope, as crevice cavities --cast and lateral exits)")
 DISTINCT_PATH_DEFINITION = (
     "routes ranked by width beyond the start's free sphere, then length; a further route is distinct when its exit "
     "point is more than separation_A from every kept exit point and the parts of the two routes beyond their "
@@ -1735,22 +1736,24 @@ def _left_out_summary(selection, prefix):
             f"--probe-radius {widest['rerun_probe_A']:g} reports it")
 
 
-def plot_paths(result, path, *, dpi: int = 200):
+def plot_paths(result, path=None, *, dpi: int = 200):
     """Free-sphere radius against arc length, one line per branch, junctions marked.
 
     Parameters
     ----------
     result : PathNetwork
         From :func:`find_paths`.
-    path : str or Path
+    path : str or Path, optional
         Output image (PNG recommended; the description is embedded).
+        ``None`` only returns the figure.
     dpi : int, default 200
         Resolution.
 
     Returns
     -------
-    pathlib.Path
-        The written figure.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given (closed in
+        pyplot; see :func:`crevice.figures.plot_profile_radius`).
 
     Notes
     -----
@@ -1765,11 +1768,12 @@ def plot_paths(result, path, *, dpi: int = 200):
     """
     from pathlib import Path
     from matplotlib.lines import Line2D
-    from .figures import _pyplot, _save_figure, _style_axes
+    from .figures import _finish_figure, _pyplot, _style_axes
     from .presentation import FigureText
     plt = _pyplot()
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output = Path(path) if path is not None else None
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
     text = FigureText("Free-sphere radius against arc length from the start for each route of a pathway tree "
                       "to bulk; hollow circles mark junctions where routes separate")
     fig, ax = plt.subplots(figsize=(6.4, 3.8), constrained_layout=True)
@@ -1815,8 +1819,7 @@ def plot_paths(result, path, *, dpi: int = 200):
     text.title(ax, "CREVICE pathway radii")
     ax.grid(True, color="#e3e3e3", linewidth=0.6)
     _style_axes(ax)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 def _rgb(hex_color):
@@ -1859,23 +1862,15 @@ def write_path_scenes(result, directory, prefix, structure_name=None, *, tube_ra
     scripts are generated text; they have not been run in every viewer.
     """
     from pathlib import Path
+    from ._script_paths import pymol_input_lines, tcl_input_proc
     directory = Path(directory)
     lines = _scene_lines(result)
     written = []
     pml = ["# CREVICE pathway scene (PyMOL): one CGO object per branch, no labels.", "python",
            "from pathlib import Path", "import inspect", "from pymol import cmd", "from pymol.cgo import CYLINDER",
-           "_crevice_script_root = Path(getattr(cmd._pymol, '__script__',",
-           "    inspect.currentframe().f_code.co_filename)).resolve().parent",
-           "def crevice_input(name, fallback):",
-           "    for directory in (_crevice_script_root, Path.cwd(), Path(fallback).parent):",
-           "        path = directory / name",
-           "        if path.is_file():",
-           "            return str(path)",
-           "    raise FileNotFoundError(name)",
-           "cmd.bg_color('white')"]
+           *pymol_input_lines(), "cmd.bg_color('white')"]
     if structure_name:
-        fallback = str((directory / structure_name).resolve())
-        pml += [f"cmd.load(crevice_input({structure_name!r}, {fallback!r}), 'crevice_protein')",
+        pml += [f"cmd.load(crevice_input({structure_name!r}), 'crevice_protein')",
                 "cmd.hide('everything', 'crevice_protein')", "cmd.show('cartoon', 'crevice_protein')",
                 "cmd.color('grey70', 'crevice_protein')", "cmd.set('cartoon_transparency', 0.25, 'crevice_protein')"]
     for name, rgb, pts in lines:
@@ -1904,9 +1899,10 @@ def write_path_scenes(result, directory, prefix, structure_name=None, *, tube_ra
     path.write_text("\n".join(cxc) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     tcl = ["# CREVICE pathway scene (VMD): one graphics molecule per branch, no labels",
-           "set crevice_here [file dirname [file normalize [info script]]]", "color Display Background white"]
+           "set crevice_here [file dirname [file normalize [info script]]]", tcl_input_proc("crevice_here").rstrip("\n"),
+           "color Display Background white"]
     if structure_name:
-        tcl += [f"mol new [file join $crevice_here {structure_name}] type pdb", "mol modstyle 0 top NewCartoon",
+        tcl += [f"mol new [crevice_input {structure_name}] type pdb", "mol modstyle 0 top NewCartoon",
                 "mol modcolor 0 top ColorID 2"]
     for k, (name, rgb, pts) in enumerate(lines):
         cid = 23 + k if 23 + k < 33 else 32
@@ -2044,7 +2040,7 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
     directory.mkdir(parents=True, exist_ok=True)
     written = []
     path = directory / f"{prefix}_paths.json"
-    path.write_text(json.dumps(result.to_dict(), indent=1, default=float) + "\n", encoding="utf-8", newline="\n")
+    path.write_text(dumps_record(result.to_dict(), path, indent=1, default=float) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     rows = result.summary_rows()
     written.append(_write_csv(directory / f"{prefix}_paths.csv", rows, list(rows[0])))
@@ -2080,7 +2076,8 @@ def write_paths_outputs(result, directory, *, prefix: str = "crevice", frame=Non
         written.append(_write_csv(directory / f"{prefix}_path_left_out.csv", _left_out_rows(selection),
                                   LEFT_OUT_COLUMNS))
     if figure:
-        written.append(plot_paths(result, directory / f"{prefix}_paths.png", dpi=dpi))
+        plot_paths(result, directory / f"{prefix}_paths.png", dpi=dpi)
+        written.append(directory / f"{prefix}_paths.png")
     if scenes:
         structure_name = None
         if frame is not None:
@@ -2186,6 +2183,23 @@ def add_paths_command(subparsers):
     return parser
 
 
+def _grid_guard(result, spacing, suffix=""):
+    """Grid-spacing guard (0.4): record ``settings["grid_resolution"]`` and warn on stderr.
+
+    The narrowest clearance is the smallest route bottleneck radius
+    (:func:`crevice.grid_guard.grid_resolution_check`); nothing is changed.
+    """
+    import sys
+    from .grid_guard import grid_resolution_check
+    radii = [b.bottleneck_radius for b in result.branches if b.bottleneck_radius is not None]
+    check = grid_resolution_check(spacing, min(radii) if radii else None,
+                                  clearance_source="narrowest route bottleneck radius", context="routes")
+    result.settings["grid_resolution"] = check
+    if check["status"] == "warning":
+        print(f"crevice: warning: paths{suffix}: {check['message']}", file=sys.stderr)
+    return check
+
+
 def run_paths_command(args):
     """Run ``crevice paths`` from parsed arguments.
 
@@ -2217,6 +2231,7 @@ def run_paths_command(args):
                             relax_iterations=args.relax_iterations, min_enclosure=args.min_enclosure,
                             max_grid_points=args.max_grid_points, workers=args.workers)
         result.settings["frame_index"] = frame.frame_index
+        _grid_guard(result, args.spacing, suffix)
         write_paths_outputs(result, args.output_dir, prefix=prefix + suffix, frame=frame, dpi=args.dpi,
                             scenes=not args.no_scenes)
         if args.html:

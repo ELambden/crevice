@@ -7,7 +7,9 @@ varies, how well the mean is known, which residue contacts persist and how
 residues move together.
 
 For pockets and cavities that don't run right through the protein, use
-[cavities over a trajectory](cavity-trajectory.md).
+[cavities over a trajectory](cavity-trajectory.md). To count the water
+molecules and ions that cross the channel, and derive water permeabilities and
+ion current, add `--permeation` ([permeation and conductance](permeation.md)).
 
 ## Quick start
 
@@ -60,6 +62,11 @@ interval for the mean and the mean radius along the channel.
   `--no-probe-fallback` turns the rescue off. Frames that still don't resolve
   are recorded as missing, never as zero. If the reference frame itself doesn't
   resolve, the later profiles are skipped and the other analyses carry on.
+  A fixed `--origin` that has too little clearance in a frame (an atom has
+  moved onto it) is handled the same way: the frame is recorded as
+  unresolved, a warning lists it (`metadata.origin_clearance`), and if it is
+  the reference frame no frame is profiled. `--profile-errors raise` stops
+  at the first unresolved frame instead.
 - **Distributions.** Radii are put on a shared axial grid. A light band shows
   the spread across frames (`--quantiles`, 10th to 90th percentile by
   default), and a darker band an approximate confidence interval for the
@@ -71,7 +78,7 @@ interval for the mean and the mean radius along the channel.
   how much each residue moves (RMSF) and which residues move together (a
   dynamic cross-correlation matrix with split-half checks). With
   `--lining-evidence`, the lining residues come from a
-  [`residue-evidence`](residue-evidence.md) report of the same structure.
+  [`residues --evidence`](residue-evidence.md) report of the same structure.
 
 ## Options you'll use most
 

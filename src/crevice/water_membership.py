@@ -8,8 +8,8 @@ Two separate observables are reported for the same aligned oxygens:
 * instantaneous measured region: oxygen centre inside an occupied voxel of the
   grid measured in that same frame.
 
-This module is used by ``crevice cavity-trajectory --water-membership`` and
-``crevice region-trajectory --water-membership``. Per frame,
+This module is used by ``crevice trajectory --cavities --water-membership`` and
+``crevice trajectory --region --water-membership``. Per frame,
 :func:`frame_water_membership` (inside each geometry worker) reads the
 oxygens with :class:`WaterSource` and calls :func:`water_membership`;
 :func:`summarize_water_membership` builds all-frame arrays and statistics;
@@ -25,10 +25,12 @@ hydrogen bonding, hydration free energy or permeation. Protein motion through
 a fixed crop is not a hydration transition.
 """
 from pathlib import Path
+from ._portable_paths import dumps_record
 import json
 import os
 
 from .presentation import FigureText, annotate_option
+from .mdinput import accepts_md_objects as _accepts_md_objects
 
 MEMBERSHIP_TOLERANCES_A = (0.5, 1.0)
 _KEY_OFFSET = 1 << 19
@@ -357,13 +359,15 @@ class WaterSource:
     """Stream one water-oxygen snapshot at a time; reopened after fork.
 
     The MDAnalysis universe is opened lazily and dropped when pickled, so each
-    ``cavity-trajectory`` worker process reopens its own reader. One oxygen per
+    ``trajectory --cavities`` worker process reopens its own reader. One oxygen per
     water residue is selected; its residue index is the stable water identity.
 
     Parameters
     ----------
-    topology, trajectory : str or Path
-        MD topology and trajectory read by MDAnalysis.
+    topology, trajectory : str, Path, Universe or AtomGroup
+        MD files readable by MDAnalysis, or a loaded ``MDAnalysis.Universe``
+        or ``AtomGroup`` as ``topology`` with ``trajectory`` omitted (an
+        AtomGroup replaces ``protein_selection``; see :mod:`crevice.mdinput`).
     protein_selection : str
         MDAnalysis selection of the protein atoms used for the geometry; its atom
         count must equal that of ``reference_frame``.
@@ -397,6 +401,7 @@ class WaterSource:
         selection that does not give exactly one oxygen per residue.
     """
 
+    @_accepts_md_objects('protein_selection')
     def __init__(self, topology, trajectory, *, protein_selection, reference_frame, frame_times,
                  water_selection=None, pbc='check'):
         import numpy as np
@@ -404,7 +409,8 @@ class WaterSource:
         from .hydration import DEFAULT_WATER_SELECTION
         if pbc not in {'check', 'none'}:
             raise ValueError('Water membership requires pbc check or none; unwrap moves protein independently of solvent')
-        self.topology, self.trajectory, self.pbc = str(topology), str(trajectory), pbc
+        from .mdinput import stored_source
+        (self.topology, self.trajectory), self.pbc = stored_source(topology, trajectory), pbc
         self.frame_times = dict(frame_times)
         self._universe = _open_universe(topology, trajectory); self._pid = os.getpid()
         u = self._universe; atoms = u.atoms; elements = np.asarray(_element_names(atoms))
@@ -815,7 +821,7 @@ def write_water_membership_bundle(analysis, output_dir, *, prefix='crevice', con
             target.write_text('', encoding="utf-8", newline="\n"); return
         with target.open('w', newline='', encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)
-    path('water_membership_json', '_water_membership.json').write_text(json.dumps(report, indent=2, allow_nan=False, ensure_ascii=False)+'\n', encoding='utf-8')
+    (_t:=path('water_membership_json', '_water_membership.json')).write_text(dumps_record(report, _t, indent=2, allow_nan=False, ensure_ascii=False)+'\n', encoding='utf-8')
     from .io import write_summary_statistics_csv
     write_summary_statistics_csv(report, path('water_membership_summary_csv', '_water_membership_summary.csv'))
     table(path('water_membership_strata_csv', '_water_membership_strata.csv'), report.get('geometry_conditional_strata') or [])

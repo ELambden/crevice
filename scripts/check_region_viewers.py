@@ -1,6 +1,6 @@
 """Run native region review scenes and independently inspect their visible data.
 
-Loads a region-review scene from ``crevice region-prepare``
+Loads a region-review scene from ``crevice region prepare``
 (``PREFIX_review.pml``, ``.vmd`` or ``.cxc``) twice in the real viewer and
 checks: protein coordinates (0.001 Å), landmark stick residues and colour,
 transferred coordinate landmarks, the world-space region surface against

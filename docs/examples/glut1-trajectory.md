@@ -16,7 +16,7 @@ every 50th frame, 21 frames 5 ns apart, with the protein, lipids, water and
 ions (about 12 MB to download):
 
 ```bash
-crevice fetch-example glut1-excerpt
+crevice fetch --example glut1-excerpt
 ```
 
 The output (paths shortened):
@@ -82,13 +82,13 @@ line the bound sugar in the GLUT1 crystal structure
 input hashes, the grid (0.2 Å spacing, 1.4 Å probe), the atomic radius set
 and the obstacle selection `not resname TIP3`: protein, lipids and ions all
 bound the region, while water is free to fill it. It was made with
-`region-init` and `region-prepare`, as described in
+`region init` and `region prepare`, as described in
 [Regions](../tools/regions.md).
 
 ## Measure the region in every frame
 
 ```bash
-crevice region-trajectory glut1_site_candidate_region.json \
+crevice trajectory --region glut1_site_candidate_region.json \
     --out-dir glut1-run --workers 2 --water-membership
 ```
 

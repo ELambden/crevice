@@ -101,8 +101,10 @@ import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
+from ._portable_paths import dumps_record
 
 from .presentation import FigureText, annotate_option
+from .mdinput import accepts_md_objects as _accepts_md_objects
 
 #: Wimley-White whole-residue octanol scale, dG(water -> octanol) in kcal/mol
 #: (Wimley, Creamer & White 1996; White & Wimley 1999). Keys: parent name plus
@@ -642,7 +644,7 @@ def fingerprint_structure(frame, *, profile=None, cast_spacing: float = 0.5, cas
         Already resolved profile; otherwise :func:`crevice.channels.pore_profile`
         runs with ``profile_kwargs``.
     cast_spacing : float, default 0.5
-        Channel-cast grid spacing, Å (as ``publish``).
+        Channel-cast grid spacing, Å (as ``report``).
     cast_max_grid_points : int, default 16000000
         Grid-size guard of the cast.
     entry_end, bulk_radius, hydrophobicity_bandwidth, lining_shell, electrolyte, resistivity
@@ -738,7 +740,8 @@ def count_path_waters(centres, raw_clearances, oxygens, *, tree=None):
     return counts
 
 
-def fingerprint_trajectory(topology, trajectory, *, selection: str = "protein", start: int = 0, stop: int | None = None,
+@_accepts_md_objects()
+def fingerprint_trajectory(topology, trajectory=None, *, selection: str = "protein", start: int = 0, stop: int | None = None,
                            stride: int = 1, max_frames: int | None = None, pbc: str = "check",
                            water_selection: str | None = None, include_water: bool = True,
                            quantiles=(0.1, 0.9), progress=None, **fingerprint_kwargs) -> PoreFingerprint:
@@ -755,8 +758,10 @@ def fingerprint_trajectory(topology, trajectory, *, selection: str = "protein", 
 
     Parameters
     ----------
-    topology, trajectory : str or Path
-        MD topology and trajectory read by MDAnalysis.
+    topology, trajectory : str, Path, Universe or AtomGroup
+        MD files readable by MDAnalysis, or a loaded ``MDAnalysis.Universe``
+        or ``AtomGroup`` as ``topology`` with ``trajectory`` omitted (an
+        AtomGroup replaces ``selection``; see :mod:`crevice.mdinput`).
     selection : str, default "protein"
         MDAnalysis selection of the protein atoms (the geometry).
     start, stop, stride, max_frames : int
@@ -877,7 +882,7 @@ def fingerprint_trajectory(topology, trajectory, *, selection: str = "protein", 
     fp.frames = frames
     fp.water = water_meta if waters is not None else ({**water_meta, "note": "no water oxygens selected"} if water_meta else None)
     fp.parameters = {**fp.parameters, "trajectory": {
-        "topology": str(topology), "trajectory": str(trajectory), "selection": selection, "frames": len(frames),
+        "topology": reader["topology"], "trajectory": str(reader["trajectory"]), "selection": reader["selection"], "frames": len(frames),
         "quantiles": list(quantiles), "reader": reader,
         "path": "fixed reference path of the first loaded frame; every frame fitted to it (Kabsch, CA atoms)"}}
     return fp
@@ -935,7 +940,7 @@ def write_fingerprint_bundle(fp: PoreFingerprint, output_dir, prefix: str = "cre
     root.mkdir(parents=True, exist_ok=True)
     out = {"fingerprint_csv": str(write_fingerprint_csv(fp, root/f"{prefix}_fingerprint.csv"))}
     path = root/f"{prefix}_fingerprint.json"
-    path.write_text(json.dumps(fp.to_dict(), indent=2, default=str)+"\n", encoding="utf-8", newline="\n")
+    path.write_text(dumps_record(fp.to_dict(), path, indent=2, default=str)+"\n", encoding="utf-8", newline="\n")
     out["fingerprint_json"] = str(path)
     if fp.frames:
         frames = root/f"{prefix}_fingerprint_frames.csv"
@@ -944,7 +949,8 @@ def write_fingerprint_bundle(fp: PoreFingerprint, output_dir, prefix: str = "cre
             writer.writeheader()
             writer.writerows(fp.frames)
         out["fingerprint_frames_csv"] = str(frames)
-    out["fingerprint_png"] = str(plot_pore_fingerprint(fp, root/f"{prefix}_fingerprint.png", dpi=dpi))
+    plot_pore_fingerprint(fp, root/f"{prefix}_fingerprint.png", dpi=dpi)
+    out["fingerprint_png"] = str(root/f"{prefix}_fingerprint.png")
     return out
 
 
@@ -956,15 +962,16 @@ FINGERPRINT_COLOURS = {"radius": "#2a78d6", "hydrophobic": "#eb6834", "hydrophil
 
 
 @annotate_option
-def plot_pore_fingerprint(fp: PoreFingerprint, path, *, dpi: int = 200, annotate: bool | None = None) -> Path:
+def plot_pore_fingerprint(fp: PoreFingerprint, path=None, *, dpi: int = 200, annotate: bool | None = None) -> "Figure":
     """Stacked panels along ``s``: radius, hydrophobicity, water and chemistry.
 
     Parameters
     ----------
     fp : PoreFingerprint
         The fingerprint.
-    path : str or Path
+    path : str or Path, optional
         Output image (PNG recommended).
+        ``None`` only returns the figure.
     dpi : int, default 200
         Raster resolution.
     annotate : bool, optional
@@ -973,8 +980,9 @@ def plot_pore_fingerprint(fp: PoreFingerprint, path, *, dpi: int = 200, annotate
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given (closed in
+        pyplot; see :func:`crevice.figures.plot_profile_radius`).
 
     Outputs
     -------
@@ -999,10 +1007,10 @@ def plot_pore_fingerprint(fp: PoreFingerprint, path, *, dpi: int = 200, annotate
       row label carries identity, not colour.
     """
     from .cast_segments import SEGMENT_HEX
-    from .figures import _ensure_parent, _pyplot, _save_figure, _style_axes
+    from .figures import _ensure_parent, _finish_figure, _pyplot, _style_axes
     plt = _pyplot()
     from matplotlib.patches import Patch
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     rows = fp.samples
     s = [r["s_A"] for r in rows]
     g = fp.conductance
@@ -1092,6 +1100,5 @@ def plot_pore_fingerprint(fp: PoreFingerprint, path, *, dpi: int = 200, annotate
         ax.grid(True, axis="y", color="#e2e2df", linewidth=0.6)
     text.note(f"G_macro {g['g_macro_pS']:.4g} pS, G_access {g['g_access_pS']:.4g} pS, HOLE-corrected "
               f"{g['g_hole_corrected_pS']:.4g} pS ({g['electrolyte']}, rho {g['resistivity_ohm_m']} Ohm m)")
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 

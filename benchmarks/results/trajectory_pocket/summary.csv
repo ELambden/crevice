@@ -1,0 +1,2 @@
+frames,crevice_volume_column,crevice_mean_A3,crevice_sd_A3,mdpocket_frames,mdpocket_mean_A3,mdpocket_sd_A3,ratio_of_means_mdpocket_over_crevice,pearson_r,region_points_1A,crevice_wall_s,mdpocket_wall_s,mdpocket_exit_code
+21,volume_A3,761.0518,47.2828,21,555.4824,83.9280,0.7299,0.2240,503,30.9152,229.9688,0

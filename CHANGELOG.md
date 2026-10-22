@@ -12,6 +12,257 @@ biological results.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-22
+
+### Added
+
+- Permeation analysis: `crevice trajectory --permeation SPECIES` (Python:
+  `crevice.permeation.analyze_permeation`) follows water molecules, ions or
+  any selected species through a channel. It reports every complete crossing
+  (molecule, entry and exit frames and times, direction, transit time),
+  counts per direction, net flux, occupancy and dwell times, per channel and
+  per pore; water osmotic (pf, collective-diffusion model) and diffusive (pd)
+  permeabilities with intervals; and the ion current with Poisson and
+  block-bootstrap intervals. The conductance is reported only when a voltage
+  is given (`--voltage`) or derived from an applied field (`--efield`,
+  `--efield-from` an `.mdp` or `.tpr`); otherwise it is stated to be
+  undefined. The channel is the measured per-frame profile, an explicit
+  extent (`--channel-extent`, `--channel-radius`, `--permeation-pore` for
+  several pores) or a region map (`--permeation-region`). Martini water beads
+  (four waters per bead) and `ION` residues are supported and coarse-grained
+  input is flagged. `--permeation-only` skips the structural analysis. New
+  files: `*_permeation.json`, `*_permeation_events.csv`,
+  `*_permeation_visits.csv`, `*_permeation_frames.csv` and the figure
+  `*_permeation.png` (a key figure). See the Permeation and conductance tool
+  page.
+- MDAnalysis objects as input: `load_structure`, `load_structure_report`,
+  `load_trajectory`, `load_trajectory_report`, `inspect_trajectory`,
+  `analyze_hydration_trajectory`, `trajectory_residue_interactions`,
+  `fingerprint_trajectory`, `track_cavities` and the cavity-trajectory
+  obstacle and water sources accept an MDAnalysis `Universe` or `AtomGroup`
+  in place of the topology path. Static loaders read the current frame;
+  trajectory loaders iterate the trajectory and return the Universe to its
+  frame. An `AtomGroup` is the selection. Results are identical to the path
+  route on the same files; reader reports add `input_object`.
+- Correlation-aware uncertainty on every per-frame trajectory summary: each
+  statistics record (cavity and regional volumes, residue areas and
+  occupancies, water and interaction counts, paired region differences) gains
+  a `sampling_uncertainty` block with the effective sample size from the
+  integrated autocorrelation time (Sokal automatic window), the
+  Flyvbjerg–Petersen blocking standard error (automatic level after Jonsson
+  2018) and a moving-block bootstrap interval of the mean, each with the block
+  size used. The summary CSV tables gain the matching columns at the end;
+  existing columns and values are unchanged. `trajectory --distribution-csv`
+  rows gain the same per-position fields.
+- `crevice trajectory` writes `OUTPUT_frame_statistics.json` and `.csv`:
+  per-frame radius, bottleneck position and count summaries with the
+  uncertainty fields above (`crevice.uncertainty.trajectory_frame_statistics`).
+- `--sensitivity` (opt-in) on `profile`, `cavities --cast`, `report`,
+  `trajectory --cavities` and `trajectory --region`: reruns the headline numbers
+  with one definition changed at a time (margin ±1 Å where it applies,
+  neighbouring probe-ladder radii, grid 0.25/0.5 Å) and writes
+  `PREFIX_sensitivity.csv`/`.json` with the spread and its cost. Trajectory
+  commands rerun `--sensitivity-frames` (default 10) evenly spaced frames.
+- Grid-resolution warning: `report` (channel profile minimum radius) and
+  `paths` (narrowest route bottleneck) warn when that measured clearance is
+  below two grid spacings, recommending at most 0.35 Å for narrow channels,
+  and record `grid_resolution` in the manifest (paths: in the paths JSON
+  settings). Casts and per-frame regions measure no narrowest width, so they
+  record the check as not assessed and do not warn. Defaults and results are
+  unchanged.
+- Cast selection diagnostics: `cavities --cast` records
+  `selection_stability` in the cast metadata and prints a warning when the
+  reported volume can jump with the grid spacing or offset: a region dropped
+  by `--max-cavities` is at least 80 % of a kept one (`near_tie`), or a kept
+  region's cores would be joined to others through a neck within about one
+  grid tolerance of the probe radius (`grid_sensitive_grouping`). Nothing is
+  changed; rerun at a finer `--spacing`. The guide for uncertainty and grid
+  resolution now quantifies how cast volumes change with spacing.
+- `--hetero-polymer include|exclude` on every command that reads a structure
+  (Python: `hetero_polymer=` in `load_structure`, `load_structure_report`,
+  `load_trajectory` and `load_trajectory_report`) chooses whether polymer
+  residues deposited as HETATM count as protein (see Changed). With
+  `exclude`, `cavities --cast` warns when such residues were left out of the
+  walls by `--selection protein` (`polymer_hetero_residues_excluded` in the
+  atom-selection record).
+- `benchmarks/timing_trajectory.py`: run time, CPU time and peak memory of
+  whole trajectory runs (CREVICE channel profile and region volume at several
+  grid spacings, HOLE on every frame through mdahole2, MDpocket), one process
+  per run, median of repeats, frames per second; a system is described by a
+  small JSON file, so any trajectory can be timed with one command.
+- `benchmarks/`: a reproducible benchmark suite with curated input lists
+  (PDB entry, assembly, atoms removed, axis or seed provenance and the reason
+  for each entry) and scripts that fetch the inputs, run CREVICE and each
+  comparator with matched atoms, radii and axis, and write one CSV per
+  comparison plus summary tables: channel profiles against HOLE (11 channel
+  structures), the geometric conductance estimate against measured
+  single-channel conductances, enzyme tunnels against CAVER, pocket volumes
+  against pyKVFinder and POVME, a trajectory pocket volume against MDpocket,
+  the sensitivity of the automatic enclosure probe, and run times. Comparators
+  are installed by a script, not vendored. Summary in the documentation page
+  "Benchmarks against other tools". These are software comparisons on curated
+  inputs, not biological validation.
+
+### Changed
+
+- Channel profile radii are measured at the exact top of each slice's
+  clearance hill. Before, the centre of each slice moved from its best grid
+  point by one step per halving (four halvings) and could stop short of the
+  local maximum (on 1GRM by up to about 0.03 Å), so radii shifted slightly
+  with the grid spacing, the number of samples and where grid points fell.
+  The centre now climbs until no move improves the clearance (to 0.0001 Å),
+  follows ridges between two atoms at any angle, and ends at the point
+  equidistant from three atom surfaces that surround it. It still climbs the
+  hill that holds the best grid point and does not jump to another hill of
+  the slice. Radii, minimum radius and continuous bottleneck increase
+  slightly: the 1GRM reference minimum radius (`report`, 0.25 Å grid, 101
+  samples) is 1.3372 Å instead of 1.3302 Å, and the quick-start
+  `crevice profile 1GRM` gives 1.337 Å instead of 1.324 Å. Results built on
+  the profile change with it: the fingerprint conductance estimate (1GRM in
+  1 M KCl: 367 instead of 363 pS), hydration regions that follow the
+  profile, and lateral exit legs, which start at the capped mouth's centre,
+  with their entry and exit cast segments (3UKM: exit 2 is 391.1 Å³ instead
+  of 593.5 Å³). Channel casts are unchanged. On the benchmark channels the
+  per-plane agreement with HOLE, which also maximises in-plane, improves
+  (RMSD 0.002–0.009 Å instead of 0.004–0.016 Å with `simple.rad`), and for
+  aquaporin-1 (1J4N) the automatic probe now ties a short capped fragment
+  with the through channel and reports the fragment (`benchmarks/README.md`).
+  `metadata.section_refinement` records the method and its
+  settings; `--refinement-steps` (default 4) is now the minimum number of
+  step halvings, and 0 still keeps the grid-point centres. See "Slice
+  centres" on the profile tool page.
+- `crevice profile` also tries the window-bridged sections when the
+  resampled slices join up only through a path narrower than the path found
+  at discovery by more than one grid spacing, and keeps the wider path. With
+  the converged centres, a pocket in the wall next to a slice where the lumen
+  touches the search window could otherwise be joined instead of the lumen
+  (4HFI at some sample counts: a 5 Å sideways detour, minimum radius 1.84 Å
+  instead of 2.59 Å). Profiles that join up through the lumen are unchanged.
+- Residues deposited as HETATM but part of a polymer chain (D-amino acids,
+  selenomethionine, phosphorylated and other modified residues, caps such as
+  ACE) are now protein for PDB-format files, as they already were for mmCIF
+  files read with Gemmi. A HETATM residue counts as polymer when the file
+  lists it in MODRES, or when it is peptide-bonded (its N or C within 1.75 Å
+  of a C or N of another residue of the same chain) into a run of residues
+  that contains an ATOM record or whose names all appear in the chain's
+  SEQRES. Waters, ions and other ligands stay heteroatoms. The same rule
+  applies to the built-in mmCIF reader, to mmCIF files without `_entity`
+  types, and to MDAnalysis input, where peptide-bonded residues outside the
+  MDAnalysis `protein` selection join it. The input report lists the
+  residues included (`polymer_hetatm_residues`, `hetero_definition:
+  group_pdb_except_polymer`) and the command prints a note. Results for PDB
+  files with such residues change; for 1GRM the PDB file now gives the same
+  272 protein heavy atoms as the mmCIF file (154 before), so `cavities --cast
+  1GRM.pdb` gives 257.000 Å³ like the mmCIF file (181.875 Å³ before) and
+  `profile 1GRM.pdb --exclude-hetero` resolves the channel. mmCIF results
+  read with Gemmi are unchanged. `--hetero-polymer exclude` restores the
+  0.3 behaviour.
+- Every `plot_*` function returns the `matplotlib.figure.Figure` instead of
+  the output path, and the path is optional (omit it to get the figure only).
+  Saved images are byte-identical to 0.3.3.
+- The command line has nine commands instead of 25: `fetch`, `profile`,
+  `cavities`, `paths`, `residues`, `report`, `trajectory`, `region` and
+  `view`. Related analyses are modes of one command: `fetch --example NAME`,
+  `profile --fingerprint`, `cavities --cast`, `cavities --tunnels`,
+  `residues --network`, `residues --evidence`, `residues --features`,
+  `report` (the former `publish`), `report --analyze`, `report --suite`,
+  `report --benchmark`, `trajectory --cavities`, `trajectory --region
+  DEFINITION`, `trajectory --water`, `trajectory --track`, and
+  `region init|prepare|compare`. Each mode keeps the options and defaults of
+  the command it replaces and writes byte-identical outputs; only the
+  recorded command line differs. `crevice --help` lists the nine commands and
+  `crevice COMMAND --MODE --help` the options of one mode. See
+  `docs/getting-started/upgrading-0.4.md` for the full mapping.
+- Settings files (`--print-config`/`--config`) and `crevice.config.settings`
+  accept the 0.4 spelling of a command (`"report"`, `"cavities --cast"`) as
+  well as the 0.3 name, which is still what settings files and manifests
+  record. No settings key was renamed.
+- Output folders are portable between machines and operating systems. Paths
+  recorded in manifests, run records, scene and metadata JSON, region and
+  comparison records and suite and benchmark summaries are written relative to
+  the file that records them, with `/` separators on every platform (before:
+  absolute paths in the writing system's form). Inputs outside the output
+  folder keep an absolute path with `/` separators next to their SHA-256; the
+  command line, input arguments and settings are recorded as typed. `crevice
+  view`, `region-compare`, `hydration --cavity-results` and the Python API
+  resolve the paths against the recording file and still read 0.3.x folders
+  with absolute paths. `crevice.config.run` returns absolute file paths. Only
+  path strings change; every number and every other output is unchanged. See
+  "Recorded paths" in the outputs documentation.
+- Generated viewer scripts (PyMOL `.pml`, VMD `.vmd`/`.tcl`, ChimeraX `.cxc`
+  and loader `.py`, the `profile --pymol` and `report` sphere scenes, path
+  scenes) no longer contain any absolute path of the machine that wrote them.
+  Each data file is named relative to the script's folder (normally just its
+  file name) and is looked for next to the script, then in the working
+  directory; when neither has it the script stops with an error naming the
+  file (before: the writing machine's absolute path was tried last). A folder
+  therefore keeps working when moved, renamed or copied to another machine.
+  An input outside the output folder (`profile --pymol` on a structure
+  elsewhere) is named by a relative path such as `../inputs/prot.pdb` (by
+  its file name alone when the two share no folder below the root). The
+  PyMOL sphere scenes write their rendered PNG next to the script. Only the
+  script text changes; every number and every other output is unchanged.
+
+### Deprecated
+
+- The 0.3 command names (`publish`, `cast`, `tunnels`, `network`,
+  `residue-evidence`, `features`, `fingerprint`, `analyze`, `static-suite`,
+  `benchmark`, `cavity-trajectory`, `region-trajectory`, `hydration`,
+  `track-cavities`, `region-init`, `region-prepare`, `region-compare`,
+  `fetch-example`) still work as aliases that run the same code and print a
+  one-line note on standard error. They will be removed in 1.0.
+
+### Removed
+
+- `--legacy-outputs` (deprecated in 0.3) and the Python `outputs="legacy"`
+  value, which reproduced the CREVICE 0.2 file set. Use `--all`
+  (`outputs="all"`) or `--outputs`. A 0.3 settings file that records
+  `legacy_outputs: false` still loads; `true` is refused with a message.
+
+### Fixed
+
+- `crevice profile` no longer depends on the number of samples when the lumen
+  just touches the edge of the sideways search window in a slab thinner than
+  the sample step. Such slabs broke the resampled path, so a channel could
+  resolve at 81 samples and fail at 101 or 187 ("Channel continuity failed").
+  When the resampled slices would otherwise not join up, a slice that touches
+  the window edge is now accepted if it is enclosed in a window twice as wide;
+  a real gap in the wall still breaks the channel. Profiles that resolved
+  before are unchanged. New metadata: `window_bridged_samples` and
+  `window_bridging`.
+- `crevice trajectory` (and `crevice.trajectory.analyze_trajectory`,
+  `profile_timeseries`, and the `--permeation` channel taken from the
+  per-frame profiles) no longer stops the whole run when a fixed `--origin`
+  has too little clearance in one frame, for example because an atom has
+  moved onto it. That frame is recorded as unresolved, with the reason in
+  `profile_status`/`profile_reason` and the clearance at the origin in the
+  frame's `enclosure_probe` record, and the run continues; with automatic
+  probe choice the per-frame fallback is tried first. A warning gives the
+  number of such frames and their indices, also stored in the trajectory
+  metadata as `origin_clearance`. Frames that resolve are unchanged. An
+  origin without clearance on the first (reference) frame is recorded the
+  same way as a reference frame whose channel does not resolve: no axis or
+  probe can be fixed, so no frame is profiled, the outputs are written and
+  the command exits 0 with a warning (`origin_clearance` then lists the
+  reference frame with `reference_frame: true`); a profile-defined
+  `--permeation` channel then stops with the same "no channel profile was
+  resolved" error as for an unresolved reference channel.
+  `--profile-errors raise` still stops at the first such frame, the
+  reference frame included. `crevice profile` and `crevice report` still
+  treat an origin without clearance as an input error. The new
+  `crevice.sections.OriginClearanceError` (a `ValueError`) and
+  `crevice.trajectory.OriginClearanceWarning` identify the case.
+
+### Known limitations
+
+- `crevice trajectory --cavities` and `--region` keep every frame's atoms and
+  per-frame record in memory until the run ends, so peak memory grows with
+  the frame count: about 7 MB per frame (7.5 GB for 1000 frames) on a GLUT1
+  membrane simulation, whatever the grid spacing. Analyse long trajectories
+  in frame ranges.
+- Trajectory channel-profile timings against HOLE are not in the benchmark
+  results yet; they follow with a channel simulation.
+
 ## [0.3.3] - 2026-10-19
 
 ### Fixed

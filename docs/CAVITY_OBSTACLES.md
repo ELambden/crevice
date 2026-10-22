@@ -2,15 +2,15 @@
 
 Cavity geometry can include selected lipids, ions, ligands and buffer molecules
 as physical walls, while protein alignment, residue networks and viewer cartoons
-keep their own protein selection. The `cavity-trajectory` default is protein
+keep their own protein selection. The `trajectory --cavities` default is protein
 heavy atoms. An explicit choice is recorded in the trajectory statistics and in
-each frame's diagnostics. Static `publish` has different defaults: retained
+each frame's diagnostics. Static `report` has different defaults: retained
 heteroatoms are included unless `--exclude-hetero` is requested, whereas
-`cast --selection protein` defaults to protein. Always record the command and the
+`cavities --cast --selection protein` defaults to protein. Always record the command and the
 loader's actual atom selection.
 
 ```bash
-crevice cavity-trajectory system.gro run.xtc \
+crevice trajectory --cavities system.gro run.xtc \
   --reference-volume-dx reference_volume.dx \
   --geometry-mode reference-region --spacing 0.2 --axis 0,0,1 \
   --probe-radius 1.4 --region-margin 2 \
@@ -64,7 +64,7 @@ limit.
 
 Cavity volumes, sectional radii and boundary-residue rankings depend on the grid
 spacing, lattice phase, probe radius, region margin, alignment scaffold and
-obstacle selection. Before interpreting a result, rerun `cavity-trajectory` on a
+obstacle selection. Before interpreting a result, rerun `trajectory --cavities` on a
 short frame range (for example `--stop 3`, or on a few snapshots written to a
 separate trajectory file) with one setting changed at a time:
 

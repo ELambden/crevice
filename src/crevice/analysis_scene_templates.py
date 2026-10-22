@@ -1,5 +1,6 @@
 """Native viewer scripts using one scene definition and absolute hydration palette."""
 from pathlib import Path
+from ._portable_paths import dumps_record
 import json
 import math
 
@@ -13,7 +14,9 @@ import numpy as np
 from pymol import cmd
 from pymol.cgo import BEGIN,END,TRIANGLES,NORMAL,VERTEX,CYLINDER
 _crevice_root=Path(getattr(cmd._pymol,'__script__',inspect.currentframe().f_code.co_filename)).resolve().parent
-if not (_crevice_root/__SCENE__).is_file():_crevice_root=Path(__FALLBACK__)
+if not (_crevice_root/__SCENE__).is_file():_crevice_root=Path.cwd()
+if not (_crevice_root/__SCENE__).is_file():
+    raise FileNotFoundError('CREVICE: data file %r was not found next to this script or in the working directory (%s); keep the script with the other files of its output folder'%(__SCENE__,Path.cwd()))
 crevice_scene=json.loads((_crevice_root/__SCENE__).read_text())
 crevice_geometry=np.load(_crevice_root/crevice_scene['geometry_npz'],allow_pickle=False)
 for name in ['crevice_protein','crevice_volume','crevice_cavity','crevice_water_density','crevice_interactions','crevice_hydration_legend','crevice_hydration_labels','crevice_region_status','crevice_grid','crevice_member_waters']:
@@ -137,6 +140,9 @@ import json,numpy as np
 from chimerax.core.commands import run,register,CmdDesc,StringArg,IntArg
 from chimerax.atomic import AtomicStructure,Atom
 root=Path(__file__).resolve().parent
+if not (root/__SCENE__).is_file():root=Path.cwd()
+if not (root/__SCENE__).is_file():
+    raise FileNotFoundError('CREVICE: data file %r was not found next to this script or in the working directory (%s); keep the script with the other files of its output folder'%(__SCENE__,Path.cwd()))
 scene=json.loads((root/__SCENE__).read_text())
 owner='crevice_analysis_'+scene['prefix']
 for old in list(session.models.list()):
@@ -252,6 +258,8 @@ def _tcl(scene,root,mode,annotate=False):
     from .volume_export import _tcl_word as q
     lines=['# CREVICE coordinated hydration; absolute occupancy scale.',
            'set crevice_root [file dirname [file normalize [info script]]]',
+           'if {![file exists [file join $crevice_root '+q(scene['protein_pdb'])+']]} {set crevice_root [pwd]}',
+           'if {![file exists [file join $crevice_root '+q(scene['protein_pdb'])+']]} {error "CREVICE: data file '+''.join(c for c in scene['protein_pdb'] if c not in '"$[]{}\\')+' was not found next to this script or in the working directory ([pwd]); keep the script with the other files of its output folder[expr {[info script] eq {} ? { (VMD -e does not tell a script where it is: start VMD in the folder of the script, or type: source PATH)} : {}}]"}',
            'if {[info exists crevice_owned_molecules]} {foreach m $crevice_owned_molecules {if {[lsearch -exact [molinfo list] $m]>=0} {mol delete $m}}}',
            'catch {array unset crevice_surface}',
            'set crevice_protein [mol new [file join $crevice_root '+q(scene['protein_pdb'])+'] waitfor all]',
@@ -492,14 +500,14 @@ def write_scene_scripts(output_dir,prefix,*,annotate=None):
     root=Path(output_dir).resolve();scene_path=root/(prefix+'_analysis_scene.json');scene=json.loads(scene_path.read_text(encoding="utf-8"))
     annotate=annotations_enabled()
     scene['annotations']=scene_annotation_record(scene_texts(scene),drawn=annotate)
-    scene_path.write_text(json.dumps(scene,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    scene_path.write_text(dumps_record(scene,scene_path,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     files={};reference_written=False
     from .outputs import wants
     for mode,ending in [('hydration','_analysis'),('network','_analysis_network')]:
         p=root/(prefix+ending+'.pml')
         pml=PML.replace('__LEGEND__',PML_LEGEND if annotate else '').replace('__REGION_STATUS__',PML_REGION_STATUS if annotate else '')
         if wants(p):
-            p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__FALLBACK__',repr(str(root))).replace('__MODE__',mode), encoding="utf-8", newline="\n");files[mode+'_pml']=str(p)
+            p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode), encoding="utf-8", newline="\n");files[mode+'_pml']=str(p)
         tcl_paths=[root/(prefix+ending+'.'+extension) for extension in ['vmd','tcl']]
         if any(wants(p) for p in tcl_paths):
             text=_tcl(scene,root,mode,annotate);reference_written=True

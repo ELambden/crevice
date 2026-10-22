@@ -165,11 +165,13 @@ def write_companion_contexts(scene, root, prefix, protein_path, membership, view
         return paths
     coordinates=root/f'{prefix}_residue_reference.tsv'
     coordinates.write_text(''.join(f'{serial}\t{a.x:.9f}\t{a.y:.9f}\t{a.z:.9f}\n' for a,serial in zip(frame.atoms,viewer_ids)), encoding="utf-8", newline="\n")
+    # Scenes of 0.4 and later define crevice_input (script folder, then working directory).
+    reference_lookup='crevice_input' if 'proc crevice_input' in tcl.read_text(encoding="utf-8") else 'file join $crevice_root'
     definitions='\n'.join(f'set crevice_evidence_serials({role}) {{{" ".join(map(str,ids))}}}' for role,ids in membership.items())
     extra=f'''
 # Matched highlighted residues: opaque sticks, transparent cavity context.
 {definitions}
-set crevice_reference_file [open [file join $crevice_root {_tcl_word(coordinates.name)}] r]
+set crevice_reference_file [open [{reference_lookup} {_tcl_word(coordinates.name)}] r]
 set crevice_expected_coordinates [dict create]
 foreach crevice_line [split [read $crevice_reference_file] "\\n"] {{
     if {{[llength $crevice_line] == 4}} {{dict set crevice_expected_coordinates [lindex $crevice_line 0] [lrange $crevice_line 1 3]}}

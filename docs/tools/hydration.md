@@ -1,16 +1,16 @@
 # Hydration
 
-`crevice hydration` looks at the water around the residues you care about.
+`crevice trajectory --water` looks at the water around the residues you care about.
 It tells you which residues touch explicit water and how often, how exposed
 each residue is, where water sits on average once the protein is aligned, and
 which residue pairs make hydrogen bonds, salt bridges, aromatic contacts or
 water bridges.
 
 The same analysis can ride along with other commands: add
-`--outputs default,hydration` (or `--all`) to `analyze`, `cast`, `publish`,
-`residue-evidence`, `trajectory`, `cavity-trajectory` or `region-trajectory`.
-Since 0.3 it is off by default there, except in `cavity-trajectory` and
-`region-trajectory` with `--water-membership`. The standalone command is handy
+`--outputs default,hydration` (or `--all`) to `report --analyze`, `cavities --cast`, `report`,
+`residues --evidence`, `trajectory`, `trajectory --cavities` or `trajectory --region`.
+Since 0.3 it is off by default there, except in `trajectory --cavities` and
+`trajectory --region` with `--water-membership`. The standalone command is handy
 when you want to add hydration to geometry you have already computed.
 
 ## Quick start
@@ -18,14 +18,14 @@ when you want to add hydration to geometry you have already computed.
 For a static structure with crystallographic waters:
 
 ```bash
-crevice hydration 4PYP --out-dir 4PYP_hydration --prefix 4PYP
+crevice trajectory --water 4PYP --out-dir 4PYP_hydration --prefix 4PYP
 ```
 
 For a trajectory, reusing a finished [cavity trajectory](cavity-trajectory.md)
 so the same residues, frames and alignment are used:
 
 ```bash
-crevice hydration topology.gro --trajectory production.xtc \
+crevice trajectory --water topology.gro --trajectory production.xtc \
     --cavity-results cavity/crevice_cavity_statistics.json --out-dir hydration
 ```
 
@@ -77,14 +77,14 @@ The full definitions are in
 
 | Input | Residues analysed |
 |---|---|
-| `--cavity-results stats.json` (from `cavity-trajectory`) | every residue that was ever on the cavity wall or a partner, using that run's frames, alignment and reference |
+| `--cavity-results stats.json` (from `trajectory --cavities`) | every residue that was ever on the cavity wall or a partner, using that run's frames, alignment and reference |
 | `--volume-dx map.dx` | the wall residues and partners of a measured cast |
 | `--residues-json ids.json` | a list of residues you choose |
 | none | every selected protein residue |
 
 Only residues with non-HETATM heavy atoms are measured. A focus residue
-without any, such as a ligand, ion or water, or the D-amino acids of 1GRM when
-read from a PDB file, is listed in the JSON with the reason
+without any, such as a ligand, ion or water, or a modified residue read with
+`--hetero-polymer exclude`, is listed in the JSON with the reason
 (`settings.untyped_focus_residues`) and still blocks SASA unless it is water.
 Residue IDs that aren't in the structure are an error.
 
@@ -97,13 +97,13 @@ questions:
   cavity as it was in the reference. The neighbourhood never moves, so protein
   moving in or out of it changes the count even if no water moves.
 - **Instantaneous membership** (`--water-membership` on
-  [`cavity-trajectory`](cavity-trajectory.md) or
-  [`region-trajectory`](regions.md)): water oxygens that sit inside the cavity
+  [`trajectory --cavities`](cavity-trajectory.md) or
+  [`trajectory --region`](regions.md)): water oxygens that sit inside the cavity
   as measured in that same frame. Each oxygen is assigned to exactly one grid
   cell, so members divided by volume is a consistent number density.
 
 Membership needs the per-frame cavity grid, which is never saved, so it can't
-be added to finished results with `hydration --cavity-results`. It writes its
+be added to finished results with `trajectory --water --cavity-results`. It writes its
 own files (`PREFIX_water_membership*.json/csv/npz/png`), adds the member
 waters to the viewer scenes as orange 0.7 Å spheres, and checks in every
 bundle that the fixed, instantaneous and shared counts add up. An unresolved
@@ -122,7 +122,7 @@ frame gives a missing count, never zero.
 | `--water-selection` | standard names | which residues are water, for MD input |
 
 The hydration settings are [shared options](../reference/cli/common-options.md#hydration-settings);
-everything is listed under [`crevice hydration`](../reference/cli/hydration.md).
+everything is listed under [`crevice trajectory --water`](../reference/cli/trajectory.md).
 
 ## What you get
 

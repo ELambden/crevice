@@ -8,6 +8,7 @@ axis describes only passages that are monotone along that direction.
 from __future__ import annotations
 
 import contextvars
+import functools
 import math
 from dataclasses import dataclass, replace
 
@@ -20,6 +21,37 @@ from .spatial import SpatialIndex
 class ChannelResolutionError(ValueError):
     """A supplied region cannot be resolved as a unique through channel."""
 
+
+class OriginClearanceError(ValueError):
+    """A supplied channel origin lies too close to the atoms of this structure.
+
+    Raised by :func:`connected_profile` when the clearance at the supplied
+    ``origin`` is not greater than the enclosure and measurement probes. It is
+    a :class:`ValueError` (an invalid input for a single structure); per-frame
+    trajectory analysis (:func:`crevice.trajectory.analyze_trajectory`) records
+    such a frame as unresolved instead of stopping.
+
+    Attributes
+    ----------
+    clearance : float
+        Clearance at the origin, Å (distance to the nearest atomic surface).
+    """
+
+    def __init__(self, message: str, clearance: float):
+        """Store the message and the clearance at the origin (Å)."""
+        super().__init__(message)
+        self.clearance = float(clearance)
+
+
+#: Section-centre refinement (:meth:`SectionGeometry.refine`) halves its step until it is below this, Å.
+REFINEMENT_TOLERANCE_A = 1e-4
+#: Guard on the number of improving moves of one section-centre refinement.
+REFINEMENT_MAX_MOVES = 10_000
+#: Radius, Å, within which a refinement vertex step looks for a three-atom clearance maximum.
+REFINEMENT_VERTEX_RADIUS_A = 0.35
+#: Guard on vertex / pattern-search rounds of one section-centre refinement.
+REFINEMENT_MAX_ROUNDS = 32
+_SQRT2 = math.sqrt(2.0)
 
 #: The eight in-plane neighbour steps, in the order the flood fill visits them.
 _STEPS = ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1))
@@ -40,11 +72,38 @@ class Section:
         :meth:`SectionGeometry.refine`, the refined local maximum).
     clearance : float
         Atom-surface clearance at ``center``, Å.
+    window_bridged : bool
+        True when the section reaches the transverse search square and was
+        accepted only because it is enclosed within the wider bridging window
+        (:meth:`SectionGeometry.bridged_sections`).
     """
     t: float
     indices: tuple[tuple[int, int], ...]
     center: Coord
     clearance: float
+    window_bridged: bool = False
+
+
+@functools.lru_cache(maxsize=64)
+def _triples(n):
+    """Index arrays ``(i, j, k)``, ``i < j < k < n``, in lexicographic order."""
+    import itertools
+    import numpy as np
+    columns = np.array(list(itertools.combinations(range(n), 3)), dtype=np.intp).reshape(-1, 3)
+    return tuple(np.ascontiguousarray(columns[:, m]) for m in range(3))
+
+
+def _surface_values(points, xyz, radii):
+    """Clearance (minimum of ``distance - radius`` over the given atoms) of each point.
+
+    Same per-atom formula as :func:`crevice.spatial._point_surface_distances`.
+    """
+    import numpy as np
+    points = np.asarray(points, dtype=float)
+    dx = points[:, 0:1] - xyz[:, 0]
+    dy = points[:, 1:2] - xyz[:, 1]
+    dz = points[:, 2:3] - xyz[:, 2]
+    return (np.sqrt(dx * dx + dy * dy + dz * dz) - radii).min(axis=1)
 
 
 class _FrameState:
@@ -77,6 +136,29 @@ class _FrameState:
                 memo.clear()
             memo.update(zip(missing, self.spatial.nearest_surface_values(missing).tolist()))
         return [memo[p] for p in points]
+
+    def local_atoms(self, center, clearance, reach):
+        """Centres and radii of the atoms that can limit clearance within ``reach`` of ``center``.
+
+        These are the atoms whose centres lie within ``clearance + 2*reach +
+        r_max`` of ``center`` (``clearance`` is the clearance at ``center``):
+        clearance is 1-Lipschitz, so every atom nearest to the surface of a
+        point within ``reach`` is among them, and :func:`_surface_values` over
+        them gives that point's exact clearance. Used by section refinement,
+        which makes many small queries around one point. None without SciPy.
+
+        Returns
+        -------
+        tuple of numpy.ndarray or None
+            ``(xyz, radii)`` of shapes ``(k, 3)`` and ``(k,)``, in atom order.
+        """
+        import numpy as np
+        spatial = self.spatial
+        if spatial._tree is None:
+            return None
+        index = spatial._tree.query_ball_point(center, clearance + 2*reach + spatial._max_radius + 1e-6)
+        index = np.sort(np.asarray(index, dtype=np.intp))
+        return spatial._xyz[index], spatial._radius_array[index]
 
     def segment_clearance(self, start, end):
         """Memoised :meth:`crevice.spatial.SpatialIndex.segment_clearance`."""
@@ -162,6 +244,7 @@ class SectionGeometry:
         self.spatial = state.spatial
         self.projected = state.projected
         self._sections = {}
+        self._refined = {}
 
     def position(self, i, j, t):
         """Cartesian position of in-plane node ``(i, j)`` on the plane at ``t``.
@@ -345,35 +428,329 @@ class SectionGeometry:
         return result
 
     def refine(self, section, steps):
-        """Local maximum, reached by collision-free moves inside this component.
+        """Converged local clearance maximum inside this component.
 
-        Starting at the section centre, try the eight in-plane moves of half a grid
-        spacing, take the one that most increases clearance if the straight move
-        clears the probe, halve the step and repeat.
+        In-plane clearance is the minimum over atoms of ``distance - radius``
+        (3D distance, measured in the section plane). Its local maxima are
+        vertices: points equidistant from three atom surfaces whose in-plane
+        projections enclose them. Starting at the section centre (the node of
+        largest clearance), two deterministic searches alternate (at most
+        ``REFINEMENT_MAX_ROUNDS`` rounds):
+
+        * a local ascent (``_pattern_search``): at each step length the
+          better of the eight in-plane pattern moves and the move that
+          maximises the linearised clearance (``_linear_move``, which
+          follows the narrow two-atom ridges on which fixed-direction moves
+          stall), repeated until neither improves clearance, then the step is
+          halved, from half the grid spacing until it falls below
+          ``REFINEMENT_TOLERANCE_A`` (and at least ``steps`` halvings);
+        * a vertex step (``_vertex_ascent``): the highest vertex within
+          ``REFINEMENT_VERTEX_RADIUS_A`` that improves clearance is solved for
+          exactly, and the search ends at a vertex with none higher within
+          reach. Such a vertex is an exact strict local maximum.
+
+        Every move must stay in the component's grid cells and keep the
+        straight in-plane segment clear of the enclosure probe, so the centre
+        stays in the same free space. The result is the maximum of the hill
+        that holds the grid centre, not the highest maximum of the section: a
+        section can hold a higher hill that the grid samples less well, but a
+        centre moved there could break the straight joins to neighbouring
+        sections. Results are memoised per plane, start node and ``steps``.
 
         Parameters
         ----------
         section : Section
             Section to refine.
         steps : int
-            Number of halving iterations (``refinement_steps``).
+            ``refinement_steps``: 0 disables refinement (the grid-node centre
+            is kept); a positive value is the minimum number of step halvings.
 
         Returns
         -------
         Section
             Same plane and nodes, with the refined centre and its clearance.
         """
-        best, clearance = section.center, section.clearance
-        step = self.spacing / 2
-        for _ in range(steps):
-            improved, score = best, clearance
-            moves = [add(best, add(scale(self.u, di*step), scale(self.v, dj*step))) for di, dj in _STEPS]
-            for p, value in zip(moves, self._state.clearances(moves)):
-                if value > score + 1e-12 and self._state.segment_clearance(best, p) > self.probe:
-                    improved, score = p, value
-            best, clearance = improved, score
-            step /= 2
-        return Section(section.t, section.indices, best, clearance)
+        if steps <= 0:
+            return section
+        key = (section.t, section.center, steps)
+        cached = self._refined.get(key)
+        if cached is None:
+            cached = self._refined[key] = self._climb(section.center, section.clearance, steps,
+                                                      self._component_cells(section))
+        return replace(section, center=cached[0], clearance=cached[1])
+
+    def _climb(self, best, clearance, steps, inside):
+        """Local clearance maximum from one start: vertex steps, pattern search when none applies."""
+        step, at_vertex = self.spacing / 2, False
+        for _ in range(REFINEMENT_MAX_ROUNDS):
+            vertex = self._vertex_ascent(best, clearance, inside)
+            if vertex is not None:
+                (best, clearance), at_vertex = vertex, True
+                continue
+            if at_vertex:
+                # A valid vertex is an exact local maximum; none higher within reach.
+                break
+            # No improving vertex within reach of a non-vertex point: pattern
+            # search (the whole method without SciPy), then vertices again.
+            moved = self._pattern_search(best, clearance, step, min(self.spacing / 2**steps, REFINEMENT_TOLERANCE_A),
+                                         inside)
+            if moved[1] <= clearance:
+                break
+            best, clearance, step = moved
+        return best, clearance
+
+    def _component_cells(self, section):
+        """Test of whether points lie in a grid cell with a corner node in ``section``.
+
+        Returns ``f(points) -> bool array``. Refinement stays in these cells:
+        the enclosure test is a grid test, so a free continuous route through
+        a gap narrower than the grid can join a component to outside space,
+        and an unbounded search could follow it out of the section.
+        """
+        import numpy as np
+        index = np.array(section.indices, dtype=np.intp).reshape(-1, 2)
+        h = int(np.abs(index).max(initial=0))  # bridged sections extend past ``half``
+        mask = np.zeros((2*h + 3, 2*h + 3), dtype=bool)
+        mask[index[:, 0] + h + 1, index[:, 1] + h + 1] = True
+        base = np.array(add(self.origin, scale(self.direction, section.t)))
+        u, v = np.array(self.u), np.array(self.v)
+
+        def inside(points):
+            rel = np.asarray(points, dtype=float) - base
+            a, b = np.floor(rel @ u / self.spacing), np.floor(rel @ v / self.spacing)
+            ok = (a >= -h - 1) & (a <= h) & (b >= -h - 1) & (b <= h)
+            a, b = (np.where(ok, w, 0).astype(np.intp) + h + 1 for w in (a, b))
+            return ok & (mask[a, b] | mask[a + 1, b] | mask[a, b + 1] | mask[a + 1, b + 1])
+        return inside
+
+    def _clear_move(self, start, start_value, end, end_value):
+        """Whether the straight move ``start -> end`` clears the enclosure probe."""
+        # Clearance is 1-Lipschitz, so on a segment of length L it is at least
+        # (start + end - L)/2; only when that bound fails is the exact check run.
+        return ((start_value + end_value - distance(start, end))/2 > self.probe + 1e-9
+                or self._state.segment_clearance(start, end) > self.probe)
+
+    def _evaluator(self, center, clearance, reach):
+        """Exact clearances near ``center``: ``(f(points) -> list of float, local atoms or None)``.
+
+        ``local`` is :meth:`_FrameState.local_atoms` (``(xyz, radii)``, every
+        atom that can limit a point within ``reach``), None without SciPy.
+        """
+        local = self._state.local_atoms(center, clearance, reach)
+        if local is None:
+            return (lambda points: self._state.clearances([tuple(p) for p in points.tolist()])), None
+        xyz, radii = local
+        return (lambda points: _surface_values(points, xyz, radii).tolist()), local
+
+    def _linear_move(self, best, clearance, step, local):
+        """Best move of the linearised clearance within ``step`` of ``best`` (see :meth:`refine`), or None.
+
+        Each atom's clearance ``f_i = |p - a_i| - r_i`` is convex, so its
+        linearisation at ``best`` (value ``f_i``, in-plane gradient ``g_i``) is
+        a lower bound everywhere. The move ``d`` (``|d_u|, |d_v| <= step``)
+        maximising ``min_i f_i + g_i.d`` over the atoms that can be nearest in
+        that square (``f_i <= clearance + 2*sqrt(2)*step``; the others stay
+        above the bound) therefore has true clearance at least that maximum.
+        The maximum of this piecewise-linear concave function is at a corner of
+        the square, where two planes meet on an edge, or where three planes
+        meet; all are enumerated. Returns the point (Cartesian) when the bound
+        exceeds ``clearance``.
+        """
+        import numpy as np
+        xyz, radii = local
+        p = np.array(best)
+        rel = p - xyz
+        dist = np.sqrt((rel*rel).sum(axis=1))
+        f = dist - radii
+        near = np.flatnonzero(f <= clearance + 2*_SQRT2*step + 1e-9)
+        if len(near) == 0:
+            return None
+        f, gx, gy = f[near], (rel[near] @ np.array(self.u))/dist[near], (rel[near] @ np.array(self.v))/dist[near]
+        moves = [np.array([[-step, -step], [-step, step], [step, -step], [step, step]])]
+        if len(near) >= 2:
+            i, j = np.triu_indices(len(near), 1)
+            a, b, c = gx[i] - gx[j], gy[i] - gy[j], f[j] - f[i]      # a*du + b*dv = c
+            with np.errstate(invalid="ignore", divide="ignore"):
+                for edge in (-step, step):
+                    moves.append(np.stack([np.full_like(a, edge), (c - a*edge)/b], axis=1))
+                    moves.append(np.stack([(c - b*edge)/a, np.full_like(a, edge)], axis=1))
+        if len(near) >= 3:
+            i, j, k = _triples(len(near))
+            a11, a12, c1 = gx[i] - gx[j], gy[i] - gy[j], f[j] - f[i]
+            a21, a22, c2 = gx[i] - gx[k], gy[i] - gy[k], f[k] - f[i]
+            det = a11*a22 - a12*a21
+            with np.errstate(invalid="ignore", divide="ignore"):
+                moves.append(np.stack([(c1*a22 - a12*c2)/det, (a11*c2 - c1*a21)/det], axis=1))
+        moves = np.concatenate(moves)
+        moves = moves[np.isfinite(moves).all(axis=1) & (np.abs(moves) <= step*(1 + 1e-9)).all(axis=1)]
+        moves = np.clip(moves, -step, step)
+        bound = (f[None, :] + moves[:, 0:1]*gx[None, :] + moves[:, 1:2]*gy[None, :]).min(axis=1)
+        m = int(bound.argmax())
+        if not bound[m] > clearance + 1e-12:
+            return None
+        return p + moves[m, 0]*np.array(self.u) + moves[m, 1]*np.array(self.v)
+
+    def _pattern_search(self, best, clearance, step, stop, inside):
+        """Converging local ascent: pattern and linearised moves (see :meth:`refine`).
+
+        At each step length the candidates are the eight in-plane pattern
+        moves and the linearised move (:meth:`_linear_move`); the highest
+        exact clearance that satisfies ``inside`` (:meth:`_component_cells`)
+        and clears the probe is taken, repeated until none improves, then the
+        step is halved. Runs while the step is at least ``stop``. Returns
+        ``(centre, clearance, next step)``.
+        """
+        import numpy as np
+        moves = 0
+        u, v = np.array(self.u), np.array(self.v)
+        di, dj = (np.array([d[k] for d in _STEPS], dtype=float)[:, None] for k in (0, 1))
+        # Exact clearances from the atoms near the current anchor (rebuilt when
+        # the search could leave a neighbourhood of four grid spacings).
+        reach = 4 * self.spacing
+        anchor, (evaluate, local) = best, self._evaluator(best, clearance, reach)
+        while step >= stop and moves < REFINEMENT_MAX_MOVES:
+            if distance(anchor, best) + step*_SQRT2 > reach:
+                anchor, (evaluate, local) = best, self._evaluator(best, clearance, reach)
+            # The operations of geometry.add/scale, element-wise: best + (u*(di*step) + v*(dj*step)).
+            candidates = np.array(best) + (u*(di*step) + v*(dj*step))
+            linear = None if local is None else self._linear_move(best, clearance, step, local)
+            if linear is not None:
+                candidates = np.vstack([candidates, linear])
+            chosen, score = None, clearance
+            allowed = inside(candidates)
+            for k, value in enumerate(evaluate(candidates)):
+                if allowed[k] and value > score + 1e-12 and self._clear_move(best, clearance, tuple(candidates[k].tolist()), value):
+                    chosen, score = k, value
+            if chosen is not None:
+                best, clearance, moves = tuple(candidates[chosen].tolist()), score, moves + 1
+            else:
+                step /= 2
+        return best, clearance, step
+
+    def _vertex_ascent(self, best, clearance, inside):
+        """Highest three-atom clearance vertex within reach that improves on ``best``, or None.
+
+        For atoms ``i`` with in-plane projections ``(x_i, y_i)`` (relative to
+        ``best``), squared out-of-plane offsets ``h_i**2`` and radii ``r_i``,
+        a point ``(X, Y)`` with clearance ``c`` to three atoms satisfies
+        ``(X-x_i)**2 + (Y-y_i)**2 + h_i**2 = (c + r_i)**2``. Differences of
+        the three equations are linear in ``(X, Y, c)``; substituting gives a
+        quadratic in ``c``. A root is a local maximum when ``(X, Y)`` lies in
+        the triangle of the three projections. Kept: roots within
+        ``REFINEMENT_VERTEX_RADIUS_A`` of ``best`` whose exact clearance (all
+        atoms) equals the root (no other atom is closer) and exceeds
+        ``clearance``, inside the section's cells (``inside``) and reachable
+        by a probe-clear straight move; the highest
+        wins (ties: first triple in atom order).
+
+        None without SciPy.
+        """
+        import numpy as np
+        radius = REFINEMENT_VERTEX_RADIUS_A
+        local = self._state.local_atoms(best, clearance, radius)
+        if local is None:
+            return None
+        xyz, radii = local
+        p = np.array(best)
+        rel = xyz - p
+        u, v, n = np.array(self.u), np.array(self.v), np.array(self.direction)
+        excess = np.sqrt((rel*rel).sum(axis=1)) - radii - clearance
+        x, y, h2 = rel @ u, rel @ v, (rel @ n)**2
+        # Any atom limiting a point q within ``radius``: f_i(best) <= f(q) + |q - best| <= clearance + 2*radius.
+        found = self._vertices(np.flatnonzero(excess <= 2*radius + 1e-9), x, y, h2, radii, clearance, radius)
+        if not found:
+            return None
+        X, Y, c = (np.array(w) for w in zip(*found))
+        points = p + X[:, None]*u + Y[:, None]*v
+        values = _surface_values(points, xyz, radii)
+        good = (values >= c - 1e-7) & (values > clearance + 1e-12) & inside(points)
+        for m in sorted(np.flatnonzero(good).tolist(), key=lambda m: -values[m]):
+            end = tuple(points[m].tolist())
+            if self._clear_move(best, clearance, end, float(values[m])):
+                return end, float(values[m])
+        return None
+
+    @staticmethod
+    def _vertices(atoms, x, y, h2, r, clearance, radius):
+        """Three-atom clearance maxima among ``atoms`` (see :meth:`_vertex_ascent`).
+
+        Returns ``(X, Y, c)`` of the roots inside their triangle, above
+        ``clearance`` and within ``radius`` of the origin, in triple order.
+        """
+        import numpy as np
+        if len(atoms) < 3:
+            return []
+        i, j, k = (atoms[c] for c in _triples(len(atoms)))
+        a11, a12, a21, a22 = 2*(x[j]-x[i]), 2*(y[j]-y[i]), 2*(x[k]-x[i]), 2*(y[k]-y[i])
+        det = a11*a22 - a12*a21
+        keep = np.abs(det) > 1e-9
+        i, j, k, a11, a12, a21, a22, det = (w[keep] for w in (i, j, k, a11, a12, a21, a22, det))
+        area = det / 4
+
+        def inside(X, Y):
+            with np.errstate(invalid="ignore", divide="ignore"):
+                lj = ((X-x[i])*(y[k]-y[i]) - (Y-y[i])*(x[k]-x[i]))/area
+                lk = ((x[j]-x[i])*(Y-y[i]) - (y[j]-y[i])*(X-x[i]))/area
+            return (lj >= -1e-9) & (lk >= -1e-9) & (1 - lj - lk >= -1e-9)
+        q = x*x + y*y + h2 - r*r
+        c1, c2, d1, d2 = q[j]-q[i], q[k]-q[i], 2*(r[j]-r[i]), 2*(r[k]-r[i])
+        # (X, Y) = (ax, ay) + c*(bx, by)
+        ax, ay = (c1*a22 - a12*c2)/det, (a11*c2 - c1*a21)/det
+        bx, by = -(d1*a22 - a12*d2)/det, -(a11*d2 - d1*a21)/det
+        wx, wy = ax - x[i], ay - y[i]
+        qa, qb, qc = bx*bx + by*by - 1, 2*(wx*bx + wy*by - r[i]), wx*wx + wy*wy + h2[i] - r[i]**2
+        found = []
+        rmin = np.minimum(np.minimum(r[i], r[j]), r[k])
+        with np.errstate(invalid="ignore", divide="ignore"):
+            root = np.sqrt(qb*qb - 4*qa*qc)
+            linear = np.abs(qa) < 1e-12
+            for c in (np.where(linear, -qc/qb, (-qb + root)/(2*qa)), np.where(linear, np.nan, (-qb - root)/(2*qa))):
+                X, Y = ax + c*bx, ay + c*by
+                ok = (np.isfinite(c) & (c > clearance + 1e-12) & (c + rmin > 0)
+                      & (X*X + Y*Y <= radius*radius) & inside(X, Y))
+                found.extend(zip(X[ok].tolist(), Y[ok].tolist(), c[ok].tolist()))
+        return found
+
+    def bridged_sections(self, t):
+        """Sections cut by the search square but enclosed in a window twice as wide.
+
+        A non-circular lumen whose free space just reaches the edge of the
+        search square (half-width ``extent``) is dropped by :meth:`sections`
+        as exterior, although protein encloses it. Such grazing planes form
+        slabs that can be much thinner than the axial sample step, so whether
+        a profile meets one depended on the sample count. This re-examines the
+        plane in a square of half-width ``BRIDGE_WINDOW_FACTOR * extent``
+        (same grid spacing, probe and in-plane basis) and returns its enclosed
+        sections that reach the original square's edge, i.e. exactly the
+        components :meth:`sections` dropped only because of the window. They
+        are flagged ``window_bridged``. Sections enclosed inside the original
+        square are not returned (they are already in :meth:`sections`).
+        Space that is still open in the wider square (a lateral opening) is
+        never bridged.
+
+        Parameters
+        ----------
+        t : float
+            Axial coordinate of the plane, Å.
+
+        Returns
+        -------
+        list of Section
+            The bridged sections, each with ``window_bridged=True``.
+        """
+        if not hasattr(self, "_wide"):
+            frame = self._state
+
+            class _Same:
+                def frame(self, *args):
+                    return frame
+
+            self._wide = SectionGeometry(self.atoms, self.origin, self.direction, spacing=self.spacing,
+                                         extent=BRIDGE_WINDOW_FACTOR*self.half*self.spacing,
+                                         probe=self.probe, basis=(self.u, self.v), shared=_Same())
+        h = self.half
+        return [replace(s, window_bridged=True) for s in self._wide.sections(t)
+                if any(abs(i) >= h or abs(j) >= h for i, j in s.indices)]
 
 
 def _symmetric_components(free_mask, blocked, h):
@@ -452,7 +829,11 @@ def _path_width(geometry, path):
     return min(geometry._state.segment_clearance(a.center, b.center) for a, b in zip(path, path[1:]))
 
 
-def _runs(geometry, ts, refinement_steps):
+#: Bridging window half-width as a multiple of the search radius (see ``SectionGeometry.bridged_sections``).
+BRIDGE_WINDOW_FACTOR = 2.0
+
+
+def _runs(geometry, ts, refinement_steps, bridge=False):
     """Longest collision-free paths through adjacent enclosed sections.
 
     Never interpolate across an absent slice or jump through a wall. A path
@@ -468,11 +849,18 @@ def _runs(geometry, ts, refinement_steps):
     a single grid point where the enclosure probe fits between atoms) that is
     joinable from both neighbouring lumen sections. Ranking by length alone
     tied, and discovery order could then route the profile through the pocket.
+
+    With ``bridge=True`` (used when resampling between the refined mouths
+    finds no continuous path otherwise) each plane's sections also include
+    :meth:`SectionGeometry.bridged_sections`, joined by the same rules, so a
+    lumen that merely grazes the search square in a thin slab does not break
+    the channel at sample counts that happen to place a plane in that slab.
     """
     previous, paths = [], []
-    for t in ts:
-        current = []
-        for section in geometry.sections(t):
+
+    def extend(sections):
+        rows = []
+        for section in sections:
             section = geometry.refine(section, refinement_steps)
             best, best_key = ([], section.clearance), None
             for path, width in previous:
@@ -483,9 +871,12 @@ def _runs(geometry, ts, refinement_steps):
                 key = (len(path), round(joined, 10), -round(distance(path[-1].center, section.center), 10))
                 if best_key is None or key > best_key:
                     best, best_key = (path, joined), key
-            path = best[0] + [section]
-            current.append((path, best[1]))
-            paths.append(path)
+            rows.append((best[0] + [section], best[1]))
+        return rows
+
+    for t in ts:
+        current = extend(geometry.sections(t) + (geometry.bridged_sections(t) if bridge else []))
+        paths.extend(path for path, _ in current)
         previous = current
     return paths
 
@@ -606,8 +997,9 @@ def _auto_enclosure_profile(atoms, *, probe_radius, origin, **kwargs):
     ladder = sorted({max(float(probe_radius), q) for q in AUTO_ENCLOSURE_LADDER})
     origin_clearance = SpatialIndex(atoms).nearest_surface(origin)[0] if origin is not None else math.inf
     if origin_clearance <= ladder[0]:
-        raise ValueError("Channel origin must have clearance greater than the enclosure and measurement probes "
-                         f"(automatic enclosure probe: the smallest candidate is {ladder[0]:.2f} A)")
+        raise OriginClearanceError("Channel origin must have clearance greater than the enclosure and measurement "
+                                   f"probes (automatic enclosure probe: the smallest candidate is {ladder[0]:.2f} A; "
+                                   f"clearance at the origin {origin_clearance:.2f} A)", origin_clearance)
     rows, results = [], {}
 
     def attempt(probe, role):
@@ -803,8 +1195,12 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
     ChannelResolutionError
         When no unique connected through-channel (or accepted capped channel)
         is found at this resolution.
+    OriginClearanceError
+        A :class:`ValueError` for a supplied ``origin`` whose clearance is not
+        greater than the enclosure and measurement probes (for example inside
+        an atom).
     ValueError
-        For an origin inside an atom or invalid settings.
+        For invalid settings.
     """
     if enclosure_radius is None:
         return _auto_enclosure_profile(
@@ -816,8 +1212,12 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
     inferred_origin, explicit, label = axis_from_name(axis, atoms)
     supplied_seed = origin is not None
     origin = inferred_origin if origin is None else origin
-    if supplied_seed and SpatialIndex(atoms).nearest_surface(origin)[0] <= max(probe_radius, enclosure_radius):
-        raise ValueError("Channel origin must have clearance greater than the enclosure and measurement probes")
+    if supplied_seed:
+        origin_clearance = SpatialIndex(atoms).nearest_surface(origin)[0]
+        if origin_clearance <= max(probe_radius, enclosure_radius):
+            raise OriginClearanceError("Channel origin must have clearance greater than the enclosure and measurement "
+                                       f"probes (probe {max(probe_radius, enclosure_radius):.2f} A; clearance at the "
+                                       f"origin {origin_clearance:.2f} A)", origin_clearance)
     automatic = isinstance(axis, str) and axis.lower() == "auto"
     directions = principal_axes(atoms) if automatic else (explicit,)
     candidates, diagnostics = [], []
@@ -884,16 +1284,28 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
     low, high = lower.t, upper.t
     capped = [margin <= geometry.probe for margin in _open_ends(geometry, [lower, upper])] if lateral_exits else [False, False]
     mouth_adjustments = []
+    coarse_width = _path_width(geometry, coarse)
     while True:
         # Keep steps <= discovery spacing even when only a few output samples were requested.
         count = max(samples, int(math.ceil((high-low)/0.75))+1)
         ts = [low+(high-low)*i/(count-1) for i in range(count)]
-        runs = _runs(geometry, ts, refinement_steps)
-        from_lower = [p for p in runs if abs(p[0].t-low) < 1e-9
-                      and distance(p[0].center, lower.center) <= 2*section_spacing]
-        reached = max((len(p) for p in from_lower), default=0)
-        paths = [p for p in from_lower if len(p) == count
-                 and (lateral_exits or min(_open_ends(geometry, p)) > geometry.probe)]
+        plain = []
+        for bridge in (False, True):
+            # Window bridging is consulted only when the plain sections give no
+            # continuous path, or only paths narrower than the discovery path by
+            # more than a grid spacing: such a path detours through a pocket in
+            # the wall where the lumen plane grazes the search square. Then the
+            # plain and bridged paths compete by width below. A profile that
+            # resolves through the lumen without bridging is unchanged.
+            runs = _runs(geometry, ts, refinement_steps, bridge=bridge)
+            from_lower = [p for p in runs if abs(p[0].t-low) < 1e-9
+                          and distance(p[0].center, lower.center) <= 2*section_spacing]
+            reached = max((len(p) for p in from_lower), default=0)
+            paths = plain + [p for p in from_lower if len(p) == count
+                             and (lateral_exits or min(_open_ends(geometry, p)) > geometry.probe)]
+            if bridge or (paths and max(_path_width(geometry, p) for p in paths) >= coarse_width - section_spacing):
+                break
+            plain = paths
         if paths or not any(capped) or len(mouth_adjustments) >= 8:
             break
         # A capped mouth ends where lateral enclosure is first lost. When the
@@ -960,8 +1372,16 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
                                  "section_basis": [geometry.u, geometry.v],
                                  "section_search_radius_A": search_radius,
                                  "section_areas_A2": [len(s.indices)*section_spacing**2 for s in path],
+                                 "window_bridged_samples": [i for i, s in enumerate(path) if s.window_bridged],
+                                 "window_bridging": ("only when the resampled planes give no continuous path, or only paths "
+                                                     "narrower than the discovery path by more than one grid spacing (then "
+                                                     "the widest of the plain and bridged paths is taken): between the "
+                                                     "mouths, a section that reaches the search square is accepted when "
+                                                     f"it is enclosed in a square {BRIDGE_WINDOW_FACTOR:g} times as wide; "
+                                                     "window_bridged_samples lists those samples by index"),
                                  "requested_samples": samples, "samples": count,
                                  "search_radius": search_radius, "refinement_steps": refinement_steps,
+                                 "section_refinement": _refinement_metadata(refinement_steps),
                                  "reaction_coordinate": "projection onto selected axis; arc lengths recorded separately",
                                  "arc_lengths_A": arc, "segment_clearances_A": segments,
                                  "continuous_bottleneck_radius_A": min(segments)-probe_radius,
@@ -973,6 +1393,23 @@ def connected_profile(atoms, *, axis, origin, samples, search_radius, refinement
                                  "selection": "connected laterally enclosed sections with two axial exits",
                                  "limitations": "finite grid; principal-direction proposals; monotone unbranched path; not a unique biological assignment",
                                  **exit_metadata})
+
+
+def _refinement_metadata(refinement_steps):
+    """Description of the section-centre refinement (:meth:`SectionGeometry.refine`) for profile metadata."""
+    if refinement_steps <= 0:
+        return {"method": "none (grid-node centres)"}
+    return {"method": "converging local ascent from the grid centre: best of eight in-plane pattern moves and "
+                      "the linearised-clearance move, step halved when none improves; then the exact three-atom "
+                      "clearance vertex (local maximum) within reach; moves stay in the section's grid cells and "
+                      "clear the enclosure probe",
+            "initial_step": "half the section grid spacing",
+            "position_tolerance_A": REFINEMENT_TOLERANCE_A,
+            "vertex_search_radius_A": REFINEMENT_VERTEX_RADIUS_A,
+            "minimum_halvings": refinement_steps,
+            "max_moves": REFINEMENT_MAX_MOVES,
+            "limitations": "local maximum of the hill holding the grid centre; a higher maximum elsewhere in the "
+                           "section is not sought"}
 
 
 def _lateral_exit_metadata(geometry, path, segments, probe_radius, *, bulk_radius, spacing):

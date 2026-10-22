@@ -1,6 +1,6 @@
 # Cavity tracking across frames
 
-This note defines what `crevice track-cavities` (Python:
+This note defines what `crevice trajectory --track` (Python:
 {func}`crevice.tracking.track_cavities` and {class}`crevice.tracking.CavityTracker`)
 measures. The tool page is [Cavity tracking](../tools/cavity-tracking.md).
 

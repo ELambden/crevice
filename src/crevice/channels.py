@@ -97,7 +97,10 @@ def pore_profile(frame: StructureFrame, *, radii: RadiusSet | str | None = None,
             Half-width (Å) of the square transverse search region around the
             axis in connected mode; 0 selects the fixed-axis scan.
         refinement_steps : int, default 4
-            Refinement iterations for section centres and mouth positions.
+            Slice-centre refinement (:meth:`crevice.sections.SectionGeometry.refine`):
+            0 keeps the grid-point centres; a positive value converges each centre
+            to its local clearance maximum (0.0001 Å) with at least this many step
+            halvings.
         probe_radius : float, default 0.0
             Probe radius (Å) subtracted from each clearance to give ``radius``.
         include_hydrogen : bool, default False
@@ -390,7 +393,7 @@ def channel_volume(profile: PoreProfile) -> float:
     Returns :attr:`~crevice.models.PoreProfile.volume_estimate`: trapezoidal integration of
     ``pi * radius**2`` along the sampled path. This treats each section as a
     circle of the probe-corrected inscribed radius, so it underestimates
-    non-circular lumens. Use a cast (``crevice cast``,
+    non-circular lumens. Use a cast (``crevice cavities --cast``,
     :func:`crevice.rolling.rolling_probe_cast`) for a sampled volume.
     """
 

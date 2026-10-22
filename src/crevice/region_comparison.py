@@ -13,6 +13,11 @@ def _load_result(path, definition_path=None, input_provenance=None):
     if not path.name.endswith(ending):raise ValueError('Expected a cavity_statistics.json bundle')
     prefix=path.name[:-len(ending)];root=path.parent
     report=json.loads(path.read_text(encoding="utf-8"));reader=json.loads((root/(prefix+'_reader.json')).read_text(encoding="utf-8"))
+    from ._portable_paths import resolve_recorded   # 0.4: relative to the record; 0.3: absolute
+    for key in ('topology','trajectory'):
+        if reader.get(key):reader[key]=str(resolve_recorded(reader[key],root))
+    if (report.get('reference') or {}).get('source_path'):
+        report['reference']['source_path']=str(resolve_recorded(report['reference']['source_path'],root))
     metadata=report['settings'].get('region_definition')
     if definition_path:
         definition,_=load_definition(definition_path)
@@ -55,7 +60,7 @@ def _load_result(path, definition_path=None, input_provenance=None):
         hydration=json.loads(hp.read_text(encoding="utf-8"))
         if hydration['frame_count']!=report['frame_count']:raise ValueError('Hydration frame count differs from geometry')
         for key in ['topology','trajectory']:
-            if Path(hydration['reader'][key]).resolve()!=Path(reader[key]).resolve():raise ValueError('Hydration source differs from geometry')
+            if resolve_recorded(hydration['reader'][key],root).resolve()!=Path(reader[key]).resolve():raise ValueError('Hydration source differs from geometry')
         with np.load(root/(prefix+'_hydration_frames.npz'),allow_pickle=False) as a:
             if not np.array_equal(a['time_ps'],arrays['time_ps']) or not np.array_equal(a['frame_indices'],indices):raise ValueError('Hydration observations have different frames/times')
             arrays['region_water_count']=a['region_water_count'].copy()
@@ -85,7 +90,7 @@ def _recorded_radii(report):
 def compare_regions(left_path,right_path,output_dir,*,left_definition=None,right_definition=None,left_input_provenance=None,right_input_provenance=None,annotate=None,allow_radii_mismatch=False):
     """Compare two named regions measured on the same trajectory frames.
 
-    Both results must come from ``region-trajectory`` (or be bound to prepared
+    Both results must come from ``trajectory --region`` (or be bound to prepared
     definitions) on the same topology and trajectory, with identical frames,
     timestamps, alignment, selections, periodic handling and geometry settings;
     otherwise a ``ValueError`` is raised. Paired per-frame differences of

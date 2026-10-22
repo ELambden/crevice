@@ -4,8 +4,9 @@ Each case builds its own synthetic inputs in a scratch directory, runs one
 ``crevice`` command through :func:`crevice.cli.main` and returns the sorted
 relative paths it wrote plus a few key numbers. The same cases are used by
 ``tests/test_output_policy.py`` and by the inventory characterisation run for
-the 0.3 output policy; the 0.2.0 inventories they produced
-are frozen in ``tests/data/legacy_inventory_0.2.0.json``. No case is a
+the 0.3 output policy; the 0.2.0 inventories and numbers they produced
+are frozen in ``tests/data/legacy_inventory_0.2.0.json`` (the numbers are still
+checked; the 0.2.0 file sets are kept as a record). No case is a
 biological result.
 """
 from __future__ import annotations
@@ -131,59 +132,59 @@ def run_case(name: str, scratch: Path, extra: list[str] | None = None) -> dict:
 
 
 def _publish(inputs, out):
-    return (['publish', str(channel_pdb(inputs)), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
+    return (['report', str(channel_pdb(inputs)), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
              *HYDRATION_ARGS, '--out-dir', str(out), '--prefix', 'c'], 'c')
 
 
 def _publish_pocket(inputs, out):
-    return (['publish', str(pocket_pdb(inputs)), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
+    return (['report', str(pocket_pdb(inputs)), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
              '--min-component-volume', '30', *HYDRATION_ARGS, '--out-dir', str(out), '--prefix', 'p'], 'p')
 
 
 def _cast(inputs, out):
-    return (['cast', str(pocket_pdb(inputs)), '--offline', '--min-component-volume', '30', '--dpi', '40',
+    return (['cavities', '--cast', str(pocket_pdb(inputs)), '--offline', '--min-component-volume', '30', '--dpi', '40',
              *HYDRATION_ARGS, '--out-dir', str(out), '--prefix', 'p'], 'p')
 
 
 def _analyze(inputs, out):
-    return (['analyze', str(channel_pdb(inputs)), *PROFILE_ARGS, '--dpi', '40', *HYDRATION_ARGS,
+    return (['report', '--analyze', str(channel_pdb(inputs)), *PROFILE_ARGS, '--dpi', '40', *HYDRATION_ARGS,
              '--out-dir', str(out), '--prefix', 'c'], 'c')
 
 
 def _evidence(inputs, out):
     source, _trajectory, dx = md_inputs(inputs)
-    return (['residue-evidence', str(source), '--offline', '--volume-dx', str(dx), '--dpi', '40', *HYDRATION_ARGS,
+    return (['residues', '--evidence', str(source), '--offline', '--volume-dx', str(dx), '--dpi', '40', *HYDRATION_ARGS,
              '--out-dir', str(out)], 'crevice')
 
 
 def _hydration_static(inputs, out):
     source, _trajectory, _dx = md_inputs(inputs)
-    return (['hydration', str(source), '--offline', '--dpi', '40', *HYDRATION_ARGS, '--out-dir', str(out)], 'crevice')
+    return (['trajectory', '--water', str(source), '--offline', '--dpi', '40', *HYDRATION_ARGS, '--out-dir', str(out)], 'crevice')
 
 
 def _hydration_trajectory(inputs, out):
     source, trajectory, _dx = md_inputs(inputs)
-    return (['hydration', str(source), '--trajectory', str(trajectory), '--max-frames', '3', '--dpi', '40',
+    return (['trajectory', '--water', str(source), '--trajectory', str(trajectory), '--max-frames', '3', '--dpi', '40',
              '--bootstrap-replicates', '200', *HYDRATION_ARGS, '--out-dir', str(out)], 'crevice')
 
 
 def _cavity_trajectory(inputs, out):
     source, trajectory, dx = md_inputs(inputs)
-    return (['cavity-trajectory', str(source), str(trajectory), '--reference-volume-dx', str(dx),
+    return (['trajectory', '--cavities', str(source), str(trajectory), '--reference-volume-dx', str(dx),
              '--geometry-mode', 'reference-region', '--max-frames', '3', '--workers', '1', '--dpi', '40',
              '--bootstrap-replicates', '200', *HYDRATION_ARGS, '--out-dir', str(out)], 'crevice')
 
 
 def _region_trajectory(inputs, out):
     definition = region_definition(inputs)
-    return (['region-trajectory', str(definition), '--max-frames', '2', '--workers', '1', '--dpi', '40',
+    return (['trajectory', '--region', str(definition), '--max-frames', '2', '--workers', '1', '--dpi', '40',
              '--bootstrap-replicates', '200', *HYDRATION_ARGS, '--out-dir', str(out)], 'synthetic')
 
 
 def _region_prepare(inputs, out):
     from test_region_definition import definition
     path, _, _ = definition(inputs)
-    return (['region-prepare', str(path), '--out-dir', str(out)], 'synthetic')
+    return (['region', 'prepare', str(path), '--out-dir', str(out)], 'synthetic')
 
 
 def _trajectory(inputs, out):
@@ -193,7 +194,7 @@ def _trajectory(inputs, out):
 
 
 def _fingerprint(inputs, out):
-    return (['fingerprint', str(channel_pdb(inputs)), *PROFILE_ARGS, '--dpi', '40', '--out-dir', str(out),
+    return (['profile', '--fingerprint', str(channel_pdb(inputs)), *PROFILE_ARGS, '--dpi', '40', '--out-dir', str(out),
              '--prefix', 'c'], 'c')
 
 
@@ -212,7 +213,4 @@ CASES = {
     'trajectory': _trajectory,
     'fingerprint': _fingerprint,
 }
-
-#: Cases whose 0.2.0 file set ``--legacy-outputs`` must reproduce exactly.
-LEGACY_CASES = tuple(CASES)
 

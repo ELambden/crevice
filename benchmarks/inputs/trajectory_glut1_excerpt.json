@@ -1,0 +1,6 @@
+{
+  "label": "glut1-excerpt",
+  "description": "Public GLUT1 membrane MD excerpt (21 frames, every 5 ns of 100 ns; crevice fetch --example glut1-excerpt --cache-dir <work-dir>/examples) with its prepared candidate-site region. No through-channel, so no profile cases.",
+  "region": "{work_dir}/examples/glut1-excerpt/glut1_site_candidate_region.json",
+  "selection": "protein"
+}

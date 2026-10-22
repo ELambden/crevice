@@ -36,7 +36,7 @@ classifiers = [
 # Required runtime libraries: NumPy, SciPy, MDAnalysis and Matplotlib.
 # scikit-image is also required: its
 # skimage.measure.marching_cubes is the only scikit-image call, and default
-# `crevice cast` and `crevice publish` runs reach it unconditionally through the
+# `crevice cavities --cast` and `crevice report` runs reach it unconditionally through the
 # viewer cast mesh (volume_export), the boundary-residue surface attribution
 # (residue_evidence) and the hydration viewer meshes (analysis_viewers); `cast`
 # also uses it for the cast preview figure. Lower bounds

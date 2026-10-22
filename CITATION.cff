@@ -7,8 +7,8 @@ abstract: >-
   residue-interaction analysis in static structures and molecular dynamics
   trajectories.
 type: software
-version: 0.3.3
-date-released: "2026-10-19"
+version: 0.4.0
+date-released: "2026-10-22"
 license: MIT
 # Concept DOI: always resolves to the latest archived version on Zenodo.
 doi: 10.5281/zenodo.23215587

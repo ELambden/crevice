@@ -1,6 +1,6 @@
 # Cavity trajectories: measurement and interpretation
 
-The `cavity-trajectory` command analyzes every requested frame after a proper
+The `trajectory --cavities` command analyzes every requested frame after a proper
 matching-CA fit to the first frame. The reference DX must already share that
 first frame's coordinates. It must be the measured binary map, not the smoothed
 viewer map. Actual timestamps, original residue identities, fit diagnostics,
@@ -146,7 +146,7 @@ rather than replacing it.
 
 Standard cavity trajectory analysis also writes explicit water contacts and
 geometric solvent exposure for the union of observed boundary residues and
-nonlining partners. Existing cavity results can be reused by `crevice hydration`
+nonlining partners. Existing cavity results can be reused by `crevice trajectory --water`
 without recomputing geometry. The fixed-neighbourhood water count is distinct
 from instantaneous-cavity water membership, which `--water-membership` measures
 inside each geometry worker (it cannot be recovered from saved statistics). See

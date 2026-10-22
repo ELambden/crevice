@@ -9,7 +9,7 @@ two samples.
 Use it for passages that run right through a protein and are open at both
 ends, such as ion channels and pores. For pockets, buried cavities and
 one-sided tunnels, use a [cast](cast.md), [`cavities`](cavities.md) or
-[`tunnels`](tunnels.md) instead.
+[`cavities --tunnels`](tunnels.md) instead.
 
 ## Quick start
 
@@ -42,22 +42,64 @@ plot_profile_radius(profile, "1GRM_profile_radius.png")
    walled in sideways, so the probe can't reach the edge of the search disc
    (`--search-radius`). Neighbouring slices are joined only by straight
    segments that also clear the probe, and the joined slices must run from one
-   end of the channel to the other.
+   end of the channel to the other. The search square is a window, not a
+   wall: a non-circular lumen can just touch its edge in a slab thinner than
+   the sample step, although protein still encloses it there. Between the
+   channel ends, if the slices would otherwise not join up, a slice that
+   touches the edge is accepted when it is enclosed in a square twice as wide
+   (`window_bridged_samples` in the metadata lists those points). The same
+   applies when the slices only join up through a path much narrower than
+   the one found first (by more than one grid spacing), which happens when
+   the lumen touches the edge in one slice and a pocket in the wall of that
+   slice is joinable instead; the wider of the two paths is then kept. A real gap
+   in the wall stays open in the wider square and still breaks the channel.
+   This keeps the result from depending on the number of samples.
 3. **Follow the widest path.** A slice can contain small pockets in the
    channel wall as well as the lumen. When several equally long routes exist,
    CREVICE follows the one whose narrowest step is widest, then breaks any
    remaining tie in a fixed order, so the same input always gives the same
    path.
-4. **Measure.** The radius at each point is the distance from the path to the
+4. **Centre each slice.** The grid point of a slice farthest from any atom
+   surface is moved, within the slice plane, to the exact top of its clearance
+   hill: the point equidistant from three atom surfaces that surround it,
+   found to within 0.0001 Å (see [Slice centres](#slice-centres)).
+5. **Measure.** The radius at each point is the distance from the path to the
    nearest atom surface, minus `--probe-radius` (0 by default). The segments
    between points are checked exactly, so `continuous_bottleneck_radius_A` can
    be smaller than every sampled radius.
-5. **Mark the ends.** The plot shows where the walls stop enclosing the
+6. **Mark the ends.** The plot shows where the walls stop enclosing the
    channel, to within 0.025 Å.
 
 If no channel qualifies, or two are equally good, the command stops and
 explains why. `--search-radius 0` instead runs a simple fixed-axis clearance
 scan, and its metadata says that no channel was checked.
+
+### Slice centres
+
+Each point of the profile is the centre of its slice, and its radius is that
+centre's distance to the nearest atom surface. Within the slice plane this
+distance is the smallest of the distances to each atom surface, so it rises
+to peaks and ridges between the atoms. A peak is always a point equidistant
+from three atom surfaces whose atoms surround it (a vertex); a point on a
+ridge, equidistant from only two, can still move along the ridge.
+
+CREVICE starts at the slice's grid point with the largest clearance and
+climbs from it. At each step length (starting at half the grid spacing) it
+tries the eight grid directions and one move chosen from the local atom
+geometry, which can follow a ridge at any angle, takes the best move that
+increases the clearance, and halves the step when none does, down to
+0.0001 Å. It then solves for the peak exactly: the highest vertex within
+0.35 Å that is higher still. The climb never leaves the slice's grid cells
+and every move keeps a straight path clear of the enclosure probe, so the
+centre stays in the same free space. The result is the exact top of the hill
+that holds the starting grid point, so it no longer depends on how close a
+grid point happens to fall to that top. Which hill is climbed is still
+decided by the grid: a slice can hold a second, slightly higher hill that the
+grid samples less well, and the climb does not jump to it, because the
+centre is also the point joined to the neighbouring slices.
+`metadata.section_refinement` records the method and its settings, and
+`--refinement-steps 0` keeps the grid points instead (`refinement_steps=0`
+in Python).
 
 ### Choosing the enclosure probe
 
@@ -97,7 +139,7 @@ such as `--enclosure-radius 0.8` runs that probe only.
 The automatic choice runs one profile per probe, so it takes about 10 s for
 1GRM with 0.25 Å sections and about a minute for 1OED or 4PYP. `trajectory`
 chooses once, on the reference frame, and uses that probe for every frame.
-`cast` uses its own fixed 0.8 Å probe, which plays a different role (see
+`cavities --cast` uses its own fixed 0.8 Å probe, which plays a different role (see
 [why the cast probe is fixed](cast.md#why-the-probe-radius-is-fixed)).
 
 ### Capped channels and side exits
@@ -125,7 +167,7 @@ end in `metadata.exits` lists its legs with their points, radii, bottleneck,
 exit point and length. A leg's radii are free-sphere clearances along a 3D
 route, not slice radii, so they are kept out of the sampled profile and its
 CSV. The plot draws each leg as a green dash-dot continuation beyond its mouth,
-and in `publish` each leg gets its own cast. Without `--lateral-exits`, nothing
+and in `report` each leg gets its own cast. Without `--lateral-exits`, nothing
 changes.
 
 **How this compares with HOLE.** HOLE (Smart *et al.*, 1996) keeps its planes
@@ -183,9 +225,9 @@ Every option is listed under [`crevice profile`](../reference/cli/profile.md).
 - **`--pdb`** and **`--pymol`**: the path as dummy atoms, and a PyMOL scene
   with spheres coloured blue (narrow) to red (wide) inside a cartoon.
 
-`profile` writes no cast. [`publish`](publish.md) casts the same channel and
+`profile` writes no cast. [`report`](publish.md) casts the same channel and
 splits it into entry, lumen and exit segments,
-[`fingerprint`](fingerprint.md) adds lining hydrophobicity, chemistry, water
+[`profile --fingerprint`](fingerprint.md) adds lining hydrophobicity, chemistry, water
 and a conductance estimate along the same channel, and
 [`crevice view`](view.md) shows the centre line and cast in 3D.
 
@@ -194,8 +236,8 @@ and a conductance estimate along the same channel, and
 
 A profile is a measurement with the settings you chose: the numbers move a
 little with the grid, the sample count and the input format (1GRM gives a
-minimum of 1.324 Å with the quick-start settings and 1.330 to 1.339 Å on finer
-grids). Report the enclosure probe with your results. The method assumes a
+minimum of 1.337 Å with the quick-start settings and 1.337 to 1.338 Å with
+0.25 Å grids and 81 to 201 samples). Report the enclosure probe with your results. The method assumes a
 channel that runs roughly in one direction; branched or strongly curved
 passages are not followed (use [`crevice paths`](paths.md) for those), openings narrower than the slice grid can be
 missed, and two exits closer than twice the bulk probe are reported as one. If

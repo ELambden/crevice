@@ -232,7 +232,7 @@ def test_cli_membership_is_additive_and_matches_unchanged_fixed_count(tmp_path):
     from crevice.cli import main
     from test_hydration import md_fixture, reference_dx
     source, trajectory = md_fixture(tmp_path); dx = reference_dx(tmp_path/'ref.dx')
-    common = ['cavity-trajectory', str(source), str(trajectory), '--reference-volume-dx', str(dx), '--geometry-mode', 'reference-region',
+    common = ['trajectory', '--cavities', str(source), str(trajectory), '--reference-volume-dx', str(dx), '--geometry-mode', 'reference-region',
               '--max-frames', '3', '--dpi', '50', '--bootstrap-replicates', '200', '--hydration-sasa-points', '32',
               '--skip-water-density', '--skip-interactions', '--outputs', 'default,hydration']
     assert main(common+['--out-dir', str(tmp_path/'plain')]) == 0

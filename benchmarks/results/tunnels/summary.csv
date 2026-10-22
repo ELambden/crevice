@@ -1,0 +1,8 @@
+# Per-enzyme summary of the CREVICE/CAVER tunnel comparison.
+id,name,curation,crevice_mode,crevice_probe_A,crevice_routes_reported,crevice_routes_left_out,caver_tunnel_clusters,caver_clusters_matched,crevice_reported_routes_matched,caver_clusters_matched_to_reported,crevice_widest_bottleneck_A,caver_widest_bottleneck_A,caver_top_cluster_bottleneck_A,caver_top_cluster_length_A,crevice_route_matching_top_cluster,crevice_bottleneck_of_that_route_A,crevice_length_of_that_route_A,angle_to_top_cluster_deg,crevice_wall_s,caver_wall_s,crevice_exit_code,caver_exit_code
+1CQW,haloalkane dehalogenase DhaA (Rhodococcus),curated,auto,1.0000,1,5,2,2,1,1,1.3555,1.3892,1.3892,16.7553,B1,1.3555,15.0510,3.4877,19.3134,6.6071,0,0
+1CQW,haloalkane dehalogenase DhaA (Rhodococcus),curated,probe0.9,0.9000,2,0,2,2,2,2,1.3435,1.3892,1.3892,16.7553,B1,1.3435,14.6667,2.2120,8.0600,6.6071,0,0
+1MJ5,haloalkane dehalogenase LinB (Sphingomonas paucimobilis UT26),curated,auto,0.7500,1,4,2,2,1,1,1.3991,1.5112,1.5112,14.5216,B1,1.3991,13.6755,1.0917,15.5487,4.2496,0,0
+1MJ5,haloalkane dehalogenase LinB (Sphingomonas paucimobilis UT26),curated,probe0.9,0.9000,1,0,2,1,1,1,1.3986,1.5112,1.5112,14.5216,B1,1.3986,13.9419,1.7512,8.8587,4.2496,0,0
+1EA5,Torpedo californica acetylcholinesterase,curated,auto,1.0000,1,3,3,3,1,2,2.4444,2.4746,2.4746,11.1113,B1,2.4444,17.5353,9.4591,34.9990,4.6830,0,0
+1EA5,Torpedo californica acetylcholinesterase,curated,probe0.9,0.9000,2,0,3,3,2,3,2.4436,2.4746,2.4746,11.1113,B1,2.4436,17.9828,9.4591,19.0497,4.6830,0,0

@@ -63,7 +63,18 @@ its own "Interpreting results" note with the details for that tool.
   the probe. See [Choosing the enclosure probe](../tools/profile.md#choosing-the-enclosure-probe)
   and [Choosing the probe automatically](../tools/paths.md#choosing-the-probe-automatically).
   The cast probe is never chosen automatically, because there the probe *is*
-  the measurement.
+  the measurement. In the [benchmarks](../methods/benchmarks.md), changing
+  the grouping tolerances changed nothing and no variant moved a resolved
+  minimum radius by more than 0.01 Å, but *whether* a channel resolves
+  depends on the support rule: requiring the channel at three or four probes
+  instead of two left 4 or 7 of 9 channels unresolved. If a channel you
+  expect is reported as unresolved, try a fixed `--enclosure-radius`.
+  When two channels are found at the same number of probes, the one at the
+  smaller probe is used. This can pick a short capped part of a pore over the
+  whole channel: for aquaporin-1 (1J4N) with `simple.rad` the reported
+  profile misses the narrowest point, which a fixed `--enclosure-radius 0.75`
+  recovers (see the [benchmarks](../methods/benchmarks.md)). Check the
+  resolved axial range, and fix the probe when it is shorter than expected.
 
 ## What the input can and cannot show
 
@@ -79,9 +90,19 @@ its own "Interpreting results" note with the details for that tool.
   `unavailable_no_explicit_water` (empty, not zero), and missing water in a
   static structure is not evidence of a dry pocket. Saved frames far apart
   cannot resolve fast exchange. See [Hydration](../tools/hydration.md).
+- **Polymer residues recorded as HETATM are found by a distance rule.** In a
+  PDB file, a modified residue counts as protein when MODRES lists it or when
+  it is peptide-bonded (C-N within 1.75 Å) into the chain
+  ([details](inputs-and-selections.md#polymer-residues-recorded-as-hetatm)).
+  Links other than a backbone C-N bond (nucleic-acid backbones, side-chain
+  cross-links) are not followed, so such a residue stays a heteroatom unless
+  MODRES lists it. In trajectory commands only the selection `protein` is
+  extended this way; other MDAnalysis selections (`--obstacle-selection`,
+  water and permeation selections) are used as written, so name non-standard
+  residues explicitly (`protein or resname DLE`).
 - **Unresolved profiles are reported, not forced.** If no unique two-ended
   channel is found, the profile is reported as unresolved with the reasons,
-  and no profile is invented; `publish` then measures a fallback cast. An
+  and no profile is invented; `report` then measures a fallback cast. An
   unresolved profile does not show that the protein is closed. See
   [Outputs and unresolved results](outputs.md).
 
@@ -94,10 +115,21 @@ its own "Interpreting results" note with the details for that tool.
   is not a measured conductance or a prediction of function. On gramicidin A
   the uncorrected value is 10–40 times the measured single-channel
   conductance, and HOLE's empirically corrected value 2–7 times
-  ([details](../methods/fingerprint.md#conductance-estimate)).
+  ([details](../methods/fingerprint.md#conductance-estimate)). Across four
+  open channels with published single-channel conductances (gramicidin A,
+  OmpF, GLIC, open MscS) the estimate was 1.5–17.6 times the measured value,
+  and it cannot be computed for K⁺ channels whose filter is narrower than the
+  smallest probe ([benchmarks](../methods/benchmarks.md)). Use it to compare
+  pores with each other, not to predict a conductance.
 - **Trajectory uncertainty is approximate.** Intervals for a mean assume
   stationary, representative sampling and leave out force-field, grid and
   probe errors; one simulation is not a set of replicas. Frame ranges
   describe fluctuations, not confidence in the mean.
+- **Trajectory memory grows with the frame count.** A cavity or region
+  trajectory keeps every frame's atoms and per-frame record in memory until
+  the run ends. For a 1000-frame GLUT1 membrane simulation the run peaked at
+  about 7.5 GB, roughly 7 MB per frame whatever the grid spacing
+  ([benchmarks](../methods/benchmarks.md)). For long trajectories, analyse
+  frame ranges with `--start`, `--stop` and `--stride`.
 - **Viewer scenes should be checked.** The PyMOL, VMD and ChimeraX scenes are
   generated scripts; open them and check them before using them in a figure.

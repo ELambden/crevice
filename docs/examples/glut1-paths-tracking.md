@@ -19,7 +19,7 @@ are not assigned to cytoplasm or exterior.
 ## Inputs
 
 ```bash
-crevice fetch-example glut1-excerpt        # prints the example directory
+crevice fetch --example glut1-excerpt        # prints the example directory
 cd ~/.cache/crevice/examples/glut1-excerpt
 ```
 
@@ -132,7 +132,7 @@ for the whole directory.
 ## 2. Tracking the cavities around the site
 
 ```bash
-crevice track-cavities glut1_excerpt.gro glut1_excerpt.xtc \
+crevice trajectory --track glut1_excerpt.gro glut1_excerpt.xtc \
     --region glut1_site_candidate_region.json --radius 8 --workers 4 \
     -o glut1_tracking --prefix glut1_excerpt
 ```
@@ -170,7 +170,7 @@ sensitive to the probe and the link thresholds.
   are lattice effects, and compare a fixed `--probe-radius` with the
   automatic choice in `*_path_probes.csv` and the routes it left out in
   `*_path_left_out.csv`.
-- Rerun `track-cavities` with `--link-jaccard 0.1 --link-containment 0`: event
+- Rerun `trajectory --track` with `--link-jaccard 0.1 --link-containment 0`: event
   counts that change a lot are threshold-driven.
 - The full 1001-frame trajectory runs in about an hour with
   `--workers 4`, in constant memory.

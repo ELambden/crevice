@@ -33,7 +33,7 @@ crevice profile 3UKM --assembly 1 --exclude-hetero --lateral-exits \
 ```
 
 ```text
-profile points=81 min_radius=0.618 mean_radius=1.031 bottleneck_index=44
+profile points=81 min_radius=0.636 mean_radius=1.049 bottleneck_index=44
 enclosure_radius=0.550 (auto: smallest probe of channel group 1, which resolved at 2 of 21 probes tried)
 ```
 
@@ -43,7 +43,7 @@ block the channel. The automatic enclosure probe found two channels that each
 resolved at two probes (0.55–0.60 Å and 1.6–1.8 Å); the tie goes to the channel
 found at the smaller probe, and its smallest probe, 0.55 Å, is used. The window
 of probes that resolve the narrow filter is only about 0.07 Å wide. The
-narrowest axial sample is 0.618 Å (nearest residue A:THR118).
+narrowest axial sample is 0.636 Å (nearest residue A:THR118).
 
 `metadata.path_type` is `capped_channel_lateral_exit`. In
 `metadata.exits`, the upper end is `axial` (a straight exit) and the lower end
@@ -54,12 +54,12 @@ free-sphere radii, its bottleneck, length and exit point:
 
 | Leg | Bottleneck radius (Å) | Length (Å) | Exit point offset from the mouth (Å): axial, lateral |
 |---:|---:|---:|---|
-| 1 | 2.03 | 17.0 | −12.0, 10.1 |
-| 2 | 2.03 | 16.2 | −10.0, 11.4 |
+| 1 | 2.08 | 17.3 | −12.0, 9.7 |
+| 2 | 2.08 | 16.8 | −12.0, 9.9 |
 
-Both bottlenecks are the mouth sample's own clearance (2.03 Å), which every
+Both bottlenecks are the mouth sample's own clearance (2.08 Å), which every
 route shares; the legs are therefore ranked by their width beyond the mouth
-sphere (2.12 and 2.08 Å, `ranking_width_raw_clearance_A`). Leg radii are
+sphere (2.15 and 2.13 Å, `ranking_width_raw_clearance_A`). Leg radii are
 distances to the nearest atom surface along a 3D path, like tunnel radii, not
 planar section radii, so they never enter the axial `min_radius`.
 
@@ -69,7 +69,7 @@ planar section radii, so they never enter the axial `min_radius`.
 
 `3UKM_profile.png`. Blue line and fill: axial pore radius (Å) between the two
 mouths (light grey outside them). Red dashed line and dot: the narrowest sample
-(0.618 Å). Bluish-green dash-dot lines: the two lateral exit legs, continuing
+(0.636 Å). Bluish-green dash-dot lines: the two lateral exit legs, continuing
 from the capped (lower) mouth; beyond that mouth the horizontal axis is the
 mouth's axial coordinate minus the path length along the leg, not an axial
 position, as the legend says.
@@ -78,7 +78,7 @@ position, as the legend says.
 ## The cast and the exit legs in 3D
 
 ```bash
-crevice publish 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
+crevice report 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
     --out-dir 3UKM_bundle --prefix 3UKM --dpi 150
 ```
 
@@ -107,10 +107,10 @@ axial cast:
 
 | Segment | Source | Volume (Å³, 0.5 Å grid) | Lining residues (3.3 Å) |
 |---|---|---:|---:|
-| `entry_1` (upper end) | `axial_vestibule` | 1513.8 | 30 |
+| `entry_1` (upper end) | `axial_vestibule` | 1446.4 | 28 |
 | `lumen` | axial channel cast (`total_volume`) | 186.6 | 33 |
-| `exit_1` (lower end, leg 1) | `lateral_exit` | 445.8 | 14 |
-| `exit_2` (lower end, leg 2) | `lateral_exit` | 593.5 | 18 |
+| `exit_1` (lower end, leg 1) | `lateral_exit` | 459.6 | 17 |
+| `exit_2` (lower end, leg 2) | `lateral_exit` | 391.1 | 14 |
 
 The lumen-lining residues are the filter and pore-helix residues
 S116–V124 and S224–V232 of both subunits (plus B:TYR231); the entry is lined
@@ -142,7 +142,7 @@ leg; `--exit-centre-lines` draws them as thin blue tubes.
 the ENTRY vestibule beyond the open axial end (`crevice_entry_1`). Each is a
 separate model with its own colour. Grey-blue cartoon: the protein. No mouth
 rings, centre lines, lining sticks or labels are drawn by default. The check
-confirmed the surfaces (within 8 × 10⁻⁶ Å of the reference meshes) and the
+confirmed the surfaces (within 7 × 10⁻⁶ Å of the reference meshes) and the
 camera. The PyMOL and VMD versions of this scene were also run and checked
 during development, including switching on the lumen-lining sticks
 (`crevice_lining lumen`; 33 residues, 230 atoms in both viewers).
@@ -152,8 +152,14 @@ during development, including switching on the lumen-lining sticks
 :class: crevice-interpret
 
 These values come from a CREVICE 0.1.0 run on the downloaded assembly, and
-the `publish` step was re-run with 0.3.0 with the same volumes and lining
-residues. The
+the `report` step was re-run with 0.3.0 with the same volumes and lining
+residues. In 0.4.0 the slice centres converge to the local clearance maximum,
+which moves the capped mouth's centre slightly; the exit legs start there, so
+their lengths, exit points and the entry and exit segment volumes changed
+(exit 2: 593.5 Å³ before, 391.1 Å³ now; the lumen is unchanged). The numbers
+above and both figures are from 0.4.0. This sensitivity is
+part of why a segment volume describes the portal region under these settings
+only. The
 axis was found automatically, and the two portals are a geometric result with
 these settings (probe, grids, `--exit-bulk-radius 6`, `--exit-spacing 0.5`),
 not a demonstrated permeation pathway.

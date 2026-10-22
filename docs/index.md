@@ -11,7 +11,7 @@ whole molecular-dynamics trajectory.
 
 ```bash
 pip install crevice
-crevice publish 1GRM --out-dir results/1GRM
+crevice report 1GRM --out-dir results/1GRM
 ```
 :::
 
@@ -30,7 +30,7 @@ Measure the gramicidin A channel in one command. CREVICE downloads the
 structure for you:
 
 ```bash
-crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
+crevice report 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
 ```text
@@ -63,7 +63,7 @@ crevice profile 1GRM -o 1GRM_profile.json --png 1GRM_profile.png
 ```
 
 ```text
-profile points=81 min_radius=1.324 mean_radius=1.563 bottleneck_index=73
+profile points=81 min_radius=1.337 mean_radius=1.571 bottleneck_index=73
 enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
 ```
 
@@ -76,8 +76,9 @@ print(f"narrowest point: {profile.min_radius:.2f} Å")
 ```
 
 [Basic usage](getting-started/basic-usage.md) walks through this and a few
-more first steps. Coming from 0.2? [Upgrading to 0.3](getting-started/upgrading-0.3.md)
-shows how to get the old files back.
+more first steps. Coming from 0.3? [Upgrading to 0.4](getting-started/upgrading-0.4.md)
+maps the 0.3 command names to the nine 0.4 commands; from 0.2,
+[Upgrading to 0.3](getting-started/upgrading-0.3.md) shows how to get the old files back.
 
 ## What can it do?
 
@@ -156,11 +157,21 @@ share.
 Browse all of them in [Analysis tools](tools/index.md), or learn by example in
 the [Tutorials](examples/index.md).
 
+:::{admonition} New in 0.4
+:class: tip
+
+- **Nine commands.** The 25 commands of 0.3 are grouped into `fetch`,
+  `profile`, `cavities`, `paths`, `residues`, `report`, `trajectory`, `region`
+  and `view`, with modes such as `crevice cavities --cast`. Results are
+  unchanged and the old names still work for now. See
+  [Upgrading to 0.4](getting-started/upgrading-0.4.md).
+:::
+
 :::{admonition} New in 0.3
 :class: tip
 
 - **Compact outputs.** Commands now write the data, the key figures and
-  PyMOL, VMD and ChimeraX scenes by default (a 1GRM `publish` writes 40 files
+  PyMOL, VMD and ChimeraX scenes by default (a 1GRM `report` writes 40 files
   instead of 96, with the same numbers). Ask for more with `--outputs` or
   `--all`, preview a run with `--dry-run`, and save and reuse settings with
   `--print-config` and `--config`. See [Outputs](getting-started/outputs.md)
@@ -169,7 +180,7 @@ the [Tutorials](examples/index.md).
   from a site to the solvent without assuming a straight axis. See
   [Curved and branched pathways](tools/paths.md). Since 0.3.1 it picks the
   probe radius for each structure automatically.
-- **Cavity tracking.** `crevice track-cavities` follows every cavity near a
+- **Cavity tracking.** `crevice trajectory --track` follows every cavity near a
   site through a trajectory, with births, deaths, splits and merges. See
   [Cavity tracking](tools/cavity-tracking.md).
 

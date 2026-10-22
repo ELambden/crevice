@@ -41,7 +41,7 @@ def test_unresolved_profile_completes_requested_extras_without_a_profile(unresol
     manifest = json.loads(Path(files["manifest_json"]).read_text(encoding="utf-8"))
     for key in EXTRA_FILES:
         assert Path(files[key]).is_file(), key
-        assert manifest["files"][key] == files[key]
+        assert manifest["files"][key] == Path(files[key]).name   # recorded relative to the manifest
     # No profile or profile-derived output is invented.
     assert not any(k.startswith(("profile_json", "profile_csv", "profile_radius")) for k in manifest["files"])
     assert manifest["profile_status"]["status"] == "unresolved"
@@ -109,14 +109,14 @@ def test_publish_cli_prints_unresolved_profile(tmp_path, capsys):
     frame = rectangular_channel(half_x=4, half_y=5, half_length=8, capped=True)
     source = write_viewer_structure(frame, tmp_path / "pocket.pdb")
     with pytest.warns(RuntimeWarning):
-        assert main(["publish", str(source), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--exclude-hetero",
+        assert main(["report", str(source), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--exclude-hetero",
                      "--cast-spacing", "0.5", "--min-component-volume", "30", "--skip-hydration",
                      "--skip-network", "--dpi", "60", "--outputs", "default,cavities,tunnels"]) == 0
     assert "profile=unresolved" in capsys.readouterr().out
     manifest = json.loads((tmp_path / "out/pocket_manifest.json").read_text(encoding="utf-8"))
     assert manifest["fallback_analyses"]["network"]["status"] == "skipped_by_request"
     assert manifest["fallback_analyses"]["tunnels"]["status"] == "completed"
-    assert Path(manifest["files"]["input_report_json"]).is_file()
+    assert (tmp_path / "out" / manifest["files"]["input_report_json"]).is_file()
 
 
 # --- full-list / selected-list residue sticks --------------------------------
@@ -236,9 +236,9 @@ def test_selected_residue_outside_both_roles_is_rejected():
 
 def test_residue_evidence_cli_stick_option(evidence, tmp_path):
     from crevice.cli import build_parser, main
-    assert build_parser().parse_args(["residue-evidence", "x.pdb", "--volume-dx", "v.dx", "--out-dir", "o"]).stick_residues == "top:12"
+    assert build_parser().parse_args(["residues", "--evidence", "x.pdb", "--volume-dx", "v.dx", "--out-dir", "o"]).stick_residues == "top:12"
     frame, files, report = evidence
-    assert main(["residue-evidence", files["structure_file"], "--volume-dx", files["volume_dx"],
+    assert main(["residues", "--evidence", files["structure_file"], "--volume-dx", files["volume_dx"],
                  "--out-dir", str(tmp_path), "--prefix", "full", "--scene", files["volume_pml"],
                  "--stick-residues", "all", "--skip-hydration", "--dpi", "50"]) == 0
     saved = json.loads((tmp_path / "full_residue_evidence.json").read_text(encoding="utf-8"))

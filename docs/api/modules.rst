@@ -12,6 +12,8 @@ CLI on import) is deliberately excluded.
 .. autosummary::
    :toctree: generated
 
+   crevice._portable_paths
+   crevice._script_paths
    crevice.analysis
    crevice.analysis_report
    crevice.analysis_scene_templates
@@ -34,6 +36,7 @@ CLI on import) is deliberately excluded.
    crevice.fingerprint
    crevice.geometry
    crevice.grid
+   crevice.grid_guard
    crevice.hydration
    crevice.hydration_export
    crevice.hydration_extensions
@@ -42,6 +45,7 @@ CLI on import) is deliberately excluded.
    crevice.interaction_analysis
    crevice.interaction_chemistry
    crevice.io
+   crevice.mdinput
    crevice.ml
    crevice.mmcif
    crevice.models
@@ -50,6 +54,8 @@ CLI on import) is deliberately excluded.
    crevice.parser
    crevice.paths
    crevice.pdb
+   crevice.permeation
+   crevice.permeation_cli
    crevice.presentation
    crevice.progress
    crevice.radii
@@ -65,6 +71,7 @@ CLI on import) is deliberately excluded.
    crevice.rolling
    crevice.schemas
    crevice.sections
+   crevice.sensitivity
    crevice.spatial
    crevice.static_suite
    crevice.static_workflow

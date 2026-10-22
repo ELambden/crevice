@@ -8,8 +8,9 @@ assumptions and limitations behind the [analysis tools](../tools/index.md).
 | [Atomic radii](atomic-radii.md) | the standard radius table, `--radii`/`radii=` presets and radius files (JSON, CSV, HOLE `.rad`), precedence, how the choice reaches workers, provenance |
 | [Pore fingerprint definitions](fingerprint.md) | the path coordinate *s*, lining shell, Wimley–White hydrophobicity and Gaussian smoothing, water along the path, the conductance estimate with access resistance and the HOLE divisor, limitations |
 | [Curved and branched pathways](paths.md) | `paths`: grid, bulk and exposed mouths, widest routes, half-space sides, distinct routes, junctions, centre-line relaxation, free-sphere radius, lining shell, unresolved cases |
-| [Cavity tracking across frames](cavity-tracking.md) | `track-cavities`: fixed aligned lattice, components, Jaccard and containment links, continuation, birth/death/split/merge, memory, thresholds |
-| [Cavity trajectories](../CAVITY_TRAJECTORY_METHODS.md) | `cavity-trajectory` observables, fixed coordinates, sectional widths, sampling uncertainty, changing residue evidence |
+| [Uncertainty, sensitivity and grid resolution](uncertainty.md) | effective sample size (Sokal-windowed autocorrelation time), Flyvbjerg–Petersen blocking, moving-block bootstrap, `--sensitivity`, the grid-spacing warning |
+| [Cavity tracking across frames](cavity-tracking.md) | `trajectory --track`: fixed aligned lattice, components, Jaccard and containment links, continuation, birth/death/split/merge, memory, thresholds |
+| [Cavity trajectories](../CAVITY_TRAJECTORY_METHODS.md) | `trajectory --cavities` observables, fixed coordinates, sectional widths, sampling uncertainty, changing residue evidence |
 | [Trajectory profiles and residue evidence](../TRAJECTORY_RESIDUE_METHODS.md) | alignment and PBC contract, profile uncertainty, boundary attribution, nonlocal contacts, seeded casts, reading evidence figures |
 | [Residue hydration and solvent exposure](../HYDRATION_METHODS.md) | water contacts, SASA, periodic identities, instantaneous-cavity water membership, temporal statistics |
 | [Coordinated hydration and residue evidence](../HYDRATION_NETWORK_VIEWS.md) | density maps, typed interactions, colour scales, coordinated viewer scenes |
@@ -18,6 +19,7 @@ assumptions and limitations behind the [analysis tools](../tools/index.md).
 | [Interactive view surfaces](interactive-view.md) | what `crevice view` draws: the native display isosurfaces, layers, colours and opacities, offline rendering |
 | [Named biological-region workflow](../REGION_WORKFLOW.md) | region definitions, landmark proposals, review overlays, comparisons |
 | [Biological identity and region review](../BIOLOGICAL_REGIONS.md) | benchmark identities and assemblies, site landmarks, modified amino acids |
+| [Benchmarks against other tools](benchmarks.md) | matched comparisons with HOLE, CAVER, pyKVFinder, POVME and MDpocket; conductance vs measurement; automatic-probe sensitivity |
 
 ```{toctree}
 :hidden:
@@ -25,6 +27,7 @@ assumptions and limitations behind the [analysis tools](../tools/index.md).
 atomic-radii
 fingerprint
 paths
+uncertainty
 cavity-tracking
 /CAVITY_TRAJECTORY_METHODS
 /TRAJECTORY_RESIDUE_METHODS
@@ -35,4 +38,5 @@ cavity-tracking
 interactive-view
 /REGION_WORKFLOW
 /BIOLOGICAL_REGIONS
+benchmarks
 ```

@@ -54,6 +54,21 @@ PARSERS = ("auto", "gemmi", "builtin")
 #: Alternate-location rule shared by every structure reader.
 ALTLOC_POLICY = "blank plus first lexical nonblank per residue"
 
+#: Choices for ``hetero_polymer``: whether HETATM residues that belong to a
+#: polymer chain count as polymer (``"include"``, default) or as heteroatoms.
+HETERO_POLYMER_CHOICES = ("include", "exclude")
+
+#: Longest C-N distance (Å) counted as a peptide bond between two residues.
+PEPTIDE_BOND_MAX_A = 1.75
+
+#: Wording of the polymer-HETATM rule recorded in reader reports.
+POLYMER_HETATM_RULE = (
+    "a HETATM residue is polymer when the file lists it in MODRES, or when it is peptide-bonded "
+    f"(its N or C within {PEPTIDE_BOND_MAX_A:g} A of a C or N of another residue of the same chain) "
+    "into a run of residues that contains an ATOM-record residue or a MODRES residue, or whose "
+    "residue names all appear in the chain's SEQRES; waters, ions and other ligands stay hetero"
+)
+
 
 def is_mmcif_path(path: str | Path) -> bool:
     """Return ``True`` when the file name ends in ``.cif`` or ``.mmcif``.
@@ -75,13 +90,14 @@ def is_mmcif_path(path: str | Path) -> bool:
 
 
 def load_structure(
-    path: str | Path,
+    path,
     *,
     model_index: int = 0,
     parser: str = "auto",
     chain_ids: str = "label",
     md_selection: str = "protein",
     radii=None,
+    hetero_polymer: str = "include",
 ) -> StructureFrame:
     r"""Load a structure file and return only the frame.
 
@@ -90,8 +106,9 @@ def load_structure(
 
     Parameters
     ----------
-    path : str or Path
-        PDB, mmCIF or GRO file.
+    path : str, Path, MDAnalysis.Universe or MDAnalysis.AtomGroup
+        PDB, mmCIF or GRO file, or a loaded Universe or AtomGroup whose
+        current frame is read (see :func:`load_structure_report`).
     model_index : int, default 0
         Zero-based model (GRO: frame) to read.
     parser : {"auto", "gemmi", "builtin"}, default "auto"
@@ -103,6 +120,10 @@ def load_structure(
     radii : RadiusSet, str, os.PathLike or None, default None
         Radius set used to decide which atoms have a radius (atoms without
         one are excluded with a warning); ``None`` uses the set in effect.
+    hetero_polymer : {"include", "exclude"}, default "include"
+        Whether HETATM residues that belong to a polymer chain (modified or
+        D-amino acids, selenomethionine) count as polymer; see
+        :func:`load_structure_report`.
 
     Returns
     -------
@@ -118,22 +139,31 @@ def load_structure(
     >>> frame = load_structure(path)
     >>> frame.atoms[0].residue_key.label, frame.atoms[0].coord
     ('A:ALA1', (1.0, 2.0, 3.0))
+
+    The current frame of an MDAnalysis Universe, or only the atoms of a group:
+
+    >>> import MDAnalysis as mda                                   # doctest: +SKIP
+    >>> u = mda.Universe("system.gro", "production.xtc")           # doctest: +SKIP
+    >>> u.trajectory[10]                                           # doctest: +SKIP
+    >>> frame = load_structure(u)       # frame 10, md_selection   # doctest: +SKIP
+    >>> frame = load_structure(u.select_atoms("protein and not name H*"))  # doctest: +SKIP
     """
 
     return load_structure_report(
         path, model_index=model_index, parser=parser, chain_ids=chain_ids, md_selection=md_selection,
-        radii=radii,
+        radii=radii, hetero_polymer=hetero_polymer,
     )[0]
 
 
 def load_structure_report(
-    path: str | Path,
+    path,
     *,
     model_index: int = 0,
     parser: str = "auto",
     chain_ids: str = "label",
     md_selection: str = "protein",
     radii=None,
+    hetero_polymer: str = "include",
 ) -> tuple[StructureFrame, dict]:
     r"""Load a structure and report which parser ran and what it did.
 
@@ -146,8 +176,15 @@ def load_structure_report(
 
     Parameters
     ----------
-    path : str or pathlib.Path
-        Structure file.
+    path : str, pathlib.Path, MDAnalysis.Universe or MDAnalysis.AtomGroup
+        Structure file, or a loaded MDAnalysis Universe or AtomGroup. For an
+        MDAnalysis object the *current* frame is read with the MDAnalysis
+        reader exactly as for GRO input (same atoms, elements, chain IDs and
+        coordinates as reading the same files by path); ``md_selection`` is
+        applied to a Universe, while an AtomGroup is itself the selection.
+        ``parser`` must be ``"auto"`` and ``model_index`` 0 (move the
+        Universe to another frame with ``u.trajectory[i]`` instead). The
+        report records ``input_format="mdanalysis"``.
     model_index : int, default 0
         Zero-based model to read (for GRO, the frame index).
     parser : {"auto", "gemmi", "builtin"}, default "auto"
@@ -167,6 +204,20 @@ def load_structure_report(
         it (:meth:`~crevice.radii.RadiusSet.has_radius`) are excluded with an
         :class:`~crevice.radii.UnrecognisedElementWarning`. Pass the same set
         you will analyse with.
+    hetero_polymer : {"include", "exclude"}, default "include"
+        ``"include"``: a residue deposited as HETATM but part of a polymer
+        chain (D-amino acids, selenomethionine, other modified residues, caps
+        such as ACE) gets ``Atom.hetero=False``, like any other polymer
+        residue. The Gemmi mmCIF reader decides this from entity membership;
+        the built-in readers by :data:`POLYMER_HETATM_RULE` (peptide bonds,
+        plus MODRES/SEQRES in PDB files), and the MDAnalysis reader adds
+        peptide-bonded residues outside its ``protein`` selection to that
+        selection. Waters, ions and other ligands stay hetero. The report
+        lists what was included (``polymer_hetatm_residues``).
+        ``"exclude"``: ``Atom.hetero`` follows the HETATM record type
+        (``hetero_definition="group_pdb"``; the CREVICE 0.3 behaviour for PDB
+        files). Ignored for GRO and MDAnalysis input except through the same
+        peptide-bond rule.
 
     Returns
     -------
@@ -183,12 +234,14 @@ def load_structure_report(
         ``recognised_ion_atoms`` (count per ``"RESNAME:ATOMNAME"`` of the
         recognised monatomic ion residues, which get ion radii in the default
         radius set; see :func:`crevice.radii.is_recognised_ion`).
-        ``completeness_validated`` is always ``False``.
+        ``hetero_polymer``, ``polymer_hetatm_retained`` (atoms) and
+        ``polymer_hetatm_residues`` (residue count per name) record the
+        polymer-HETATM handling. ``completeness_validated`` is always ``False``.
 
     Raises
     ------
     ValueError
-        For an unknown parser, negative ``model_index``, a non-mmCIF file with
+        For an unknown parser or ``hetero_polymer`` value, negative ``model_index``, a non-mmCIF file with
         ``parser="gemmi"``, a non-``"auto"`` parser for GRO, or a file with no
         readable atoms.
     RuntimeError
@@ -201,10 +254,11 @@ def load_structure_report(
     of other models. The Gemmi path (``selection="all"`` in
     :func:`crevice.mmcif.load_mmcif`) also drops zero-occupancy atoms, and its
     ``Atom.hetero`` follows entity membership where entity types are
-    available. Hydrogens, waters, ions and ligands are kept by every reader.
-    The two mmCIF paths can therefore give different atom sets and hetero
-    flags for the same file; check ``report["parser"]``,
-    ``report["hetero_definition"]`` and ``report["zero_occupancy_policy"]``.
+    available; the built-in readers apply :data:`POLYMER_HETATM_RULE`.
+    Hydrogens, waters, ions and ligands are kept by every reader.
+    The two mmCIF paths can therefore give different atom sets for the same
+    file; check ``report["parser"]``, ``report["hetero_definition"]`` and
+    ``report["zero_occupancy_policy"]``.
 
     Examples
     --------
@@ -220,14 +274,37 @@ def load_structure_report(
     """
 
     from .radii import use_radii
+    from .mdinput import is_md_object
 
+    if hetero_polymer not in HETERO_POLYMER_CHOICES:
+        raise ValueError(f"hetero_polymer must be one of {', '.join(HETERO_POLYMER_CHOICES)}")
     with use_radii(radii):
+        if is_md_object(path):
+            return _load_md_object_report(path, model_index=model_index, parser=parser, md_selection=md_selection,
+                                          hetero_polymer=hetero_polymer)
         return _load_structure_report(Path(path), model_index=model_index, parser=parser,
-                                      chain_ids=chain_ids, md_selection=md_selection)
+                                      chain_ids=chain_ids, md_selection=md_selection,
+                                      hetero_polymer=hetero_polymer)
+
+
+def _load_md_object_report(value, *, model_index: int, parser: str, md_selection: str,
+                           hetero_polymer: str = "include") -> tuple[StructureFrame, dict]:
+    """Current frame of a Universe or AtomGroup, read like a GRO file."""
+    if parser != "auto":
+        raise ValueError("MDAnalysis Universe/AtomGroup input uses the MDAnalysis reader; use parser=auto")
+    if model_index != 0:
+        raise ValueError("model_index applies to files; move the Universe to the frame first (u.trajectory[i])")
+    from .mdinput import universe_of
+    from .trajectory import load_trajectory_report
+    current = universe_of(value).trajectory.ts.frame
+    trajectory, report = load_trajectory_report(value, selection=md_selection, start=current, stop=current + 1,
+                                                hetero_polymer=hetero_polymer)
+    return _with_radius_note(trajectory.frames[0], {**report, "parser": "mdanalysis", "input_format": "mdanalysis",
+                                                    "coordinate_units": "Angstrom (MDAnalysis)"})
 
 
 def _load_structure_report(source: Path, *, model_index: int, parser: str, chain_ids: str,
-                           md_selection: str) -> tuple[StructureFrame, dict]:
+                           md_selection: str, hetero_polymer: str = "include") -> tuple[StructureFrame, dict]:
     """Body of :func:`load_structure_report`, run inside the chosen radius set."""
     if parser not in PARSERS:
         raise ValueError(f"parser must be one of {', '.join(PARSERS)}")
@@ -238,7 +315,8 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
             raise ValueError("GRO input uses MDAnalysis; use parser=auto")
         from .trajectory import load_trajectory_report
         trajectory, report = load_trajectory_report(source, selection=md_selection,
-                                                    start=model_index, stop=model_index+1)
+                                                    start=model_index, stop=model_index+1,
+                                                    hetero_polymer=hetero_polymer)
         frame = trajectory.frames[0]
         return _with_radius_note(frame, {**report, "parser": "mdanalysis", "input_format": "gro",
                                                 "coordinate_units": "Angstrom (converted from GRO nm)"})
@@ -258,8 +336,14 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
         if available:
             frame, report = mmcif.load_mmcif(
                 source, model_index=model_index, selection="all",
-                chain_ids=chain_ids, hetero_policy="auto",
+                chain_ids=chain_ids, hetero_policy="auto" if hetero_polymer == "include" else "group_pdb",
             )
+            report["hetero_polymer"] = hetero_polymer
+            if hetero_polymer == "include" and report["hetero_definition"] == "group_pdb":
+                # No _entity types: fall back to the peptide-bond rule of the built-in readers.
+                atoms, record = _include_polymer_hetero(list(frame.atoms))
+                frame = replace(frame, atoms=tuple(atoms))
+                report.update(record, hetero_definition="group_pdb_except_polymer")
             with source.open(errors="replace", encoding="utf-8") as handle:
                 header = handle.read(65536)
             return _with_radius_note(frame, {**report, "input_format": "mmcif",
@@ -270,10 +354,15 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
         raise ValueError("chain_ids must be label or auth")
     if mmcif_input:
         atoms = _parse_mmcif(text, model_index=model_index, chain_ids=chain_ids)
+        modified, sequences = set(), None
     else:
         atoms = _parse_pdb(text, model_index=model_index)
+        modified, sequences = _pdb_modres(text), _pdb_seqres(text)
     if not atoms:
         raise ValueError(f"No atoms could be loaded from {source}")
+    polymer_record = {"hetero_polymer": hetero_polymer, "polymer_hetatm_retained": 0, "polymer_hetatm_residues": {}}
+    if hetero_polymer == "include":
+        atoms, polymer_record = _include_polymer_hetero(atoms, modified=modified, sequences=sequences)
     frame = StructureFrame(tuple(atoms), source=str(source), model_index=model_index)
     return _with_radius_note(frame, {
         **predicted_model_report(text),
@@ -285,7 +374,8 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
         "chain_id_namespace": chain_ids if mmcif_input else "PDB chain column",
         "altloc_policy": ALTLOC_POLICY,
         "zero_occupancy_policy": "retained",
-        "hetero_definition": "group_pdb",
+        "hetero_definition": "group_pdb_except_polymer" if hetero_polymer == "include" else "group_pdb",
+        **polymer_record,
         "element_source": "type_symbol or name inference",
         "completeness_validated": False,
     })
@@ -432,6 +522,136 @@ def _parse_pdb(text: str, *, model_index: int = 0) -> list[Atom]:
             )
         )
     return _select_altlocs(atoms)
+
+
+def polymer_linked_residues(keys, chains, names, coords, *, polymer, candidates, resnames=None,
+                            sequences=None) -> set:
+    """Candidate residues that belong to a polymer chain by peptide bonds.
+
+    The rule shared by every reader (:data:`POLYMER_HETATM_RULE`). Two residues
+    of the same chain are peptide-bonded when an atom named ``N`` of one lies
+    within :data:`PEPTIDE_BOND_MAX_A` of an atom named ``C`` of the other.
+    A candidate joins the polymer when it is connected through such bonds
+    (through other candidates if needed) to a residue in ``polymer``, or when
+    it lies in a bonded run of at least two candidates whose residue names all
+    appear in ``sequences[chain]`` (the chain's SEQRES).
+
+    Parameters
+    ----------
+    keys, chains, names : sequence
+        Per atom: a hashable residue identity, the chain ID and the atom name.
+    coords : array-like, shape (n, 3)
+        Atom coordinates in Å.
+    polymer : set
+        Residue identities already in the polymer (ATOM records, MODRES).
+    candidates : set
+        Residue identities that may join (HETATM records).
+    resnames : mapping, optional
+        Residue name per identity; needed only with ``sequences``.
+    sequences : mapping, optional
+        Chain ID to the set of residue names in that chain's sequence record.
+
+    Returns
+    -------
+    set
+        The candidates that are polymer.
+
+    Examples
+    --------
+    >>> from crevice.parser import polymer_linked_residues
+    >>> keys = [1, 1, 2, 2, 3]   # ALA 1 (N, C), DLE 2 (N, C), water 3 (O)
+    >>> xyz = [(0, 0, 0), (2, 0, 0), (3.33, 0, 0), (5, 0, 0), (9, 0, 0)]
+    >>> polymer_linked_residues(keys, "AAAAA", ["N", "C", "N", "C", "O"], xyz,
+    ...                         polymer={1}, candidates={2, 3})
+    {2}
+    """
+    import numpy as np
+    from scipy.spatial import cKDTree
+    candidates = set(candidates)
+    if not candidates:
+        return set()
+    ends = [i for i, name in enumerate(names) if str(name).strip().upper() in ("N", "C")]
+    if not ends:
+        return set()
+    upper = [str(names[i]).strip().upper() for i in ends]
+    xyz = np.asarray([coords[i] for i in ends], dtype=float).reshape(-1, 3)
+    chain_of = {keys[i]: chains[i] for i in ends}
+    links: dict = {}
+    for a, b in cKDTree(xyz).query_pairs(PEPTIDE_BOND_MAX_A):
+        i, j = ends[a], ends[b]
+        if upper[a] == upper[b] or chains[i] != chains[j] or keys[i] == keys[j]:
+            continue
+        links.setdefault(keys[i], set()).add(keys[j])
+        links.setdefault(keys[j], set()).add(keys[i])
+    linked: set = set()
+    seen: set = set()
+    for start in sorted(candidates & links.keys(), key=repr):
+        if start in seen:
+            continue
+        run, touches_polymer, stack = {start}, False, [start]
+        seen.add(start)
+        while stack:
+            for other in links.get(stack.pop(), ()):
+                if other in polymer:
+                    touches_polymer = True
+                elif other in candidates and other not in seen:
+                    seen.add(other)
+                    run.add(other)
+                    stack.append(other)
+        in_sequence = (sequences is not None and resnames is not None and len(run) > 1
+                       and all(resnames.get(key) in sequences.get(chain_of[key], ()) for key in run))
+        if touches_polymer or in_sequence:
+            linked |= run
+    return linked
+
+
+def _include_polymer_hetero(atoms: list[Atom], *, modified=frozenset(), sequences=None) -> tuple[list[Atom], dict]:
+    """Mark polymer HETATM residues of a built-in read as polymer (``hetero=False``).
+
+    ``modified`` holds ``(chain, resid, icode, resname)`` of MODRES residues;
+    ``sequences`` maps chain ID to its SEQRES residue names.
+    """
+    from collections import Counter
+    keys = [atom.residue_key for atom in atoms]
+    hetero = {key for key, atom in zip(keys, atoms) if atom.hetero}
+    if not hetero:
+        return atoms, {"hetero_polymer": "include", "polymer_hetatm_retained": 0, "polymer_hetatm_residues": {},
+                       "polymer_hetatm_rule": POLYMER_HETATM_RULE}
+    polymer = {key for key, atom in zip(keys, atoms) if not atom.hetero}
+    listed = {key for key in hetero if (key.chain_id, key.resid, key.icode, key.resname) in modified}
+    linked = listed | polymer_linked_residues(
+        keys, [a.chain_id for a in atoms], [a.name for a in atoms], [a.coord for a in atoms],
+        polymer=polymer | listed, candidates=hetero - listed,
+        resnames={key: key.resname for key in hetero}, sequences=sequences)
+    if linked:
+        atoms = [replace(atom, hetero=False) if key in linked else atom for key, atom in zip(keys, atoms)]
+    return atoms, {
+        "hetero_polymer": "include",
+        "polymer_hetatm_retained": sum(key in linked for key in keys),
+        "polymer_hetatm_residues": dict(sorted(Counter(key.resname for key in linked).items())),
+        "polymer_hetatm_rule": POLYMER_HETATM_RULE,
+    }
+
+
+def _pdb_modres(text: str) -> set[tuple[str, int, str, str]]:
+    """``(chain, resid, icode, resname)`` of every PDB ``MODRES`` record."""
+    found = set()
+    for line in text.splitlines():
+        if line.startswith("MODRES"):
+            resname = _slice(line, 12, 15).strip()
+            if resname:
+                found.add((_slice(line, 16, 17).strip(), _safe_int(_slice(line, 18, 22), 0),
+                           _slice(line, 22, 23).strip(), resname))
+    return found
+
+
+def _pdb_seqres(text: str) -> dict[str, set[str]] | None:
+    """Residue names of each chain's PDB ``SEQRES`` records, or ``None`` without any."""
+    sequences: dict[str, set[str]] = {}
+    for line in text.splitlines():
+        if line.startswith("SEQRES"):
+            sequences.setdefault(_slice(line, 11, 12).strip(), set()).update(_slice(line, 19, 80).split())
+    return sequences or None
 
 
 def _select_altlocs(atoms: list[Atom]) -> list[Atom]:

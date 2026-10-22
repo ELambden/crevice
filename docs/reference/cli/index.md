@@ -1,105 +1,48 @@
 # Command-line reference
 
 Everything CREVICE does is available from one command, `crevice`, followed by
-a sub-command. `python -m crevice` does the same thing.
+one of nine commands. `python -m crevice` does the same thing.
 
 ```bash
 crevice profile 1GRM -o 1GRM_profile.json --png 1GRM_profile.png
-crevice <command> --help      # every option, with units and defaults
+crevice cavities --cast 1GRM --out-dir 1GRM_cast
+crevice <command> --help          # the command, its modes and the default mode's options
+crevice <command> --MODE --help   # the options of one mode, e.g. crevice cavities --cast --help
 ```
 
-Pick a command below to see its arguments and options. Options that many
-commands share, such as how a structure is read, which atomic radii are used
-and whether figures carry text, are described once on
+Several commands have **modes**, chosen with one flag (`crevice cavities
+--cast`, `crevice residues --evidence`) or, for `crevice region`, an action word
+(`crevice region prepare`). Each mode keeps its own options and defaults. The
+25 command names of CREVICE 0.3 still work as deprecated aliases that print a
+one-line note; see [Upgrading to 0.4](../../getting-started/upgrading-0.4.md).
+
+Options that many commands share, such as how a structure is read, which
+atomic radii are used and whether figures carry text, are described once on
 [Shared options](common-options.md).
 
-## Pores and channels
-
-| Command | What it does |
-|---|---|
-| [`profile`](profile.md) | Radius profile of a channel that runs right through the protein |
-| [`cast`](cast.md) | 3D cast of a pocket, cavity or channel, filled with atom-clear probe spheres |
-| [`fingerprint`](fingerprint.md) | Radius, lining hydrophobicity and chemistry, water and a geometric conductance estimate along a channel |
-| [`paths`](paths.md) | Curved and branched widest routes from a seed, residues or region to bulk, with junctions |
-
-## Cavities and tunnels
-
-| Command | What it does |
-|---|---|
-| [`cavities`](cavities.md) | Buried cavities on a clearance grid |
-| [`tunnels`](tunnels.md) | Widest routes from a start point to the outside |
-
-## Residues and networks
-
-| Command | What it does |
-|---|---|
-| [`residues`](residues.md) | Residues lining a channel profile |
-| [`residue-evidence`](residue-evidence.md) | Residues that form a measured cast boundary, and the residues they touch |
-| [`network`](network.md) | Residue contact networks, with the channel or cavity as a node |
-| [`features`](features.md) | Profile and residue descriptors as JSON and CSV |
-
-## Hydration
-
-| Command | What it does |
-|---|---|
-| [`hydration`](hydration.md) | Water contacts, solvent-accessible area, water density and typed interactions |
-
-## Trajectories and regions
-
-| Command | What it does |
-|---|---|
-| [`trajectory`](trajectory.md) | Channel profiles and contacts across many frames |
-| [`cavity-trajectory`](cavity-trajectory.md) | A cavity's volume, widths and boundary residues in every frame |
-| [`track-cavities`](track-cavities.md) | Persistent cavity identities across frames, with births, deaths, splits and merges |
-| [`region-init`](region-init.md) | Start a named region definition from landmarks |
-| [`region-prepare`](region-prepare.md) | Check a region definition and write review scenes |
-| [`region-trajectory`](region-trajectory.md) | Run geometry and hydration on a prepared region |
-| [`region-compare`](region-compare.md) | Compare two regions on the same frames |
-
-## Visualisation and outputs
-
-| Command | What it does |
-|---|---|
-| [`publish`](publish.md) | Tables, figures and PyMOL/VMD/ChimeraX scenes for one structure in one run |
-| [`view`](view.md) | A self-contained interactive 3D HTML view of an output directory |
-| [`analyze`](analyze.md) | Several analyses on one structure, written to one directory |
-
-## Structures and batch runs
-
-| Command | What it does |
-|---|---|
-| [`fetch`](fetch.md) | Download structures from the RCSB PDB or AlphaFold DB |
-| [`fetch-example`](fetch-example.md) | Download a hash-checked example dataset for the tutorials |
-| [`benchmark`](benchmark.md) | Quick checks on the bundled benchmark structures |
-| [`static-suite`](static-suite.md) | `publish`-style analyses across several structures |
+| Command | Modes | What it does |
+|---|---|---|
+| [`fetch`](fetch.md) | `--example NAME` | Download structures from the RCSB PDB or AlphaFold DB; a hash-checked example dataset |
+| [`profile`](profile.md) | `--fingerprint` | Radius profile of a channel that runs right through the protein; the pore fingerprint (lining chemistry, water, geometric conductance estimate) |
+| [`cavities`](cavities.md) | `--cast`, `--tunnels` | Buried cavities on a clearance grid; 3D rolling-probe casts of pockets, cavities and channels; widest access tunnels |
+| [`paths`](paths.md) | | Curved and branched widest routes from a seed, residues or region to bulk |
+| [`residues`](residues.md) | `--network`, `--evidence`, `--features` | Residues lining a channel; contact networks; the residues that form a measured cast boundary; profile and residue descriptors |
+| [`report`](report.md) | `--analyze`, `--suite`, `--benchmark` | Tables, figures and PyMOL/VMD/ChimeraX scenes for one structure; selected analyses; benchmark systems |
+| [`trajectory`](trajectory.md) | `--cavities`, `--region DEFINITION`, `--water`, `--track` | Channel profiles across frames; a cavity, a named region or water in every frame; persistent cavity identities |
+| [`region`](region.md) | `init`, `prepare`, `compare` | Define, check and compare named regions |
+| [`view`](view.md) | | A self-contained interactive 3D HTML view of an output directory |
 
 ```{toctree}
 :hidden:
 
 common-options
-profile
-cast
-fingerprint
-paths
-cavities
-tunnels
-residues
-residue-evidence
-network
-features
-hydration
-trajectory
-cavity-trajectory
-track-cavities
-region-init
-region-prepare
-region-trajectory
-region-compare
-publish
-view
-analyze
 fetch
-fetch-example
-benchmark
-static-suite
+profile
+cavities
+paths
+residues
+report
+trajectory
+region
+view
 ```

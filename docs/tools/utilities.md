@@ -17,14 +17,14 @@ command fetches what it needs, but it is handy before working offline. See
 `crevice fetch --list` prints the bundled benchmark systems.
 [All options](../reference/cli/fetch.md).
 
-## Several analyses at once: `analyze`
+## Several analyses at once: `report --analyze`
 
 ```bash
-crevice analyze 1GRM --analysis profile --analysis residues --analysis network \
+crevice report --analyze 1GRM --analysis profile --analysis residues --analysis network \
     --out-dir results/1GRM_analyze --png
 ```
 
-`analyze` runs any mix of `profile`, `residues`, `cavities`, `tunnels`,
+`report --analyze` runs any mix of `profile`, `residues`, `cavities`, `tunnels`,
 `network` and `features` on one structure (repeat `--analysis` for each; the
 default is profile and residues), writing each as CSV (with the JSON
 records beside them), the typed interactions of the lining residues and a
@@ -34,33 +34,33 @@ figures for the profile, residues, cavities and network,
 everything ({ref}`output-policy`). Unlike the standalone commands, its cavity
 and tunnel grid caps (`--cavity-max-grid-points`, `--tunnel-max-grid-points`)
 coarsen the spacing to stay under the cap, so raise them if you need a fine
-grid. [All options](../reference/cli/analyze.md).
+grid. [All options](../reference/cli/report.md).
 
-## Feature tables: `features`
+## Feature tables: `residues --features`
 
 ```bash
-crevice features 1GRM -o 1GRM_features.json
+crevice residues --features 1GRM -o 1GRM_features.json
 ```
 
-`features` exports numerical descriptors of a profile and its residues as JSON
+`residues --features` exports numerical descriptors of a profile and its residues as JSON
 and as `<stem>.csv` (`feature`, `value`, `unit`), ready for clustering or
 your own machine-learning experiments (see {mod}`crevice.ml`). The features
 describe geometry; CREVICE ships no trained model.
-[All options](../reference/cli/features.md).
+[All options](../reference/cli/residues.md).
 
-## Batch runs: `benchmark` and `static-suite`
+## Batch runs: `report --benchmark` and `report --suite`
 
-`benchmark` runs quick checks, and `static-suite` full `publish`-style
+`report --benchmark` runs quick checks, and `report --suite` full `report`-style
 bundles, on the bundled benchmark systems (1GRM, 6MVY, 1AF6, 4PYP, 2CHB) or the
 ones you name.
 
 ```bash
-crevice benchmark --fetch --output benchmark.json
-crevice static-suite 1GRM 4PYP --fetch --out-dir suite
+crevice report --benchmark --fetch --output benchmark.json
+crevice report --suite 1GRM 4PYP --fetch --out-dir suite
 ```
 
-`benchmark --output b.json` also writes `b.csv`, one row per system with the
-profile radii, top cavity volume and any error. `static-suite` writes
+`report --benchmark --output b.json` also writes `b.csv`, one row per system with the
+profile radii, top cavity volume and any error. `report --suite` writes
 `static_benchmark_summary.csv` and `.json` and one bundle per system: the
 profile, cast, residue contacts, cavities, tunnels and network with their
 figures and viewer scenes, plus `*_profile_sensitivity.csv`. It doesn't take
@@ -70,12 +70,12 @@ enclosure probe automatically for each system and record it
 a stable channel becomes an error row naming the probes tried. Pass a number,
 such as `--enclosure-radius 0.8`, to use one probe everywhere.
 
-The sensitivity rows of `static-suite` vary the *measurement* probe
+The sensitivity rows of `report --suite` vary the *measurement* probe
 (`--probe-radius`: 0, 1.0 and 1.4 Å by default) and keep each system's
 enclosure probe. A measurement probe too wide for the channel (1.4 Å in 1GRM,
 whose narrowest radius is about 1.33 Å) gives an `unresolved` row rather than
-failing the system. Options: [`benchmark`](../reference/cli/benchmark.md),
-[`static-suite`](../reference/cli/static-suite.md).
+failing the system. Options: [`report --benchmark`](../reference/cli/report.md),
+[`report --suite`](../reference/cli/report.md).
 
 :::{admonition} Interpreting results
 :class: crevice-interpret

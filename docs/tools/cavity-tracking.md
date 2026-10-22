@@ -1,16 +1,16 @@
 # Cavity tracking
 
-`crevice track-cavities` follows every cavity near a site through a
+`crevice trajectory --track` follows every cavity near a site through a
 trajectory and gives each one an identity that persists from frame to frame.
 It records when a cavity appears (birth) or disappears (death), splits into
 pieces or merges with another, and reports each identity's volume, position
-and lining residues over time. Unlike [`cavity-trajectory`](cavity-trajectory.md),
+and lining residues over time. Unlike [`trajectory --cavities`](cavity-trajectory.md),
 it needs no reference map and follows all cavities, not one.
 
 ## Quick start
 
 ```bash
-crevice track-cavities glut1_excerpt.gro glut1_excerpt.xtc \
+crevice trajectory --track glut1_excerpt.gro glut1_excerpt.xtc \
     --region glut1_site_candidate_region.json --radius 8 --workers 4 -o tracking
 ```
 
@@ -54,7 +54,7 @@ full definitions are in the [method note](../methods/cavity-tracking.md).
 | `--workers`, `--chunk` | 1, 50 | parallel processes and frames read at a time |
 | `--md-selection`, `--include-hetero` | protein, off | lipids and ions as walls |
 
-All options are listed under [`crevice track-cavities`](../reference/cli/track-cavities.md).
+All options are listed under [`crevice trajectory --track`](../reference/cli/trajectory.md).
 
 ## What you get
 

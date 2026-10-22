@@ -14,7 +14,7 @@ class ResidueDynamics:
     """Accumulate residue contacts and aligned centroid motion over trajectory frames.
 
     Used by ``crevice trajectory`` (``residue_dynamics`` of
-    :func:`crevice.trajectory.analyze_trajectory`) and ``cavity-trajectory``.
+    :func:`crevice.trajectory.analyze_trajectory`) and ``trajectory --cavities``.
     Call :meth:`add` once per frame with that frame's residue network (all frames
     must have the same residues and contact definition), then :meth:`finish`.
 

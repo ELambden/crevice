@@ -11,11 +11,11 @@ favourable. The underlying water-contact and SASA definitions are in
 ## Usage
 
 ```bash
-crevice hydration system.gro --trajectory run.xtc \
+crevice trajectory --water system.gro --trajectory run.xtc \
   --cavity-results path/to/system_cavity_statistics.json \
   --max-frames 1100 --out-dir results --prefix system
 
-crevice hydration structure.cif --volume-dx path/to/structure_volume.dx \
+crevice trajectory --water structure.cif --volume-dx path/to/structure_volume.dx \
   --out-dir results --prefix structure
 ```
 
@@ -99,10 +99,10 @@ imply pixel-identical images.
 
 ## Geometric role colours versus hydration colours
 
-The separate `residue-evidence` contexts use gold for direct boundary residues
+The separate `residues --evidence` contexts use gold for direct boundary residues
 and magenta for nonlocal partners, both as opaque sticks. Those colours describe
 geometric roles, not water occupancy. The standard context shows the top 12 per
-role by default, and `residue-evidence --stick-residues all` shows every
+role by default, and `residues --evidence --stick-residues all` shows every
 boundary residue and partner. Neither changes this hydration view's absolute
 occupancy scale. Missing water observations remain grey
 in hydration scenes, even when geometric role highlights are available.

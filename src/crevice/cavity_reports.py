@@ -1,5 +1,6 @@
 """Reusable reports from saved all-frame cavity arrays; no geometry reanalysis."""
 from pathlib import Path
+from ._portable_paths import dumps_record
 
 from .presentation import NON_CHANNEL_CAST_HEX, FigureText, annotate_option
 
@@ -173,7 +174,7 @@ def write_additional_cavity_reports(report,arrays,output_dir,*,prefix='crevice',
     metadata={'profiles':profiles,'empirical_band':'Fixed 2.5–97.5% quantiles of measured frames; not confidence bounds',
               'mean_band':f'{confidence:.0%} separate pointwise batch-bootstrap intervals; serial-dependence and coverage safeguards retained; not simultaneous confidence across coordinates',
               'statistical_options':options}
-    path('profile_statistics_json','_cavity_profile_statistics.json').write_text(json.dumps(metadata,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('profile_statistics_json','_cavity_profile_statistics.json')).write_text(dumps_record(metadata,_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     # Dynamic partner roles are recalculated in every frame, separate from the
     # reference-lining labels retained by the older motion report.
     partner_rows=[];ids=list(arrays['residue_ids']);motion={r['residue']:r for r in report['residue_dynamics']['residues']}

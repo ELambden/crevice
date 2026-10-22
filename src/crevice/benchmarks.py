@@ -1,7 +1,7 @@
 """Named benchmark structures and their curation status.
 
 This module registers a small set of RCSB entries used for end-to-end and
-scalability checks (``crevice benchmark``, ``crevice static-suite``) and
+scalability checks (``crevice report --benchmark``, ``crevice report --suite``) and
 restricts benchmark downloads to that set. Fetching is delegated to
 :mod:`crevice.pdb`.
 
@@ -312,7 +312,7 @@ def fetch_benchmark_record(
         Cache directory (created); a valid cached file is reused.
     extension : {"cif", "pdb", "mmcif"}, default "cif"
         File format; the same default as :func:`crevice.pdb.fetch_structure`
-        and the ``--format`` option of ``crevice fetch``/``benchmark``.
+        and the ``--format`` option of ``crevice fetch``/``report --benchmark``.
     overwrite : bool, default False
         Download again even when a cached file exists.
     timeout : float, default 30.0

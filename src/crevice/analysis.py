@@ -99,7 +99,10 @@ def pore_profile(
     search_radius : float, default 6.0
         Transverse search half-width, Å; 0 = unvalidated fixed-axis scan.
     refinement_steps : int, default 4
-        Centre and mouth refinement iterations.
+        Slice-centre refinement (:meth:`crevice.sections.SectionGeometry.refine`):
+        0 keeps the grid-point centres; a positive value converges each centre
+        to its local clearance maximum (0.0001 Å) with at least this many step
+        halvings.
     probe_radius : float, default 0.0
         Measurement probe radius, Å, subtracted from each clearance.
     include_hydrogen : bool, default False

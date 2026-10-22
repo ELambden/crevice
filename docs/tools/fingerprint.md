@@ -1,6 +1,6 @@
 # Pore fingerprints
 
-`crevice fingerprint` puts what CREVICE measures about a channel on one path
+`crevice profile --fingerprint` puts what CREVICE measures about a channel on one path
 coordinate *s* (Å): the radius, how hydrophobic the residues lining the path
 are, which kinds of residue line each part, the ENTRY / LUMEN / EXIT segments,
 and, for an MD trajectory, the radius spread over frames and the water found
@@ -12,18 +12,21 @@ options (`--axis`, `--origin`, `--enclosure-radius`, `--lateral-exits` ...).
 
 The conductance is a geometric, order-of-magnitude estimate, not a
 measurement: it treats the pore as a tube of bulk electrolyte (see
-[Interpreting results](#fingerprint-interpreting)).
+[Interpreting results](#fingerprint-interpreting)). Against measured
+single-channel conductances of four open channels it was 1.5–17.6 times too
+high ([benchmarks](../methods/benchmarks.md)), so use it to compare pores,
+not to predict one.
 
 ## Quick start
 
 ```bash
-crevice fingerprint 1GRM --axis auto --out-dir 1GRM_fp --prefix 1GRM
-crevice fingerprint 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
+crevice profile --fingerprint 1GRM --axis auto --out-dir 1GRM_fp --prefix 1GRM
+crevice profile --fingerprint 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
     --out-dir 3UKM_fp --prefix 3UKM
-crevice fingerprint glut1_excerpt.gro --trajectory glut1_excerpt.xtc \
+crevice profile --fingerprint glut1_excerpt.gro --trajectory glut1_excerpt.xtc \
     --selection 'protein and not name H*' --axis z --lateral-exits --enclosure-radius 0.55 \
     --out-dir glut1_fp --prefix glut1
-crevice publish 1GRM --fingerprint --out-dir 1GRM_bundle     # the same files inside a publish bundle
+crevice report 1GRM --fingerprint --out-dir 1GRM_bundle     # the same files inside a report bundle
 ```
 
 ```python
@@ -45,7 +48,7 @@ For trajectories use {func}`crevice.fingerprint.fingerprint_trajectory`.
 to bulk solvent: the straight vestibule line at an open end, or the widest side
 exit at a capped end (`--lateral-exits`). Those samples sit at negative *s*
 (lower end) or beyond *L* (upper end). ENTRY and EXIT follow the same rule as
-`publish`'s cast segments (`--entry-end`).
+`report`'s cast segments (`--entry-end`).
 
 **Lining residues.** An atom lines a sample when its surface is within
 `--lining-shell` (1.4 Å, one water radius) of the largest atom-free sphere
@@ -86,7 +89,7 @@ electrolyte table, the formulas and the references.
 
 The channel options (`--axis`, `--origin`, `--enclosure-radius`,
 `--lateral-exits` ...) are those of [`profile`](profile.md), and every option
-is listed under [`crevice fingerprint`](../reference/cli/fingerprint.md).
+is listed under [`crevice profile --fingerprint`](../reference/cli/profile.md).
 
 ## What you get
 
@@ -124,6 +127,6 @@ all tools.
 :::
 
 Try it in the [pore fingerprint tutorial](../examples/pore-fingerprint.md),
-add it to a whole bundle with [`publish --fingerprint`](publish.md) (or
+add it to a whole bundle with [`report --fingerprint`](publish.md) (or
 `--outputs default,fingerprint`, or `--all`), or look
 at the same channel in 3D with [`crevice view`](view.md).

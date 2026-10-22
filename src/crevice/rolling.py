@@ -25,7 +25,7 @@ Method in brief
        cores and fills them with variable-radius atom-clear spheres
        (:func:`crevice.cavity_selection.dominant_sphere_fill`).
 
-Main entry points: :func:`rolling_probe_cast` (command ``crevice cast``),
+Main entry points: :func:`rolling_probe_cast` (command ``crevice cavities --cast``),
 :func:`select_cast_atoms`, :func:`chain_enclosed_regions`.
 
 Assumptions and limitations
@@ -43,6 +43,7 @@ import math
 import operator
 
 from .models import ChannelPoint, VoidCast, VoidComponent
+from .parser import PEPTIDE_BOND_MAX_A, polymer_linked_residues
 from .radii import RadiusSet, atom_vdw_radius, radii_option
 
 
@@ -203,12 +204,15 @@ def _ray_enclosure(blocked):
 
 
 def select_cast_atoms(frame, selection='protein'):
-    """Explicit input policy; preserve nonstandard polymer ATOM records.
+    """Explicit input policy: which heavy atoms are the walls of a cast.
 
-    ``"protein"`` means non-HETATM heavy atoms for PDB/mmCIF. GRO input has
-    already applied its MDAnalysis selection. ``"all"`` retains every heavy
-    atom. This does not infer that a bound ligand is absent in the experimental
-    conformation.
+    ``"protein"`` means heavy atoms not marked hetero. The readers mark polymer
+    residues deposited as HETATM (D-amino acids, selenomethionine, other
+    modified residues) as polymer by default (``hetero_polymer="include"`` in
+    :func:`crevice.parser.load_structure_report`), so they are walls too.
+    GRO input has already applied its MDAnalysis selection. ``"all"`` retains
+    every heavy atom. This does not infer that a bound ligand is absent in the
+    experimental conformation.
 
     Parameters
     ----------
@@ -222,7 +226,12 @@ def select_cast_atoms(frame, selection='protein'):
         Copy of ``frame`` containing only the selected atoms.
     report : dict
         ``selection``, ``input_atoms``, ``selected_atoms``,
-        ``excluded_residue_atom_counts`` (by residue name) and ``definition``.
+        ``excluded_residue_atom_counts`` (by residue name),
+        ``polymer_hetero_residues_excluded`` (residue count per name of the
+        excluded hetero residues that are nevertheless peptide-bonded into a
+        chain, :func:`crevice.parser.polymer_linked_residues`; empty unless the
+        structure was read with ``hetero_polymer="exclude"`` or built by hand)
+        and ``definition``.
 
     Raises
     ------
@@ -233,11 +242,32 @@ def select_cast_atoms(frame, selection='protein'):
         raise ValueError('selection must be protein or all')
     atoms = frame.selected_atoms(include_hydrogen=False, include_hetero=selection == 'all')
     keep = set(atoms)
+    excluded = [a for a in frame.atoms if a not in keep]
     return replace(frame, atoms=atoms), {
         'selection': selection, 'input_atoms': len(frame.atoms), 'selected_atoms': len(atoms),
-        'excluded_residue_atom_counts': dict(sorted(Counter(a.resname for a in frame.atoms if a not in keep).items())),
-        'definition': 'non-HETATM heavy atoms' if selection == 'protein' else 'all heavy atoms',
+        'excluded_residue_atom_counts': dict(sorted(Counter(a.resname for a in excluded).items())),
+        'polymer_hetero_residues_excluded': _peptide_linked_hetero(frame.atoms, excluded),
+        'polymer_hetero_definition': ('excluded hetero residues peptide-bonded into a chain (N or C within '
+                                      f'{PEPTIDE_BOND_MAX_A:g} A of a C or N atom of another residue of the same '
+                                      'chain, connected to a non-hetero residue), counted by residue name'),
+        'definition': 'non-hetero heavy atoms' if selection == 'protein' else 'all heavy atoms',
     }
+
+
+def _peptide_linked_hetero(atoms, excluded):
+    """Residue-name counts of excluded hetero residues peptide-bonded into a chain.
+
+    Same rule as the readers (:func:`crevice.parser.polymer_linked_residues`,
+    without SEQRES/MODRES). Diagnostic only: nothing is added back.
+    """
+    hetero = {a.residue_key for a in excluded if a.hetero}
+    if not hetero:
+        return {}
+    keys = [a.residue_key for a in atoms]
+    linked = polymer_linked_residues(keys, [a.chain_id for a in atoms], [a.name for a in atoms],
+                                     [a.coord for a in atoms], polymer={a.residue_key for a in atoms if not a.hetero},
+                                     candidates=hetero)
+    return dict(sorted(Counter(key.resname for key in linked).items()))
 
 
 @radii_option
@@ -287,7 +317,7 @@ def rolling_probe_cast(frame, *, spacing=0.5, probe_radius=0.8, outer_radius=6.0
         Components with a smaller swept volume (Å³) are discarded.
     max_components : int, optional
         Keep at most this many components (largest first). No limit by
-        default. ``crevice cast`` uses 1.
+        default. ``crevice cavities --cast`` uses 1.
     min_depth : float, default 0.0
         Extra distance (Å) that inner-probe spheres must keep from the outer
         envelope boundary; larger values trim pocket mouths.
@@ -296,12 +326,12 @@ def rolling_probe_cast(frame, *, spacing=0.5, probe_radius=0.8, outer_radius=6.0
         (inflated by ``probe_radius``) for a probe centre to count as buried.
         In ``"all"`` mode this is a hard crop of the probe centres; in
         ``"dominant"`` mode it qualifies cores only, and the sphere fill can
-        extend beyond them. ``crevice cast`` uses 0.9.
+        extend beyond them. ``crevice cavities --cast`` uses 0.9.
     selection_mode : {"all", "dominant"}, default "all"
         ``"all"``: every inner-probe component. ``"dominant"``: substantial
         buried cores filled with spheres of radius ``min(clearance, depth)``
         (see :func:`crevice.cavity_selection.dominant_sphere_fill`).
-        ``crevice cast`` uses ``"dominant"``.
+        ``crevice cavities --cast`` uses ``"dominant"``.
     core_fraction : float, default 0.08
         Dominant mode: minimum core size relative to the largest core.
     max_grid_points : int, default 16000000
@@ -354,7 +384,7 @@ def rolling_probe_cast(frame, *, spacing=0.5, probe_radius=0.8, outer_radius=6.0
 
     See Also
     --------
-    select_cast_atoms : Obstacle-atom policy used by ``crevice cast``.
+    select_cast_atoms : Obstacle-atom policy used by ``crevice cavities --cast``.
     crevice.voids.void_cast : Clearance-grid casts without an outer probe.
 
     Examples
@@ -528,6 +558,7 @@ def rolling_probe_cast(frame, *, spacing=0.5, probe_radius=0.8, outer_radius=6.0
                                     'nearest_chain_point_counts': dict(near_chains),
                                     'span_world_A': np.ptp(world,axis=0).tolist(),
                                     'interpretation': 'selected geometric cavity region, not an assigned biological channel'}))
+    stability = _selection_stability(decisions, kept, dominance, spacing)
     full = tuple(p for c in components for p in c.points)
     stride = max(1, math.ceil(len(full)/max_export_points))
     display = tuple(replace(p,index=i) for i,p in enumerate(full[::stride]))
@@ -549,12 +580,60 @@ def rolling_probe_cast(frame, *, spacing=0.5, probe_radius=0.8, outer_radius=6.0
         'volume_definition': (dominance['fill_definition'] if dominance is not None else
                               'sampled small-probe swept void clipped to outer envelope; atom-clear sample centers'),
         'uncertainty': 'grid and probe dependent; voxel surfaces are approximate; no convergence or functional assignment implied',
-        'selection': decisions, 'min_component_volume_A3': min_component_volume,
+        'selection': decisions, 'selection_stability': stability, 'min_component_volume_A3': min_component_volume,
         'max_components': max_components, 'min_depth_A': min_depth,
         'enclosure_fraction': enclosure_fraction, 'enclosure_directions': 26,
         'enclosure_required_rays': math.ceil(26*enclosure_fraction),
         'enclosure_definition': _enclosure_definition(selection_mode, enclosure_fraction), 'source_component_count': len(order),
     })
+
+
+#: A dropped region at least this fraction of the smallest retained one is a near tie.
+NEAR_TIE_FRACTION = 0.8
+
+
+def _selection_stability(decisions, kept, dominance, spacing):
+    """Flag region selections that can flip with grid spacing or offset (diagnostic only).
+
+    ``near_tie``: a region dropped only by ``max_components`` has at least
+    ``NEAR_TIE_FRACTION`` of the smallest retained volume, so which one is
+    reported can change with the grid. ``grid_sensitive_grouping`` (dominant
+    mode): a retained region's cores would be grouped with other cores through
+    a neck within one grid tolerance of the probe radius
+    (:func:`crevice.cavity_selection._grouping_sensitivity`), so the region can
+    switch between one lobe and several. Either sets ``status`` to
+    ``"sensitive"`` and a ``message``; nothing is changed.
+    """
+    retained = [d for d in decisions if d['decision'] == 'retained']
+    dropped = [d for d in decisions if d['decision'] == 'component_limit']
+    report = {'status': 'stable', 'near_tie': None, 'grid_sensitive_grouping': [], 'message': None,
+              'near_tie_fraction': NEAR_TIE_FRACTION,
+              'definition': ('diagnostic of the region selection at this grid; it changes no result. Compare runs '
+                             'at a finer spacing (for example 0.25 A) before interpreting a flagged volume')}
+    notes = []
+    if retained and dropped:
+        smallest = min(d['volume_A3'] for d in retained)
+        runner = max(dropped, key=lambda d: d['volume_A3'])
+        if runner['volume_A3'] >= NEAR_TIE_FRACTION*smallest:
+            report['near_tie'] = {'retained_volume_A3': smallest, 'dropped_volume_A3': runner['volume_A3'],
+                                  'dropped_source_component_id': runner['source_component_id']}
+            notes.append(f"a region of {runner['volume_A3']:.1f} A^3 was dropped by the region limit next to a "
+                         f"retained one of {smallest:.1f} A^3")
+    if dominance is not None:
+        regions = {r['region_id']: r for r in dominance.get('regions', [])}
+        cores = {c for label in kept for c in regions.get(label, {}).get('core_ids', [])}
+        groups = (dominance.get('grouping_sensitivity') or {}).get('joined_groups', [])
+        report['grid_sensitive_grouping'] = [g for g in groups if cores.intersection(g)]
+        if report['grid_sensitive_grouping']:
+            notes.append(f"cores {report['grid_sensitive_grouping']} are joined through a neck within "
+                         f"{spacing*math.sqrt(3)/2:.2f} A of the probe radius, so the region can switch between "
+                         "one lobe and several")
+    if notes:
+        report['status'] = 'sensitive'
+        report['message'] = (f"cast region selection is grid-sensitive at {spacing:g} A: " + "; ".join(notes) +
+                             ". The volume can change discontinuously with spacing or grid offset; compare a run "
+                             "at a finer spacing (for example --spacing 0.25)")
+    return report
 
 
 def _enclosure_definition(selection_mode, enclosure_fraction):

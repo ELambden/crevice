@@ -1,5 +1,6 @@
 """Standard-analysis hydration integration; solvent stays outside pore geometry."""
 from pathlib import Path
+from ._portable_paths import dumps_record
 import json
 
 from .presentation import annotate_option
@@ -17,7 +18,7 @@ def hydration_dependencies():
 def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None,volume_path=None,residue_ids=None,roles=None,
                             cutoff=3.5,sasa_probe=1.4,sasa_samples=256,dpi=200,analysis_options=None,annotate=None,
                             radii: RadiusSet | str | None = None):
-    """Measure and write hydration for one structure (``crevice hydration`` without a trajectory).
+    """Measure and write hydration for one structure (``crevice trajectory --water`` without a trajectory).
 
     The residue focus is ``residue_ids``, else the boundary residues and
     nonlocal partners of ``volume_path`` (see
@@ -102,7 +103,7 @@ def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None
         frame=full
     if residue_ids is not None and not residue_ids:
         root=Path(output_dir);root.mkdir(parents=True,exist_ok=True);p=root/(prefix+'_hydration.json')
-        p.write_text(json.dumps({'status':'unavailable_no_identified_residues','residues':[],'interpretation':'No pore/cavity residue focus was available; not evidence of absent hydration'},indent=2)+'\n', encoding="utf-8", newline="\n")
+        p.write_text(dumps_record({'status':'unavailable_no_identified_residues','residues':[],'interpretation':'No pore/cavity residue focus was available; not evidence of absent hydration'},p,indent=2)+'\n', encoding="utf-8", newline="\n")
         return {'hydration_json':str(p)}
     result=static_hydration(frame,residue_ids=residue_ids,box=box,cutoff=cutoff,sasa_probe=sasa_probe,sasa_samples=sasa_samples)
     if evidence is not None:result['boundary_area_by_residue_A2']={r['residue']:r['boundary_area_A2'] for r in evidence['residues']}
@@ -114,7 +115,7 @@ def static_hydration_bundle(frame,output_dir,*,prefix='crevice',source_path=None
 def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,roles=None):
     """Add the standard hydration bundle to a CLI command's outputs.
 
-    Used by ``cast``, ``publish``, ``analyze`` and ``residue-evidence``: when
+    Used by ``cavities --cast``, ``report``, ``report --analyze`` and ``residues --evidence``: when
     the active output plan includes ``hydration`` (``--outputs hydration`` or
     ``--all``; without a plan, unless ``--skip-hydration``), runs
     :func:`static_hydration_bundle` with the command's hydration options and
@@ -150,7 +151,7 @@ def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,role
     missing=hydration_dependencies()
     if missing:
         root=Path(args.out_dir);root.mkdir(parents=True,exist_ok=True);p=root/(prefix+'_hydration.json')
-        p.write_text(json.dumps({'status':'unavailable_missing_required_dependencies','missing':missing,'install':'reinstall CREVICE (pip install --force-reinstall crevice)','other_analyses_retained':True},indent=2)+'\n', encoding="utf-8", newline="\n")
+        p.write_text(dumps_record({'status':'unavailable_missing_required_dependencies','missing':missing,'install':'reinstall CREVICE (pip install --force-reinstall crevice)','other_analyses_retained':True},p,indent=2)+'\n', encoding="utf-8", newline="\n")
         extra={'hydration_json':str(p)}
     else:
         extra=static_hydration_bundle(frame,args.out_dir,prefix=prefix,source_path=source_path,volume_path=files.get('volume_dx'),
@@ -158,7 +159,7 @@ def append_static_hydration(args,frame,source_path,files,*,residue_ids=None,role
     files.update(extra)
     manifest=files.get('manifest_json')
     if manifest:
-        p=Path(manifest);data=json.loads(p.read_text(encoding="utf-8"));data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n', encoding="utf-8", newline="\n")
+        p=Path(manifest);data=json.loads(p.read_text(encoding="utf-8"));data['files'].update(extra);p.write_text(dumps_record(data,p,indent=2)+'\n', encoding="utf-8", newline="\n")
     return extra
 
 
@@ -207,7 +208,7 @@ def append_residue_interactions(args,frame,source_path,files,*,residue_ids=None)
     files.update(extra)
     manifest=files.get('manifest_json')
     if manifest:
-        p=Path(manifest);data=json.loads(p.read_text(encoding="utf-8"));data['files'].update(extra);p.write_text(json.dumps(data,indent=2)+'\n', encoding="utf-8", newline="\n")
+        p=Path(manifest);data=json.loads(p.read_text(encoding="utf-8"));data['files'].update(extra);p.write_text(dumps_record(data,p,indent=2)+'\n', encoding="utf-8", newline="\n")
     return extra
 
 
@@ -217,8 +218,8 @@ def analysis_options_from_args(args):
     Parameters
     ----------
     args : argparse.Namespace
-        Parsed arguments of ``hydration``, ``publish``, ``cavity-trajectory`` or
-        ``region-trajectory``; missing attributes take their defaults.
+        Parsed arguments of ``hydration``, ``report``, ``trajectory --cavities`` or
+        ``trajectory --region``; missing attributes take their defaults.
 
     Returns
     -------

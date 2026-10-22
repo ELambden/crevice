@@ -18,6 +18,7 @@ import pytest
 
 #: Test node ids (parameters stripped) of the slow tests, longest first.
 SLOW_TESTS = {
+    "tests/test_command_aliases.py::test_old_command_and_new_form_write_identical_outputs",
     "tests/test_surface_smoothing.py::test_publication_measurements_identical_with_and_without_smoothing",
     "tests/test_output_inventory.py::test_analyze_single_commands_and_trajectory_write_csv_companions",
     "tests/test_capped_channels.py::test_through_channel_is_unchanged_by_the_option",
@@ -40,7 +41,6 @@ SLOW_TESTS = {
     "tests/test_region_definition.py::test_region_cli_runs_each_frame_and_retains_region_provenance",
     "tests/test_region_radii.py::test_hydration_cavity_results_uses_or_checks_the_recorded_set",
     "tests/test_publish_fallback_and_sticks.py::test_unresolved_profile_completes_requested_extras_without_a_profile",
-    "tests/test_output_policy.py::test_legacy_outputs_reproduce_the_020_file_set_and_numbers",
     "tests/test_output_policy.py::test_exact_inventories_of_default_selected_and_all_modes",
     "tests/test_output_policy.py::test_cli_and_python_give_identical_numbers_and_files",
     "tests/test_output_policy.py::test_renderer_guard_writes_no_scene_or_html_unless_requested",

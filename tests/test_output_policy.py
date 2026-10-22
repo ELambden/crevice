@@ -2,8 +2,9 @@
 
 * exact file inventories of the compact default, selected (``--outputs figures``,
   ``--outputs pymol``) and ``--all`` modes (``tests/data/output_inventory_0.3.json``);
-* ``--legacy-outputs`` reproduces the CREVICE 0.2.0 file sets exactly
-  (``tests/data/legacy_inventory_0.2.0.json``) with unchanged numbers;
+* the numbers equal the CREVICE 0.2.0 record (``tests/data/legacy_inventory_0.2.0.json``;
+  numbers that depend on profile section centres were updated in 0.4.0;
+  ``--legacy-outputs``, which reproduced the 0.2.0 file sets, was removed in 0.4);
 * no viewer script or HTML unless its file kind is requested (renderer guard);
 * CLI and Python give the same numbers; ``--dry-run`` writes nothing;
   settings round-trip through ``--print-config``/``--config``;
@@ -27,24 +28,18 @@ EXPECTED = json.loads((DATA / "output_inventory_0.3.json").read_text(encoding="u
 SCRIPT_SUFFIXES = (".pml", ".vmd", ".tcl", ".cxc", ".bild", "_chimerax.py", ".html")
 
 
-@pytest.mark.parametrize("name", sorted(CASES))
-def test_legacy_outputs_reproduce_the_020_file_set_and_numbers(name, tmp_path):
-    from crevice.outputs import COMMANDS
-    argv0 = CASES[name](tmp_path / "probe", tmp_path / "probe_out")[0][0]
-    extra = ["--legacy-outputs"] if argv0 in COMMANDS else []
-    with pytest.warns(DeprecationWarning) if extra else _nothing():
-        result = run_case(name, tmp_path / "run", extra)
-    assert result["exit"] == 0
-    assert result["files"] == LEGACY[name]["files"]
-    assert result["numbers"] == LEGACY[name]["numbers"]
-
-
-class _nothing:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
+def test_legacy_outputs_was_removed_in_04(tmp_path, capsys):
+    """``--legacy-outputs`` (deprecated in 0.3) is gone; 0.3 settings files that record it as false still load."""
+    from crevice.config import flatten_settings
+    pdb = channel_pdb(tmp_path)
+    with pytest.raises(SystemExit):
+        main(["report", str(pdb), "--offline", "--out-dir", str(tmp_path / "o"), "--legacy-outputs"])
+    assert "--legacy-outputs" in capsys.readouterr().err
+    with pytest.raises(OutputSelectionError, match="removed in 0.4"):
+        resolve_outputs("publish", "legacy")
+    assert "legacy_outputs" not in flatten_settings({"command": "publish", "outputs": {"legacy_outputs": False}})
+    with pytest.raises(ValueError, match="removed in CREVICE 0.4"):
+        flatten_settings({"command": "publish", "outputs": {"legacy_outputs": True}})
 
 
 @pytest.mark.parametrize("mode", sorted(EXPECTED))
@@ -77,7 +72,7 @@ def test_default_publish_has_three_viewers_key_figures_and_no_water_files(tmp_pa
     assert not [f for f in files if f.startswith(("c_cavities", "c_tunnels", "c_network"))]
     manifest = json.loads((tmp_path / "out" / "c_manifest.json").read_text(encoding="utf-8"))
     for path in manifest["files"].values():
-        assert Path(path).is_file(), path
+        assert (tmp_path / "out" / path).is_file(), path   # recorded relative to the manifest
     run = manifest["run"]
     assert run["outputs"]["mode"] == "default" and run["outputs"]["optional_analyses_run"] == ["interactions"]
     assert run["settings"]["geometry"]["samples"] == 21 and run["non_default_settings"]["samples"] == "cli"
@@ -106,11 +101,11 @@ def test_residue_interactions_equal_the_hydration_workflow_without_water_terms(t
 
 def test_dry_run_writes_nothing_and_prints_the_plan(tmp_path, capsys):
     out = tmp_path / "out"
-    assert main(["publish", str(channel_pdb(tmp_path)), "--offline", "--out-dir", str(out), "--all", "--dry-run"]) == 0
+    assert main(["report", str(channel_pdb(tmp_path)), "--offline", "--out-dir", str(out), "--all", "--dry-run"]) == 0
     assert not out.exists()
     assert sorted(p.name for p in tmp_path.iterdir()) == ["channel.identities.json", "channel.pdb"]
     err = capsys.readouterr().err
-    assert "crevice publish plan (--all)" in err and "nothing was read or written" in err
+    assert "crevice report plan (--all)" in err and "nothing was read or written" in err
 
 
 def test_cli_and_python_give_identical_numbers_and_files(tmp_path):
@@ -119,7 +114,7 @@ def test_cli_and_python_give_identical_numbers_and_files(tmp_path):
     from crevice.parser import load_structure
     pdb = channel_pdb(tmp_path)
     args = dict(samples=21, search_radius=8, dpi=40, prefix="c")   # ints become floats as on the command line
-    assert main(["publish", str(pdb), "--offline", "--samples", "21", "--search-radius", "8", "--dpi", "40",
+    assert main(["report", str(pdb), "--offline", "--samples", "21", "--search-radius", "8", "--dpi", "40",
                  "--prefix", "c", "--out-dir", str(tmp_path / "cli")]) == 0
     record = run(settings("publish", str(pdb), offline=True, out_dir=str(tmp_path / "py"), **args))
     assert record["plan"]["mode"] == "default"
@@ -150,7 +145,7 @@ def test_compute_writes_nothing_and_export_matches_the_wrapper(tmp_path):
 
 def test_settings_round_trip_through_print_config_and_config(tmp_path, capsys):
     pdb = channel_pdb(tmp_path)
-    argv = ["publish", str(pdb), "--out-dir", str(tmp_path / "o"), "--samples", "31", "--outputs", "figures",
+    argv = ["report", str(pdb), "--out-dir", str(tmp_path / "o"), "--samples", "31", "--outputs", "figures",
             "--cast-spacing", "0.75", "--focus", "1", "2", "3", "--origin", "0,0,1"]
     assert main(argv + ["--print-config"]) == 0
     printed = json.loads(capsys.readouterr().out)
@@ -158,10 +153,10 @@ def test_settings_round_trip_through_print_config_and_config(tmp_path, capsys):
     assert printed["outputs"]["outputs"] == "figures" and printed["geometry"]["origin"] == [0.0, 0.0, 1.0]
     config = tmp_path / "run.json"
     config.write_text(json.dumps(printed), encoding="utf-8", newline="\n")
-    assert main(["publish", str(pdb), "--config", str(config), "--print-config"]) == 0
+    assert main(["report", str(pdb), "--config", str(config), "--print-config"]) == 0
     assert json.loads(capsys.readouterr().out) == printed
     # Command-line flags override the file.
-    assert main(["publish", str(pdb), "--config", str(config), "--samples", "41", "--print-config"]) == 0
+    assert main(["report", str(pdb), "--config", str(config), "--samples", "41", "--print-config"]) == 0
     assert json.loads(capsys.readouterr().out)["geometry"]["samples"] == 41
     from crevice.config import RunSettings
     assert RunSettings.from_dict(printed).to_dict() == printed
@@ -169,14 +164,14 @@ def test_settings_round_trip_through_print_config_and_config(tmp_path, capsys):
 
 def test_settings_are_validated_before_any_input_is_read(tmp_path, capsys):
     missing = str(tmp_path / "absent.pdb")
-    assert main(["publish", missing, "--out-dir", str(tmp_path / "o"), "--section-spacing", "-1"]) == 2
+    assert main(["report", missing, "--out-dir", str(tmp_path / "o"), "--section-spacing", "-1"]) == 2
     assert "--section-spacing must be positive" in capsys.readouterr().err
-    assert main(["residue-evidence", missing, "--volume-dx", str(tmp_path / "no.dx"), "--out-dir", str(tmp_path)]) == 2
+    assert main(["residues", "--evidence", missing, "--volume-dx", str(tmp_path / "no.dx"), "--out-dir", str(tmp_path)]) == 2
     assert "no.dx does not exist" in capsys.readouterr().err
     bad = tmp_path / "bad.json"
     bad.write_text(json.dumps({"command": "publish", "geometry": {"no_such_option": 1}}), encoding="utf-8", newline="\n")
     with pytest.raises(SystemExit):
-        main(["publish", missing, "--out-dir", str(tmp_path / "o"), "--config", str(bad)])
+        main(["report", missing, "--out-dir", str(tmp_path / "o"), "--config", str(bad)])
     assert not (tmp_path / "o").exists()
 
 
@@ -188,8 +183,6 @@ def test_output_vocabulary_resolution_rules():
     assert resolve_outputs("publish", "viewers").viewers == ("pymol", "vmd", "chimerax")
     assert not resolve_outputs("publish", skip=["interactions"]).runs("interactions")
     assert resolve_outputs("cavity-trajectory", default_analyses=("hydration", "interactions")).runs("hydration")
-    legacy = resolve_outputs("publish", legacy=True, skip=["hydration"])
-    assert not legacy.runs("interactions")   # 0.2 ran them only inside hydration
     for bad in [dict(outputs="nonsense"), dict(outputs="figures", all_outputs=True),
                 dict(outputs="hydration", skip=["hydration"])]:
         with pytest.raises(OutputSelectionError):

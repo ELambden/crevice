@@ -17,6 +17,8 @@ from __future__ import annotations
 import csv
 import json
 from pathlib import Path
+from ._script_paths import PYMOL_INPUT, script_relative
+from ._portable_paths import dumps_record
 from typing import Any, Iterable, Sequence
 
 from .models import Cavity, ChannelPoint, PoreProfile, ResidueContact, ResidueInteractionNetwork, TrajectoryAnalysis, Tunnel, VoidCast
@@ -545,7 +547,12 @@ SUMMARY_STATISTICS_FIELDS = (
     "first_half_mean", "second_half_mean", "statistical_inefficiency", "effective_frames",
     "interval_status", "interval_method", "interval_confidence", "mean_lower", "mean_upper",
     "simultaneous_lower", "simultaneous_upper", "block_length_frames", "replicates",
+    # Added in 0.4 (crevice.uncertainty.sampling_uncertainty); earlier columns are unchanged.
+    "effective_sample_size", "integrated_autocorrelation_time_frames", "autocorrelation_window_frames",
+    "blocking_standard_error", "blocking_block_size_frames", "block_bootstrap_status", "block_bootstrap_lower",
+    "block_bootstrap_upper", "block_bootstrap_standard_error", "block_bootstrap_block_length_frames",
 )
+_SAMPLING_COLUMNS = SUMMARY_STATISTICS_FIELDS[27:]
 _SERIES_FIELDS = SUMMARY_STATISTICS_FIELDS[3:18]
 
 
@@ -617,6 +624,14 @@ def summary_statistics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             example occupancies to [0, 1]) are copied as clipped.
         ``block_length_frames``, ``replicates``
             Bootstrap settings, when an interval was attempted.
+        ``effective_sample_size`` ... ``block_bootstrap_block_length_frames``
+            Added in 0.4 from the record's ``sampling_uncertainty``
+            (:func:`crevice.uncertainty.sampling_uncertainty`): effective
+            sample size ``N / tau_int``, the integrated autocorrelation time
+            and its Sokal window (frames), the Flyvbjerg–Petersen blocking
+            standard error and block size (frames), and the moving-block
+            bootstrap status, bounds, standard error and block length
+            (frames). Empty where not estimated.
 
     Examples
     --------
@@ -651,6 +666,8 @@ def summary_statistics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
                        simultaneous_upper=blank(_single(interval.get("simultaneous_upper"))),
                        block_length_frames=blank(interval.get("block_length_frames")),
                        replicates=blank(interval.get("replicates")))
+            sampling = node.get("sampling_uncertainty") or {}
+            row.update({key: blank(sampling.get(key)) for key in _SAMPLING_COLUMNS})
             rows.append(row)
         elif isinstance(node, dict):
             for key, value in node.items():
@@ -832,8 +849,10 @@ def export_pymol_script(
     Used by ``crevice profile --pymol``. The dummy-atom PDB (one atom per
     profile sample, B-factor = radius in Å) is shown as translucent spheres of
     that radius coloured by radius, with a surface of the same spheres, inside
-    the protein cartoon. Files are read from the working directory when
-    present there, else from their absolute paths. No text is drawn.
+    the protein cartoon. The script holds no absolute path: each file is
+    named relative to the script's folder and looked up next to the script,
+    then in the working directory (an error names a missing file); the PNG is
+    written next to the script. No text is drawn.
 
     Parameters
     ----------
@@ -869,17 +888,14 @@ def export_pymol_script(
     """
 
     _ensure_parent(script_path)
-    structure_abs = Path(structure_path).resolve()
-    dummy_abs = Path(dummy_path).resolve()
-    structure_local = structure_abs.name
-    dummy_local = dummy_abs.name
+    script_dir = Path(script_path).parent
+    structure_local = script_relative(structure_path, script_dir)
+    dummy_local = script_relative(dummy_path, script_dir)
     png_block = ""
     if output_png is not None:
-        png_abs = Path(output_png).resolve()
-        png_local = png_abs.name
+        png_local = script_relative(output_png, script_dir)
         png_block = f"""python
-_required = [{structure_local!r}, {dummy_local!r}]
-_png_target = _crevice_output({png_local!r}, {str(png_abs)!r}, _required)
+_png_target = _crevice_output({png_local!r})
 cmd.ray({width}, {height})
 cmd.png(_png_target, dpi={dpi})
 python end
@@ -903,19 +919,16 @@ set_color crevice_pink, [1.00, 0.05, 0.55]
 set_color crevice_deep_blue, [0.08, 0.18, 0.55]
 python
 from pathlib import Path
+import inspect
 from pymol import cmd
 
-def _crevice_input(local_name, fallback):
-    local = Path.cwd() / local_name
-    return str(local if local.exists() else Path(fallback))
+{PYMOL_INPUT}
 
-def _crevice_output(local_name, fallback, required_local_inputs):
-    if all((Path.cwd() / name).exists() for name in required_local_inputs):
-        return str(Path.cwd() / local_name)
-    return str(Path(fallback))
+def _crevice_output(name):
+    return str(_crevice_script_root / name)
 
-cmd.load(_crevice_input({structure_local!r}, {str(structure_abs)!r}), 'crevice_cartoon')
-cmd.load(_crevice_input({dummy_local!r}, {str(dummy_abs)!r}), {object_name!r})
+cmd.load(crevice_input({structure_local!r}), 'crevice_cartoon')
+cmd.load(crevice_input({dummy_local!r}), {object_name!r})
 python end
 hide everything, crevice_cartoon
 show cartoon, crevice_cartoon
@@ -942,7 +955,7 @@ zoom crevice_cartoon or {object_name} or crevice_pore_fill, 6
 
 def _write_json(data: object, path: str | Path) -> None:
     _ensure_parent(path)
-    Path(path).write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    Path(path).write_text(dumps_record(data, path, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def _ensure_parent(path: str | Path) -> None:

@@ -28,12 +28,12 @@ def test_cli_distribution_artifacts(tmp_path):
 def test_publish_map_when_cavity_analysis_skipped(tmp_path):
     structure = tmp_path / "input.pdb"
     structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
-    assert main(["publish", str(structure), "--out-dir", str(tmp_path / "out"),
+    assert main(["report", str(structure), "--out-dir", str(tmp_path / "out"),
                  "--axis", "z", "--search-radius", "0", "--samples", "5",
                  "--cast-spacing", "1", "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "60"]) == 0
     manifest = json.loads((tmp_path / "out/input_manifest.json").read_text(encoding="utf-8"))
     for key in ("volume_dx", "volume_pml", "volume_tcl", "volume_cxc"):
-        assert Path(manifest["files"][key]).is_file()
+        assert (tmp_path / "out" / manifest["files"][key]).is_file()   # relative to the manifest
 
 
 def test_batch_reports_bad_file_and_continues(tmp_path):
@@ -48,9 +48,10 @@ def test_batch_reports_bad_file_and_continues(tmp_path):
     assert result["systems"][0]["status"] == "error"
     assert "ValueError" in result["systems"][0]["error"]
     assert result["systems"][1]["status"] != "error"
-    manifest = json.loads(Path(result["manifests"]["2CHB"]).read_text(encoding="utf-8"))
+    manifest_path = Path(result["manifests"]["2CHB"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     for key in ("volume_dx", "volume_pml", "volume_tcl", "volume_cxc"):
-        assert Path(manifest["files"][key]).is_file()
+        assert (manifest_path.parent / manifest["files"][key]).is_file()   # relative to the manifest
 
 
 def test_suite_rows_carry_curation_status(tmp_path):

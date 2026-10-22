@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from crevice._portable_paths import resolve_files
+
 import crevice.figures as figures
 from crevice.cli import main
 from crevice.presentation import write_viewer_structure
@@ -66,7 +68,7 @@ PROFILE_ARGS = ['--offline', '--samples', '21', '--search-radius', '8']
 @pytest.fixture(scope='module')
 def published(tmp_path_factory, channel_pdb):
     root = tmp_path_factory.mktemp('publish')
-    assert main(['publish', str(channel_pdb), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
+    assert main(['report', str(channel_pdb), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
                  '--hydration-sasa-points', '32', '--out-dir', str(root), '--prefix', 'c',
                  '--outputs', 'default,figures,hydration,cavities,tunnels,network']) == 0
     return root
@@ -75,7 +77,7 @@ def published(tmp_path_factory, channel_pdb):
 def test_publish_default_inventory_is_csv_first_without_html(published):
     _assert_clean_inventory(published)
     manifest = json.loads((published / 'c_manifest.json').read_text(encoding="utf-8"))
-    files = manifest['files']
+    files = resolve_files(manifest['files'], published)   # recorded relative to the manifest
     for key in ['profile_csv', 'residue_contacts_csv', 'void_cast_csv', 'cavities_csv', 'tunnels_csv',
                 'tunnel_points_csv', 'network_nodes_csv', 'network_edges_csv', 'hydration_residues_csv']:
         assert Path(files[key]).is_file(), key
@@ -103,7 +105,7 @@ def test_publish_default_inventory_is_csv_first_without_html(published):
 
 
 def test_hydration_views_write_frame_tables_and_no_html(published):
-    hydration = json.loads((published / 'c_hydration_manifest.json').read_text(encoding="utf-8"))['files']
+    hydration = resolve_files(json.loads((published / 'c_hydration_manifest.json').read_text(encoding="utf-8"))['files'], published)
     assert _header(hydration['hydration_frames_csv'])[:3] == ['frame_index', 'time_ps', 'residue']
     assert {'water_count', 'sasa_A2'} <= set(_header(hydration['hydration_frames_csv']))
     assert _header(hydration['hydration_region_frames_csv'])[:2] == ['frame_index', 'time_ps']
@@ -116,11 +118,11 @@ def test_hydration_views_write_frame_tables_and_no_html(published):
 
 def test_analyze_single_commands_and_trajectory_write_csv_companions(tmp_path, channel_pdb):
     out = tmp_path / 'analyze'
-    assert main(['analyze', str(channel_pdb), *PROFILE_ARGS, '--analysis', 'profile', '--analysis', 'residues',
+    assert main(['report', '--analyze', str(channel_pdb), *PROFILE_ARGS, '--analysis', 'profile', '--analysis', 'residues',
                  '--analysis', 'cavities', '--analysis', 'tunnels', '--analysis', 'network', '--analysis', 'features',
                  '--png', '--dpi', '40', '--skip-hydration', '--skip-interactions', '--out-dir', str(out), '--prefix', 'c']) == 0
     _assert_clean_inventory(out)
-    files = json.loads((out / 'c_manifest.json').read_text(encoding="utf-8"))['files']
+    files = resolve_files(json.loads((out / 'c_manifest.json').read_text(encoding="utf-8"))['files'], out)
     assert {'profile.json', 'profile.csv', 'residues.csv', 'cavities.json', 'cavities.csv', 'tunnels.json',
             'tunnels.csv', 'tunnel_points.csv', 'network.json', 'network_nodes.csv', 'network_edges.csv',
             'features.csv', 'profile.png', 'residues.png', 'cavities.png', 'network.png'} == set(files)
@@ -130,16 +132,16 @@ def test_analyze_single_commands_and_trajectory_write_csv_companions(tmp_path, c
 
     single = tmp_path / 'single'
     assert main(['cavities', str(channel_pdb), '--offline', '-o', str(single / 'cav.json')]) == 0
-    assert main(['tunnels', str(channel_pdb), '--offline', '-o', str(single / 'tun.json')]) == 0
-    assert main(['network', str(channel_pdb), *PROFILE_ARGS, '-o', str(single / 'net.json'),
+    assert main(['cavities', '--tunnels', str(channel_pdb), '--offline', '-o', str(single / 'tun.json')]) == 0
+    assert main(['residues', '--network', str(channel_pdb), *PROFILE_ARGS, '-o', str(single / 'net.json'),
                  '--connectivity-json', str(single / 'con.json')]) == 0
-    assert main(['features', str(channel_pdb), *PROFILE_ARGS, '-o', str(single / 'feat.json')]) == 0
+    assert main(['residues', '--features', str(channel_pdb), *PROFILE_ARGS, '-o', str(single / 'feat.json')]) == 0
     assert sorted(p.name for p in single.iterdir()) == sorted([
         'cav.json', 'cav.csv', 'tun.json', 'tun.csv', 'tun_points.csv', 'net.json', 'net_nodes.csv',
         'net_edges.csv', 'con.json', 'con.csv', 'con_groups.csv', 'feat.json', 'feat.csv'])
     assert _header(single / 'con.csv')[:3] == ['residue', 'group', 'is_lining']
     with pytest.raises(SystemExit):   # the tunnel summary figure was removed
-        main(['tunnels', str(channel_pdb), '--offline', '-o', str(single / 'x.json'), '--png', str(single / 'x.png')])
+        main(['cavities', '--tunnels', str(channel_pdb), '--offline', '-o', str(single / 'x.json'), '--png', str(single / 'x.png')])
 
     trajectory = tmp_path / 'trajectory'
     assert main(['trajectory', str(channel_pdb), str(channel_pdb), '-o', str(trajectory / 't.json'),
@@ -156,12 +158,12 @@ def test_cast_writes_region_table_and_no_preview(tmp_path):
     source = write_viewer_structure(rectangular_channel(half_x=4, half_y=5, half_length=8, capped=True),
                                     tmp_path / 'pocket.pdb')
     out = tmp_path / 'cast'
-    assert main(['cast', str(source), '--offline', '--out-dir', str(out), '--prefix', 'p', '--min-component-volume', '30',
+    assert main(['cavities', '--cast', str(source), '--offline', '--out-dir', str(out), '--prefix', 'p', '--min-component-volume', '30',
                  '--skip-hydration']) == 0
     _assert_clean_inventory(out)
     manifest = json.loads((out / 'p_manifest.json').read_text(encoding="utf-8"))
     assert 'cast_preview_png' not in manifest['files'] and not list(out.glob('*.png'))
-    rows = _rows(manifest['files']['void_cast_csv'])
+    rows = _rows(out / manifest['files']['void_cast_csv'])
     assert rows and sum(float(r['volume_A3']) for r in rows) == pytest.approx(manifest['void_cast']['total_volume'], abs=1e-9)
 
 

@@ -55,6 +55,7 @@ import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from ._portable_paths import dumps_record
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import urlopen
@@ -1148,7 +1149,9 @@ def read_provenance(path: str | Path) -> DownloadRecord | None:
     if not sidecar.exists():
         return None
     data = json.loads(sidecar.read_text(encoding="utf-8"))
-    return DownloadRecord(**{**data, "path": Path(data["path"])})
+    # 0.4 records the file relative to the sidecar; 0.3 recorded an absolute path.
+    from ._portable_paths import resolve_recorded
+    return DownloadRecord(**{**data, "path": resolve_recorded(data["path"], sidecar.parent)})
 
 
 def write_provenance(record: DownloadRecord) -> None:
@@ -1161,7 +1164,7 @@ def write_provenance(record: DownloadRecord) -> None:
         indented, overwriting any existing sidecar).
     """
     sidecar = provenance_path(record.path)
-    sidecar.write_text(json.dumps(record.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    sidecar.write_text(dumps_record(record.to_dict(), sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
 
 
 def verify_cached_structure(path: str | Path) -> DownloadRecord:

@@ -1,6 +1,6 @@
 """Cavity identities across trajectory frames: births, deaths, splits and merges.
 
-``crevice track-cavities`` (and :func:`track_cavities`) measures every cavity
+``crevice trajectory --track`` (and :func:`track_cavities`) measures every cavity
 component of each aligned trajectory frame on one fixed lattice, optionally
 restricted to a neighbourhood (for example a region's landmark anchor), and
 links components of consecutive measured frames by voxel overlap. Each linked
@@ -46,11 +46,13 @@ stated probes, lattice and thresholds; they are not biological states, and an
 event can be produced by noise in a small or barely connected component.
 """
 from __future__ import annotations
+from ._portable_paths import dumps_record
 
 from dataclasses import dataclass, field
 import math
 
 from .radii import RadiusSet, radii_fields, radii_option
+from .mdinput import accepts_md_objects as _accepts_md_objects
 
 LINK_DEFINITION = ("components of consecutive measured frames are linked when Jaccard |A&B|/|A|B| >= link_jaccard "
                    "or containment |A&B|/min(|A|,|B|) >= link_containment, on one fixed aligned lattice")
@@ -423,6 +425,7 @@ def _safe_measure(frame, reference, settings):
 
 
 @radii_option
+@_accepts_md_objects()
 def track_cavities(topology, trajectory=None, *, selection="protein", start=0, stop=None, stride=1, chunk=50,
                    spacing=0.5, probe_radius=1.4, outer_radius=6.0, min_volume=5.0, centre=None, radius=8.0,
                    region=None, alignment_residues=None, include_hetero=False, lining_cutoff=3.3,
@@ -432,8 +435,10 @@ def track_cavities(topology, trajectory=None, *, selection="protein", start=0, s
 
     Parameters
     ----------
-    topology : str or Path
-        Topology/structure file (GRO, PDB, ...).
+    topology : str, Path, Universe or AtomGroup
+        Topology or structure file, or a loaded ``MDAnalysis.Universe`` or
+        ``AtomGroup`` (``trajectory`` omitted; an AtomGroup replaces
+        ``selection``; see :mod:`crevice.mdinput`).
     trajectory : str or Path, optional
         Trajectory file; omit for the topology's frames.
     selection : str, default "protein"
@@ -573,15 +578,16 @@ def _ranked_identities(result):
                                                                r["identity"]))]
 
 
-def plot_tracking(result, path, *, dpi: int = 200, max_lanes: int = 30):
+def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
     """Identity volumes over time (top) and identity lifetimes with events (bottom).
 
     Parameters
     ----------
     result : dict
         From :func:`track_cavities` (or the same keys).
-    path : str or Path
+    path : str or Path, optional
         Output image.
+        ``None`` only returns the figure.
     dpi : int, default 200
         Resolution.
     max_lanes : int, default 30
@@ -609,11 +615,12 @@ def plot_tracking(result, path, *, dpi: int = 200, max_lanes: int = 30):
     """
     from pathlib import Path
     from matplotlib.lines import Line2D
-    from .figures import _pyplot, _save_figure, _style_axes
+    from .figures import _finish_figure, _pyplot, _style_axes
     from .presentation import FigureText
     plt = _pyplot()
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
+    output = Path(path) if path is not None else None
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
     text = FigureText("Cavity identities tracked across trajectory frames by voxel overlap: volume of each identity "
                       "against time (top) and identity lifetimes with birth, death, split and merge events (bottom)")
     ranked = _ranked_identities(result)
@@ -690,8 +697,7 @@ def plot_tracking(result, path, *, dpi: int = 200, max_lanes: int = 30):
     text.note("Events: " + ", ".join(f"{k} {v}" for k, v in counts.items()))
     text.note(f"Identities: {len(ranked)}; coloured: {', '.join(map(str, ranked[:len(IDENTITY_COLORS)]))}")
     text.title(top, "CREVICE cavity tracking")
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: int = 200, figure: bool = True):
@@ -767,10 +773,11 @@ def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: i
                "identities": len(result["lifetimes"]), "event_counts": counts,
                "most_persistent": [r for r in sorted(result["lifetimes"], key=lambda r: -r["frames_present"])[:10]]}
     path = directory / f"{prefix}_tracking.json"
-    path.write_text(json.dumps(summary, indent=1, default=str) + "\n", encoding="utf-8", newline="\n")
+    path.write_text(dumps_record(summary, path, indent=1, default=str) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
     if figure:
-        written.append(plot_tracking(result, directory / f"{prefix}_tracking.png", dpi=dpi))
+        plot_tracking(result, directory / f"{prefix}_tracking.png", dpi=dpi)
+        written.append(directory / f"{prefix}_tracking.png")
     return written
 
 
@@ -779,7 +786,7 @@ def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: i
 # --------------------------------------------------------------------------
 
 def add_tracking_command(subparsers):
-    """Register ``crevice track-cavities`` on the CLI subparsers.
+    """Register ``crevice trajectory --track`` on the CLI subparsers.
 
     Parameters
     ----------
@@ -834,12 +841,12 @@ def add_tracking_command(subparsers):
 
 
 def run_tracking_command(args):
-    """Run ``crevice track-cavities`` from parsed arguments.
+    """Run ``crevice trajectory --track`` from parsed arguments.
 
     Parameters
     ----------
     args : argparse.Namespace
-        Parsed ``track-cavities`` arguments.
+        Parsed ``trajectory --track`` arguments.
     """
     from pathlib import Path
     result = track_cavities(args.topology, args.trajectory, selection=args.md_selection, start=args.start,

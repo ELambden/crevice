@@ -2,8 +2,8 @@
 
 [PDB 4PYP](https://www.rcsb.org/structure/4PYP) is human GLUT1 crystallised
 in an inward-open conformation. Its central cavity is open to one side only, so
-it is not a through-channel: `profile` refuses it and `cast` measures it
-instead. [`residue-evidence`](../tools/residue-evidence.md) then lists the
+it is not a through-channel: `profile` refuses it and `cavities --cast` measures it
+instead. [`residues --evidence`](../tools/residue-evidence.md) then lists the
 residues that form the cast boundary and the residues that contact them, and
 draws them as sticks in the viewer scenes. It takes about two minutes.
 
@@ -26,14 +26,14 @@ closed; see [Outputs and unresolved results](../getting-started/outputs.md).
 ## Cast the dominant cavity
 
 ```bash
-crevice cast 4PYP --out-dir 4PYP_cast
+crevice cavities --cast 4PYP --out-dir 4PYP_cast
 ```
 
 ```text
 cast regions=1 volume_A3=3245.250 spacing_A=0.5 out_dir=4PYP_cast
 ```
 
-`cast` rolls a 0.8 Å probe (`--probe-radius`) through the protein interior,
+`cavities --cast` rolls a 0.8 Å probe (`--probe-radius`) through the protein interior,
 inside the envelope of a 6 Å outer probe, and keeps the dominant buried region
 (`--max-cavities 1`). On a 0.5 Å grid that region is 3245.25 Å³
 (25 962 samples; `4PYP_void_cast.csv`). The volume depends on the probe, the
@@ -48,7 +48,7 @@ non-HETATM heavy atoms, so the bound detergent (BNG) is not an obstacle;
 ## Boundary residues and their partners
 
 ```bash
-crevice residue-evidence 4PYP_cast/4PYP_viewer.pdb --volume-dx 4PYP_cast/4PYP_volume.dx \
+crevice residues --evidence 4PYP_cast/4PYP_viewer.pdb --volume-dx 4PYP_cast/4PYP_volume.dx \
     --scene 4PYP_cast/4PYP_volume.pml --out-dir 4PYP_evidence --prefix 4PYP --dpi 150
 ```
 

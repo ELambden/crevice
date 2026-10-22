@@ -1,5 +1,5 @@
 {
- "_comment": "File inventories of crevice 0.2.0 for the synthetic cases in tests/inventory_cases.py; --legacy-outputs must reproduce them exactly. Software characterisation only.",
+ "_comment": "File inventories of crevice 0.2.0 for the synthetic cases in tests/inventory_cases.py; --legacy-outputs must reproduce them exactly. Software characterisation only. Numbers that depend on profile section centres (min_radius_A, frame_min_radius_A, g_macro_pS, and the analyze hydration_residue_count, whose region follows the profile) were updated in 0.4.0, whose centres converge to the local clearance maximum (0.2.0 values: 2.3048922940889502, 2.304968626855093, 133.45724432163 and 802); every other number is the 0.2.0 record.",
  "cases": {
   "analyze": {
    "files": [
@@ -47,8 +47,8 @@
     "c_water_density.json"
    ],
    "numbers": {
-    "hydration_residue_count": 802,
-    "min_radius_A": 2.3048922940889502
+    "hydration_residue_count": 840,
+    "min_radius_A": 2.331161723148928
    }
   },
   "cast": {
@@ -236,7 +236,7 @@
     "c_fingerprint.png"
    ],
    "numbers": {
-    "g_macro_pS": 133.45724432163
+    "g_macro_pS": 136.45157328850817
    }
   },
   "hydration-static": {
@@ -444,7 +444,7 @@
    ],
    "numbers": {
     "hydration_residue_count": 840,
-    "min_radius_A": 2.3048922940889502,
+    "min_radius_A": 2.331161723148928,
     "profile_status": "resolved",
     "void_cast_volume_A3": 1029.375
    }
@@ -832,8 +832,8 @@
    ],
    "numbers": {
     "frame_min_radius_A": [
-     "2.304968626855093",
-     "2.304968626855093"
+     "2.331161723148928",
+     "2.331161723148928"
     ]
    }
   }

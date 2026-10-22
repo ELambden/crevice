@@ -44,7 +44,7 @@ left out unless you pass `--include-hetero`, and hydrogens unless you pass
 | `--include-hetero` | off | treat ligands, waters and ions as walls |
 
 The Python function caps the grid at `max_grid_points` (75 000). In
-`crevice analyze` that cap (`--cavity-max-grid-points`) coarsens the spacing to
+`crevice report --analyze` that cap (`--cavity-max-grid-points`) coarsens the spacing to
 stay under it, so raise it if you need a fine grid. All options are listed
 under [`crevice cavities`](../reference/cli/cavities.md).
 
@@ -72,7 +72,7 @@ Enclosure is judged at one grid resolution and one probe size, and the default
 2 Å grid is coarse: a narrow opening can be missed, or a closed space can look
 open, and results can change with the spacing or a small shift of the grid. An
 empty result doesn't mean the protein has no cavity. In our runs on 1GRM and 4PYP
-(`publish --outputs default,cavities`) this search found none, yet 4PYP has a large cavity that opens to
+(`report --outputs default,cavities`) this search found none, yet 4PYP has a large cavity that opens to
 one side and casts clearly. The search is tested on synthetic structures; it
 has not been benchmarked against curated cavities.
 :::

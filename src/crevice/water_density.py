@@ -1,7 +1,7 @@
 """Aligned water-oxygen number density with auditable counts and periodic images.
 
-Used by ``crevice hydration`` and the hydration pass of ``publish``,
-``cavity-trajectory`` and ``region-trajectory``. :class:`WaterDensity`
+Used by ``crevice trajectory --water`` and the hydration pass of ``report``,
+``trajectory --cavities`` and ``trajectory --region``. :class:`WaterDensity`
 accumulates aligned water-oxygen positions frame by frame on a fixed grid
 around a reference neighbourhood (every frame counts in the denominator, so
 absent water is a zero, not a gap); :func:`write_density_bundle` writes the
@@ -11,6 +11,7 @@ region, not hydration free energies or accessibility tests.
 """
 from itertools import product
 from pathlib import Path
+from ._portable_paths import dumps_record
 import json
 import math
 
@@ -374,5 +375,5 @@ def write_density_bundle(result, output_dir, prefix, *, level=.05, dpi=200, anno
             fig.colorbar(im, ax=ax, label='Projected oxygen density (Å⁻²)', shrink=.8)
         text.suptitle(fig, 'Water oxygen density · all-frame mean' if metadata['frame_count']>1 else 'Observed water positions · static snapshot')
         _save_figure(fig, path('water_density_png','_water_density.png'), dpi=dpi, text=text)
-    path('water_density_json','_water_density.json').write_text(json.dumps(metadata,indent=2,allow_nan=False,ensure_ascii=False)+'\n',encoding='utf-8')
+    (_t:=path('water_density_json','_water_density.json')).write_text(dumps_record(metadata,_t,indent=2,allow_nan=False,ensure_ascii=False)+'\n',encoding='utf-8')
     return drop_blocked(files)

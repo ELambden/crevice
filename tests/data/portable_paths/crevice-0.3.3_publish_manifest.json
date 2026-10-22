@@ -1,0 +1,526 @@
+{
+  "dpi": 60,
+  "files": {
+    "chimerax_render_cxc": "/srv/someone/crevice-0.3.3/run/out/input_render.cxc",
+    "display_dx": "/srv/someone/crevice-0.3.3/run/out/input_display.dx",
+    "geometry_reference_npz": "/srv/someone/crevice-0.3.3/run/out/input_geometry_reference.npz",
+    "input_report_json": "/srv/someone/crevice-0.3.3/run/out/input_input_report.json",
+    "interaction_edge_frames_csv": "/srv/someone/crevice-0.3.3/run/out/input_interaction_edge_frames.csv",
+    "interaction_edges_csv": "/srv/someone/crevice-0.3.3/run/out/input_interaction_edges.csv",
+    "interaction_frames_npz": "/srv/someone/crevice-0.3.3/run/out/input_interaction_frames.npz",
+    "interaction_json": "/srv/someone/crevice-0.3.3/run/out/input_interactions.json",
+    "mouth_guides_bild": "/srv/someone/crevice-0.3.3/run/out/input_mouths.bild",
+    "profile_csv": "/srv/someone/crevice-0.3.3/run/out/input_profile.csv",
+    "profile_json": "/srv/someone/crevice-0.3.3/run/out/input_profile.json",
+    "profile_radius_png": "/srv/someone/crevice-0.3.3/run/out/input_profile_radius.png",
+    "pymol_local_dx": "/srv/someone/crevice-0.3.3/run/out/input_pymol_local.dx",
+    "pymol_mesh_npz": "/srv/someone/crevice-0.3.3/run/out/input_pymol_mesh.npz",
+    "residue_conformation_frames_csv": "/srv/someone/crevice-0.3.3/run/out/input_residue_conformation_frames.csv",
+    "residue_conformations_csv": "/srv/someone/crevice-0.3.3/run/out/input_residue_conformations.csv",
+    "residue_contacts_csv": "/srv/someone/crevice-0.3.3/run/out/input_residue_contacts.csv",
+    "residue_contacts_png": "/srv/someone/crevice-0.3.3/run/out/input_residue_contacts.png",
+    "scene_json": "/srv/someone/crevice-0.3.3/run/out/input_scene.json",
+    "structure_file": "/srv/someone/crevice-0.3.3/run/out/input_viewer.pdb",
+    "viewer_identity_json": "/srv/someone/crevice-0.3.3/run/out/input_viewer.identities.json",
+    "void_cast_csv": "/srv/someone/crevice-0.3.3/run/out/input_void_cast.csv",
+    "void_cast_json": "/srv/someone/crevice-0.3.3/run/out/input_void_cast.json",
+    "volume_cxc": "/srv/someone/crevice-0.3.3/run/out/input_volume.cxc",
+    "volume_dx": "/srv/someone/crevice-0.3.3/run/out/input_volume.dx",
+    "volume_metadata_json": "/srv/someone/crevice-0.3.3/run/out/input_volume_metadata.json",
+    "volume_pml": "/srv/someone/crevice-0.3.3/run/out/input_volume.pml",
+    "volume_tcl": "/srv/someone/crevice-0.3.3/run/out/input_volume.tcl",
+    "volume_vmd": "/srv/someone/crevice-0.3.3/run/out/input_volume.vmd"
+  },
+  "prefix": "input",
+  "profile_status": {
+    "method": "axial-refined",
+    "profile_json": "/srv/someone/crevice-0.3.3/run/out/input_profile.json",
+    "status": "resolved"
+  },
+  "radii": {
+    "atom_radii_A": {},
+    "citation": "Bondi, J. Phys. Chem. 68, 441 (1964); Mantina et al., J. Phys. Chem. A 113, 5806 (2009) for main-group elements Bondi lacked; Fe, Mn, Co legacy (see radius_source). Ion residues: CHARMM36 toppar_water_ions.str, NONBONDED Rmin/2 of LIT, SOD, MG, POT, CAL, RUB, CES, BAR, ZN, CAD, CLA (copy distributed by CHARMM-GUI v3.7, 25 Aug 2026; the file has no version string; SHA-256 41c6474470fa66e927198582a314f9e390cd6bf6fbd1449475d35e3346d72bdc). Ion parameters: Beglov and Roux, J. Chem. Phys. 100, 9050 (1994) and later Roux-group values cited in the file; Zn: Stote and Karplus, Proteins 23, 12 (1995)",
+    "default_radius_A": 1.7,
+    "element_overrides_A": {},
+    "hole_records": [],
+    "ion_radii_A": {
+      "BA": 1.89,
+      "CA": 1.367,
+      "CD": 1.357,
+      "CL": 2.27,
+      "CS": 2.1,
+      "K": 1.76375,
+      "LI": 1.2975,
+      "MG": 1.185,
+      "NA": 1.41075,
+      "RB": 1.9,
+      "ZN": 1.09
+    },
+    "ion_scope": "recognised monatomic ion residues only: (residue name, atom name) in crevice.radii.ION_NAME_ELEMENTS and the atom's element equal to that entry's element; metals inside other residues, C-alpha CA, PRO CD and heme NA are not ions",
+    "name": "default",
+    "precedence": [
+      "RESNAME:ATOMNAME",
+      "ATOMNAME",
+      "recognised ion residue (ion_radii by element)",
+      "HOLE VDWR records (first match)",
+      "element",
+      "default"
+    ],
+    "source": "crevice.radii.VDW_RADII (the standard table) with crevice.radii.ION_RADII for recognised ion residues",
+    "source_sha256": null,
+    "standard_elements_missing": [],
+    "table_sha256": "ac428b65f578c5f93855c13192e0df3793721669659d51494babd6eb2b86e637"
+  },
+  "run": {
+    "argv": [
+      "publish",
+      "run/input.pdb",
+      "--out-dir",
+      "/srv/someone/crevice-0.3.3/run/out",
+      "--axis",
+      "z",
+      "--search-radius",
+      "0",
+      "--samples",
+      "5",
+      "--cast-spacing",
+      "1",
+      "--skip-cavities",
+      "--skip-tunnels",
+      "--skip-network",
+      "--dpi",
+      "60",
+      "--offline"
+    ],
+    "command": "publish",
+    "config_file": null,
+    "crevice_version": "0.3.3",
+    "inputs": [
+      {
+        "argument": "run/input.pdb",
+        "bytes": 636,
+        "path": "/srv/someone/crevice-0.3.3/run/input.pdb",
+        "role": "structure",
+        "sha256": "34ada02cf03f733a88b5a70404ff62371cb37906a749eafaa315a0608ac6b7f3"
+      }
+    ],
+    "interface": "cli",
+    "non_default_settings": {
+      "axis": "cli",
+      "cast_spacing": "cli",
+      "dpi": "cli",
+      "offline": "cli",
+      "out_dir": "cli",
+      "samples": "cli",
+      "search_radius": "cli",
+      "skip_cavities": "cli",
+      "skip_network": "cli",
+      "skip_tunnels": "cli",
+      "structure": "cli"
+    },
+    "outputs": {
+      "core_analyses": "profile, cast (with ENTRY/LUMEN/EXIT segments), residue contacts",
+      "definition": "CREVICE 0.3 output policy (crevice.outputs); data and the manifest are always written",
+      "file_kinds": [
+        "data",
+        "key-figures",
+        "pymol",
+        "vmd",
+        "chimerax",
+        "scenes"
+      ],
+      "mode": "default",
+      "not_written_count": 7,
+      "optional_analyses_not_run": [
+        "hydration",
+        "cavities",
+        "tunnels",
+        "network",
+        "fingerprint"
+      ],
+      "optional_analyses_run": [
+        "interactions"
+      ],
+      "requested": [],
+      "skipped_by_flag": [
+        "cavities",
+        "tunnels",
+        "network"
+      ]
+    },
+    "python": "3.13.13",
+    "settings": {
+      "command": "publish",
+      "display": {
+        "annotate": false,
+        "dpi": 60,
+        "exit_centre_lines": false,
+        "mouth_guides": false,
+        "residue_label_every": 5,
+        "smooth": null,
+        "surface_smoothing": null
+      },
+      "geometry": {
+        "axis": "z",
+        "cast_core_fraction": 0.08,
+        "cast_enclosure_fraction": 0.9,
+        "cast_extension": 2.0,
+        "cast_max_components": 1,
+        "cast_max_grid_points": 16000000,
+        "cast_min_radius": 0.0,
+        "cast_mode": "auto",
+        "cast_outer_radius": 6.0,
+        "cast_selection": "dominant",
+        "cast_spacing": 1.0,
+        "enclosure_radius": null,
+        "entry_end": "auto",
+        "exit_bulk_radius": 6.0,
+        "exit_spacing": 0.5,
+        "focus": null,
+        "focus_radius": 8.0,
+        "lateral_exits": false,
+        "lining_cutoff": 3.3,
+        "max_component_volume": null,
+        "min_component_volume": 0.0,
+        "origin": null,
+        "padding": 0.0,
+        "probe_radius": 0.0,
+        "refinement_steps": 4,
+        "samples": 5,
+        "search_radius": 0.0,
+        "section_spacing": 0.5
+      },
+      "hydration": {
+        "hydration_cutoff": 3.5,
+        "hydration_probe": 1.4,
+        "hydration_sasa_points": 256,
+        "skip_analysis_views": false,
+        "skip_interactions": false,
+        "skip_water_density": false,
+        "water_density_level": 0.05,
+        "water_density_smoothing": 0.5,
+        "water_density_spacing": 0.5
+      },
+      "input": {
+        "assembly": null,
+        "cache_dir": ".crevice/pdb",
+        "chain_ids": "label",
+        "exclude_hetero": false,
+        "include_hydrogen": false,
+        "input_format": "cif",
+        "md_selection": "protein",
+        "model": 0,
+        "offline": true,
+        "parser": "auto",
+        "refetch": false,
+        "residue_groups": null,
+        "structure": "run/input.pdb",
+        "timeout": 30.0
+      },
+      "outputs": {
+        "all_outputs": false,
+        "dry_run": false,
+        "fingerprint": false,
+        "legacy_outputs": false,
+        "out_dir": "/srv/someone/crevice-0.3.3/run/out",
+        "outputs": null,
+        "prefix": null,
+        "skip_cavities": true,
+        "skip_hydration": false,
+        "skip_network": true,
+        "skip_tunnels": true
+      },
+      "radii": {
+        "radii": null
+      },
+      "schema": "crevice.settings/1"
+    },
+    "structure_source": {
+      "accession": null,
+      "download": null,
+      "kind": "local_file",
+      "path": "run/input.pdb",
+      "spec": "run/input.pdb"
+    },
+    "units": {
+      "display.dpi": "dpi",
+      "display.smooth": "\u00c5",
+      "display.surface_smoothing": "\u00c5",
+      "geometry.cast_extension": "\u00c5",
+      "geometry.cast_min_radius": "\u00c5",
+      "geometry.cast_outer_radius": "\u00c5",
+      "geometry.cast_spacing": "\u00c5",
+      "geometry.enclosure_radius": "\u00c5",
+      "geometry.exit_bulk_radius": "\u00c5",
+      "geometry.exit_spacing": "\u00c5",
+      "geometry.focus_radius": "\u00c5",
+      "geometry.lining_cutoff": "\u00c5",
+      "geometry.max_component_volume": "\u00c5\u00b3",
+      "geometry.min_component_volume": "\u00c5\u00b3",
+      "geometry.padding": "\u00c5",
+      "geometry.probe_radius": "\u00c5",
+      "geometry.search_radius": "\u00c5",
+      "geometry.section_spacing": "\u00c5",
+      "hydration.hydration_cutoff": "\u00c5",
+      "hydration.hydration_probe": "\u00c5",
+      "hydration.water_density_level": "1/\u00c5\u00b3",
+      "hydration.water_density_smoothing": "\u00c5",
+      "hydration.water_density_spacing": "\u00c5",
+      "input.timeout": "s"
+    }
+  },
+  "void_cast": {
+    "bottleneck": {
+      "axis_position": -2.0,
+      "index": 15,
+      "nearest_atom_serial": 4,
+      "nearest_residue": "A:PHE4",
+      "radius": 0.30000000000000004,
+      "raw_clearance": 0.30000000000000004,
+      "x": 0.0,
+      "y": -3.0,
+      "z": -2.0
+    },
+    "component_count": 1,
+    "components": [
+      {
+        "boundary_faces": [
+          "z+",
+          "z-"
+        ],
+        "center": [
+          -0.05475719395335928,
+          0.04678914204136451,
+          0.0
+        ],
+        "id": 1,
+        "kind": "centerline_channel",
+        "max_radius": 3.6851648071345036,
+        "mean_radius": 1.677684306692955,
+        "metadata": {
+          "candidate_component_id": 1,
+          "export_mode": "centerline_fill",
+          "grid_origin": [
+            -5.0,
+            -5.0,
+            -2.0
+          ],
+          "grid_point_count": 193,
+          "grid_spacing": 1.0,
+          "selection_cropped": true,
+          "source_boundary_faces": [
+            "x+",
+            "x-",
+            "y+",
+            "y-",
+            "z+",
+            "z-"
+          ],
+          "source_component_id": 1,
+          "source_kind": "through_channel"
+        },
+        "min_radius": 0.30000000000000004,
+        "nearest_residues": [
+          "A:PHE4",
+          "A:LEU1",
+          "A:LYS3",
+          "A:ASP2"
+        ],
+        "point_count": 193,
+        "score": 193.0,
+        "volume": 193.0
+      }
+    ],
+    "max_clearance": 3.6851648071345036,
+    "mean_clearance": 1.677684306692955,
+    "metadata": {
+      "axis": "z",
+      "axis_direction": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "axis_origin": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "candidate_point_count": 493,
+      "connectivity": {
+        "cache_limit": 32768,
+        "cached_edges": 100,
+        "edge_rule": "continuous_atom_sphere_clearance",
+        "endpoint_certificates": 591,
+        "min_segment_clearance_A": 0.0,
+        "neighbors": 26,
+        "segment_queries": 100
+      },
+      "considered_source_component_ids": [
+        1
+      ],
+      "cropped_point_count": 193,
+      "display_subsampled": false,
+      "effective_spacing_A": 1.0,
+      "enclosure_scope": "absence of a segment-clearance-valid grid path to the box boundary",
+      "enclosure_test": "not_performed",
+      "export": {
+        "centerline_points": 5,
+        "final_component_count": 1,
+        "final_min_component_points": 8,
+        "mode": "centerline_fill",
+        "path_count": 0,
+        "point_count": 193,
+        "radius_cap": 4.399019513592784,
+        "radius_padding": 0.0,
+        "radius_scale": 1.0
+      },
+      "export_mode": "centerline_fill",
+      "final_min_component_points": 8,
+      "focus_points": null,
+      "focus_radius": null,
+      "grid_dimensions": [
+        11,
+        11,
+        5
+      ],
+      "grid_origin": [
+        -5.0,
+        -5.0,
+        -2.0
+      ],
+      "grid_point_count": 605,
+      "include_hetero": true,
+      "include_hydrogen": false,
+      "max_component_volume": null,
+      "max_components": 1,
+      "max_export_points": 9000,
+      "measurement_point_count": 193,
+      "min_component_points": 4,
+      "min_component_volume": 0.0,
+      "min_octants": 3,
+      "padding": 0.0,
+      "radii": {
+        "atom_radii_A": {},
+        "citation": "Bondi, J. Phys. Chem. 68, 441 (1964); Mantina et al., J. Phys. Chem. A 113, 5806 (2009) for main-group elements Bondi lacked; Fe, Mn, Co legacy (see radius_source). Ion residues: CHARMM36 toppar_water_ions.str, NONBONDED Rmin/2 of LIT, SOD, MG, POT, CAL, RUB, CES, BAR, ZN, CAD, CLA (copy distributed by CHARMM-GUI v3.7, 25 Aug 2026; the file has no version string; SHA-256 41c6474470fa66e927198582a314f9e390cd6bf6fbd1449475d35e3346d72bdc). Ion parameters: Beglov and Roux, J. Chem. Phys. 100, 9050 (1994) and later Roux-group values cited in the file; Zn: Stote and Karplus, Proteins 23, 12 (1995)",
+        "default_radius_A": 1.7,
+        "element_overrides_A": {},
+        "hole_records": [],
+        "ion_radii_A": {
+          "BA": 1.89,
+          "CA": 1.367,
+          "CD": 1.357,
+          "CL": 2.27,
+          "CS": 2.1,
+          "K": 1.76375,
+          "LI": 1.2975,
+          "MG": 1.185,
+          "NA": 1.41075,
+          "RB": 1.9,
+          "ZN": 1.09
+        },
+        "ion_scope": "recognised monatomic ion residues only: (residue name, atom name) in crevice.radii.ION_NAME_ELEMENTS and the atom's element equal to that entry's element; metals inside other residues, C-alpha CA, PRO CD and heme NA are not ions",
+        "name": "default",
+        "precedence": [
+          "RESNAME:ATOMNAME",
+          "ATOMNAME",
+          "recognised ion residue (ion_radii by element)",
+          "HOLE VDWR records (first match)",
+          "element",
+          "default"
+        ],
+        "source": "crevice.radii.VDW_RADII (the standard table) with crevice.radii.ION_RADII for recognised ion residues",
+        "source_sha256": null,
+        "standard_elements_missing": [],
+        "table_sha256": "ac428b65f578c5f93855c13192e0df3793721669659d51494babd6eb2b86e637"
+      },
+      "rejected_component_ids": [],
+      "requested_spacing_A": 1.0,
+      "selected_source_components": [
+        {
+          "boundary_faces": [
+            "x+",
+            "x-",
+            "y+",
+            "y-",
+            "z+",
+            "z-"
+          ],
+          "center": [
+            -0.0005669823289126093,
+            0.17546956458752225,
+            0.13388768612864485
+          ],
+          "id": 1,
+          "kind": "through_channel",
+          "max_radius": 3.835164807134504,
+          "mean_radius": 1.5615411009025915,
+          "metadata": {
+            "axis_span": 4.0,
+            "grid_origin": [
+              -5.0,
+              -5.0,
+              -2.0
+            ],
+            "grid_point_count": 493,
+            "grid_spacing": 1.0,
+            "mean_local_octants": 4.987829614604462,
+            "span_x": 10.0,
+            "span_y": 10.0,
+            "span_z": 4.0
+          },
+          "min_radius": 0.03205080756887724,
+          "nearest_residues": [
+            "A:LYS3",
+            "A:LEU1",
+            "A:PHE4",
+            "A:ASP2"
+          ],
+          "point_count": 493,
+          "score": 2182.4034390594848,
+          "volume": 493.0
+        }
+      ],
+      "selection": {
+        "candidate_component_count": 1,
+        "candidates": [
+          {
+            "candidate_component_id": 1,
+            "decision": "selected",
+            "output_component_id": 1,
+            "point_count": 193,
+            "source_component_id": 1,
+            "volume": 193.0
+          }
+        ],
+        "discarded_small_component_points": 0,
+        "eligible_component_count": 1,
+        "omitted_by_limit_count": 0,
+        "order": [
+          "source_mode_eligibility",
+          "centerline_crop",
+          "focus_crop",
+          "final_connected_components",
+          "final_component_point_threshold",
+          "inclusive_volume_bounds",
+          "descending_final_volume",
+          "component_limit",
+          "display_sampling"
+        ],
+        "selected_component_count": 1,
+        "tie_break": "lexicographic minimum grid coordinate"
+      },
+      "selection_note": "Geometric selection; biological relevance requires a supplied site or evidence",
+      "shell_radius": 9.0,
+      "source_cluster_count": 1,
+      "source_component_count": 1,
+      "spacing_adjusted": false
+    },
+    "method": "clearance-grid-fill",
+    "min_clearance": 0.30000000000000004,
+    "min_radius": 0.0,
+    "mode": "auto",
+    "point_count": 193,
+    "spacing": 1.0,
+    "total_volume": 193.0
+  }
+}

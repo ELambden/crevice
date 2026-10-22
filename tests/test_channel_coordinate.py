@@ -166,9 +166,9 @@ def test_cli_uses_auto_axis_and_map_scene(tmp_path):
     path.write_text("\n".join(
         f"ATOM  {a.serial:5d}  C   ALA A{a.resid:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00           C"
         for a in frame.atoms) + "\nEND\n", encoding="utf-8", newline="\n")
-    args = build_parser().parse_args(["publish", str(path), "--out-dir", str(tmp_path / "out")])
+    args = build_parser().parse_args(["report", str(path), "--out-dir", str(tmp_path / "out")])
     assert args.axis == "auto"
-    assert main(["publish", str(path), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--search-radius", "8",
+    assert main(["report", str(path), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--search-radius", "8",
                  "--samples", "21", "--section-spacing", "0.5", "--enclosure-radius", "0.8",
                  "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "60"]) == 0
     root = tmp_path / "out"

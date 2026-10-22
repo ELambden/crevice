@@ -1,6 +1,6 @@
 # One-command output bundle
 
-`crevice publish` is the quickest way to get the main results for one
+`crevice report` is the quickest way to get the main results for one
 structure. By default it runs the profile, cast, lining residues and the typed
 residue interactions, and writes the tables, the key figures and PyMOL, VMD and
 ChimeraX scenes into one directory, with a manifest listing every file and
@@ -12,7 +12,7 @@ doesn't measure anything new; it runs the other tools for you, consistently.
 ## Quick start
 
 ```bash
-crevice publish 1GRM --out-dir results/1GRM --prefix 1GRM
+crevice report 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
 ```python
@@ -35,7 +35,7 @@ without writing a file. For finer detail on a channel, try
 :alt: The TWIK-1 channel cast in ChimeraX with yellow entry, teal lumen and rust exit segments.
 :width: 420px
 
-A `publish` scene of TWIK-1 (3UKM) with `--lateral-exits`, rendered in
+A `report` scene of TWIK-1 (3UKM) with `--lateral-exits`, rendered in
 ChimeraX: the entry vestibule in yellow, the lumen in teal and the two side
 exits in rust.
 ```
@@ -44,7 +44,7 @@ exits in rust.
 
 1. A [profile](profile.md), with any profile options you pass.
 2. A cast. With `--cast-mode auto` (the default) this is a channel cast when
-   the profile resolves. If it doesn't, `publish` says so, records why and
+   the profile resolves. If it doesn't, `report` says so, records why and
    casts the main cavity with a [rolling probe](cast.md) instead. `channel`,
    `cavity`, `all` and `rolling` force a mode.
 3. [Lining residues](residues.md) and the typed residue–residue interactions
@@ -58,7 +58,7 @@ exits in rust.
    `--all`).
 6. A [pore fingerprint](fingerprint.md), with `--fingerprint`,
    `--outputs default,fingerprint` or `--all`, when the channel resolves: the
-   same `*_fingerprint.csv`, `.json` and `.png` that `crevice fingerprint`
+   same `*_fingerprint.csv`, `.json` and `.png` that `crevice profile --fingerprint`
    writes.
 
 A channel cast fills all the free space in each slice, not just the largest
@@ -123,7 +123,7 @@ portal. `--exit-centre-lines` adds a thin blue tube along each leg.
 
 ## When no channel resolves
 
-If the profile doesn't resolve, `publish` still runs everything else on the
+If the profile doesn't resolve, `report` still runs everything else on the
 fallback cast: the typed residue interactions by default, and the extras you
 asked for. No profile is invented: there is no profile JSON, CSV or radius
 plot (or fingerprint, even with `--all`). A requested tunnel search starts
@@ -151,7 +151,7 @@ hydrogens) fail instead of switching silently.
 
 Profile settings, atomic radii, figure text, mouth guides and smoothing are
 [shared options](../reference/cli/common-options.md); every option is listed
-under [`crevice publish`](../reference/cli/publish.md).
+under [`crevice report`](../reference/cli/report.md).
 
 ## What you get
 
@@ -175,9 +175,9 @@ interactions, and `*_profile_status.json` instead of the profile files.
 To get more, name what you want or take everything:
 
 ```bash
-crevice publish 1GRM --out-dir r --outputs default,hydration     # add water
-crevice publish 1GRM --out-dir r --outputs default,cavities,tunnels,network
-crevice publish 1GRM --out-dir r --all                           # everything
+crevice report 1GRM --out-dir r --outputs default,hydration     # add water
+crevice report 1GRM --out-dir r --outputs default,cavities,tunnels,network
+crevice report 1GRM --out-dir r --all                           # everything
 ```
 
 With `--outputs`/`--all` come `*_cavities.csv`, `*_tunnels.csv`,
@@ -185,18 +185,18 @@ With `--outputs`/`--all` come `*_cavities.csv`, `*_tunnels.csv`,
 annotated radius, cavity and network figures, the hydration tables (see
 [Hydration](hydration.md#what-you-get)), dummy-atom PDB files and the
 `*_pore_cast.*` alias scenes (`*_pore_cast.*` is the same scene as
-`*_volume.*`). `--legacy-outputs` still writes the exact 0.2 file set during
-the 0.3 series, with a deprecation warning; see
-[Upgrading from 0.2 to 0.3](../getting-started/upgrading-0.3.md). Figures and
+`*_volume.*`). (`--legacy-outputs`, which wrote the exact 0.2 file
+set during the 0.3 series, was removed in 0.4; see
+[Upgrading to 0.4](../getting-started/upgrading-0.4.md).) Figures and
 scenes are clean unless you add `--annotate`.
 
 :::{admonition} Interpreting results
 :class: crevice-interpret
 
 A bundle is only as good as the settings behind it, and they're all in the
-manifest; report them. `publish` keeps heteroatoms as walls unless you pass
-`--exclude-hetero`, unlike `cast`, and its network uses the Python defaults
-(surface gap, no heteroatoms) rather than those of `crevice network`. An
+manifest; report them. `report` keeps heteroatoms as walls unless you pass
+`--exclude-hetero`, unlike `cavities --cast`, and its network uses the Python defaults
+(surface gap, no heteroatoms) rather than those of `crevice residues --network`. An
 unresolved profile doesn't show the protein is closed: in our runs 4PYP is
 unresolved at every probe, and its fallback cast still measures a large
 cavity. Segment labels are geometry, not transport direction. Open the scenes

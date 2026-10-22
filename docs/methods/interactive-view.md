@@ -18,7 +18,7 @@ display smoothing ([Display surface smoothing](../SURFACE_SMOOTHING.md),
 For results passed in memory (`crevice.view(frame=..., cast=...)`), the
 display field is built from the cast's binary grid with the same smoothing
 rules (`smooth=`), on the cast's own grid and without the short display
-continuation that `publish` adds beyond each mouth.
+continuation that `report` adds beyond each mouth.
 
 Measured volumes always come from the binary `*_volume.dx` grids and are
 reported in the tables. A display surface is never used for a measurement.
@@ -32,7 +32,7 @@ reported in the tables. A display surface is never used for a measurement.
   segment's colour, from the bundle's per-segment lining table.
 - **Profile centre line** (hidden at first): tubes through the axial profile
   samples and any side-exit legs.
-- **Region outputs** (`region-trajectory`, `cavity-trajectory`, `hydration`):
+- **Region outputs** (`trajectory --region`, `trajectory --cavities`, `trajectory --water`):
   the region cast at 35% opacity and the mean water density surface at 60%
   opacity, more opaque than in the native scenes (18% and 42%) so they stay
   visible through the cartoon in a browser.

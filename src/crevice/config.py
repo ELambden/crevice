@@ -10,8 +10,8 @@ Every option of every ``crevice`` command belongs to one section of
                    (lengths in Å, volumes in Å³)
 ``radii``          the atomic radius set (``--radii``)
 ``outputs``        output directory, prefix, explicit file paths and the
-                   output policy (``--outputs``, ``--all``,
-                   ``--legacy-outputs``, ``--dry-run``, ``--skip-*``)
+                   output policy (``--outputs``, ``--all``, ``--dry-run``,
+                   ``--skip-*``)
 ``display``        figure resolution, annotation, guides and display
                    smoothing (display only; never changes a measurement)
 ``trajectory``     frame range and guards, alignment, periodic handling,
@@ -27,13 +27,22 @@ about a default and no numerical default is defined twice.
 
 The same object drives both interfaces:
 
-* CLI: ``crevice publish 1GRM --print-config`` prints the effective settings
-  as JSON; ``crevice publish 1GRM --config run.json`` loads them (precedence:
+* CLI: ``crevice report 1GRM --print-config`` prints the effective settings
+  as JSON; ``crevice report 1GRM --config run.json`` loads them (precedence:
   built-in default < ``--config`` file < command-line flag). JSON only: TOML
   would need an extra dependency on Python 3.10.
 * Python: :func:`settings` builds a :class:`RunSettings`, :func:`run` executes
   it through exactly the code path of :func:`crevice.cli.main` and returns the
   manifest record.
+
+The ``"command"`` of a settings record names the analysis by its CREVICE 0.3
+command name (``"publish"``, ``"cast"``, ``"region-trajectory"`` ...), which is
+also the key of the output policy and of the run record; the 0.4 form of the
+same command (``"report"``, ``"cavities --cast"``, ``"trajectory --region"``)
+is accepted wherever a command name is taken (:func:`crevice.cli.canonical_command`).
+Settings files written by CREVICE 0.3 keep working unchanged; their
+``outputs.legacy_outputs`` key (``--legacy-outputs``, removed in 0.4) is
+ignored when false and refused when true.
 
 :meth:`RunSettings.validate` checks units, ranges, input files and option
 combinations before any structure is loaded or grid allocated. Every bundle
@@ -72,15 +81,15 @@ class InputSettings:
     structure, structures, topology, trajectory, definition : str or list of str
         Structure argument(s), MD topology/trajectory and region definition.
     left_statistics, right_statistics, left_definition, right_definition : str
-        ``region-compare`` inputs.
+        ``region compare`` inputs.
     left_input_provenance, right_input_provenance : str
-        ``region-compare`` historical input records.
+        ``region compare`` historical input records.
     cache_dir, input_format, assembly, offline, refetch, timeout : object
         Fetching of accessions (``timeout`` in s).
     model, parser, md_selection, chain_ids : object
         Model index, mmCIF parser, GRO selection and mmCIF chain namespace.
     selection, obstacle_selection, water_selection : str
-        MDAnalysis selections (``cast --selection`` is ``protein``/``all``).
+        MDAnalysis selections (``cavities --cast --selection`` is ``protein``/``all``).
     include_hydrogen, exclude_hetero, include_hetero : bool
         Obstacle atom policy of the profile family and cavity/tunnel searches.
     volume_dx, reference_volume_dx, cavity_results, scene : str
@@ -90,9 +99,9 @@ class InputSettings:
     alignment_residue, alignment_residues_json, remove_residue : list of str or str
         Alignment scaffold and network-removal residues.
     landmarks_json, region_id : str
-        ``region-init`` landmarks and region identifier.
+        ``region init`` landmarks and region identifier.
     pdb_ids, name, source_dir, base_url : object
-        Accessions and example datasets of ``fetch``/``benchmark``/``fetch-example``.
+        Accessions and example datasets of ``fetch``/``report --benchmark``/``fetch --example``.
     outdir : str
         ``view`` input directory.
     """
@@ -160,23 +169,23 @@ class GeometrySettings:
     max_components, cavity_selection, core_fraction, max_grid_points, seed, seed_tolerance : object
         Cast component selection, grid guard and seed.
     cast_mode, cast_outer_radius, cast_enclosure_fraction, cast_extension, cast_spacing : object
-        ``publish`` cast settings.
+        ``report`` cast settings.
     cast_min_radius, cast_max_components, cast_selection, cast_core_fraction, cast_max_grid_points : object
-        ``publish`` cast settings.
+        ``report`` cast settings.
     focus, focus_radius, max_component_volume, entry_end, lining_cutoff : object
-        ``publish`` crops, segment labels and lining-residue distance (Å).
+        ``report`` crops, segment labels and lining-residue distance (Å).
     cutoff, contact_cutoff, contact_metric, lining_distance, region : object
         Residue contact settings (Å).
     geometry_mode, region_margin, grid_phase, profile_padding, minimum_overlap, ambiguity_ratio : object
         Cavity-trajectory geometry.
     min_radius, max_cavities, max_tunnels, tunnel_start : object
-        Cavity and tunnel searches (``tunnel_start`` is ``--start`` of ``tunnels``/``analyze``).
+        Cavity and tunnel searches (``tunnel_start`` is ``--start`` of ``tunnels``/``report --analyze``).
     cavity_spacing, cavity_min_radius, cavity_max_grid_points : object
-        ``analyze``/``static-suite`` cavity search.
+        ``report --analyze``/``report --suite`` cavity search.
     tunnel_spacing, tunnel_min_radius, tunnel_max_grid_points : object
-        ``analyze``/``static-suite`` tunnel search.
+        ``report --analyze``/``report --suite`` tunnel search.
     radius : float
-        ``region-init`` landmark sphere radius (Å).
+        ``region init`` landmark sphere radius (Å).
     hydrophobicity_bandwidth, lining_shell, electrolyte, resistivity : object
         ``fingerprint`` settings.
     """
@@ -271,14 +280,14 @@ class OutputSettings:
     ----------
     out_dir, output, prefix : str
         Output directory, single output file and file-name prefix.
-    outputs, all_outputs, legacy_outputs, dry_run : object
+    outputs, all_outputs, dry_run : object
         Output policy (:mod:`crevice.outputs`) and plan-only runs.
     skip_hydration, skip_cavities, skip_tunnels, skip_network : bool
         Remove an optional analysis.
     fingerprint : bool
-        ``publish --fingerprint``.
+        ``report --fingerprint``.
     csv, pdb, png, annotated_png, json, pymol, pymol_png, chord_png : object
-        Explicit file paths of the single-file commands (``analyze --png`` is a switch).
+        Explicit file paths of the single-file commands (``report --analyze --png`` is a switch).
     connectivity_json, connectivity_png, report_json, distribution_csv, network_json : str
         Explicit file paths.
     overwrite, list, open, cdn, show, hide, kind, snapshot, fetch, format : object
@@ -290,7 +299,6 @@ class OutputSettings:
     prefix: Any = None
     outputs: Any = None
     all_outputs: Any = None
-    legacy_outputs: Any = None
     dry_run: Any = None
     skip_hydration: Any = None
     skip_cavities: Any = None
@@ -437,8 +445,15 @@ def _dest_of(command: str, section: str, name: str) -> str:
     return name
 
 
+def _canonical(command: str) -> str:
+    """The analysis (0.3 command) name of a command given in the 0.3 or 0.4 form."""
+    from .cli import canonical_command
+    return canonical_command(command)
+
+
 def _subparser(command: str) -> argparse.ArgumentParser:
     from .cli import build_parser
+    command = _canonical(command)
     parser = build_parser()
     action = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
     if command not in action.choices:
@@ -481,7 +496,7 @@ class RunSettings:
     Attributes
     ----------
     command : str
-        Command name (``publish``, ``cast``, ...).
+        Analysis (CREVICE 0.3 command) name (``publish``, ``cast``, ...).
     input, geometry, radii, outputs, display, trajectory, hydration : dataclass
         Section dataclasses (:class:`InputSettings` ... :class:`HydrationSettings`).
     method : dict
@@ -544,6 +559,7 @@ class RunSettings:
         -------
         RunSettings
         """
+        command = _canonical(command)
         settings = cls(command)
         applicable = set()
         for dest, value in values.items():
@@ -835,8 +851,8 @@ def flatten_settings(data: dict, command: str | None = None) -> dict:
     ValueError
         Wrong command, unknown section, or an option the command does not accept.
     """
-    command = command or data.get("command")
-    if data.get("command") not in (None, command):
+    command = _canonical(command or data.get("command"))
+    if data.get("command") is not None and _canonical(data["command"]) != command:
         raise ValueError(f"the settings are for 'crevice {data['command']}', not 'crevice {command}'")
     if data.get("schema") not in (None, SCHEMA):
         raise ValueError(f"unsupported settings schema {data.get('schema')!r} (expected {SCHEMA})")
@@ -852,10 +868,17 @@ def flatten_settings(data: dict, command: str | None = None) -> dict:
             raise ValueError(f"settings section '{key}' must be a mapping")
         else:
             values[key] = value_or_error(key, block, actions, command)
+    if values.pop(REMOVED_LEGACY_OUTPUTS, False):
+        raise ValueError("--legacy-outputs (settings key outputs.legacy_outputs) was removed in CREVICE 0.4; "
+                         "use --all (\"all_outputs\": true) or --outputs")
     unknown = sorted(d for d in values if d not in actions)
     if unknown:
         raise ValueError(f"crevice {command} has no option(s): {', '.join(unknown)}")
     return {dest: _normalise(command, dest, value) for dest, value in values.items()}
+
+
+#: Settings key of the removed ``--legacy-outputs`` (accepted when false, so 0.3 files still load).
+REMOVED_LEGACY_OUTPUTS = "legacy_outputs"
 
 
 def value_or_error(key: str, value, actions: dict, command: str):
@@ -881,7 +904,7 @@ def value_or_error(key: str, value, actions: dict, command: str):
     ValueError
         When ``key`` is neither a section nor an option of the command.
     """
-    if key not in actions:
+    if key not in actions and key != REMOVED_LEGACY_OUTPUTS:
         raise ValueError(f"crevice {command}: unknown settings key '{key}' (sections: {', '.join(SECTIONS)})")
     return value
 
@@ -1043,9 +1066,10 @@ def settings(command: str, *args, **values) -> RunSettings:
     Parameters
     ----------
     command : str
-        Command name, for example ``"publish"``.
+        Command name, for example ``"publish"``; the 0.4 form (``"report"``,
+        ``"cavities --cast"``) is accepted (:func:`crevice.cli.canonical_command`).
     *args : str
-        Positional inputs (for ``publish``: the structure).
+        Positional inputs (for ``report``: the structure).
     **values : object
         Options by destination or section.
 
@@ -1065,6 +1089,7 @@ def settings(command: str, *args, **values) -> RunSettings:
     >>> s.geometry.samples, s.outputs.outputs, s.geometry.section_spacing
     (101, 'figures', 0.5)
     """
+    command = _canonical(command)
     result = RunSettings.defaults(command)
     positional = [d for d, a in command_actions(command).items() if not a.option_strings]
     if len(args) > len(positional):
@@ -1102,9 +1127,11 @@ def run(run_settings: RunSettings) -> dict:
     Returns
     -------
     dict
-        ``manifest`` (path or ``None``), ``files`` (the manifest's file index,
-        empty when the command writes no manifest) and ``plan`` (the resolved
-        output plan record, or ``None``).
+        ``manifest`` (path or ``None``), ``files`` (the manifest's file index
+        as absolute paths resolved against the manifest's directory, so they
+        can be opened from any working directory; empty when the command writes no manifest) and
+        ``plan`` (the resolved output plan record, or ``None``). The manifest
+        file itself records the paths relative to its directory.
     """
     from .cli import execute
     run_settings.validate()

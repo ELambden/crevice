@@ -137,6 +137,10 @@ napoleon_type_aliases = {
     "iterable": "collections.abc.Iterable",
     "mapping": "collections.abc.Mapping",
     "callable": "collections.abc.Callable",
+    # MDAnalysis and Matplotlib objects accepted or returned by the API (resolved through intersphinx).
+    "Universe": "MDAnalysis.core.universe.Universe",
+    "AtomGroup": "MDAnalysis.core.groups.AtomGroup",
+    "Figure": "matplotlib.figure.Figure",
 }
 
 # Words that are not Python objects but appear where napoleon expects a type:

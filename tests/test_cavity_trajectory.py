@@ -151,7 +151,7 @@ def test_reference_provenance_and_invalid_fixed_grid(tmp_path):
 
 def test_cavity_cli_exposes_explicit_all_frame_guard_and_geometry_definitions():
     from crevice.cli import build_parser
-    args=build_parser().parse_args(['cavity-trajectory','prod.gro','prod.xtc','--reference-volume-dx','pocket.dx','--out-dir','output',
+    args=build_parser().parse_args(['trajectory', '--cavities','prod.gro','prod.xtc','--reference-volume-dx','pocket.dx','--out-dir','output',
       '--max-frames','1100','--geometry-mode','reference-region','--region-margin','2','--axis','0,0,1','--probe-radius','1.4'])
     assert args.max_frames==1100 and args.stop is None and args.pbc=='check'
     assert args.geometry_mode=='reference-region' and args.probe_radius==1.4

@@ -1,7 +1,7 @@
 """Aligned, reference-matched cavity geometry and changing residue evidence.
 
-This is the engine of ``crevice cavity-trajectory`` and
-``crevice region-trajectory``. A fixed reference cavity
+This is the engine of ``crevice trajectory --cavities`` and
+``crevice trajectory --region``. A fixed reference cavity
 (:class:`CavityReference`, read from a binary DX map in the coordinates of
 the first trajectory frame) defines one lattice, axis and anchor for every
 frame. Each frame is rigidly aligned to the first frame, its cavity is
@@ -21,6 +21,7 @@ Unresolved frames are missing values, never zeros.
 from __future__ import annotations
 from dataclasses import dataclass,replace
 from pathlib import Path
+from ._portable_paths import dumps_record
 import math
 
 from .presentation import NON_CHANNEL_CAST_HEX, FigureText, annotate_option
@@ -78,7 +79,7 @@ class CavityReference:
         ----------
         path : str or Path
             DX file whose nonzero values mark occupied voxels (for example a
-            ``*_volume.dx`` written by ``crevice cast``). It must already be in the
+            ``*_volume.dx`` written by ``crevice cavities --cast``). It must already be in the
             coordinates of the first trajectory frame.
         spacing : float, optional
             Lattice spacing, Å; default the length of the map's first grid step.
@@ -614,8 +615,12 @@ def describe_series(values,*,confidence=.95,block_length=None,replicates=2000,se
         ``coverage_fraction``, ``mean``, ``sample_sd``, ``median``,
         ``quantile_025``, ``quantile_975``, ``minimum``, ``maximum``,
         ``first_half_mean``, ``second_half_mean``, ``statistical_inefficiency``,
-        ``effective_frames`` and ``confidence_interval``. Flattened to CSV by
-        :func:`crevice.io.summary_statistics_rows`.
+        ``effective_frames``, ``confidence_interval`` and (since 0.4)
+        ``sampling_uncertainty`` (:func:`crevice.uncertainty.sampling_uncertainty`:
+        effective sample size from the integrated autocorrelation time,
+        Flyvbjerg–Petersen blocking standard error and a moving-block
+        bootstrap interval, each with the block size used). Flattened to CSV
+        by :func:`crevice.io.summary_statistics_rows`.
 
     Examples
     --------
@@ -625,7 +630,7 @@ def describe_series(values,*,confidence=.95,block_length=None,replicates=2000,se
     (3, 2.0, 'unavailable_missing_frames')
     """
     import numpy as np
-    from .uncertainty import block_mean_confidence,statistical_inefficiency
+    from .uncertainty import block_mean_confidence,sampling_uncertainty,statistical_inefficiency
     values=np.asarray(values,dtype=float);observed=values[np.isfinite(values)];n=len(values)
     result={'total_frames':n,'observed_frames':len(observed),'missing_frames':n-len(observed),
             'coverage_fraction':len(observed)/n,'mean':None,'sample_sd':None,'median':None,
@@ -643,6 +648,9 @@ def describe_series(values,*,confidence=.95,block_length=None,replicates=2000,se
         elif len(observed)!=n:result['confidence_interval']={'status':'unavailable_missing_frames'}
         elif not regular:result['confidence_interval']={'status':'unavailable_irregular_timestamps'}
         else:result['confidence_interval']=block_mean_confidence(values[:,None],confidence=confidence,block_length=block_length,replicates=replicates,seed=seed)
+    # Additive (0.4): effective sample size, blocking SE and moving-block bootstrap of the mean.
+    result['sampling_uncertainty']=sampling_uncertainty(values,confidence=confidence,block_length=block_length,
+                                                        replicates=replicates,seed=seed,regular=regular)
     return result
 
 
@@ -780,7 +788,7 @@ def summarize_cavity_trajectory(analysis,*,confidence=.95,block_length=None,repl
 @annotate_option
 def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95,
                                    block_length=None,replicates=2000,seed=20260913,dpi=200,annotate=None):
-    """Write the statistics, tables and figures of ``crevice cavity-trajectory``.
+    """Write the statistics, tables and figures of ``crevice trajectory --cavities``.
 
     ``analysis`` (from :func:`analyze_cavity_trajectory`) holds, for every
     aligned frame, the measured cavity matched to the fixed reference, its
@@ -846,7 +854,7 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
         ``boundary_fraction``, ``nonlocal_contacted_boundary_fraction`` and
         ``nonlining_partner`` (1 = nonlocal lining partner).
     PREFIX_cavity_frames.npz : arrays
-        The same all-frame arrays (the array format read by ``region-compare``).
+        The same all-frame arrays (the array format read by ``region compare``).
     PREFIX_cavity_frame_diagnostics.json : JSON
         Full per-frame alignment (rotation, translation) and matching
         diagnostics, kept as provenance.
@@ -900,7 +908,7 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
     files={}
     def path(key,suffix):
         target=root/(prefix+suffix);files[key]=str(target);return target
-    path('statistics_json','_cavity_statistics.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('statistics_json','_cavity_statistics.json')).write_text(dumps_record(report,_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     from .io import write_summary_statistics_csv
     write_summary_statistics_csv(report,path('statistics_summary_csv','_cavity_statistics_summary.csv'))
     np.savez_compressed(path('all_frame_arrays_npz','_cavity_frames.npz'),**arrays)
@@ -937,8 +945,8 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
     residue_frame_rows=[{'frame_index':frame_ids[i],'time_ps':frame_times[i],'residue':residue_ids[j],**{k:cell(arrays[k][i,j]) for k in residue_keys}}
                         for i in range(len(frame_ids)) for j in range(len(residue_ids)) if np.isfinite(arrays['boundary_area_A2'][i,j])]
     table(path('residue_frames_csv','_cavity_residue_frames.csv'),residue_frame_rows)
-    path('frame_diagnostics_json','_cavity_frame_diagnostics.json').write_text(json.dumps([
-        {k:v for k,v in row.items() if k not in {'boundary','profile','water_membership'}} for row in analysis['frames']],indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('frame_diagnostics_json','_cavity_frame_diagnostics.json')).write_text(dumps_record([
+        {k:v for k,v in row.items() if k not in {'boundary','profile','water_membership'}} for row in analysis['frames']],_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
     table(path('width_profile_csv','_cavity_width_profile.csv'),report['profile']['rows'])
     residue_rows=[]
     for row in report['residues']:
@@ -1004,5 +1012,5 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
                  block_length=block_length,replicates=replicates,seed=seed,dpi=dpi))
     from .outputs import drop_blocked
     drop_blocked(files)   # figures the output plan skipped
-    path('manifest_json','_cavity_manifest.json').write_text(json.dumps({'files':files,'frame_count':len(times),'matched_frames':int(valid.sum()),'interpretation':report['limitations'],**radii_fields()},indent=2)+'\n', encoding="utf-8", newline="\n")
+    (_t:=path('manifest_json','_cavity_manifest.json')).write_text(dumps_record({'files':files,'frame_count':len(times),'matched_frames':int(valid.sum()),'interpretation':report['limitations'],**radii_fields()},_t,indent=2)+'\n', encoding="utf-8", newline="\n")
     return files

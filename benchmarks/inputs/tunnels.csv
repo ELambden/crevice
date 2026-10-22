@@ -1,0 +1,8 @@
+# CREVICE benchmark: enzyme tunnels (curated inputs for the path comparison with CAVER 3.0).
+# Kept atoms: polymer-entity heavy atoms of model 1 (altloc blank or A) of the listed chains; everything else removed.
+# seed_atoms: chain:residue:atom patterns (as channels.csv); the start point is their centroid, given to both tools.
+# Residue numbers are those of the deposited file; the common literature numbering is given in the reason.
+id,pdb_id,name,assembly,keep_chains,keep_residues,removed,seed_atoms,curation,reason
+1CQW,1CQW,haloalkane dehalogenase DhaA (Rhodococcus),deposited,A,all,2 iodide ions; waters,A:117:OD1;A:117:OD2;A:118:NE1;A:283:NE2,curated,"DhaA, the CAVER reference enzyme with main (p1) and slot (p2) tunnels; seed at the catalytic Asp-Trp-His (D106/W107/H272 in the usual DhaA numbering, 117/118/283 in this entry)"
+1MJ5,1MJ5,haloalkane dehalogenase LinB (Sphingomonas paucimobilis UT26),deposited,A,all,hydrogens; 3 Mg2+; 2 Cl-; waters,A:108:OD1;A:108:OD2;A:109:NE1;A:272:NE2,curated,"LinB at 0.95 A resolution with the p1 main tunnel and side tunnels; seed at the catalytic D108/W109/H272"
+1EA5,1EA5,Torpedo californica acetylcholinesterase,deposited,A,all,2 N-acetylglucosamine (NAG); waters,A:200:OG;A:440:NE2;A:84:CZ2,curated,"the 20 A deep aromatic gorge from the catalytic S200/H440 and W84 at its base to the peripheral site near W279"

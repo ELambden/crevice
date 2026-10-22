@@ -202,7 +202,7 @@ def lining_connectivity(network: ResidueInteractionNetwork, *,
 
 
 @annotate_option
-def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
+def plot_lining_connectivity(network: ResidueInteractionNetwork, path=None, *,
                              lining_residues=None, max_hops: int = 3, max_nodes: int = 50,
                              dpi: int = 200, annotate: bool | None = None):
     """Draw residues in columns by contact-graph distance from the pore lining.
@@ -218,8 +218,9 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
     ----------
     network : ResidueInteractionNetwork
         Contact network with ``residue_groups`` (helix/strand names).
-    path : str or Path
+    path : str or Path, optional
         Output image; parent directories are created.
+        ``None`` only returns the figure.
     lining_residues : iterable of str, optional
         Lining residue IDs; default the residues contacting the region node.
     max_hops : int, default 3
@@ -234,8 +235,9 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given (closed in
+        pyplot; see :func:`crevice.figures.plot_profile_radius`).
 
     Raises
     ------
@@ -258,7 +260,7 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
     """
     from pathlib import Path
     from matplotlib.lines import Line2D
-    from .figures import _pyplot, _save_figure
+    from .figures import _finish_figure, _pyplot
 
     if max_hops < 0 or max_nodes < 1:
         raise ValueError("max_hops must be >= 0 and max_nodes >= 1")
@@ -302,7 +304,7 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path, *,
     if len(groups) > 1 or (groups and text.draw):
         ax.legend(handles=[Line2D([], [], marker="o", linestyle="", color=colors[g], label=g) for g in groups],
                   frameon=False, loc="upper left", bbox_to_anchor=(1, 1), fontsize=8)
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    output = Path(path) if path is not None else None
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+    return _finish_figure(fig, output, dpi=dpi, text=text)

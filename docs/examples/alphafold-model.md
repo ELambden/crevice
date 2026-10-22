@@ -7,7 +7,7 @@ It takes under a minute, but it needs network access to `alphafold.ebi.ac.uk`.
 
 ```bash
 crevice fetch AF-P02920-F1 --format pdb --cache-dir .crevice/pdb
-crevice cast AF-P02920-F1 --format pdb --out-dir cast
+crevice cavities --cast AF-P02920-F1 --format pdb --out-dir cast
 ```
 
 Printed output:

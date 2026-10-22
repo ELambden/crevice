@@ -6,8 +6,13 @@ import json
 import math
 import shutil
 from pathlib import Path
+from ._script_paths import PYMOL_INPUT, script_relative
+from ._portable_paths import dumps_record
 from dataclasses import replace
-from typing import Sequence
+from typing import TYPE_CHECKING, Sequence
+
+if TYPE_CHECKING:  # pragma: no cover
+    from matplotlib.figure import Figure
 
 from .analysis import annotate_residues, detect_cavities, pore_profile
 from .tunnels import find_tunnels
@@ -143,13 +148,13 @@ def _profile_summary(profile: PoreProfile) -> str:
 @annotate_option
 def plot_profile_radius(
     profile: PoreProfile,
-    path: str | Path,
+    path: str | Path | None = None,
     *,
     dpi: int = 200,
     title: str | None = None,
     show_bottleneck: bool = True,
     annotate: bool | None = None,
-) -> Path:
+) -> "Figure":
     """Plot pore radius against the axial coordinate of a resolved channel.
 
     Each profile sample is drawn at its axial coordinate *t* (Å, along the
@@ -157,7 +162,7 @@ def plot_profile_radius(
     atom-surface clearance in that cross-section after any probe-radius
     subtraction (see :func:`crevice.channels.pore_profile`). The minimum-radius
     sample is marked as the bottleneck. When the profile carries channel-mouth
-    metadata (``publish`` profiles), the mouths and the display-only exterior
+    metadata (``report`` profiles), the mouths and the display-only exterior
     clearance beyond them are also drawn. For a capped channel resolved with
     ``lateral_exits``, every lateral exit leg is drawn as a continuation
     beyond its mouth against path length along the leg (see Colours). Nothing
@@ -167,8 +172,9 @@ def plot_profile_radius(
     ----------
     profile : PoreProfile
         A resolved channel profile.
-    path : str or Path
-        Output image; parent directories are created. The suffix selects the
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written). The suffix selects the
         format (PNG recommended; PNG, PDF and SVG carry the description metadata).
     dpi : int, default 200
         Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
@@ -185,8 +191,12 @@ def plot_profile_radius(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Outputs
     -------
@@ -221,7 +231,7 @@ def plot_profile_radius(
     """
 
     plt = _pyplot()
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     x = [point.t for point in profile.points]
     y = [point.radius for point in profile.points]
     text = FigureText("Pore radius against axial coordinate for one resolved channel profile; " + _profile_summary(profile))
@@ -251,21 +261,20 @@ def plot_profile_radius(
     ax.grid(True, color="#d8d8d8", linewidth=0.65, alpha=0.75)
     ax.legend(frameon=False, loc="best")  # several line series: a minimal legend is kept
     _style_axes(ax)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_profile_radius_with_residues(
     profile: PoreProfile,
-    path: str | Path,
+    path: str | Path | None = None,
     *,
     dpi: int = 200,
     title: str | None = None,
     label_every: int = 5,
     max_labels: int = 28,
     annotate: bool | None = None,
-) -> Path:
+) -> "Figure":
     """Plot the pore-radius profile above a lane of nearest-residue landmarks.
 
     The upper panel is the radius profile of :func:`plot_profile_radius` (the
@@ -282,8 +291,9 @@ def plot_profile_radius_with_residues(
     ----------
     profile : PoreProfile
         A resolved channel profile with nearest-residue assignments.
-    path : str or Path
-        Output image; parent directories are created.
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written).
     dpi : int, default 200
         Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
@@ -301,8 +311,12 @@ def plot_profile_radius_with_residues(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Raises
     ------
@@ -333,7 +347,7 @@ def plot_profile_radius_with_residues(
     if label_every < 1:
         raise ValueError("label_every must be at least 1")
     plt = _pyplot()
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     x = [point.t for point in profile.points]
     y = [point.radius for point in profile.points]
     labels = _profile_residue_landmarks(profile, label_every=label_every, max_labels=max_labels)
@@ -398,20 +412,19 @@ def plot_profile_radius_with_residues(
     text.title(lane, "Nearest pore-lining residue landmarks", fontsize=8.8, color=CREVICE_GRAY, pad=2)
     _style_axes(lane)
     lane.spines["left"].set_visible(False)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_residue_contacts(
     contacts: Sequence[ResidueContact],
-    path: str | Path,
+    path: str | Path | None = None,
     *,
     top_n: int = 20,
     dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
-) -> Path:
+) -> "Figure":
     """Rank residues contacting a profile or region by influence score.
 
     Contacts are sorted by decreasing influence score, then increasing minimum
@@ -423,8 +436,9 @@ def plot_residue_contacts(
     ----------
     contacts : sequence of ResidueContact
         Residue contacts, for example from :func:`crevice.analysis.annotate_residues`.
-    path : str or Path
-        Output image; parent directories are created.
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written).
     top_n : int, default 20
         Number of residues shown.
     dpi : int, default 200
@@ -437,8 +451,12 @@ def plot_residue_contacts(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Outputs
     -------
@@ -467,7 +485,7 @@ def plot_residue_contacts(
     """
 
     plt = _pyplot()
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     ranked = sorted(contacts, key=lambda contact: (-contact.influence_score, contact.min_distance))[:top_n]
     text = FigureText(f"Top {len(ranked)} residues ranked by influence score; bar colour is the contact role "
                       "(gap = smallest residue atom-surface distance to the region surface; "
@@ -492,20 +510,19 @@ def plot_residue_contacts(
         fig.legend(handles=handles, title="Contact role", loc="outside lower center", ncol=2,
                    fontsize=7.5, title_fontsize=8, frameon=False)
     _style_axes(ax)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_cavity_summary(
     cavities: Sequence[Cavity],
-    path: str | Path,
+    path: str | Path | None = None,
     *,
     top_n: int = 10,
     dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
-) -> Path:
+) -> "Figure":
     """Summarise detected cavities by volume and maximum radius.
 
     Cavities are sorted by their detection score (highest first) and the first
@@ -517,8 +534,9 @@ def plot_cavity_summary(
     ----------
     cavities : sequence of Cavity
         Detected cavities.
-    path : str or Path
-        Output image; parent directories are created.
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written).
     top_n : int, default 10
         Number of cavities shown.
     dpi : int, default 200
@@ -531,8 +549,12 @@ def plot_cavity_summary(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Outputs
     -------
@@ -548,7 +570,7 @@ def plot_cavity_summary(
     """
 
     plt = _pyplot()
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     ranked = sorted(cavities, key=lambda cavity: cavity.score, reverse=True)[:top_n]
     text = FigureText(f"Volume (bars, left axis) and maximum radius (line, right axis) of the top {len(ranked)} detected cavities by score")
     fig, ax = plt.subplots(figsize=(7.0, 4.4), constrained_layout=True)
@@ -568,20 +590,19 @@ def plot_cavity_summary(
         _set_title(ax, text, title, "CREVICE cavity summary")
         ax.grid(True, axis="y", color="#d8d8d8", linewidth=0.65, alpha=0.75)
     _style_axes(ax)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_network_summary(
     network: ResidueInteractionNetwork,
-    path: str | Path,
+    path: str | Path | None = None,
     *,
     top_n: int = 20,
     dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
-) -> Path:
+) -> "Figure":
     """Rank residues by their number of residue contacts, split by contact class.
 
     For every residue node the residue-residue edges of ``network`` (from
@@ -601,8 +622,9 @@ def plot_network_summary(
     ----------
     network : ResidueInteractionNetwork
         Residue (and optional region) contact network.
-    path : str or Path
-        Output image; parent directories are created.
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written).
     top_n : int, default 20
         Number of residues shown.
     dpi : int, default 200
@@ -615,8 +637,12 @@ def plot_network_summary(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Outputs
     -------
@@ -638,7 +664,7 @@ def plot_network_summary(
     """
 
     plt = _pyplot()
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     residue_ids = [node.id for node in network.nodes if node.kind != "region"]
     region_ids = {node.id for node in network.nodes if node.kind == "region"}
     counts: dict[str, dict[str, int]] = {node_id: {} for node_id in residue_ids}
@@ -683,21 +709,20 @@ def plot_network_summary(
         fig.legend(handles=handles, title="Contact class", loc="outside lower center", ncol=3,
                    fontsize=7.5, title_fontsize=8, frameon=False)
     _style_axes(ax)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_network_chord(
     network: ResidueInteractionNetwork,
-    path: str | Path,
+    path: str | Path | None = None,
     *,
     top_n: int = 24,
     max_edges: int = 90,
     dpi: int = 200,
     title: str | None = None,
     annotate: bool | None = None,
-) -> Path:
+) -> "Figure":
     """Draw a chord-style diagram of the most connected network nodes.
 
     The ``top_n`` highest-degree nodes are placed on a circle (a region node,
@@ -711,8 +736,9 @@ def plot_network_chord(
     ----------
     network : ResidueInteractionNetwork
         Residue (and optional region) contact network.
-    path : str or Path
-        Output image; parent directories are created.
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written).
     top_n : int, default 24
         Number of nodes placed on the circle.
     max_edges : int, default 90
@@ -727,8 +753,12 @@ def plot_network_chord(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Outputs
     -------
@@ -758,7 +788,7 @@ def plot_network_chord(
     from matplotlib.path import Path as MplPath
     from matplotlib.patches import Circle, PathPatch
 
-    output = _ensure_parent(path)
+    output = _ensure_parent(path) if path is not None else None
     degrees = network.degree()
     nodes_by_id = {node.id: node for node in network.nodes}
     selected = [node_id for node_id, _degree in sorted(degrees.items(), key=lambda item: (-item[1], item[0]))[:top_n]]
@@ -779,8 +809,7 @@ def plot_network_chord(
     ax.axis("off")
     if not selected:
         _empty_panel(ax, "No network nodes detected", text)
-        _save_figure(fig, output, dpi=dpi, text=text)
-        return output
+        return _finish_figure(fig, output, dpi=dpi, text=text)
 
     radius = 1.0
     angles = _node_angles(selected, nodes_by_id)
@@ -842,13 +871,12 @@ def plot_network_chord(
         # never overlap a label however many nodes or how long their names are.
         fig.legend(handles=legend_items, frameon=False, loc="outside lower center",
                    ncol=min(3, len(legend_items)), fontsize=8)
-    _save_figure(fig, output, dpi=dpi, text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_trajectory_profiles(
-    trajectory, path, *, dpi=200,title=None,view="distribution",quantiles=(.1,.9),
+    trajectory, path=None, *, dpi=200,title=None,view="distribution",quantiles=(.1,.9),
     coordinate_grid=None,samples=101,confidence=None,block_length=None,
     bootstrap_replicates=2000,seed=20260911,distribution=None,quantity="radius",
     annotate=None,
@@ -869,8 +897,9 @@ def plot_trajectory_profiles(
     ----------
     trajectory : TrajectoryAnalysis or sequence of FrameAnalysis
         Per-frame results, for example from :func:`crevice.trajectory.analyze_trajectory`.
-    path : str or Path
-        Output image; parent directories are created.
+    path : str or Path, optional
+        Output image; parent directories are created. ``None`` only returns
+        the figure (nothing is written).
     dpi : int, default 200
         Raster resolution in dots per inch. The default suits screens; use 400 or more for print.
     title : str, optional
@@ -902,8 +931,12 @@ def plot_trajectory_profiles(
 
     Returns
     -------
-    Path
-        The written image.
+    matplotlib.figure.Figure
+        The figure, also written to ``path`` when one is given. It is closed
+        in pyplot (no figures accumulate in loops); display it in a notebook
+        by evaluating it, or save it again with ``Figure.savefig``. Its
+        ``crevice_description`` attribute holds the title, description and
+        omitted-label text otherwise embedded in the saved file's metadata.
 
     Raises
     ------
@@ -933,7 +966,7 @@ def plot_trajectory_profiles(
     import numpy as np
     if view not in {"distribution","timeseries"}:raise ValueError("view must be distribution or timeseries")
     if quantity not in {"radius","diameter"}:raise ValueError("quantity must be radius or diameter")
-    plt=_pyplot();output=_ensure_parent(path)
+    plt=_pyplot();output=_ensure_parent(path) if path is not None else None
     frames=tuple(trajectory.frames if isinstance(trajectory,TrajectoryAnalysis) else trajectory)
     profiles=[f.profile for f in frames if f.profile is not None]
     scale=2 if quantity=="diameter" else 1
@@ -977,8 +1010,7 @@ def plot_trajectory_profiles(
             unvalidated=any(p.metadata.get('status')=='unvalidated_axis_scan' for p in profiles)
             ax.set_ylabel(('Clearance ' if unvalidated else 'Pore ')+quantity+' (Å)');_set_title(ax,text,title,'Unvalidated fixed-axis timeseries' if unvalidated else 'Profile timeseries · unresolved frames remain gaps');ax.legend(frameon=False)
     ax.set_ylim(bottom=0);ax.grid(True,color='#d8d8d8',lw=.65,alpha=.75);_style_axes(ax)
-    _save_figure(fig,output,dpi=dpi,text=text)
-    return output
+    return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 def write_publication_pymol_script(
@@ -1005,9 +1037,11 @@ def write_publication_pymol_script(
     B-factor holds each sample's clearance radius), sets each dummy atom's van
     der Waals radius to ``max(0.25, B)`` and shows them as translucent spheres
     coloured by radius, together with a molecular surface of the same spheres.
-    Files are read from the current directory when present there, otherwise
-    from their absolute paths, so the bundle can be moved. The scene contains
-    no text, labels or legends.
+    The script holds no absolute path: each file is named relative to the
+    script's folder and looked up next to the script, then in the working
+    directory (an error names a missing file), so the bundle can be moved or
+    copied to another machine. The rendered PNG is written next to the
+    script. The scene contains no text, labels or legends.
 
     Parameters
     ----------
@@ -1030,7 +1064,8 @@ def write_publication_pymol_script(
         PyMOL object names (defaults ``crevice_cartoon``, ``crevice_pore_cast``,
         ``crevice_pore_fill``).
     structure_local_name, pore_cast_local_name, output_png_local_name : str, optional
-        File names looked up in the working directory before the absolute paths.
+        Paths relative to the script's folder (default: computed from
+        ``structure_path``, ``pore_cast_path`` and ``output_png``).
     bottleneck_resi : int, optional
         Dummy-atom residue number of the bottleneck sample, highlighted separately.
 
@@ -1058,19 +1093,16 @@ def write_publication_pymol_script(
     """
 
     output = _ensure_parent(script_path)
-    structure_abs = Path(structure_path).resolve()
-    pore_cast_abs = Path(pore_cast_path).resolve()
-    structure_local = structure_local_name or structure_abs.name
-    pore_cast_local = pore_cast_local_name or pore_cast_abs.name
+    script_dir = output.parent
+    structure_local = structure_local_name or script_relative(structure_path, script_dir)
+    pore_cast_local = pore_cast_local_name or script_relative(pore_cast_path, script_dir)
     if bottleneck_resi is None and profile is not None:
         bottleneck_resi = profile.bottleneck.index + 1
     png_block = ""
     if output_png is not None:
-        png_abs = Path(output_png).resolve()
-        png_local = output_png_local_name or png_abs.name
+        png_local = output_png_local_name or script_relative(output_png, script_dir)
         png_block = f"""python
-_required = [{structure_local!r}, {pore_cast_local!r}]
-_png_target = _crevice_output({png_local!r}, {str(png_abs)!r}, _required)
+_png_target = _crevice_output({png_local!r})
 cmd.ray({width}, {height})
 cmd.png(_png_target, dpi={dpi})
 python end
@@ -1100,19 +1132,16 @@ set_color crevice_pink, [1.00, 0.05, 0.55]
 set_color crevice_deep_blue, [0.08, 0.18, 0.55]
 python
 from pathlib import Path
+import inspect
 from pymol import cmd
 
-def _crevice_input(local_name, fallback):
-    local = Path.cwd() / local_name
-    return str(local if local.exists() else Path(fallback))
+{PYMOL_INPUT}
 
-def _crevice_output(local_name, fallback, required_local_inputs):
-    if all((Path.cwd() / name).exists() for name in required_local_inputs):
-        return str(Path.cwd() / local_name)
-    return str(Path(fallback))
+def _crevice_output(name):
+    return str(_crevice_script_root / name)
 
-cmd.load(_crevice_input({structure_local!r}, {str(structure_abs)!r}), {structure_object!r})
-cmd.load(_crevice_input({pore_cast_local!r}, {str(pore_cast_abs)!r}), {pore_object!r})
+cmd.load(crevice_input({structure_local!r}), {structure_object!r})
+cmd.load(crevice_input({pore_cast_local!r}), {pore_object!r})
 python end
 hide everything, {structure_object}
 show cartoon, {structure_object}
@@ -1190,7 +1219,7 @@ def write_static_publication_bundle(
     fingerprint: bool = False,
     outputs=None,
 ) -> dict[str, str]:
-    """Write the static-structure bundle of ``crevice publish``.
+    """Write the static-structure bundle of ``crevice report``.
 
     The frame is reduced to the requested atom selection, a single
     through-channel profile is resolved (:func:`crevice.channels.pore_profile`),
@@ -1240,7 +1269,10 @@ def write_static_publication_bundle(
     search_radius : float, default 6.0
         Transverse centre-refinement half-width (Å).
     refinement_steps : int, default 4
-        Centre-refinement iterations.
+        Slice-centre refinement (:meth:`crevice.sections.SectionGeometry.refine`):
+        0 keeps the grid-point centres; a positive value converges each centre
+        to its local clearance maximum (0.0001 Å) with at least this many step
+        halvings.
     probe_radius : float, default 0.0
         Radius (Å) subtracted from reported clearances.
     dpi : int, default 200
@@ -1313,8 +1345,8 @@ def write_static_publication_bundle(
         plan includes ``fingerprint``.
     outputs : None, str, sequence of str or OutputPlan, optional
         Output selection for this call (:mod:`crevice.outputs`, policy of
-        ``crevice publish``): for example ``"default"`` (the compact CLI
-        default), ``"figures,pymol"``, ``"all"`` or ``"legacy"``. ``None``
+        ``crevice report``): for example ``"default"`` (the compact CLI
+        default), ``"figures,pymol"`` or ``"all"``. ``None``
         (default) keeps the active plan, and writes the complete CREVICE 0.2
         bundle when none is active. Measurements never depend on it.
     annotate : bool, optional
@@ -1514,7 +1546,7 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
                                max_grid_points=16_000_000, selection="protein", dpi=200, seed=None, seed_tolerance=.75,
                                smooth=None, annotate=None,
                                radii: RadiusSet | str | None = None, outputs=None):
-    """Write the 3D rolling-probe cast bundle of ``crevice cast``.
+    """Write the 3D rolling-probe cast bundle of ``crevice cavities --cast``.
 
     A probe of radius ``probe_radius`` is rolled over the selected atoms on a
     grid of ``spacing``; grid points it can reach inside an outer envelope
@@ -1585,7 +1617,7 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
         :doc:`/methods/atomic-radii`.
     outputs : None, str, sequence of str or OutputPlan, optional
         Output selection for this call (:mod:`crevice.outputs`, policy of
-        ``crevice cast``); ``None`` keeps the active plan and writes the
+        ``crevice cavities --cast``); ``None`` keeps the active plan and writes the
         complete CREVICE 0.2 bundle when none is active.
 
     Returns
@@ -1656,7 +1688,23 @@ def _pyplot():
     return plt
 
 
-def _save_figure(fig, path: Path, *, dpi: int, text: FigureText | None = None) -> None:
+def _finish_figure(fig, path, *, dpi: int, text: FigureText | None = None):
+    """Save ``fig`` to ``path`` (when given) exactly as before, close it in pyplot and return it.
+
+    The figure is not cleared, so the returned object still holds the drawing;
+    the saved file is byte-identical to the one written before plot functions
+    returned figures (``_save_figure`` is unchanged apart from not clearing).
+    """
+    fig.crevice_description = text.metadata() if text is not None else {}
+    if path is None:
+        _pyplot().close(fig)
+    else:
+        fig._crevice_keep = True  # tells _save_figure not to clear the drawing
+        _save_figure(fig, Path(path), dpi=dpi, text=text)
+    return fig
+
+
+def _save_figure(fig, path: Path, *, dpi: int, text: FigureText | None = None, keep: bool = False) -> None:
     """Save a figure with its description embedded in the file metadata.
 
     PNG files receive ``Software``, ``Title``, ``Description`` and
@@ -1667,9 +1715,11 @@ def _save_figure(fig, path: Path, *, dpi: int, text: FigureText | None = None) -
     without being written.
     """
     path = Path(path)
+    keep = keep or getattr(fig, "_crevice_keep", False)
     from .outputs import wants
     if not wants(path):
-        fig.clf()
+        if not keep:
+            fig.clf()
         _pyplot().close(fig)
         return
     suffix = path.suffix.lower()
@@ -1683,7 +1733,8 @@ def _save_figure(fig, path: Path, *, dpi: int, text: FigureText | None = None) -
     else:
         metadata = {"Creator": "CREVICE"}
     fig.savefig(path, dpi=dpi, bbox_inches="tight", facecolor="white", metadata=metadata)
-    fig.clf()
+    if not keep:
+        fig.clf()
     _pyplot().close(fig)
 
 
@@ -1863,4 +1914,4 @@ def _ensure_parent(path: str | Path) -> Path:
 
 def _write_json(data: object, path: str | Path) -> None:
     output = _ensure_parent(path)
-    output.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    output.write_text(dumps_record(data, output, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")

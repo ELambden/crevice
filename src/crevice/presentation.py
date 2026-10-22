@@ -21,6 +21,7 @@ import functools
 import json
 import math
 from pathlib import Path
+from ._portable_paths import dumps_record
 
 from .geometry import add, scale, dot
 from .models import StructureFrame
@@ -46,7 +47,7 @@ def extend_channel_cast(cast, frame, length=2.0):
         Structure whose atoms clip the extension (the cast's own atom selection).
     length : float, default 2.0
         Requested extension beyond each mouth, Å (rounded down to whole grid
-        steps). 0 returns ``cast`` unchanged.
+        steps). 0 returns ``cavities --cast`` unchanged.
 
     Returns
     -------
@@ -54,7 +55,7 @@ def extend_channel_cast(cast, frame, length=2.0):
         A copy with the extra samples, ``display_only=True``,
         ``extension_requested_A``, ``extension_actual_A`` (per end),
         ``extension_added_points`` and ``measured_volume_A3`` in its metadata; or
-        ``cast`` itself for zero length, a non-channel cast or a focus-cropped cast
+        ``cavities --cast`` itself for zero length, a non-channel cast or a focus-cropped cast
         (a crop boundary is not a channel mouth).
 
     Raises
@@ -205,7 +206,7 @@ def write_viewer_structure(frame, path):
                "residue_mapping": [{"original": k.label, "viewer_chain": chain_map[k.chain_id],
                                      "viewer_resid": v} for k, v in residues.items()],
                "original_serials_in_viewer_order": [a.serial for a in frame.atoms]}
-    output.with_suffix('.identities.json').write_text(json.dumps(mapping, indent=2)+'\n', encoding="utf-8", newline="\n")
+    output.with_suffix('.identities.json').write_text(dumps_record(mapping, output, indent=2)+'\n', encoding="utf-8", newline="\n")
     return output
 
 

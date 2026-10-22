@@ -1,0 +1,156 @@
+# Automatic enclosure-probe choice under one-at-a-time changes of the grouping rule and ladder (probe_sensitivity.py). Bondi radii; curated atoms, axis and seed.
+id,options_used,variant,status,chosen_probe_A,min_radius_A,support,groups,status_changed,probe_changed,min_radius_change_A,reason
+1GRM,default,default,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,min_radius_abs_0.025,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,min_radius_abs_0.1,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,min_radius_frac_0.01,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,min_radius_frac_0.05,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,overlap_0.4,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,overlap_0.8,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,min_support_3,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,min_support_4,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,ladder_0.5-2.0,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,ladder_0.5-4.0,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,ladder_0.4-3.0,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,ladder_0.6-3.0,resolved,0.8000,1.3379,5,1,False,False,0.0000,
+1GRM,default,ladder_every_other,resolved,0.8000,1.3379,3,1,False,False,0.0000,
+1K4C,default,default,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,min_radius_abs_0.025,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,min_radius_abs_0.1,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,min_radius_frac_0.01,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,min_radius_frac_0.05,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,overlap_0.4,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,overlap_0.8,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,min_support_3,unresolved,,,,,False,False,,no channel at >= 2 probes
+1K4C,default,min_support_4,unresolved,,,,,False,False,,no channel at >= 2 probes
+1K4C,default,ladder_0.5-2.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,ladder_0.5-4.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,ladder_0.4-3.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,ladder_0.6-3.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1K4C,default,ladder_every_other,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,default,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,min_radius_abs_0.025,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,min_radius_abs_0.1,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,min_radius_frac_0.01,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,min_radius_frac_0.05,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,overlap_0.4,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,overlap_0.8,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,min_support_3,unresolved,,,,,False,False,,no channel at >= 2 probes
+1LNQ,default,min_support_4,unresolved,,,,,False,False,,no channel at >= 2 probes
+1LNQ,default,ladder_0.5-2.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,ladder_0.5-4.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,ladder_0.4-3.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,ladder_0.6-3.0,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1LNQ,default,ladder_every_other,unresolved,,,,0,False,False,,no candidate probe resolved a channel
+1J4N,lateral_exits,default,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,min_radius_abs_0.025,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,min_radius_abs_0.1,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,min_radius_frac_0.01,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,min_radius_frac_0.05,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,overlap_0.4,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,overlap_0.8,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,min_support_3,unresolved,,,,,True,True,,no channel at >= 3 probes
+1J4N,lateral_exits,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+1J4N,lateral_exits,ladder_0.5-2.0,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,ladder_0.5-4.0,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,ladder_0.4-3.0,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,ladder_0.6-3.0,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+1J4N,lateral_exits,ladder_every_other,resolved,0.7000,1.8487,2,3,False,False,0.0000,
+2OMF,lateral_exits,default,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,min_radius_abs_0.025,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,min_radius_abs_0.1,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,min_radius_frac_0.01,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,min_radius_frac_0.05,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,overlap_0.4,resolved,1.4000,3.7248,4,1,False,False,0.0000,
+2OMF,lateral_exits,overlap_0.8,resolved,1.4000,3.7248,2,3,False,False,0.0000,
+2OMF,lateral_exits,min_support_3,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+2OMF,lateral_exits,ladder_0.5-2.0,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,ladder_0.5-4.0,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,ladder_0.4-3.0,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,ladder_0.6-3.0,resolved,1.4000,3.7248,3,2,False,False,0.0000,
+2OMF,lateral_exits,ladder_every_other,resolved,1.4000,3.7248,2,1,False,False,0.0000,
+4HFI,default,default,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,min_radius_abs_0.025,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,min_radius_abs_0.1,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,min_radius_frac_0.01,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,min_radius_frac_0.05,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,overlap_0.4,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,overlap_0.8,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,min_support_3,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+4HFI,default,ladder_0.5-2.0,unresolved,,,,1,True,True,,only isolated probes resolved a channel
+4HFI,default,ladder_0.5-4.0,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,ladder_0.4-3.0,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,ladder_0.6-3.0,resolved,2.0000,2.7237,3,1,False,False,0.0000,
+4HFI,default,ladder_every_other,resolved,2.0000,2.7237,2,1,False,False,0.0000,
+2BG9,lateral_exits,default,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,min_radius_abs_0.025,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,min_radius_abs_0.1,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,min_radius_frac_0.01,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,min_radius_frac_0.05,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,overlap_0.4,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,overlap_0.8,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,min_support_3,unresolved,,,,,True,True,,no channel at >= 3 probes
+2BG9,lateral_exits,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+2BG9,lateral_exits,ladder_0.5-2.0,unresolved,,,,0,True,True,,no candidate probe resolved a channel
+2BG9,lateral_exits,ladder_0.5-4.0,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,ladder_0.4-3.0,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,ladder_0.6-3.0,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+2BG9,lateral_exits,ladder_every_other,resolved,2.2000,2.7158,2,1,False,False,0.0000,
+1OED,default,default,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,min_radius_abs_0.025,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,min_radius_abs_0.1,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,min_radius_frac_0.01,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,min_radius_frac_0.05,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,overlap_0.4,resolved,1.1000,3.2644,3,1,False,True,-0.000938134,
+1OED,default,overlap_0.8,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,min_support_3,unresolved,,,,,True,True,,no channel at >= 3 probes
+1OED,default,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+1OED,default,ladder_0.5-2.0,resolved,1.0500,3.2642,2,1,False,True,-0.0011,
+1OED,default,ladder_0.5-4.0,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,ladder_0.4-3.0,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,ladder_0.6-3.0,resolved,2.4000,3.2653,2,2,False,False,0.0000,
+1OED,default,ladder_every_other,resolved,2.4000,3.2653,2,1,False,False,0.0000,
+2VV5,lateral_exits_search12,default,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,min_radius_abs_0.025,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,min_radius_abs_0.1,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,min_radius_frac_0.01,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,min_radius_frac_0.05,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,overlap_0.4,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,overlap_0.8,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,min_support_3,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+2VV5,lateral_exits_search12,ladder_0.5-2.0,unresolved,,,,0,True,True,,no candidate probe resolved a channel
+2VV5,lateral_exits_search12,ladder_0.5-4.0,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,ladder_0.4-3.0,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,ladder_0.6-3.0,resolved,2.4000,6.1829,3,1,False,False,0.0000,
+2VV5,lateral_exits_search12,ladder_every_other,resolved,2.4000,6.1829,2,1,False,False,0.0000,
+2OAU,lateral_exits,default,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,min_radius_abs_0.025,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,min_radius_abs_0.1,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,min_radius_frac_0.01,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,min_radius_frac_0.05,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,overlap_0.4,resolved,1.0000,2.5793,6,2,False,True,-0.000129121,
+2OAU,lateral_exits,overlap_0.8,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,min_support_3,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,min_support_4,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,ladder_0.5-2.0,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,ladder_0.5-4.0,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,ladder_0.4-3.0,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,ladder_0.6-3.0,resolved,1.2000,2.5794,5,2,False,False,0.0000,
+2OAU,lateral_exits,ladder_every_other,resolved,1.2000,2.5794,3,2,False,False,0.0000,
+3UKM,lateral_exits,default,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,min_radius_abs_0.025,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,min_radius_abs_0.1,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,min_radius_frac_0.01,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,min_radius_frac_0.05,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,overlap_0.4,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,overlap_0.8,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,min_support_3,unresolved,,,,,True,True,,no channel at >= 3 probes
+3UKM,lateral_exits,min_support_4,unresolved,,,,,True,True,,no channel at >= 4 probes
+3UKM,lateral_exits,ladder_0.5-2.0,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,ladder_0.5-4.0,resolved,0.5500,0.6367,2,2,False,False,0.0000,
+3UKM,lateral_exits,ladder_0.4-3.0,resolved,0.5500,0.6367,2,3,False,False,0.0000,
+3UKM,lateral_exits,ladder_0.6-3.0,unresolved,,,,2,True,True,,only isolated probes resolved a channel
+3UKM,lateral_exits,ladder_every_other,resolved,0.5500,0.6367,2,2,False,False,0.0000,

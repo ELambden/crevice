@@ -3,6 +3,48 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.4.0 (22 October 2026)
+
+**Nine commands, water and ion permeation, MDAnalysis input, uncertainty on
+every trajectory summary, and a benchmark suite against other tools.**
+
+- **Nine commands instead of 25:** `fetch`, `profile`, `cavities`, `paths`,
+  `residues`, `report`, `trajectory`, `region` and `view`. The 0.3 names
+  still work as deprecated aliases with identical outputs until 1.0. See
+  [Upgrading to 0.4](../getting-started/upgrading-0.4.md).
+- **Permeation.** `crevice trajectory --permeation` counts complete crossings
+  of water, ions or any selected species through a channel and reports flux,
+  occupancy, water osmotic and diffusive permeabilities and the ion current;
+  the conductance is given only when a voltage is known. See
+  [Permeation](../tools/permeation.md).
+- **MDAnalysis objects as input.** The Python API accepts a `Universe` or
+  `AtomGroup` wherever it accepts a topology path, and every `plot_*`
+  function returns its figure.
+- **Uncertainty.** Every per-frame trajectory summary gains an effective
+  sample size, a blocking standard error and a block-bootstrap interval;
+  `--sensitivity` reruns the headline numbers with margin, probe and grid
+  changed one at a time; narrow channels on a coarse grid are warned about.
+  See [Uncertainty](../methods/uncertainty.md).
+- **Benchmarks.** A reproducible suite compares profiles with HOLE, tunnels
+  with CAVER, pocket volumes with pyKVFinder, POVME and MDpocket, the
+  geometric conductance estimate with measured conductances, and run times.
+  See [Benchmarks against other tools](../methods/benchmarks.md).
+- **Exact slice centres.** Profile radii are measured at the exact top of
+  each slice's clearance hill, so they no longer shift with grid spacing or
+  sample count; radii increase slightly (1GRM minimum 1.337 Å instead of
+  1.330 Å).
+- **HETATM residues in a polymer chain** (D-amino acids, selenomethionine,
+  modified residues) are protein in PDB files too, as they already were for
+  mmCIF files; `--hetero-polymer exclude` keeps the 0.3 behaviour.
+- **Portable output folders.** Manifests and viewer scripts hold no absolute
+  paths, so a folder works when moved or copied to another machine.
+- **Fixes.** Profiles no longer fail at some sample counts when the lumen
+  touches the search window; `crevice trajectory` no longer stops when a
+  fixed `--origin` loses its clearance in a frame.
+- **Known limitation.** A cavity or region trajectory keeps every frame in
+  memory, about 7 MB per frame for a membrane protein; analyse long
+  trajectories in frame ranges. See [Limitations](../getting-started/limitations.md).
+
 ## 0.3.3 (19 October 2026)
 
 - **Windows.** The test suite passes on Windows (two tests compared paths with

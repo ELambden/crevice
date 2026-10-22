@@ -1,0 +1,8 @@
+# Headline numbers of each benchmark (make_tables.py).
+benchmark,entries,result
+channel profiles vs HOLE 2.3.1 (simple.rad in both),11,"resolved with default options 3/11; with documented options (lateral exits, 12 A search) 8/11; RMSD 0.002-0.009 A (median 0.003); max |diff| 0.063 A; |min radius diff| 0.000-0.004 A"
+channel profiles vs HOLE 2.3.1 (bondi.rad in both),11,"resolved with default options 3/11; with documented options (lateral exits, 12 A search) 9/11; RMSD 0.001-0.011 A (median 0.003); max |diff| 0.074 A; |min radius diff| 0.000-0.004 A"
+tunnels vs CAVER 3.0.3,3,1CQW: CAVER top cluster 1.39 A / CREVICE 1.36 A (3 deg); 1MJ5: CAVER top cluster 1.51 A / CREVICE 1.40 A (1 deg); 1EA5: CAVER top cluster 2.47 A / CREVICE 2.44 A (9 deg)
+pocket volumes vs pyKVFinder/POVME,3,"1L83: cast 384.5, pyKVFinder(0.8) 374.76, pyKVFinder(1.4) 196.34, POVME 65.375 A3; 2NNQ: cast 1041.875, pyKVFinder(0.8) 1280.88, pyKVFinder(1.4) 949.1, POVME 579.0 A3; 4PYP: cast 3245.25, pyKVFinder(0.8) 4272.48, pyKVFinder(1.4) 1329.48, POVME 912.125 A3"
+GLUT1 trajectory pocket vs MDpocket,21,"mean CREVICE 761.0518 A3, MDpocket 555.4824 A3, Pearson r 0.2240"
+automatic-probe sensitivity,11,"variants per channel 13; over the 9 channels resolved by default: probe changed in 18 of 117 variant runs, status changed in 15, min radius changed > 0.01 A in 0; unresolved by default: 1K4C, 1LNQ"

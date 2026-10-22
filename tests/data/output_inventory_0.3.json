@@ -1,5 +1,5 @@
 {
- "_comment": "Exact CREVICE 0.3 file inventories of the synthetic cases in tests/inventory_cases.py (key: case name plus extra CLI arguments). Software characterisation only.",
+ "_comment": "Exact CREVICE 0.3 file inventories of the synthetic cases in tests/inventory_cases.py (key: case name plus extra CLI arguments). Software characterisation only. 0.4: trajectory adds t_frame_statistics.csv/.json.",
  "cases": {
   "analyze": {
    "count": 10,
@@ -868,9 +868,11 @@
    ]
   },
   "trajectory": {
-   "count": 15,
+   "count": 17,
    "files": [
     "t.json",
+    "t_frame_statistics.csv",
+    "t_frame_statistics.json",
     "t_frames.csv",
     "t_interaction_frames/frame_0000_interaction_edge_frames.csv",
     "t_interaction_frames/frame_0000_interaction_edges.csv",

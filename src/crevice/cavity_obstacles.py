@@ -1,6 +1,6 @@
 """Explicit physical obstacles, independent of protein display/network selection.
 
-In trajectory cavity analysis (``crevice cavity-trajectory`` with
+In trajectory cavity analysis (``crevice trajectory --cavities`` with
 reference-region geometry), the space measured in a fixed reference
 neighbourhood can be bounded by more than the protein: lipids, ligands, ions
 or waters can be declared as van der Waals obstacles with an MDAnalysis
@@ -19,6 +19,7 @@ Limitations
 from dataclasses import replace
 from itertools import product
 import os
+from .mdinput import accepts_md_objects as _accepts_md_objects
 
 
 def aligned_obstacle_images(atoms, coordinates, lower, upper, *, rotation, translation,
@@ -157,8 +158,10 @@ class ObstacleSource:
 
     Parameters
     ----------
-    topology, trajectory : str or pathlib.Path
-        The same MD files as the protein analysis.
+    topology, trajectory : str, Path, Universe or AtomGroup
+        MD files readable by MDAnalysis, or a loaded ``MDAnalysis.Universe``
+        or ``AtomGroup`` as ``topology`` with ``trajectory`` omitted (an
+        AtomGroup replaces ``protein_selection``; see :mod:`crevice.mdinput`).
     protein_selection : str
         MDAnalysis selection used for the protein frames.
     obstacle_selection : str
@@ -178,6 +181,7 @@ class ObstacleSource:
         If the selection has no heavy atoms, atom counts differ, protein heavy
         atoms are missing from the obstacle selection, or identities differ.
     """
+    @_accepts_md_objects('protein_selection')
     def __init__(self, topology, trajectory, *, protein_selection, obstacle_selection,
                  reference_frame, frame_times, pbc='check'):
         import numpy as np
@@ -185,7 +189,8 @@ class ObstacleSource:
         from .trajectory import _open_universe, _element_names, _chain_labels
         from .models import Atom
         from .radii import atom_vdw_radius
-        self.topology, self.trajectory = str(topology), str(trajectory)
+        from .mdinput import stored_source
+        self.topology, self.trajectory = stored_source(topology, trajectory)
         self.selection, self.pbc = obstacle_selection, pbc
         self.frame_times = dict(frame_times)
         self._universe = _open_universe(topology,trajectory); self._pid = os.getpid()

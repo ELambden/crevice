@@ -1,4 +1,4 @@
-"""Offline tests of the example-data fetcher (crevice.examples) and `crevice fetch-example`.
+"""Offline tests of the example-data fetcher (crevice.examples) and `crevice fetch --example`.
 
 No network access: a small fake dataset is registered and served from a local
 directory or a file:// URL.
@@ -105,9 +105,9 @@ def test_default_cache_dir_uses_xdg(monkeypatch, tmp_path):
 
 def test_cli_fetch_example(fake_dataset, tmp_path, capsys):
     source, _, _ = fake_dataset
-    assert main(["fetch-example", "--list"]) == 0
+    assert main(["fetch", "--example", "--list"]) == 0
     assert "glut1-excerpt" in capsys.readouterr().out
-    assert main(["fetch-example", "fake", "--cache-dir", str(tmp_path / "cache"), "--source-dir", str(source)]) == 0
+    assert main(["fetch", "--example", "fake", "--cache-dir", str(tmp_path / "cache"), "--source-dir", str(source)]) == 0
     out = capsys.readouterr().out
     assert "t.gro\tfetched" in out and "t.xtc\tfetched\tsha256 verified" in out
     assert f"example directory={(tmp_path / 'cache' / 'fake').resolve()}" in out

@@ -1,7 +1,7 @@
 # Pore fingerprint definitions
 
 This note gives the definitions behind
-[`crevice fingerprint`](../tools/fingerprint.md) and
+[`crevice profile --fingerprint`](../tools/fingerprint.md) and
 {mod}`crevice.fingerprint`. All distances are in ångström, and atoms are van
 der Waals spheres of the radius set in force
 ([Atomic radii](atomic-radii.md)).
@@ -27,7 +27,7 @@ channel.
 
 **Segments.** Lumen samples are labelled `lumen`; the samples beyond each mouth
 take that end's ENTRY or EXIT label (`entry_1`, `exit_1`), following the same
-rule as `publish`'s cast segments
+rule as `report`'s cast segments
 ({func}`crevice.cast_segments.segment_roles`, `--entry-end`). The labels are
 geometric and say nothing about the direction of transport.
 

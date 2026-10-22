@@ -1,8 +1,8 @@
 """Run ChimeraX scenes and verify native coordinates, residue sticks and surfaces.
 
 Opens a cast or residue-evidence scene (``PREFIX_volume.cxc`` or
-``PREFIX_residue_context.cxc``) in ChimeraX (offscreen, or under ``xvfb-run``
-with ``--xvfb``), saves a supersampled PNG and checks: protein coordinates
+``PREFIX_residue_context.cxc``) in ChimeraX (under ``xvfb-run`` when it is
+installed, otherwise offscreen; ``--xvfb``/``--offscreen`` force one), saves a supersampled PNG and checks: protein coordinates
 against ``PREFIX_residue_reference.tsv`` (0.001 Å), the stick residues and
 their gold/magenta colours against ``PREFIX_residue_evidence.json``, the
 displayed surface against ``*_geometry_reference.npz``, the camera against
@@ -26,7 +26,8 @@ def main():
 
     Options: ``scene``, ``--output`` (directory), ``--executable`` (default
     ``chimerax`` on ``PATH``, else ``workspace_paths.local_chimerax()``),
-    ``--xvfb`` (virtual X display instead of offscreen rendering), ``--width``
+    ``--xvfb`` / ``--offscreen`` (rendering mode; by default a virtual X
+    display when ``xvfb-run`` is installed, otherwise offscreen), ``--width``
     (pixels, default 900) and ``--timeout`` (seconds, default 180).
 
     Raises
@@ -37,7 +38,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('scene',type=Path);parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--executable',default=shutil.which('chimerax'))
-    parser.add_argument('--xvfb',action='store_true',help='Use a virtual X display instead of offscreen rendering')
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--xvfb',dest='xvfb',action='store_true',default=None,help='Render in a virtual X display (default when xvfb-run is installed)')
+    mode.add_argument('--offscreen',dest='xvfb',action='store_false',help='Render offscreen (default when xvfb-run is not installed)')
     parser.add_argument('--width',type=int,default=900);parser.add_argument('--timeout',type=float,default=180)
     args=parser.parse_args();scene=args.scene.resolve(strict=True);out=args.output.resolve();out.mkdir(parents=True,exist_ok=True)
     executable=args.executable or str(local_chimerax())
@@ -76,7 +79,8 @@ except Exception as error:
     with tempfile.TemporaryDirectory(prefix='crevice-chimerax-') as directory:
         script=Path(directory)/'inspect.py';script.write_text(inspection, encoding="utf-8", newline="\n")
         command=[executable,'--silent','--exit',str(script)]
-        if args.xvfb:command=['xvfb-run','-a','-s','-screen 0 1280x1024x24',*command]
+        use_xvfb=args.xvfb if args.xvfb is not None else shutil.which('xvfb-run') is not None
+        if use_xvfb:command=['xvfb-run','-a','-s','-screen 0 1280x1024x24',*command]
         else:command.insert(1,'--offscreen')
         try:
             done=subprocess.run(command,capture_output=True,text=True,timeout=args.timeout)

@@ -44,7 +44,7 @@ def test_prepare_with_an_explicit_set_stores_it_and_trajectory_uses_it(tmp_path)
     assert metadata['radius_set'].name == 'hole'
     assert metadata['radii_check']['status'] == 'definition_set_used'
     out = tmp_path / 'run'
-    assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
+    assert main(['trajectory', '--region', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--dpi', '60']) == 0
     report = json.loads((out / 'synthetic_cavity_statistics.json').read_text(encoding="utf-8"))
     assert report['settings']['radii']['name'] == 'hole'
@@ -56,10 +56,10 @@ def test_prepare_with_an_explicit_set_stores_it_and_trajectory_uses_it(tmp_path)
 def test_region_trajectory_refuses_a_different_set_unless_overridden(tmp_path, capsys):
     _, files = prepared(tmp_path)
     out = tmp_path / 'run'
-    assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
+    assert main(['trajectory', '--region', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--radii', 'hole']) == 2
     assert 'Radius set mismatch' in capsys.readouterr().err
-    assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
+    assert main(['trajectory', '--region', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--dpi', '60', '--radii', 'hole', '--allow-radii-mismatch']) == 0
     provenance = json.loads((out / 'synthetic_region_provenance.json').read_text(encoding="utf-8"))
     assert provenance['radii']['name'] == 'hole'
@@ -67,7 +67,7 @@ def test_region_trajectory_refuses_a_different_set_unless_overridden(tmp_path, c
     assert provenance['radii_check']['declared']['name'] == 'default'
     # The same set given explicitly is accepted.
     out2 = tmp_path / 'run2'
-    assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out2), '--skip-hydration',
+    assert main(['trajectory', '--region', files['definition_json'], '--out-dir', str(out2), '--skip-hydration',
                  '--stop', '2', '--dpi', '60', '--radii', 'default']) == 0
 
 
@@ -113,7 +113,7 @@ def test_hydration_cavity_results_uses_or_checks_the_recorded_set(tmp_path):
     from crevice.hydration_trajectory import analyze_hydration_trajectory
     _, files = prepared(tmp_path, radii='hole')
     out = tmp_path / 'run'
-    assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
+    assert main(['trajectory', '--region', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                  '--stop', '2', '--dpi', '60']) == 0
     stats = out / 'synthetic_cavity_statistics.json'
     reader = json.loads((out / 'synthetic_reader.json').read_text(encoding="utf-8"))
@@ -137,7 +137,7 @@ def test_region_compare_refuses_runs_with_different_radius_sets(tmp_path):
         write_json(path, data)
         files = prepare_region(path, tmp_path / (name + '-review'), radii=radii)
         out = tmp_path / name
-        assert main(['region-trajectory', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
+        assert main(['trajectory', '--region', files['definition_json'], '--out-dir', str(out), '--skip-hydration',
                      '--stop', '2', '--dpi', '60']) == 0
         stats.append(out / (name + '_cavity_statistics.json'))
     with pytest.raises(ValueError, match='Radius set mismatch'):

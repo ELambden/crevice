@@ -114,7 +114,7 @@ def write_region_review(frame, reference, report, obstacles, output_dir, prefix,
     mapped={r['original']:(r['viewer_chain'],r['viewer_resid']) for r in mapping['residue_mapping']}
     # The underlying volume scenes supply the same world-coordinate cast and camera.
     pml=Path(files['volume_pml']).read_text(encoding="utf-8")+f'''\npython
-review=json.loads(Path(crevice_input({scene_path.name!r},{str(scene_path)!r})).read_text())
+review=json.loads(Path(crevice_input({scene_path.name!r})).read_text())
 for name in ['crevice_review_labels','crevice_review_points','crevice_review_context']:
     cmd.delete(name)
 crevice_review_ids={ids!r}
@@ -128,7 +128,7 @@ cmd.set('stick_radius',.21,'crevice_protein');cmd.set('stick_quality',24)
 cmd.set('cgo_transparency',.35,'crevice_volume')
 view=cmd.get_view()
 if review['context_pdb']:
-    cmd.load(str(Path(crevice_input({scene_path.name!r},{str(scene_path)!r})).parent/review['context_pdb']),'crevice_review_context',zoom=0)
+    cmd.load(str(Path(crevice_input({scene_path.name!r})).parent/review['context_pdb']),'crevice_review_context',zoom=0)
     cmd.hide('everything','crevice_review_context');cmd.show('sticks','crevice_review_context')
     cmd.set_color('crevice_other_obstacle',review['context_rgb']);cmd.color('crevice_other_obstacle','crevice_review_context');cmd.set('stick_radius',.12,'crevice_review_context')
 crevice_point_index=0
@@ -155,7 +155,7 @@ python end
     tcl+='set crevice_review_owned [list $crevice_protein $crevice_volume]\n'
     tcl+='set crevice_saved [molinfo $crevice_protein get {center_matrix rotate_matrix scale_matrix global_matrix}]\n'
     if context_path:
-        tcl+='set crevice_review_context [mol new [file join $crevice_root '+q(context_path.name)+'] waitfor all]\nmol delrep 0 $crevice_review_context\nmol representation Licorice 0.12 16 16\nmol selection all\nmol color ColorID 19\nmol material Opaque\nmol addrep $crevice_review_context\nlappend crevice_review_owned $crevice_review_context\n'
+        tcl+='set crevice_review_context [mol new [crevice_input '+q(context_path.name)+'] waitfor all]\nmol delrep 0 $crevice_review_context\nmol representation Licorice 0.12 16 16\nmol selection all\nmol color ColorID 19\nmol material Opaque\nmol addrep $crevice_review_context\nlappend crevice_review_owned $crevice_review_context\n'
     tcl+='set crevice_review_graphics [mol new]\nmol rename $crevice_review_graphics crevice_review_points_and_labels\nlappend crevice_review_owned $crevice_review_graphics\ngraphics $crevice_review_graphics color 18\n'
     for row in scene['coordinate_landmarks']:
         for p in row['points_A']:tcl+='graphics $crevice_review_graphics sphere {'+' '.join(map(str,p))+'} radius 0.25 resolution 20\n'
@@ -180,6 +180,9 @@ from chimerax.geometry import Place
 from chimerax.core.models import Surface
 from chimerax.markers import MarkerSet
 root=Path(__file__).resolve().parent
+if not (root/__SCENE__).is_file():root=Path.cwd()
+if not (root/__SCENE__).is_file():
+    raise FileNotFoundError('CREVICE: data file %r was not found next to this script or in the working directory (%s); keep the script with the other files of its output folder'%(__SCENE__,Path.cwd()))
 review=json.loads((root/__SCENE__).read_text())
 owner='crevice_region_review'
 for m in list(session.models.list()):

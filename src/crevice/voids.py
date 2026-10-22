@@ -26,7 +26,7 @@ Method in brief
 Main entry points: :func:`void_cast`, :func:`validate_void_cast`,
 :func:`component_profile`. For casts that include open pockets bounded by a
 rolling outer probe, see :func:`crevice.rolling.rolling_probe_cast`
-(command ``crevice cast``).
+(command ``crevice cavities --cast``).
 
 Assumptions and limitations
     Volumes are ``point count * spacing**3`` and depend on spacing and

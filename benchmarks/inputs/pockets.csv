@@ -1,0 +1,7 @@
+# CREVICE benchmark: pocket/cavity volumes (curated inputs for the comparison with pyKVFinder and POVME).
+# Kept atoms: polymer-entity heavy atoms of model 1 (altloc blank or A); every ligand, ion and water is removed.
+# seed_atoms: chain:residue:atom patterns; the seed is the centroid of the removed ligand that marks the pocket.
+id,pdb_id,name,assembly,keep_chains,keep_residues,removed,seed_atoms,kind,curation,reason
+1L83,1L83,T4 lysozyme L99A,deposited,A,all,benzene (BNZ); 2 BME; 2 Cl-; waters,A:BNZ:*,buried cavity,curated,"the engineered buried non-polar cavity of T4 lysozyme L99A, a standard enclosed-cavity test case; benzene removed so the cavity is empty; seed at the benzene centroid"
+2NNQ,2NNQ,human adipocyte fatty-acid-binding protein FABP4,deposited,A,all,inhibitor (T4B); 2 sulfate; waters,A:T4B:*,large internal pocket,curated,"a large, nearly enclosed internal ligand-binding cavity of a beta-barrel lipid-binding protein; ligand removed; seed at the ligand centroid"
+4PYP,4PYP,human glucose transporter GLUT1 (inward-open),deposited,A,all,nonyl-beta-D-glucoside (BNG),A:BNG:*,open central cavity,curated,"the inward-open central cavity of GLUT1 (the paper's region/cavity example); detergent removed; seed at the nonyl-glucoside centroid in the cavity"

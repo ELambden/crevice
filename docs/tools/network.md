@@ -1,6 +1,6 @@
 # Residue networks
 
-`crevice network` builds a map of which residues touch each other in a
+`crevice residues --network` builds a map of which residues touch each other in a
 structure. By default it adds the channel itself as a node, so you can see how
 the residues lining the channel connect to the rest of the protein. It can also
 trace the shortest contact paths outwards from the lining residues.
@@ -8,7 +8,7 @@ trace the shortest contact paths outwards from the lining residues.
 ## Quick start
 
 ```bash
-crevice network 1GRM -o 1GRM_network.json --png 1GRM_network.png --chord-png 1GRM_chord.png
+crevice residues --network 1GRM -o 1GRM_network.json --png 1GRM_network.png --chord-png 1GRM_chord.png
 ```
 
 ```python
@@ -62,7 +62,7 @@ points, and a {class}`~crevice.models.Cavity` only its centre.
 | `--png`, `--chord-png` | none | contact bar chart and chord diagram |
 | `--connectivity-json`, `--connectivity-png` | none | paths from the lining residues |
 
-All options are listed under [`crevice network`](../reference/cli/network.md).
+All options are listed under [`crevice residues --network`](../reference/cli/residues.md).
 
 ## What you get
 
@@ -86,9 +86,9 @@ A contact means two residues are close in this one structure; it doesn't show
 that the interaction is stable or favourable (follow it over a
 [trajectory](trajectory.md) for that). Network paths and centrality are
 associations, not evidence of signalling or allostery. One practical catch:
-networks written by `publish` (on request, with
-`--outputs default,network` or `--all`) and `analyze` use the Python defaults (surface
-gap, no heteroatoms), not the `crevice network` defaults, so compare networks
+networks written by `report` (on request, with
+`--outputs default,network` or `--all`) and `report --analyze` use the Python defaults (surface
+gap, no heteroatoms), not the `crevice residues --network` defaults, so compare networks
 only when they were built the same way. Each network records its settings in
 `metadata`.
 :::

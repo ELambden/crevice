@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from .mdinput import accepts_md_objects as _accepts_md_objects
 
 #: Interaction kinds that involve water; reported only with the hydration analysis.
 WATER_EDGE_KINDS = frozenset({"water_bridge_hbond"})
@@ -119,7 +120,8 @@ def static_residue_interactions(frame, *, source_path=None, volume_path=None, re
     return residue_part(analysis.result())
 
 
-def trajectory_residue_interactions(topology, trajectory, *, residue_ids=None, context_json=None,
+@_accepts_md_objects()
+def trajectory_residue_interactions(topology, trajectory=None, *, residue_ids=None, context_json=None,
                                     selection='protein and not name H*', water_selection=None, start=0, stop=None,
                                     stride=1, max_frames=500, pbc='check', progress_callback=None):
     """Typed residue–residue interactions over an MD trajectory (no files written).
@@ -132,8 +134,10 @@ def trajectory_residue_interactions(topology, trajectory, *, residue_ids=None, c
 
     Parameters
     ----------
-    topology, trajectory : str or Path
-        MD files readable by MDAnalysis.
+    topology, trajectory : str, Path, Universe or AtomGroup
+        MD files readable by MDAnalysis, or a loaded ``MDAnalysis.Universe``
+        or ``AtomGroup`` as ``topology`` with ``trajectory`` omitted (an
+        AtomGroup replaces ``selection``; see :mod:`crevice.mdinput`).
     residue_ids : sequence of str, optional
         Explicit focus (default: the context residues, else every selected residue).
     context_json : str or Path, optional

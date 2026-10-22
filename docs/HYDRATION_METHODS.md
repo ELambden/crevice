@@ -2,7 +2,7 @@
 
 Implementation: {mod}`crevice.hydration`, {mod}`crevice.hydration_trajectory`,
 {mod}`crevice.hydration_export` and {mod}`crevice.hydration_workflow`. The command
-is described in the [`hydration` tool guide](tools/hydration.md).
+is described in the [`trajectory --water` tool guide](tools/hydration.md).
 
 ## What is measured
 
@@ -94,7 +94,7 @@ claim. Its association with instantaneous cavity volume is descriptive.
 ## Instantaneous measured-region water membership
 
 Implementation: {mod}`crevice.water_membership`. With
-`--water-membership` on `cavity-trajectory` or `region-trajectory`, CREVICE also
+`--water-membership` on `trajectory --cavities` or `trajectory --region`, CREVICE also
 asks which aligned water oxygens lie inside the region **measured in that same
 frame**. The fixed-reference count above is unchanged and computed by the same
 shared function in the same pass, so the two observables are paired per frame;
@@ -137,7 +137,7 @@ the bundle cross-checks it against the hydration pass. Neither replaces the othe
   `--water-membership`.
 - **Memory.** The per-frame grid lives only inside the geometry worker and is
   never saved, so membership is computed there from a streamed one-frame water
-  snapshot. It therefore needs a geometry run; `crevice hydration --cavity-results`
+  snapshot. It therefore needs a geometry run; `crevice trajectory --water --cavity-results`
   cannot add it afterwards.
 
 Limits: the measured region is a probe-swept geometric space defined by probe,
@@ -149,7 +149,7 @@ geometry, strata and correlations are descriptive. The 100 ps spacing does not
 resolve exchange. The controls in `tests/test_water_membership.py` (analytic
 ties, independent voxel enumeration, periodic shifts, moving boundaries and
 empty frames) are synthetic software tests, not real-system validation.
-`region-compare` does not compare membership.
+`region compare` does not compare membership.
 
 ## Temporal statistics and motion
 
@@ -200,22 +200,22 @@ cannot establish hydration-controlled movement.
 
 The numerical libraries hydration needs are required CREVICE dependencies;
 `crevice[hydration]` adds MDTraj for DSSP context and `crevice[structures]` adds the
-validated mmCIF loader. Since CREVICE 0.3 the standard `analyze`, `cast`, `publish`,
-`residue-evidence`, `trajectory`, `cavity-trajectory` and `region-trajectory`
+validated mmCIF loader. Since CREVICE 0.3 the standard `report --analyze`, `cavities --cast`, `report`,
+`residues --evidence`, `trajectory`, `trajectory --cavities` and `trajectory --region`
 workflows add hydration for their residue focus only on request
 (`--outputs default,hydration` or `--all`), or with `--water-membership` in
 the two trajectory-region commands; the typed residue interactions run by
 default without it (`--skip-interactions` omits them). `--skip-hydration`
 removes hydration even from `--all`. If there is no focus, or a dependency
 cannot be imported, standard analysis writes an explicit unavailable status and
-retains its other outputs. The low-level `profile` and `network` commands do not
+retains its other outputs. The low-level `profile` and `residues --network` commands do not
 add hydration.
 
-To reuse measured geometry from a completed `cavity-trajectory` run without
+To reuse measured geometry from a completed `trajectory --cavities` run without
 repeating the expensive cavity calculation:
 
 ```bash
-crevice hydration system.gro --trajectory run.xtc \
+crevice trajectory --water system.gro --trajectory run.xtc \
   --cavity-results results/system_cavity_statistics.json \
   --max-frames 1100 --out-dir hydration-results --prefix system
 ```

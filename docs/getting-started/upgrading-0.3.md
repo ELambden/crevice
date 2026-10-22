@@ -1,5 +1,12 @@
 # Upgrading from 0.2 to 0.3
 
+:::{note}
+This page uses the CREVICE 0.3 command names (`publish`, `cast` ...). They
+still work in 0.4 as deprecated aliases; [Upgrading to 0.4](upgrading-0.4.md)
+maps them to the 0.4 commands. `--legacy-outputs`, described below, was
+removed in 0.4.
+:::
+
 CREVICE 0.3 changes **which files** the bundle commands write by default. No
 measurement changes: profiles, cast volumes, residue contacts, interactions
 and every other number are identical to 0.2 for the same settings.
