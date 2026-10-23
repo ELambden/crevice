@@ -12,6 +12,37 @@ biological results.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-24
+
+### Fixed
+
+- `crevice trajectory --cavities` and `--region` (Python:
+  `analyze_cavity_trajectory`) no longer keep every frame's residue contact
+  networks in memory until the run ends. Each frame's contacts are added to
+  the residue dynamics, in time order, as soon as that frame and all earlier
+  ones have finished, and are then released; with several workers at most
+  four frames per worker are in flight. Peak memory on a 1000-frame GLUT1
+  membrane simulation (0.7 Å grid, one worker) fell from 7.3 GB to 0.57 GB,
+  and now grows by about 0.2 MB per frame instead of about 7 MB. Output files
+  are unchanged, for any number of workers.
+- In the Python result of `analyze_cavity_trajectory`, each frame record no
+  longer holds the boundary record's residue network (`boundary["network"]`),
+  which no output uses; pass `retain_networks=True` to keep it.
+  `boundary["residues"]` is a read-only sequence that returns the same rows
+  as before.
+- `--sensitivity` for `crevice trajectory --cavities` and `--region` now keeps
+  the run's non-protein obstacles (`--obstacle-selection`, or the obstacle
+  selection of a region definition) in every rerun. In 0.4.0 the reruns,
+  including the baseline in the sensitivity table, measured a protein-only
+  region, so for a region with ions, lipids or ligands as obstacles the
+  baseline did not match the run's own volumes (GLUT1 landmark region, 101
+  frames: 803.45 Å³ against 770.19 Å³). The main results were not affected.
+- Two tests failed on Python 3.10 and 3.11, the lower-bound dependency job
+  and Windows: a comparison with a stored 0.3.3 manifest required exact
+  equality, which older NumPy versions miss in the last digit, and a Windows
+  check looked for the output folder with backslashes in the recorded
+  command line, which CREVICE writes with `/`. Test changes only.
+
 ## [0.4.0] - 2026-10-22
 
 ### Added

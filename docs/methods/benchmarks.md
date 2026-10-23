@@ -78,7 +78,9 @@ option is named, and no setting was tuned to match a comparator.
   profile with the automatic probe, which costs 3.5–8 times a fixed-probe
   profile. On a 1000-frame GLUT1 membrane simulation, the region volume took
   1665 s on one core at the definition's 0.2 Å grid and 370 s at 0.7 Å;
-  MDpocket took 9326 s for the same frames. CREVICE's peak memory grew with
-  the frame count, to about 7.5 GB at 1000 frames, because every frame's
-  record is kept until the run ends. Trajectory profile timings against HOLE
+  MDpocket took 9326 s for the same frames. In those 0.4.0 runs CREVICE's
+  peak memory grew with the frame count, to about 7.5 GB at 1000 frames,
+  because every frame's contact networks were kept until the run ends; since
+  0.4.0 they are released as each frame finishes, and the same 1000 frames
+  (0.7 Å grid) peak at 0.57 GB. Trajectory profile timings against HOLE
   follow with a channel simulation (`benchmarks/README.md`, "Timing").

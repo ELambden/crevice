@@ -2052,14 +2052,15 @@ def _sensitivity_profile_kwargs(args) -> dict:
 
 
 def _run_sensitivity(args, command: str, *, frame=None, profile=None, trajectory=None, reference=None,
-                     csv_path=None, manifest_path=None) -> dict | None:
+                     obstacles=None, csv_path=None, manifest_path=None) -> dict | None:
     """Run ``--sensitivity`` for ``command`` (see :mod:`crevice.sensitivity`) and write its table.
 
     ``profile``: enclosure-probe neighbours and section grid 0.25/0.5 A (min/mean radius).
     ``cast``: rolling-probe neighbours and grid 0.25/0.5 A (volume, region count).
     ``publish``: enclosure-probe neighbours and cast grid 0.25/0.5 A (min radius, cast volume).
     ``cavity-trajectory``/``region-trajectory``: margin +/-1 A (reference-region mode), probe
-    neighbours and grid 0.25/0.5 A on ``--sensitivity-frames`` evenly spaced frames (mean volume).
+    neighbours and grid 0.25/0.5 A on ``--sensitivity-frames`` evenly spaced frames (mean volume),
+    with the run's ``obstacles`` (``--obstacle-selection`` or a region definition's) in every rerun.
     """
     if not getattr(args, "sensitivity", False):
         return None
@@ -2143,7 +2144,8 @@ def _run_sensitivity(args, command: str, *, frame=None, profile=None, trajectory
                                                  minimum_overlap=args.minimum_overlap, ambiguity_ratio=args.ambiguity_ratio,
                                                  lining_distance=args.lining_distance, contact_cutoff=args.contact_cutoff,
                                                  workers=1, geometry_mode=args.geometry_mode,
-                                                 region_margin=overrides.get("margin_A", args.region_margin))
+                                                 region_margin=overrides.get("margin_A", args.region_margin),
+                                                 obstacles=obstacles)
             volumes = [r["volume_A3"] for r in analysis["frames"] if r["volume_A3"] is not None]
             return {"mean_volume_A3": float(np.mean(volumes)) if volumes else None,
                     "resolved_frame_fraction": len(volumes) / len(analysis["frames"])}
@@ -2740,7 +2742,7 @@ def _cmd_cavity_trajectory(args):
     args._run_manifest=files['manifest_json']
     _record_grid_resolution(files['manifest_json'],reference.spacing,
                             [(None,"not measured (a per-frame region reports no narrowest width)")])
-    _run_sensitivity(args,"cavity-trajectory",trajectory=trajectory,reference=reference,
+    _run_sensitivity(args,"cavity-trajectory",trajectory=trajectory,reference=reference,obstacles=obstacles,
                      csv_path=root/(args.prefix+'_sensitivity.csv'),manifest_path=files['manifest_json'])
     print(f"cavity trajectory frames={len(trajectory.frames)} statistics={files['statistics_json']}")
 

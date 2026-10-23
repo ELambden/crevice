@@ -125,11 +125,13 @@ its own "Interpreting results" note with the details for that tool.
   stationary, representative sampling and leave out force-field, grid and
   probe errors; one simulation is not a set of replicas. Frame ranges
   describe fluctuations, not confidence in the mean.
-- **Trajectory memory grows with the frame count.** A cavity or region
-  trajectory keeps every frame's atoms and per-frame record in memory until
-  the run ends. For a 1000-frame GLUT1 membrane simulation the run peaked at
-  about 7.5 GB, roughly 7 MB per frame whatever the grid spacing
-  ([benchmarks](../methods/benchmarks.md)). For long trajectories, analyse
-  frame ranges with `--start`, `--stop` and `--stride`.
+- **Trajectory memory grows slowly with the frame count.** A cavity or
+  region trajectory keeps a compact record of every frame (volume, widths,
+  boundary residues) until the run ends, about 0.2 MB per frame for a
+  membrane transporter: a 1000-frame GLUT1 membrane simulation peaked at
+  0.57 GB on one worker. CREVICE 0.4.0 kept each frame's contact networks
+  as well, about 7 MB per frame (7.3 GB for the same run)
+  ([benchmarks](../methods/benchmarks.md)). For very long trajectories,
+  analyse frame ranges with `--start`, `--stop` and `--stride`.
 - **Viewer scenes should be checked.** The PyMOL, VMD and ChimeraX scenes are
   generated scripts; open them and check them before using them in a figure.

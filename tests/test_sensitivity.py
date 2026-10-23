@@ -81,3 +81,30 @@ def test_cavity_trajectory_sensitivity_reruns_a_frame_subset(tmp_path):
     manifest = json.loads((out / "crevice_cavity_manifest.json").read_text(encoding="utf-8"))
     assert manifest["grid_resolution"]["spacing_A"] == 0.5
     assert manifest["files"]["sensitivity_json"].endswith("crevice_sensitivity.json")
+
+
+def test_region_trajectory_sensitivity_keeps_the_obstacles(tmp_path):
+    """The reruns use the run's non-protein obstacles: the baseline equals the run's own mean volume (0.4.1 fix)."""
+    import numpy as np
+    from crevice.cli import main
+    from test_cavity_obstacles import md_pair
+    gro, xtc, _, _ = md_pair(tmp_path)  # a LIG atom sits in the cavity; the coordinates are shifted by +20 A
+    text = (tmp_path / "reference.dx").read_text(encoding="utf-8").splitlines()
+    text = [" ".join(["origin"] + [f"{float(v) + 20:g}" for v in line.split()[1:]]) if line.startswith("origin") else line
+            for line in text]
+    dx = tmp_path / "shifted.dx"
+    dx.write_text("\n".join(text) + "\n", encoding="utf-8")
+    common = ["trajectory", "--cavities", str(gro), str(xtc), "--reference-volume-dx", str(dx),
+              "--geometry-mode", "reference-region", "--probe-radius", "0.8", "--dpi", "60",
+              "--bootstrap-replicates", "200", "--outputs", "none", "--quiet", "--sensitivity", "--sensitivity-frames", "2"]
+    baselines, means = {}, {}
+    for name, extra in (("obstacles", ["--obstacle-selection", "all"]), ("protein", [])):
+        out = tmp_path / name
+        assert main(common + ["--out-dir", str(out)] + extra) == 0
+        result = json.loads((out / "crevice_sensitivity.json").read_text(encoding="utf-8"))
+        baselines[name] = result["runs"][0]["quantities"]["mean_volume_A3"]
+        rows = list(csv.DictReader((out / "crevice_cavity_frames.csv").open(encoding="utf-8")))
+        means[name] = float(np.mean([float(r["volume_A3"]) for r in rows]))
+    assert baselines["obstacles"] == pytest.approx(means["obstacles"])
+    assert baselines["protein"] == pytest.approx(means["protein"])
+    assert baselines["obstacles"] < baselines["protein"]

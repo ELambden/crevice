@@ -101,7 +101,7 @@ total cost). The manifest lists both files.
 | `profile` | minimum and mean radius | neighbouring enclosure-probe ladder radii; section grid 0.25 / 0.5 Å |
 | `cavities --cast` | cast volume, region count | neighbouring ladder radii around the rolling probe; grid 0.25 / 0.5 Å |
 | `report` | minimum radius, cast volume | neighbouring enclosure-probe ladder radii; cast grid 0.25 / 0.5 Å |
-| `trajectory --cavities`, `trajectory --region` | mean volume, resolved-frame fraction | margin ±1 Å (reference-region mode); neighbouring probe radii; grid 0.25 / 0.5 Å; on `--sensitivity-frames` (default 10) evenly spaced frames |
+| `trajectory --cavities`, `trajectory --region` | mean volume, resolved-frame fraction | margin ±1 Å (reference-region mode); neighbouring probe radii; grid 0.25 / 0.5 Å; on `--sensitivity-frames` (default 10) evenly spaced frames, with the run's obstacles |
 
 The baseline grid value is skipped. Each variant reruns the whole measurement,
 so the cost is roughly the number of variants (two to five) times the

@@ -3,6 +3,22 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.4.1 (24 October 2026)
+
+**Bug fixes: trajectory memory, region sensitivity and the test suite.**
+
+- **Trajectory memory.** Cavity and region trajectories no longer keep every
+  frame's residue contacts until the run ends. A 1000-frame GLUT1 membrane
+  simulation now peaks at 0.57 GB instead of 7.3 GB; output files are
+  unchanged. In the Python result, each frame record no longer holds
+  `boundary["network"]` (pass `retain_networks=True` to keep it).
+- **Region sensitivity.** `--sensitivity` for `crevice trajectory --cavities`
+  and `--region` keeps the run's non-protein obstacles in every rerun; in
+  0.4.0 the reruns measured a protein-only region. The main results were not
+  affected.
+- **Tests.** Two tests that failed on Python 3.10–3.11 and Windows now
+  compare numbers to rounding and paths in their recorded form.
+
 ## 0.4.0 (22 October 2026)
 
 **Nine commands, water and ion permeation, MDAnalysis input, uncertainty on

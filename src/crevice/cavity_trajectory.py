@@ -19,6 +19,7 @@ They are not a through-path, permeation radius, or functional gate assignment.
 Unresolved frames are missing values, never zeros.
 """
 from __future__ import annotations
+from collections.abc import Sequence
 from dataclasses import dataclass,replace
 from pathlib import Path
 from ._portable_paths import dumps_record
@@ -435,28 +436,101 @@ def _process_context():
     return mp.get_context(method)
 
 
+def _uninvolved_row(residue,group=None):
+    """Boundary row of a residue with no boundary area and no lining partner.
+
+    The exact row (keys, order, values and types) that
+    :func:`crevice.residue_evidence.boundary_residue_evidence` writes for
+    such a residue or, without ``group``, that :func:`analyze_cavity_frame`
+    writes for every residue of a frame whose measured cavity is empty.
+    """
+    if group is None:
+        return {'residue':residue,'role':'other','boundary_area_A2':0.,'boundary_fraction':0.,
+                'contacted_lining_boundary_fraction':0.,'nonlocal_lining_partners':[]}
+    return {'residue':residue,'group':group,'role':'other','boundary_area_A2':0.,'boundary_fraction':0.,
+            'minimum_boundary_gap_A':None,'nonlocal_lining_contact_count':0,
+            'contacted_lining_boundary_fraction':0,'nonlocal_lining_partners':[]}
+
+
+def _uninvolved_key(row):
+    """``(residue, group)`` or ``(residue,)`` if ``row`` is exactly an :func:`_uninvolved_row`, else ``None``."""
+    if not isinstance(row,dict) or 'residue' not in row:return None
+    key=(row['residue'],row['group']) if 'group' in row else (row['residue'],)
+    if not all(type(v) is str for v in key):return None
+    template=_uninvolved_row(*key)
+    same=(list(row)==list(template)
+          and all(type(row[k]) is type(template[k]) and row[k]==template[k] for k in template)
+          and all(math.copysign(1.,row[k])>0 for k in template if type(template[k]) is float))
+    return key if same else None
+
+
+class _BoundaryResidues(Sequence):
+    """Compact, read-only ``boundary["residues"]`` of one trajectory frame.
+
+    Most residues of a protein are neither on a frame's cavity boundary nor
+    lining partners; their rows differ only in ``residue`` and ``group``.
+    Such rows (:func:`_uninvolved_row`) are stored as one ``(residue,
+    group)`` key shared by every frame of the analysis, all other rows as
+    the original dicts, in the original order. Indexing and iteration return
+    dicts equal to (and of the same key order and value types as) the rows
+    of :func:`crevice.residue_evidence.boundary_residue_evidence`; a fresh
+    dict for each uninvolved row, so editing one does not change the record.
+    """
+    def __init__(self,rows,shared=None):
+        shared={} if shared is None else shared
+        items=[]
+        for row in rows:
+            key=_uninvolved_key(row)
+            items.append(row if key is None else shared.setdefault(key,key))
+        self._items=tuple(items)
+    def __len__(self):return len(self._items)
+    def __getitem__(self,index):
+        if isinstance(index,slice):return [self[i] for i in range(*index.indices(len(self)))]
+        item=self._items[index]
+        return _uninvolved_row(*item) if isinstance(item,tuple) else item
+    def __eq__(self,other):
+        if not isinstance(other,Sequence) or isinstance(other,(str,bytes)):return NotImplemented
+        return len(self)==len(other) and all(a==b for a,b in zip(self,other))
+    __hash__=None
+    def __repr__(self):return f'{type(self).__name__}({list(self)!r})'
+
+
 _WORKER=None
 
-def _initialize_worker(frames,reference_frame,reference,settings,radii=None):
+def _initialize_worker(frames,reference_frame,reference,settings,radii=None,retain_networks=False):
     # The radius set in effect in the parent is passed explicitly, so forked and
     # spawned workers measure with the same atomic radii (see crevice.radii.use_radii).
     global _WORKER
-    _WORKER=frames,reference_frame,reference,settings
+    _WORKER=frames,reference_frame,reference,settings,retain_networks
     if radii is not None:
         from .radii import _ACTIVE_RADII
         _ACTIVE_RADII.set(radii)
 
 
+def _trajectory_frame(frame,reference_frame,reference,settings,retain_networks=False):
+    """One :func:`analyze_cavity_frame` record as kept by a trajectory analysis.
+
+    The boundary evidence's residue network (``boundary["network"]``, a dict
+    form of the same contact network as the record's ``network``) is the
+    largest part of a record and no trajectory output reads it, so it is
+    dropped here, in the process that measured the frame, unless
+    ``retain_networks``.
+    """
+    row=analyze_cavity_frame(frame,reference_frame,reference,**settings)
+    if not retain_networks and row['boundary'] is not None:row['boundary'].pop('network',None)
+    return row
+
+
 def _analyze_worker(index):
-    frames,reference_frame,reference,settings=_WORKER
-    return index,analyze_cavity_frame(frames[index],reference_frame,reference,**settings)
+    frames,reference_frame,reference,settings,retain_networks=_WORKER
+    return index,_trajectory_frame(frames[index],reference_frame,reference,settings,retain_networks)
 
 
 @radii_option
 def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_residues=None,
                                minimum_overlap=.1,ambiguity_ratio=.8,lining_distance=1.5,
                                contact_cutoff=4.5,workers=1,progress_callback=None,geometry_mode="rolling",region_margin=2.,obstacles=None,waters=None,
-                               radii: RadiusSet | str | None = None):
+                               radii: RadiusSet | str | None = None,retain_networks=False):
     """Analyze every input frame; numerical/programming errors propagate.
 
     Each frame is processed by :func:`analyze_cavity_frame` against the first
@@ -465,6 +539,15 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
     residues lining the reference cavity in the first frame. Parallel
     completion order does not alter frame ordering or statistics. Missing
     anatomical correspondence remains an explicit per-frame result.
+
+    Frames are streamed: as soon as a frame and every earlier frame have
+    finished, its contact network is added to the residue dynamics and
+    released, and only the compact per-frame record is kept (its
+    ``boundary["residues"]`` is a read-only sequence that stores the rows of
+    residues with no boundary role compactly and returns the same dicts). With
+    ``workers > 1`` at most ``4 * workers`` frames are in flight or waiting
+    for an earlier frame, so memory stays bounded however many frames there
+    are.
 
     Parameters
     ----------
@@ -509,12 +592,19 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
         used by this call (including every worker process) comes from that set,
         and results with a ``metadata`` dict record it as
         ``metadata["radii"]``; see :doc:`/methods/atomic-radii`.
+    retain_networks : bool, default False
+        Keep each frame's boundary residue network (``boundary["network"]``,
+        a dict form of that frame's residue contact network, about 0.6 MB
+        per frame for a 500-residue protein). No output uses it; by default
+        it is dropped as each frame finishes (0.4.0 kept it).
 
     Returns
     -------
     dict
         ``frames`` (one :func:`analyze_cavity_frame` record per frame, with
-        ``time_ps``), ``reference``, ``reference_boundary`` (first-frame boundary
+        ``time_ps``, without ``network``, which is accumulated into
+        ``residue_dynamics``, and without ``boundary["network"]`` unless
+        ``retain_networks``), ``reference``, ``reference_boundary`` (first-frame boundary
         evidence of the reference map), ``residue_dynamics``,
         ``residue_centroids`` (aligned residue centroids per frame, Å),
         ``settings``, ``frame_count``, ``aligned`` and ``time_ps``.
@@ -546,11 +636,25 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
                   ambiguity_ratio=ambiguity_ratio,lining_distance=lining_distance,contact_cutoff=contact_cutoff,geometry_mode=geometry_mode,region_margin=region_margin,obstacles=obstacles)
     if waters is not None:settings['waters']=waters
     records=[None]*n
+    # Streaming: each finished frame is fed to the residue dynamics in time
+    # order as soon as every earlier frame has arrived (out-of-order results
+    # wait in `pending`), and its contact network is released then, so only
+    # the compact per-frame records accumulate.
+    pending={};state={'next':0};shared={}
+    def accept(i,row):
+        row['time_ps']=float(times[i])
+        if progress_callback:progress_callback(i,row)
+        if row['boundary'] is not None:row['boundary']['residues']=_BoundaryResidues(row['boundary']['residues'],shared)
+        pending[i]=row
+        while state['next'] in pending:
+            j=state['next'];ready=pending.pop(j)
+            # Sequential accumulation preserves physical time order for split-half motion.
+            dynamics.add(None,ready.pop('network'),frame_index=frames[j].frame_index,time=times[j])
+            records[j]=ready;state['next']=j+1
     if workers==1:
-        results=((i,analyze_cavity_frame(frames[i],first,reference,**settings)) for i in range(n))
-        pool=None
+        for i in range(n):accept(i,_trajectory_frame(frames[i],first,reference,settings,retain_networks))
     else:
-        from concurrent.futures import ProcessPoolExecutor,as_completed
+        from concurrent.futures import ProcessPoolExecutor,wait,FIRST_COMPLETED
         if geometry_mode=='reference-region':
             # Build the fixed regional grid once here (it is cached on the
             # reference), so forked workers inherit it instead of each
@@ -560,19 +664,20 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
         # Fork shares the read-only compact coordinate trajectory on Linux;
         # spawned workers receive it through the initializer.
         pool=ProcessPoolExecutor(max_workers=int(workers),mp_context=_process_context(),
-                                initializer=_initialize_worker,initargs=(frames,first,reference,settings,active_radii()))
-        futures=[pool.submit(_analyze_worker,i) for i in range(n)]
-        results=(future.result() for future in as_completed(futures))
-    try:
-        for i,row in results:
-            row['time_ps']=float(times[i]);records[i]=row
-            if progress_callback:progress_callback(i,row)
-    finally:
-        if pool is not None:pool.shutdown(wait=True,cancel_futures=True)
-    # Sequential accumulation preserves physical time order for split-half motion.
-    for i,row in enumerate(records):
-        aligned,_=align_frame_report(frames[i],first,residues=alignment_residues)
-        dynamics.add(aligned,row.pop('network'),frame_index=frames[i].frame_index,time=times[i])
+                                initializer=_initialize_worker,initargs=(frames,first,reference,settings,active_radii(),retain_networks))
+        # Frames are submitted at most `window` ahead of the next frame still
+        # awaited in time order, which bounds the results held at once
+        # (finished futures and buffered out-of-order records) for any length.
+        window=4*int(workers);submitted=0;running=set()
+        try:
+            while submitted<n or running:
+                while submitted<n and submitted<state['next']+window:
+                    running.add(pool.submit(_analyze_worker,submitted));submitted+=1
+                done,running=wait(running,return_when=FIRST_COMPLETED)
+                for i,row in sorted((future.result() for future in done),key=lambda item:item[0]):accept(i,row)
+                del done
+        finally:
+            pool.shutdown(wait=True,cancel_futures=True)
     return {'frames':records,'reference':reference,'reference_boundary':initial,
             'residue_dynamics':dynamics.finish(aligned=True,include_contact_frames=True),
             'residue_centroids':np.asarray(dynamics.positions),
@@ -926,9 +1031,12 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
           'excluded_crop_boundary_A2':row['boundary'].get('excluded_boundary_area_A2',0.) if row['boundary'] else None,
           'region_volume_components':row['matching'].get('regional_definition',{}).get('sampled_volume_components')})
     def table(target,rows):
-        if not rows:target.write_text('', encoding="utf-8", newline="\n");return
+        # Rows may be a generator: the per-frame tables are streamed to disk
+        # rather than built as one list of frames x residues dicts.
+        rows=iter(rows);head=next(rows,None)
+        if head is None:target.write_text('', encoding="utf-8", newline="\n");return
         with target.open('w',newline='',encoding='utf-8') as f:
-            writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+            writer=csv.DictWriter(f,fieldnames=list(head));writer.writeheader();writer.writerow(head);writer.writerows(rows)
     table(path('frames_csv','_cavity_frames.csv'),frame_rows)
     def cell(v):
         v=float(v);return v if np.isfinite(v) else ''
@@ -936,14 +1044,14 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
     positions=[r['position_A'] for r in report['profile']['rows']]
     section_keys=[k for k in ['total_area_A2','largest_area_A2','equivalent_diameter_A','largest_component_diameter_A',
                               'maximum_atom_clear_sphere_diameter_A','section_component_count'] if k in arrays]
-    section_rows=[{'frame_index':frame_ids[i],'time_ps':frame_times[i],'position_A':positions[j],**{k:cell(arrays[k][i,j]) for k in section_keys}}
+    section_rows=({'frame_index':frame_ids[i],'time_ps':frame_times[i],'position_A':positions[j],**{k:cell(arrays[k][i,j]) for k in section_keys}}
                   for i in range(len(frame_ids)) if any(np.isfinite(arrays[k][i]).any() for k in section_keys)
-                  for j in range(len(positions))]
+                  for j in range(len(positions)))
     table(path('section_frames_csv','_cavity_section_frames.csv'),section_rows)
     residue_keys=[k for k in ['boundary_area_A2','boundary_fraction','nonlocal_contacted_boundary_fraction','nonlining_partner'] if k in arrays]
     residue_ids=[str(v) for v in arrays['residue_ids']]
-    residue_frame_rows=[{'frame_index':frame_ids[i],'time_ps':frame_times[i],'residue':residue_ids[j],**{k:cell(arrays[k][i,j]) for k in residue_keys}}
-                        for i in range(len(frame_ids)) for j in range(len(residue_ids)) if np.isfinite(arrays['boundary_area_A2'][i,j])]
+    residue_frame_rows=({'frame_index':frame_ids[i],'time_ps':frame_times[i],'residue':residue_ids[j],**{k:cell(arrays[k][i,j]) for k in residue_keys}}
+                        for i in range(len(frame_ids)) for j in range(len(residue_ids)) if np.isfinite(arrays['boundary_area_A2'][i,j]))
     table(path('residue_frames_csv','_cavity_residue_frames.csv'),residue_frame_rows)
     (_t:=path('frame_diagnostics_json','_cavity_frame_diagnostics.json')).write_text(dumps_record([
         {k:v for k,v in row.items() if k not in {'boundary','profile','water_membership'}} for row in analysis['frames']],_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")

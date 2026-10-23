@@ -368,12 +368,28 @@ At the definition's 0.2 Å grid, CREVICE measured the region 5.6 times as
 fast as MDpocket characterised the same frames, and 25 times as fast at
 0.7 Å. Both counts exclude MDpocket's input preparation.
 
-CREVICE's peak memory hardly depends on the grid. It grows with the number of
-frames, because 0.4.0 keeps every frame's atoms and boundary record in memory
-until the run ends: about 7 MB per frame for this system (0.45 GB at 20
-frames, 2.4 GB at 300, 7.6 GB at 1000; 0.7 Å grid). For long trajectories,
-analyse frame ranges (`--start`/`--stop`/`--stride`) or use a machine with
-enough memory.
+CREVICE's peak memory hardly depends on the grid. In these 0.4.0 runs it
+grows with the number of frames, because 0.4.0 keeps every frame's contact
+networks and boundary record in memory until the run ends: about 7 MB per
+frame for this system (0.45 GB at 20 frames, 2.4 GB at 300, 7.6 GB at 1000;
+0.7 Å grid).
+
+After 0.4.0 (unreleased), each frame's contact networks are released as soon
+as the frame and all earlier frames have finished, and only a compact record
+is kept. Measured on 23 Oct 2026 on the same machine with the same
+reference-region command (0.7 Å grid, `--workers 1`, one performance core;
+peak resident memory from `/usr/bin/time`, 1 MB = 1024² bytes; not part of
+the timing table above, which was not rerun):
+
+| Frames | 0.4.0 peak RSS (MB) | after the change (MB) |
+| --- | --- | --- |
+| 20 | 434 | 324 |
+| 100 | 981 | 355 |
+| 300 | 2402 | 395 |
+| 1000 | 7307 | 568 |
+
+Memory now grows by about 0.2 MB per frame. All output files are identical
+to 0.4.0's.
 
 The channel-profile rows (CREVICE `trajectory --analysis profile` against
 HOLE 2.3.1 through mdahole2) are not measured yet. GLUT1 has no

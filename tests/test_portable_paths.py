@@ -122,9 +122,10 @@ def test_data_records_hold_no_path_of_the_output_folder(publish_run):
     for path, text in _texts(out):
         if path.name == "input_manifest.json":
             run = json.loads(text).pop("run")
-            assert str(out) in json.dumps(run["argv"])   # the command line as typed
+            assert out.as_posix() in json.dumps(run["argv"])   # the command line as typed, with "/"
             text = json.dumps({k: v for k, v in json.loads(text).items() if k != "run"})
-        assert str(out) not in text, path.name
+        for form in {str(out), out.as_posix(), json.dumps(str(out))[1:-1]}:
+            assert form not in text, path.name
 
 
 def test_moved_folder_is_read_by_every_reader(publish_run, tmp_path):
@@ -152,8 +153,25 @@ def test_numbers_are_unchanged_only_paths_differ(publish_run):
     old = json.loads((DATA / "crevice-0.3.3_publish_manifest.json").read_text(encoding="utf-8"))
     for record in (new, old):
         record.pop("run")
-    assert new["void_cast"] == old["void_cast"]
+    # Same numbers to rounding: the last bits of sums differ between NumPy versions and platforms.
+    _assert_close(new["void_cast"], old["void_cast"])
     assert {k: Path(v).name for k, v in new["files"].items()} == {k: Path(v).name for k, v in old["files"].items()}
+
+
+def _assert_close(new, old, where="void_cast"):
+    """Equal structure and strings; floats equal to 1e-9 relative (1e-12 absolute)."""
+    if isinstance(old, dict):
+        assert isinstance(new, dict) and new.keys() == old.keys(), where
+        for key in old:
+            _assert_close(new[key], old[key], f"{where}.{key}")
+    elif isinstance(old, list):
+        assert isinstance(new, list) and len(new) == len(old), where
+        for i, (a, b) in enumerate(zip(new, old)):
+            _assert_close(a, b, f"{where}[{i}]")
+    elif isinstance(old, float) and not isinstance(old, bool):
+        assert isinstance(new, (int, float)) and new == pytest.approx(old, rel=1e-9, abs=1e-12), where
+    else:
+        assert new == old, where
 
 
 @pytest.mark.parametrize("style", ["posix", "windows"])
