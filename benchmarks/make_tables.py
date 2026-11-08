@@ -56,7 +56,10 @@ def main(argv=None) -> int:
             rows.append({"id": r["id"], "name": r["name"], "state": r["state"], "curation": r["curation"],
                          "radius_set": tag, "crevice_status_default_options": r["crevice_status_default"],
                          "crevice_status": r["crevice_status"], "crevice_options_used": r["crevice_attempt_used"],
-                         "enclosure_probe_A": r.get("crevice_chosen_probe_A"), "path_type": r.get("crevice_path_type"),
+                         "enclosure_probe_mode": r.get("crevice_probe_mode"),
+                         "enclosure_probe_A": r.get("crevice_chosen_probe_A"),
+                         "enclosure_probe_range_A": r.get("crevice_probe_range_A"),
+                         "path_type": r.get("crevice_path_type"),
                          "compared_profile": r.get("compared_profile"), "n_compared": r.get("n_compared"),
                          "rmsd_A": r.get("rmsd_A"), "max_abs_diff_A": r.get("max_abs_diff_A"),
                          "crevice_min_radius_A": r.get("crevice_min_radius_A"), "crevice_min_s_A": r.get("crevice_min_s_A"),
@@ -65,6 +68,10 @@ def main(argv=None) -> int:
                          "crevice_range_A": f"{lo:.1f} to {hi:.1f}" if lo is not None else "",
                          "hole_global_min_A": r.get("hole_min_radius_global_A"), "hole_global_min_s_A": gs,
                          "hole_global_min_inside_crevice_range": inside if lo is not None else "",
+                         "crevice_coverage_of_atom_extent": r.get("crevice_coverage_of_atom_extent"),
+                         "hole_min_in_protein_A": r.get("hole_min_radius_in_protein_A"),
+                         "hole_min_in_protein_s_A": r.get("hole_min_s_in_protein_A"),
+                         "hole_min_in_protein_inside_crevice_range": r.get("hole_min_in_protein_inside_crevice_range"),
                          "measured_pS": c.get("measured_pS_per_pore"), "crevice_g_macro_pS": c.get("crevice_g_macro_pS"),
                          "crevice_ratio": c.get("crevice_macro_ratio"), "hole_g_macro_full_pS": c.get("hole_g_macro_full_pS"),
                          "hole_full_ratio": c.get("hole_full_ratio"), "conductance_comparable": c.get("comparable")})
@@ -78,15 +85,19 @@ def main(argv=None) -> int:
                                    f"RMSD {min(f(r['rmsd_A']) for r in res):.3f}-{max(f(r['rmsd_A']) for r in res):.3f} A "
                                    f"(median {statistics.median(f(r['rmsd_A']) for r in res):.3f}); max |diff| "
                                    f"{max(f(r['max_abs_diff_A']) for r in res):.3f} A; |min radius diff| "
-                                   f"{min(dmin):.3f}-{max(dmin):.3f} A") if res else "no resolved entry"})
+                                   f"{min(dmin):.3f}-{max(dmin):.3f} A; coverage of the atoms' axial extent "
+                                   f"{min(f(r['crevice_coverage_of_atom_extent']) for r in res):.2f}-"
+                                   f"{max(f(r['crevice_coverage_of_atom_extent']) for r in res):.2f}; HOLE's minimum "
+                                   f"within the protein inside CREVICE's range "
+                                   f"{sum(r.get('hole_min_in_protein_inside_crevice_range') == 'True' for r in res)}"
+                                   f"/{len(res)}") if res else "no resolved entry"})
     write_csv(R / "validation_channels.csv", rows,
               comment="Paper table: channel profiles vs HOLE and geometric conductance vs measurement (from the "
                       "per-comparison CSVs). Software comparison on curated static structures.")
     for name, path, text in (
             ("tunnels vs CAVER 3.0.3", R / "tunnels" / "summary.csv", None),
             ("pocket volumes vs pyKVFinder/POVME", R / "volumes" / "volumes.csv", None),
-            ("GLUT1 trajectory pocket vs MDpocket", R / "trajectory_pocket" / "summary.csv", None),
-            ("automatic-probe sensitivity", R / "probe_sensitivity" / "summary.csv", None)):
+            ("GLUT1 trajectory pocket vs MDpocket", R / "trajectory_pocket" / "summary.csv", None)):
         if not path.exists():
             summary.append({"benchmark": name, "entries": 0, "result": "not run"})
             continue

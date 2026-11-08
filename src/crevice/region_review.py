@@ -1,4 +1,5 @@
 """Native review overlays for named regions, separate from hydration colours."""
+
 from pathlib import Path
 import json
 
@@ -75,45 +76,86 @@ def write_region_review(frame, reference, report, obstacles, output_dir, prefix,
     """
     import numpy as np
     from scipy.spatial import cKDTree
-    from .models import ChannelPoint,VoidComponent,VoidCast,StructureFrame
+    from .models import ChannelPoint, VoidComponent, VoidCast, StructureFrame
     from .presentation import write_viewer_structure
-    from .volume_export import write_volume_viewer_bundle,_tcl_word
+    from .volume_export import write_volume_viewer_bundle, _tcl_word
     from .region_definition import write_json
-    root=Path(output_dir)
-    structure=write_viewer_structure(frame,root/(prefix+'_protein.pdb'))
-    points=tuple(ChannelPoint(i,tuple(map(float,p)),0.,0.,float((p-reference.anchor)@reference.basis[2])) for i,p in enumerate(reference.points))
-    h=float(np.linalg.norm(reference.deltas[0]));basis=reference.deltas/h
-    if not np.allclose(basis@basis.T,np.eye(3),atol=1e-7):raise ValueError('Region review requires equally spaced orthogonal reference DX samples')
-    if np.linalg.det(basis)<0:basis[0]*=-1
-    component=VoidComponent(1,'declared_reference',tuple(reference.points.mean(0)),len(points)*h**3,points)
-    cast=VoidCast((component,),points,h,0.,'rolling',{'grid_basis':basis.tolist(),'algorithm':'declared_reference'})
-    files=write_volume_viewer_bundle(cast,structure_path=structure,output_dir=root,prefix=prefix+'_geometry',frame=frame,cast_extension=0,
-                                     cast_color=(.08,.58,.63))  # teal: violet would clash with the purple site points
-    files['protein_pdb']=str(structure)
-    context=[a for a,d in zip(obstacles,cKDTree(reference.points).query([a.coord for a in obstacles])[0]) if a.hetero and d<=6]
-    context_path=None
+
+    root = Path(output_dir)
+    structure = write_viewer_structure(frame, root / (prefix + '_protein.pdb'))
+    points = tuple(
+        ChannelPoint(i, tuple(map(float, p)), 0.0, 0.0, float((p - reference.anchor) @ reference.basis[2]))
+        for i, p in enumerate(reference.points)
+    )
+    h = float(np.linalg.norm(reference.deltas[0]))
+    basis = reference.deltas / h
+    if not np.allclose(basis @ basis.T, np.eye(3), atol=1e-7):
+        raise ValueError('Region review requires equally spaced orthogonal reference DX samples')
+    if np.linalg.det(basis) < 0:
+        basis[0] *= -1
+    component = VoidComponent(1, 'declared_reference', tuple(reference.points.mean(0)), len(points) * h**3, points)
+    cast = VoidCast(
+        (component,), points, h, 0.0, 'rolling', {'grid_basis': basis.tolist(), 'algorithm': 'declared_reference'}
+    )
+    files = write_volume_viewer_bundle(
+        cast,
+        structure_path=structure,
+        output_dir=root,
+        prefix=prefix + '_geometry',
+        frame=frame,
+        cast_extension=0,
+        cast_color=(0.08, 0.58, 0.63),
+    )  # teal: violet would clash with the purple site points
+    files['protein_pdb'] = str(structure)
+    context = [
+        a
+        for a, d in zip(obstacles, cKDTree(reference.points).query([a.coord for a in obstacles])[0])
+        if a.hetero and d <= 6
+    ]
+    context_path = None
     if context:
-        context_path=write_viewer_structure(StructureFrame(tuple(context),source=frame.source),root/(prefix+'_context.pdb'))
-        files['context_pdb']=str(context_path)
-    scene={'schema_version':1,'region_id':prefix,'label':report['label'],'review_status':report['review']['status'],
-      'protein_pdb':structure.name,'context_pdb':context_path.name if context_path else None,
-      'context_definition':'Nonprotein physical obstacle atom images within 6 A of reference samples; local context, not a complete membrane or ligand model',
-      'landmarks':report['landmarks'],'coordinate_landmarks':report['coordinate_landmarks'],
-      'landmark_rgb':[.88,.53,.12],'coordinate_landmark_rgb':[.60,.34,.72],
-      'context_rgb':[.32,.56,.40],'cavity_rgb':[.08,.58,.63],
-      'camera':json.loads(Path(files['scene_json']).read_text(encoding="utf-8")),
-      'caption':report['review']['status'].upper()+' REGION | '+prefix,
-      'legend':'Gold: residue landmarks   Purple: transferred site points   Teal: reference region',
-      'warnings':report['warnings']}
-    annotate=annotations_enabled()
-    scene['annotations']=scene_annotation_record({'caption':scene['caption'],'legend':scene['legend'],
-        'residue_labels':', '.join(row['residue'] for row in report['landmarks'])},drawn=annotate)
-    scene_path=root/(prefix+'_review_scene.json');write_json(scene_path,scene);files['review_scene_json']=str(scene_path)
-    ids=sorted(i for row in report['landmarks'] for i in row['residue_atom_serials'])
-    mapping=json.loads(structure.with_suffix('.identities.json').read_text(encoding="utf-8"))
-    mapped={r['original']:(r['viewer_chain'],r['viewer_resid']) for r in mapping['residue_mapping']}
+        context_path = write_viewer_structure(
+            StructureFrame(tuple(context), source=frame.source), root / (prefix + '_context.pdb')
+        )
+        files['context_pdb'] = str(context_path)
+    scene = {
+        'schema_version': 1,
+        'region_id': prefix,
+        'label': report['label'],
+        'review_status': report['review']['status'],
+        'protein_pdb': structure.name,
+        'context_pdb': context_path.name if context_path else None,
+        'context_definition': 'Nonprotein physical obstacle atom images within 6 A of reference samples; local context, not a complete membrane or ligand model',
+        'landmarks': report['landmarks'],
+        'coordinate_landmarks': report['coordinate_landmarks'],
+        'landmark_rgb': [0.88, 0.53, 0.12],
+        'coordinate_landmark_rgb': [0.60, 0.34, 0.72],
+        'context_rgb': [0.32, 0.56, 0.40],
+        'cavity_rgb': [0.08, 0.58, 0.63],
+        'camera': json.loads(Path(files['scene_json']).read_text(encoding="utf-8")),
+        'caption': report['review']['status'].upper() + ' REGION | ' + prefix,
+        'legend': 'Gold: residue landmarks   Purple: transferred site points   Teal: reference region',
+        'warnings': report['warnings'],
+    }
+    annotate = annotations_enabled()
+    scene['annotations'] = scene_annotation_record(
+        {
+            'caption': scene['caption'],
+            'legend': scene['legend'],
+            'residue_labels': ', '.join(row['residue'] for row in report['landmarks']),
+        },
+        drawn=annotate,
+    )
+    scene_path = root / (prefix + '_review_scene.json')
+    write_json(scene_path, scene)
+    files['review_scene_json'] = str(scene_path)
+    ids = sorted(i for row in report['landmarks'] for i in row['residue_atom_serials'])
+    # The viewer structure must carry its identity record (read here so a missing one fails early).
+    json.loads(structure.with_suffix('.identities.json').read_text(encoding="utf-8"))
     # The underlying volume scenes supply the same world-coordinate cast and camera.
-    pml=Path(files['volume_pml']).read_text(encoding="utf-8")+f'''\npython
+    pml = (
+        Path(files['volume_pml']).read_text(encoding="utf-8")
+        + f'''\npython
 review=json.loads(Path(crevice_input({scene_path.name!r})).read_text())
 for name in ['crevice_review_labels','crevice_review_points','crevice_review_context']:
     cmd.delete(name)
@@ -141,38 +183,71 @@ if review['coordinate_landmarks']:
     cmd.hide('everything','crevice_review_points');cmd.show('spheres','crevice_review_points');cmd.set('sphere_scale',.16,'crevice_review_points')
 __REVIEW_LABELS__cmd.set_view(view)
 python end
-'''.replace('__REVIEW_LABELS__',PML_REVIEW_LABELS if annotate else '')
-    target=root/(prefix+'_review.pml');target.write_text(pml, encoding="utf-8", newline="\n");files['review_pml']=str(target)
-    q=_tcl_word
-    tcl='''if {[info exists crevice_review_owned]} {
+'''.replace('__REVIEW_LABELS__', PML_REVIEW_LABELS if annotate else '')
+    )
+    target = root / (prefix + '_review.pml')
+    target.write_text(pml, encoding="utf-8", newline="\n")
+    files['review_pml'] = str(target)
+    q = _tcl_word
+    tcl = '''if {[info exists crevice_review_owned]} {
     foreach m $crevice_review_owned {if {[lsearch -exact [molinfo list] $m]>=0} {mol delete $m}}
 }
-'''+Path(files['volume_tcl']).read_text(encoding="utf-8")
-    tcl+='\nmaterial change opacity CREVICEContext 1.0\nmaterial change opacity CREVICECast 0.65\n'
-    tcl+='set crevice_review_ids {'+' '.join(map(str,ids))+'}\n'
-    tcl+='color change rgb 17 .88 .53 .12\ncolor change rgb 18 .60 .34 .72\ncolor change rgb 19 .32 .56 .40\n'
-    tcl+='mol representation Licorice 0.21 24 24\nmol selection {serial '+' '.join(map(str,ids))+'}\nmol color ColorID 17\nmol material Opaque\nmol addrep $crevice_protein\n' if ids else ''
-    tcl+='set crevice_review_owned [list $crevice_protein $crevice_volume]\n'
-    tcl+='set crevice_saved [molinfo $crevice_protein get {center_matrix rotate_matrix scale_matrix global_matrix}]\n'
+''' + Path(files['volume_tcl']).read_text(encoding="utf-8")
+    tcl += '\nmaterial change opacity CREVICEContext 1.0\nmaterial change opacity CREVICECast 0.65\n'
+    tcl += 'set crevice_review_ids {' + ' '.join(map(str, ids)) + '}\n'
+    tcl += 'color change rgb 17 .88 .53 .12\ncolor change rgb 18 .60 .34 .72\ncolor change rgb 19 .32 .56 .40\n'
+    tcl += (
+        'mol representation Licorice 0.21 24 24\nmol selection {serial '
+        + ' '.join(map(str, ids))
+        + '}\nmol color ColorID 17\nmol material Opaque\nmol addrep $crevice_protein\n'
+        if ids
+        else ''
+    )
+    tcl += 'set crevice_review_owned [list $crevice_protein $crevice_volume]\n'
+    tcl += 'set crevice_saved [molinfo $crevice_protein get {center_matrix rotate_matrix scale_matrix global_matrix}]\n'
     if context_path:
-        tcl+='set crevice_review_context [mol new [crevice_input '+q(context_path.name)+'] waitfor all]\nmol delrep 0 $crevice_review_context\nmol representation Licorice 0.12 16 16\nmol selection all\nmol color ColorID 19\nmol material Opaque\nmol addrep $crevice_review_context\nlappend crevice_review_owned $crevice_review_context\n'
-    tcl+='set crevice_review_graphics [mol new]\nmol rename $crevice_review_graphics crevice_review_points_and_labels\nlappend crevice_review_owned $crevice_review_graphics\ngraphics $crevice_review_graphics color 18\n'
+        tcl += (
+            'set crevice_review_context [mol new [crevice_input '
+            + q(context_path.name)
+            + '] waitfor all]\nmol delrep 0 $crevice_review_context\nmol representation Licorice 0.12 16 16\nmol selection all\nmol color ColorID 19\nmol material Opaque\nmol addrep $crevice_review_context\nlappend crevice_review_owned $crevice_review_context\n'
+        )
+    tcl += 'set crevice_review_graphics [mol new]\nmol rename $crevice_review_graphics crevice_review_points_and_labels\nlappend crevice_review_owned $crevice_review_graphics\ngraphics $crevice_review_graphics color 18\n'
     for row in scene['coordinate_landmarks']:
-        for p in row['points_A']:tcl+='graphics $crevice_review_graphics sphere {'+' '.join(map(str,p))+'} radius 0.25 resolution 20\n'
+        for p in row['points_A']:
+            tcl += (
+                'graphics $crevice_review_graphics sphere {' + ' '.join(map(str, p)) + '} radius 0.25 resolution 20\n'
+            )
     if annotate:
-        tcl+='graphics $crevice_review_graphics color black\n'
+        tcl += 'graphics $crevice_review_graphics color black\n'
         for row in scene['landmarks']:
-            tcl+='graphics $crevice_review_graphics text {'+' '.join(map(str,row['centroid_A']))+'} '+q(row['residue'])+' size 0.65 thickness 1.8\n'
-        R=np.asarray(scene['camera']['camera_rotation']);center=np.asarray(scene['camera']['center']);span=scene['camera']['vertical_span']
-        for y,caption in [(.45,scene['caption']),(-.45,scene['legend'])]:
+            tcl += (
+                'graphics $crevice_review_graphics text {'
+                + ' '.join(map(str, row['centroid_A']))
+                + '} '
+                + q(row['residue'])
+                + ' size 0.65 thickness 1.8\n'
+            )
+        R = np.asarray(scene['camera']['camera_rotation'])
+        center = np.asarray(scene['camera']['center'])
+        span = scene['camera']['vertical_span']
+        for y, caption in [(0.45, scene['caption']), (-0.45, scene['legend'])]:
             # VMD graphics text is left-anchored.
-            p=center+np.array([-.43,y,0])*span@R
-            tcl+='graphics $crevice_review_graphics text {'+' '.join(map(str,p))+'} '+q(caption)+' size 0.65 thickness 1.8\n'
-    tcl+='foreach m $crevice_review_owned {molinfo $m set {center_matrix rotate_matrix scale_matrix global_matrix} $crevice_saved}\ndisplay update\n'
-    for ext in ['tcl','vmd']:
-        target=root/(prefix+'_review.'+ext);target.write_text(tcl, encoding="utf-8", newline="\n");files['review_'+ext]=str(target)
+            p = center + np.array([-0.43, y, 0]) * span @ R
+            tcl += (
+                'graphics $crevice_review_graphics text {'
+                + ' '.join(map(str, p))
+                + '} '
+                + q(caption)
+                + ' size 0.65 thickness 1.8\n'
+            )
+    tcl += 'foreach m $crevice_review_owned {molinfo $m set {center_matrix rotate_matrix scale_matrix global_matrix} $crevice_saved}\ndisplay update\n'
+    for ext in ['tcl', 'vmd']:
+        target = root / (prefix + '_review.' + ext)
+        target.write_text(tcl, encoding="utf-8", newline="\n")
+        files['review_' + ext] = str(target)
     # A Python loader avoids fixed model IDs and makes actual native reload safe.
-    cxc_py=r'''from pathlib import Path
+    cxc_py = (
+        r'''from pathlib import Path
 import json,numpy as np
 from chimerax.core.commands import run
 from chimerax.atomic import AtomicStructure,Atom
@@ -219,19 +294,45 @@ labels=session_labels(session,create=False)
 for name in ['crevice_region_title','crevice_region_legend']:
     if labels and labels.named_label(name):label_delete(session,[labels.named_label(name)])
 __TITLE_LABELS__run(session,'windowsize 1200 900')
-'''.replace('__ATOM_LABELS__',CXC_REVIEW_ATOM_LABELS if annotate else '').replace('__TITLE_LABELS__',CXC_REVIEW_TITLE_LABELS if annotate else '').replace('__SCENE__',repr(scene_path.name)).replace('__IDS__',repr(ids)).replace('__MESH__',repr(Path(files['pymol_mesh_npz']).name)).replace('__BASIS__',repr(basis.tolist()))
-    loader=root/(prefix+'_review_chimerax.py');loader.write_text(cxc_py, encoding="utf-8", newline="\n");files['review_chimerax_python']=str(loader)
-    target=root/(prefix+'_review.cxc');target.write_text('open '+json.dumps(loader.name)+'\n', encoding="utf-8", newline="\n");files['review_cxc']=str(target)
+'''.replace('__ATOM_LABELS__', CXC_REVIEW_ATOM_LABELS if annotate else '')
+        .replace('__TITLE_LABELS__', CXC_REVIEW_TITLE_LABELS if annotate else '')
+        .replace('__SCENE__', repr(scene_path.name))
+        .replace('__IDS__', repr(ids))
+        .replace('__MESH__', repr(Path(files['pymol_mesh_npz']).name))
+        .replace('__BASIS__', repr(basis.tolist()))
+    )
+    loader = root / (prefix + '_review_chimerax.py')
+    loader.write_text(cxc_py, encoding="utf-8", newline="\n")
+    files['review_chimerax_python'] = str(loader)
+    target = root / (prefix + '_review.cxc')
+    target.write_text('open ' + json.dumps(loader.name) + '\n', encoding="utf-8", newline="\n")
+    files['review_cxc'] = str(target)
     import csv
-    target=root/(prefix+'_review_landmarks.csv')
-    with target.open('w',newline='',encoding='utf-8') as handle:
-        writer=csv.DictWriter(handle,fieldnames=['residue','anchor_atoms','nearest_reference_sample_A','centroid_x_A','centroid_y_A','centroid_z_A'])
+
+    target = root / (prefix + '_review_landmarks.csv')
+    with target.open('w', newline='', encoding='utf-8') as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                'residue',
+                'anchor_atoms',
+                'nearest_reference_sample_A',
+                'centroid_x_A',
+                'centroid_y_A',
+                'centroid_z_A',
+            ],
+        )
         writer.writeheader()
         for r in scene['landmarks']:
-            writer.writerow({'residue':r['residue'],'anchor_atoms':';'.join(r['atoms']),
-                             'nearest_reference_sample_A':r['minimum_distance_to_reference_samples_A'],
-                             **{f'centroid_{axis}_A':value for axis,value in zip('xyz',r['centroid_A'])}})
-    files['review_landmarks_csv']=str(target)
+            writer.writerow(
+                {
+                    'residue': r['residue'],
+                    'anchor_atoms': ';'.join(r['atoms']),
+                    'nearest_reference_sample_A': r['minimum_distance_to_reference_samples_A'],
+                    **{f'centroid_{axis}_A': value for axis, value in zip('xyz', r['centroid_A'])},
+                }
+            )
+    files['review_landmarks_csv'] = str(target)
     return files
 
 
@@ -251,4 +352,3 @@ CXC_REVIEW_ATOM_LABELS = '''for row in review['landmarks']:
 CXC_REVIEW_TITLE_LABELS = '''run(session,'2dlabels create crevice_region_title text '+json.dumps(review['caption'])+' xpos 0.12 ypos 0.95 size 17 color black')
 run(session,'2dlabels create crevice_region_legend text '+json.dumps(review['legend'])+' xpos 0.06 ypos 0.03 size 14 color black')
 '''
-

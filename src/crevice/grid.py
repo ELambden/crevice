@@ -1,7 +1,6 @@
 """Continuous atom-clearance test for edges between neighbouring grid points.
 
-Grid-based searches (:func:`crevice.voids.void_cast`,
-:func:`crevice.tunnels.find_tunnels`) treat two adjacent grid points as
+Grid-based searches (:func:`crevice.voids.void_cast`) treat two adjacent grid points as
 connected only if a probe of radius ``min_radius`` can move along the whole
 straight segment between them without entering an atom sphere. Checking only
 the two endpoints would let paths jump through thin atom walls; this module
@@ -61,8 +60,16 @@ class GridConnectivity:
         Number of edges accepted by the endpoint bound without an exact query.
     """
 
-    def __init__(self, spatial: SpatialIndex, origin: Coord, spacing: float,
-                 min_radius: float, *, cache_limit: int = 32768, basis=None):
+    def __init__(
+        self,
+        spatial: SpatialIndex,
+        origin: Coord,
+        spacing: float,
+        min_radius: float,
+        *,
+        cache_limit: int = 32768,
+        basis=None,
+    ):
         self.basis = basis
         self.spatial = spatial
         self.origin = origin
@@ -86,8 +93,9 @@ class GridConnectivity:
         Coord
         """
         if self.basis is not None:
-            return tuple(self.origin[j] + self.spacing * sum(index[k]*self.basis[k][j] for k in range(3))
-                         for j in range(3))
+            return tuple(
+                self.origin[j] + self.spacing * sum(index[k] * self.basis[k][j] for k in range(3)) for j in range(3)
+            )
         return tuple(o + self.spacing * i for o, i in zip(self.origin, index))
 
     def clearance(self, left: GridIndex, right: GridIndex) -> float:
@@ -115,8 +123,7 @@ class GridConnectivity:
             return value
         return self._cache[key]
 
-    def allows(self, left: GridIndex, right: GridIndex, left_clearance: float,
-               right_clearance: float) -> bool:
+    def allows(self, left: GridIndex, right: GridIndex, left_clearance: float, right_clearance: float) -> bool:
         """Decide whether a probe of radius ``min_radius`` can traverse an edge.
 
         Parameters
@@ -161,8 +168,12 @@ class GridConnectivity:
             ``segment_queries``, ``endpoint_certificates``, ``cached_edges`` and
             ``cache_limit``.
         """
-        return {"neighbors": 26, "edge_rule": "continuous_atom_sphere_clearance",
-                "min_segment_clearance_A": self.min_radius,
-                "segment_queries": self.segment_queries,
-                "endpoint_certificates": self.endpoint_certificates,
-                "cached_edges": len(self._cache), "cache_limit": self.cache_limit}
+        return {
+            "neighbors": 26,
+            "edge_rule": "continuous_atom_sphere_clearance",
+            "min_segment_clearance_A": self.min_radius,
+            "segment_queries": self.segment_queries,
+            "endpoint_certificates": self.endpoint_certificates,
+            "cached_edges": len(self._cache),
+            "cache_limit": self.cache_limit,
+        }

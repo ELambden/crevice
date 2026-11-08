@@ -1,4 +1,5 @@
 """Matched residue-stick scenes for PyMOL, VMD and ChimeraX."""
+
 from pathlib import Path
 import json
 from .radii import RadiusSet, radii_option
@@ -57,48 +58,85 @@ def scene_from_binary_volume(frame, volume_path, output_dir, prefix, *, radii: R
     import numpy as np
     from scipy import ndimage
     from .residue_evidence import read_binary_dx
-    from .models import ChannelPoint,VoidComponent,VoidCast
+    from .models import ChannelPoint, VoidComponent, VoidCast
     from .presentation import write_viewer_structure
     from .volume_export import write_volume_viewer_bundle
     from .rolling import _SphereQueries
     from .radii import atom_vdw_radius
-    grid,origin,deltas=read_binary_dx(volume_path)
-    spacing=float(np.linalg.norm(deltas[0]));basis=deltas/spacing
-    if not np.allclose(basis@basis.T,np.eye(3),atol=1e-8):
+
+    grid, origin, deltas = read_binary_dx(volume_path)
+    spacing = float(np.linalg.norm(deltas[0]))
+    basis = deltas / spacing
+    if not np.allclose(basis @ basis.T, np.eye(3), atol=1e-8):
         raise ValueError('Automatic residue scenes require an orthogonal, equally spaced measured map')
-    labels,n=ndimage.label(grid);components=[]
-    atoms=frame.selected_atoms(include_hydrogen=False,include_hetero=False)
-    query=_SphereQueries(np.asarray([a.coord for a in atoms]),np.asarray([atom_vdw_radius(a) for a in atoms]))
-    for i in range(1,n+1):
-        xyz=np.argwhere(labels==i)@deltas+origin;clearance,nearest=query.points(xyz)
-        points=tuple(ChannelPoint(j,tuple(map(float,p)),max(0.,float(r)),float(r),float(p@basis[2]),
-                                  atoms[int(k)].serial,atoms[int(k)].residue_key.label)
-                     for j,(p,r,k) in enumerate(zip(xyz,clearance,nearest)))
-        components.append(VoidComponent(i,'imported_binary_region',tuple(map(float,xyz.mean(0))),len(points)*spacing**3,points))
-    if not components:raise ValueError('Cannot generate a scene from an empty measured map')
-    points=tuple(p for c in components for p in c.points)
-    cast=VoidCast(tuple(components),points,spacing,0.,'rolling',{
-        'algorithm':'imported_measured_binary_samples','grid_basis':basis.tolist(),'grid_origin':origin.tolist(),
-        'axis_origin':np.asarray([a.coord for a in frame.atoms]).mean(0).tolist(),'axis_direction':basis[2].tolist(),
-        'export_mode':'imported_binary_samples','source_volume':str(Path(volume_path).resolve()),
-        'connectivity':'face-connected sampled map components; no biological channel assignment'})
-    root=Path(output_dir);structure=write_viewer_structure(frame,root/f'{prefix}_viewer.pdb')
-    regions={f'region_{c.id}':c.points for c in components} if len(components)>1 else None
-    color=None
-    sidecar=Path(volume_path).with_name(Path(volume_path).stem+'_metadata.json')
+    labels, n = ndimage.label(grid)
+    components = []
+    atoms = frame.selected_atoms(include_hydrogen=False, include_hetero=False)
+    query = _SphereQueries(np.asarray([a.coord for a in atoms]), np.asarray([atom_vdw_radius(a) for a in atoms]))
+    for i in range(1, n + 1):
+        xyz = np.argwhere(labels == i) @ deltas + origin
+        clearance, nearest = query.points(xyz)
+        points = tuple(
+            ChannelPoint(
+                j,
+                tuple(map(float, p)),
+                max(0.0, float(r)),
+                float(r),
+                float(p @ basis[2]),
+                atoms[int(k)].serial,
+                atoms[int(k)].residue_key.label,
+            )
+            for j, (p, r, k) in enumerate(zip(xyz, clearance, nearest))
+        )
+        components.append(
+            VoidComponent(i, 'imported_binary_region', tuple(map(float, xyz.mean(0))), len(points) * spacing**3, points)
+        )
+    if not components:
+        raise ValueError('Cannot generate a scene from an empty measured map')
+    points = tuple(p for c in components for p in c.points)
+    cast = VoidCast(
+        tuple(components),
+        points,
+        spacing,
+        0.0,
+        'rolling',
+        {
+            'algorithm': 'imported_measured_binary_samples',
+            'grid_basis': basis.tolist(),
+            'grid_origin': origin.tolist(),
+            'axis_origin': np.asarray([a.coord for a in frame.atoms]).mean(0).tolist(),
+            'axis_direction': basis[2].tolist(),
+            'export_mode': 'imported_binary_samples',
+            'source_volume': str(Path(volume_path).resolve()),
+            'connectivity': 'face-connected sampled map components; no biological channel assignment',
+        },
+    )
+    root = Path(output_dir)
+    structure = write_viewer_structure(frame, root / f'{prefix}_viewer.pdb')
+    regions = {f'region_{c.id}': c.points for c in components} if len(components) > 1 else None
+    color = None
+    sidecar = Path(volume_path).with_name(Path(volume_path).stem + '_metadata.json')
     if sidecar.is_file():
         try:
-            recorded=json.loads(sidecar.read_text(encoding="utf-8"))
+            recorded = json.loads(sidecar.read_text(encoding="utf-8"))
         except ValueError:
-            recorded={}
+            recorded = {}
         from .presentation import CHANNEL_CAST_RGB
-        color=recorded.get('cast_color_rgb') or (CHANNEL_CAST_RGB if recorded.get('channel_mouths') else None)
-    return write_volume_viewer_bundle(cast,structure_path=structure,output_dir=root,prefix=prefix,
-                                     frame=frame,cast_extension=0,regions=regions,cast_color=color)
+
+        color = recorded.get('cast_color_rgb') or (CHANNEL_CAST_RGB if recorded.get('channel_mouths') else None)
+    return write_volume_viewer_bundle(
+        cast,
+        structure_path=structure,
+        output_dir=root,
+        prefix=prefix,
+        frame=frame,
+        cast_extension=0,
+        regions=regions,
+        cast_color=color,
+    )
 
 
-def write_companion_contexts(scene, root, prefix, protein_path, membership, viewer_ids, frame,
-                             *, cast_opacity=.55):
+def write_companion_contexts(scene, root, prefix, protein_path, membership, viewer_ids, frame, *, cast_opacity=0.55):
     """Write VMD and ChimeraX residue-evidence overlays on an existing volume scene.
 
     The base scene's own ``.tcl`` and ``.cxc`` are reused unchanged; the VMD
@@ -153,22 +191,33 @@ def write_companion_contexts(scene, root, prefix, protein_path, membership, view
     import re
     from .volume_export import _tcl_word
     from .outputs import wants
-    scene=Path(scene);root=Path(root)
-    tcl=scene.with_suffix('.tcl');cxc=scene.with_suffix('.cxc')
+
+    scene = Path(scene)
+    root = Path(root)
+    tcl = scene.with_suffix('.tcl')
+    cxc = scene.with_suffix('.cxc')
     # Each overlay follows the active output plan (both are written without one).
-    want_vmd=[wants(root/f'{prefix}_residue_context.{extension}') for extension in ['vmd','tcl']]
-    want_cxc=wants(root/f'{prefix}_residue_context.cxc')
+    want_vmd = [wants(root / f'{prefix}_residue_context.{extension}') for extension in ['vmd', 'tcl']]
+    want_cxc = wants(root / f'{prefix}_residue_context.cxc')
     if (any(want_vmd) and not tcl.is_file()) or (want_cxc and not cxc.is_file()):
         raise ValueError('Residue contexts require companion CREVICE .tcl and .cxc volume scenes')
-    paths={}
+    paths = {}
     if not any(want_vmd) and not want_cxc:
         return paths
-    coordinates=root/f'{prefix}_residue_reference.tsv'
-    coordinates.write_text(''.join(f'{serial}\t{a.x:.9f}\t{a.y:.9f}\t{a.z:.9f}\n' for a,serial in zip(frame.atoms,viewer_ids)), encoding="utf-8", newline="\n")
+    coordinates = root / f'{prefix}_residue_reference.tsv'
+    coordinates.write_text(
+        ''.join(f'{serial}\t{a.x:.9f}\t{a.y:.9f}\t{a.z:.9f}\n' for a, serial in zip(frame.atoms, viewer_ids)),
+        encoding="utf-8",
+        newline="\n",
+    )
     # Scenes of 0.4 and later define crevice_input (script folder, then working directory).
-    reference_lookup='crevice_input' if 'proc crevice_input' in tcl.read_text(encoding="utf-8") else 'file join $crevice_root'
-    definitions='\n'.join(f'set crevice_evidence_serials({role}) {{{" ".join(map(str,ids))}}}' for role,ids in membership.items())
-    extra=f'''
+    reference_lookup = (
+        'crevice_input' if 'proc crevice_input' in tcl.read_text(encoding="utf-8") else 'file join $crevice_root'
+    )
+    definitions = '\n'.join(
+        f'set crevice_evidence_serials({role}) {{{" ".join(map(str, ids))}}}' for role, ids in membership.items()
+    )
+    extra = f'''
 # Matched highlighted residues: opaque sticks, transparent cavity context.
 {definitions}
 set crevice_reference_file [open [{reference_lookup} {_tcl_word(coordinates.name)}] r]
@@ -205,33 +254,45 @@ material change opacity CREVICECast {cast_opacity:g}
 # No wireframe, labels or helper-grid representations are introduced.
 display update
 '''
-    for extension,wanted in zip(['vmd','tcl'],want_vmd):
+    for extension, wanted in zip(['vmd', 'tcl'], want_vmd):
         if wanted:
-            p=root/f'{prefix}_residue_context.{extension}';p.write_text(tcl.read_text(encoding="utf-8")+extra, encoding="utf-8", newline="\n");paths[f'residue_context_{extension}']=str(p)
+            p = root / f'{prefix}_residue_context.{extension}'
+            p.write_text(tcl.read_text(encoding="utf-8") + extra, encoding="utf-8", newline="\n")
+            paths[f'residue_context_{extension}'] = str(p)
     if not want_cxc:
-        paths['residue_reference_tsv']=str(coordinates)
+        paths['residue_reference_tsv'] = str(coordinates)
         return paths
     # CXC interprets file names relative to the command script's own directory.
-    commands=cxc.read_text(encoding="utf-8").splitlines()
-    commands[0]='open '+json.dumps(protein_path.name)+' id #1'
-    volume_ids=[]
+    commands = cxc.read_text(encoding="utf-8").splitlines()
+    commands[0] = 'open ' + json.dumps(protein_path.name) + ' id #1'
+    volume_ids = []
     for line in commands:
-        match=re.match(r'volume (#\d+) style surface',line)
-        if match:volume_ids.append(match[1])
-    commands += ['# Evidence categories use original IDs in the companion report; selection uses verified viewer serials.']
-    viewer_residues={}
+        match = re.match(r'volume (#\d+) style surface', line)
+        if match:
+            volume_ids.append(match[1])
+    commands += [
+        '# Evidence categories use original IDs in the companion report; selection uses verified viewer serials.'
+    ]
+    viewer_residues = {}
     for line in protein_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith(('ATOM  ','HETATM')):
-            viewer_residues[int(line[6:11])]=(line[21:22].strip(),line[22:27].strip())
-    for role,color in [('partners','#a34478'),('lining','#d98c33')]:
-        ids=membership[role]
+        if line.startswith(('ATOM  ', 'HETATM')):
+            viewer_residues[int(line[6:11])] = (line[21:22].strip(), line[22:27].strip())
+    for role, color in [('partners', '#a34478'), ('lining', '#d98c33')]:
+        ids = membership[role]
         if ids:
-            residues=sorted({viewer_residues[i] for i in ids})
-            spec='|'.join('#1'+('/'+chain if chain else '')+':'+resid for chain,resid in residues)
-            commands += [f'show {spec} atoms',f'style {spec} stick',f'size {spec} stickRadius 0.19',
-                         f'color {spec} {color} target a',f'transparency {spec} 0 target a']
-    commands += [f'transparency {model} {100*(1-cast_opacity):g} target s' for model in volume_ids]
+            residues = sorted({viewer_residues[i] for i in ids})
+            spec = '|'.join('#1' + ('/' + chain if chain else '') + ':' + resid for chain, resid in residues)
+            commands += [
+                f'show {spec} atoms',
+                f'style {spec} stick',
+                f'size {spec} stickRadius 0.19',
+                f'color {spec} {color} target a',
+                f'transparency {spec} 0 target a',
+            ]
+    commands += [f'transparency {model} {100 * (1 - cast_opacity):g} target s' for model in volume_ids]
     commands += ['view', 'zoom 0.9']
-    p=root/f'{prefix}_residue_context.cxc';p.write_text('\n'.join(commands)+'\n', encoding="utf-8", newline="\n");paths['residue_context_cxc']=str(p)
-    paths['residue_reference_tsv']=str(coordinates)
+    p = root / f'{prefix}_residue_context.cxc'
+    p.write_text('\n'.join(commands) + '\n', encoding="utf-8", newline="\n")
+    paths['residue_context_cxc'] = str(p)
+    paths['residue_reference_tsv'] = str(coordinates)
     return paths

@@ -15,9 +15,11 @@ than one thread; its CPU time is reported).
 
 Cases (when the tool and inputs are available):
 
-* ``profile``: HOLE 2.3.1 vs ``crevice profile`` with the automatic probe and
-  with the chosen probe fixed, on 1GRM, 1OED and 3UKM (matched inputs, HOLE
-  simple.rad; 3UKM with Bondi radii and lateral exits, as resolved).
+* ``profile``: HOLE 2.3.1 vs ``crevice profile`` with the automatic
+  (per-slice) probe, on 1GRM, 1OED and 3UKM (matched inputs, HOLE simple.rad;
+  3UKM with Bondi radii and lateral exits, as resolved). A fixed-probe row is
+  added only when the channel comparison recorded one probe for the whole
+  channel (``crevice_chosen_probe_A``, the 0.4 rule).
 * ``tunnels``: CAVER 3.0.3 vs ``crevice paths`` (automatic probe and 0.9 Å),
   on 1CQW, 1MJ5 and 1EA5.
 * ``volumes``: pyKVFinder and POVME vs ``crevice cavities --cast`` on 1L83 and 2NNQ.
@@ -133,8 +135,13 @@ def main(argv=None) -> int:
     machine = machine_record()
     logs = args.work_dir / "timing_logs"
     logs.mkdir(parents=True, exist_ok=True)
+    planned = list(cases(args.work_dir))
+    if not planned:
+        print(f"no timing case has its inputs under {args.work_dir} (run the comparison scripts first, or set "
+              "CREVICE_WORKSPACE_DIR / --work-dir); results left unchanged", file=sys.stderr)
+        return 2
     rows = []
-    for n, (case, tool, cmd, cwd, stdin, env) in enumerate(cases(args.work_dir)):
+    for n, (case, tool, cmd, cwd, stdin, env) in enumerate(planned):
         for rep in range(args.repeat):
             load_before = list(os.getloadavg())
             res = measure(cmd, cwd=cwd, env=env, stdin=stdin, log=logs / f"{n:02d}_{rep}.log")

@@ -48,18 +48,14 @@ interval for the mean and the mean radius along the channel.
   `--alignment-residue` or `--alignment-residues-json`). `--pbc` controls the
   check for molecules split across the periodic box; see
   [Inputs and selections](../getting-started/inputs-and-selections.md#trajectories-frames-alignment-and-periodic-boundaries).
-- **Profiles.** Every frame uses the reference frame's axis and seed. The
-  enclosure probe is chosen once, on the reference frame, and then used for
-  every frame, so all frames share one definition of the wall
-  (`metadata.enclosure_probe`). A number such as `--enclosure-radius 0.8`
-  fixes it instead.
-- **When a frame doesn't fit.** If the wall moves so that the shared probe
-  can't resolve a frame, that frame is profiled again with a probe chosen on
-  the frame itself. Each frame records which probe it used
-  (`enclosure_radius_A` and `enclosure_probe_source` in the frames table:
-  `pinned`, `fallback` or `none`), and the command prints the counts. A
-  fixed probe stays strict unless you add `--probe-fallback`;
-  `--no-probe-fallback` turns the rescue off. Frames that still don't resolve
+- **Profiles.** Every frame uses the reference frame's axis and seed and the
+  same enclosure rule: per-slice probes found again in each frame (the
+  default), or one fixed probe such as `--enclosure-radius 0.8`
+  (`metadata.enclosure_probe`). Each frame records its probes
+  (`enclosure_radius_A`, the largest, and `enclosure_probe_source` in the
+  frames table: `per_plane`, `fixed` or `none`), and the command prints how
+  many frames resolved.
+- **When a frame doesn't fit.** Frames that don't resolve
   are recorded as missing, never as zero. If the reference frame itself doesn't
   resolve, the later profiles are skipped and the other analyses carry on.
   A fixed `--origin` that has too little clearance in a frame (an atom has
@@ -123,16 +119,15 @@ each frame, and `--all` also its figures and scenes ({ref}`output-policy`).
 
 ## Matching the command in Python
 
-Three defaults differ between the command and the Python functions:
+To match the command in Python, note:
 
 - `crevice trajectory` adds a 0.95 mean interval;
   {func}`crevice.profile_distribution` adds none unless you pass
   `confidence=`.
 - Both align by default, but for a plain list of frames (rather than a
   `TrajectoryAnalysis`) the interval needs `assume_aligned=True`.
-- The command measures residue contacts between heavy-atom centres; pass
-  `network_kwargs={"distance_metric": "center"}` to
-  {func}`crevice.analyze_trajectory` to match.
+
+Residue contacts are measured between heavy-atom centres in both.
 
 :::{admonition} Interpreting results
 :class: crevice-interpret

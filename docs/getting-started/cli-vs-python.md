@@ -25,7 +25,6 @@ write files and figures. The main public functions are:
 | `profile` | {func}`crevice.pore_profile` | {func}`crevice.write_profile_json`, {func}`crevice.write_profile_csv`, {func}`crevice.plot_profile_radius` |
 | `residues` | {func}`crevice.annotate_residues` | {func}`crevice.write_residue_contacts_csv`, {func}`crevice.plot_residue_contacts` |
 | `cavities` | {func}`crevice.detect_cavities` | {func}`crevice.write_cavities_json`, {func}`crevice.write_cavities_csv`, {func}`crevice.plot_cavity_summary` |
-| `cavities --tunnels` | {func}`crevice.find_tunnels` | {func}`crevice.write_tunnels_json`, {func}`crevice.write_tunnels_csv`, {func}`crevice.write_tunnel_points_csv` |
 | `residues --network` | {func}`crevice.build_cavity_network`, {func}`crevice.build_residue_network` | {func}`crevice.write_network_json`, {func}`crevice.write_network_csv`, {func}`crevice.plot_network_summary` |
 | `cavities --cast` | {func}`crevice.rolling_probe_cast` | {func}`crevice.write_volume_viewer_bundle`, {func}`crevice.write_void_cast_dx`, {func}`crevice.write_void_cast_csv` |
 | `residues --evidence` | {func}`crevice.boundary_residue_evidence`, {func}`crevice.select_stick_residues` | {func}`crevice.write_residue_evidence_bundle` |
@@ -78,23 +77,18 @@ write the complete bundle, as in 0.2.
 Some low-level functions have different defaults from the command line. If you
 want results that match the command line, pass these values explicitly:
 
-- Residue-network distance: `crevice residues --network` and `crevice trajectory` use the
-  heavy-atom **centre** distance (4.5 Å). {func}`crevice.build_residue_network`
-  and {func}`crevice.build_cavity_network` default to the van der Waals
-  **surface-gap** metric. Pass `distance_metric="center"` to match
-  `crevice residues --network`. The networks built *inside* `report` and `report --analyze` still
-  use those low-level defaults (surface gap, heteroatoms excluded). The same
-  named analysis can therefore give different numbers depending on the command
-  that ran it. This split is deliberate for now: unifying it is an open
-  interface-design decision, and each network records its metric and
-  heteroatom choice in `metadata`.
+- Residue-network heteroatoms: every network measures the heavy-atom
+  **centre** distance (4.5 Å) by default. `crevice residues --network` keeps
+  HETATM residues (ligands, waters, ions) as nodes, while
+  {func}`crevice.build_residue_network`, {func}`crevice.build_cavity_network`
+  and the networks inside `report` and `report --analyze` leave them out. Pass
+  `include_hetero=True` to match `crevice residues --network`; each network
+  records its metric and heteroatom choice in `metadata`.
 - Trajectories: `crevice trajectory` adds a 0.95 mean confidence band
   (`--confidence`); {func}`crevice.profile_distribution` adds none unless you
   pass `confidence=`. Alignment is on by default in both (`--align`,
   `align=True`). For a plain list of frames, rather than a
   `TrajectoryAnalysis`, a confidence band needs `assume_aligned=True`.
-  `analyze_trajectory` builds networks with the surface-gap default; pass
-  `network_kwargs={"distance_metric": "center"}` to match the command.
 - Profiles: `--samples`/`samples=` (default 81) is a minimum for connected
   profiles in both interfaces; extra points keep axial steps at or below
   0.75 Å (`metadata["requested_samples"]` and `["samples"]`). The enclosure
@@ -102,8 +96,9 @@ want results that match the command line, pass these values explicitly:
   `enclosure_radius=None`; see [`profile`](../tools/profile.md)), including
   `report --suite`/{func}`crevice.static_suite.run_static_benchmark_suite` and
   `report --benchmark`. For trajectories, `crevice trajectory` and
-  {func}`crevice.analyze_trajectory` both choose once on the reference frame
-  and use that probe for every frame (`metadata["enclosure_probe"]`). A number
+  {func}`crevice.analyze_trajectory` both repeat the per-slice choice in
+  every frame, keeping the axis and seed of the first frame
+  (`metadata["enclosure_probe"]`). A number
   fixes the probe in every interface. `crevice cavities --cast` and
   {func}`crevice.rolling_probe_cast` have no automatic probe: their
   `probe_radius` (default 0.8 Å) defines the cast itself (see
@@ -114,10 +109,15 @@ want results that match the command line, pass these values explicitly:
   {func}`crevice.rolling_probe_cast` defaults to `selection_mode="all"` with no
   count limit. Pass `selection_mode="dominant", max_components=1,
   enclosure_fraction=0.9` to reproduce the CLI.
+- Channel casts: {func}`crevice.void_cast` uses a 1.5 Å grid and a 0.4 Å
+  minimum clearance by default; `report` casts the channel on a 0.5 Å grid
+  with no minimum clearance (`--cast-spacing 0.5`, `--cast-min-radius 0`).
+  Pass `spacing=0.5, min_radius=0.0` for a comparable cast; on the 1.5 Å grid
+  a narrow channel may not be resolved in every section.
 - Heteroatoms: `profile`, `residues`, `residues --network`, `report --analyze` and `report` keep
   HETATM records unless you pass `--exclude-hetero`. The standalone `cavities`
-  and `cavities --tunnels` commands drop them unless you pass `--include-hetero`, but
-  `report --analyze --analysis cavities/tunnels` keeps them by default. `crevice residues --network`
+  command drops them unless you pass `--include-hetero`, but
+  `report --analyze --analysis cavities` keeps them by default. `crevice residues --network`
   keeps heteroatoms, whereas {func}`crevice.build_residue_network` and
   {func}`crevice.build_cavity_network` default to `include_hetero=False`. Check
   `include_hetero` in each signature, and record the command you ran.

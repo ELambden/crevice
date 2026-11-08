@@ -57,7 +57,7 @@ the snap distance is recorded. A maximin (widest-path) Dijkstra then labels
 every reachable free node with its widest route from the start, the route
 whose narrowest node clearance is largest; equally wide routes prefer the
 shorter one, then lattice order, so results are deterministic. This is the
-same ordering as `crevice cavities --tunnels` and the lateral-exit search. The route's
+same ordering as the lateral-exit search. The route's
 **ranking width** ignores nodes inside the start's own free sphere, which
 every route shares; the reported bottleneck includes them.
 
@@ -78,8 +78,7 @@ probe is chosen per structure, and per side with `--axis`. A number instead
 runs that probe alone, exactly as a fixed-probe run always has, and adds no
 selection record.
 
-1. **Candidates.** The probes of the automatic enclosure ladder of
-   [`crevice profile`](../tools/profile.md): 0.50, 0.55, 0.60, 0.65, 0.70,
+1. **Candidates.** A fixed ladder of probes: 0.50, 0.55, 0.60, 0.65, 0.70,
    0.75, 0.80, 0.90, 1.00 … 1.60, 1.80, 2.00, 2.20, 2.40, 2.70 and 3.00 Å (steps
    of 6–12 %), those below `--bulk-radius`. Below 0.5 Å the probe passes
    between atoms where the omitted hydrogens would be.

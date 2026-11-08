@@ -1,4 +1,4 @@
-"""Default output inventories: CSV tables, no HTML, no cast preview or tunnel summary.
+"""Default output inventories: CSV tables, no HTML, no cast preview.
 
 Software tests on synthetic channels only; no biological result is implied.
 They check which files each command writes by default, that every tabular
@@ -26,7 +26,7 @@ FORBIDDEN_SUFFIXES = ('.html', '_cast_preview.png', '_tunnel_summary.png', '_ana
 # JSON kept as structured records, provenance or viewer scene definitions (see docs/getting-started/outputs.md).
 KEPT_JSON_SUFFIXES = ('_manifest.json', '_input_report.json', '_profile.json', '_profile_status.json',
                       '_void_cast.json', '_selection.json', '_region_annotations.json', '_cavities.json',
-                      '_tunnels.json', '_network.json', '_connectivity.json', '_scene.json',
+                      '_network.json', '_connectivity.json', '_scene.json',
                       '_volume_metadata.json', '.identities.json', '_hydration.json', '_interactions.json',
                       '_water_density.json', '_residue_evidence.json', '_hydration_alignment.json')
 PROFILE_COLUMNS = ['index', 'x_A', 'y_A', 'z_A', 'radius_A', 'raw_clearance_A', 'axis_position_A',
@@ -70,7 +70,7 @@ def published(tmp_path_factory, channel_pdb):
     root = tmp_path_factory.mktemp('publish')
     assert main(['report', str(channel_pdb), *PROFILE_ARGS, '--cast-spacing', '.5', '--dpi', '40',
                  '--hydration-sasa-points', '32', '--out-dir', str(root), '--prefix', 'c',
-                 '--outputs', 'default,figures,hydration,cavities,tunnels,network']) == 0
+                 '--outputs', 'default,figures,hydration,network']) == 0
     return root
 
 
@@ -78,16 +78,13 @@ def test_publish_default_inventory_is_csv_first_without_html(published):
     _assert_clean_inventory(published)
     manifest = json.loads((published / 'c_manifest.json').read_text(encoding="utf-8"))
     files = resolve_files(manifest['files'], published)   # recorded relative to the manifest
-    for key in ['profile_csv', 'residue_contacts_csv', 'void_cast_csv', 'cavities_csv', 'tunnels_csv',
-                'tunnel_points_csv', 'network_nodes_csv', 'network_edges_csv', 'hydration_residues_csv']:
+    for key in ['profile_csv', 'residue_contacts_csv', 'void_cast_csv',
+                'network_nodes_csv', 'network_edges_csv', 'hydration_residues_csv']:
         assert Path(files[key]).is_file(), key
-    assert 'tunnel_summary_png' not in files and 'residue_contacts_json' not in files
+    assert not [key for key in files if 'tunnel' in key or key.startswith('cavit')] and 'residue_contacts_json' not in files
     assert _header(files['profile_csv']) == PROFILE_COLUMNS
     assert _header(files['residue_contacts_csv'])[:3] == ['residue', 'min_distance_A', 'mean_distance_A']
     assert {'volume_A3', 'center_x_A', 'max_radius_A'} <= set(_header(files['void_cast_csv']))
-    assert {'cavity_id', 'volume_A3', 'max_radius_A'} <= set(_header(files['cavities_csv']))
-    assert {'tunnel_id', 'length_A', 'bottleneck_radius_A'} <= set(_header(files['tunnels_csv']))
-    assert _header(files['tunnel_points_csv']) == ['tunnel_id', *PROFILE_COLUMNS]
     assert {'node_id', 'kind', 'degree', 'residue_degree', 'x_A'} <= set(_header(files['network_nodes_csv']))
     assert {'source', 'target', 'interaction', 'distance_A', 'cutoff_A'} <= set(_header(files['network_edges_csv']))
     # The CSVs hold the same numbers as the retained JSON records.
@@ -95,9 +92,6 @@ def test_publish_default_inventory_is_csv_first_without_html(published):
     assert min(float(r['radius_A']) for r in _rows(files['profile_csv'])) == pytest.approx(profile['min_radius'], abs=0)
     volumes = [float(r['volume_A3']) for r in _rows(files['void_cast_csv'])]
     assert sum(volumes) == pytest.approx(manifest['void_cast']['total_volume'], abs=1e-9)
-    tunnels = json.loads(Path(files['tunnels_json']).read_text(encoding="utf-8"))['tunnels']
-    assert len(_rows(files['tunnels_csv'])) == len(tunnels)
-    assert len(_rows(files['tunnel_points_csv'])) == sum(len(t['points']) for t in tunnels)
     network = json.loads(Path(files['network_json']).read_text(encoding="utf-8"))
     assert len(_rows(files['network_edges_csv'])) == network['network']['edge_count']
     degrees = {r['node_id']: int(r['degree']) for r in _rows(files['network_nodes_csv'])}
@@ -119,12 +113,12 @@ def test_hydration_views_write_frame_tables_and_no_html(published):
 def test_analyze_single_commands_and_trajectory_write_csv_companions(tmp_path, channel_pdb):
     out = tmp_path / 'analyze'
     assert main(['report', '--analyze', str(channel_pdb), *PROFILE_ARGS, '--analysis', 'profile', '--analysis', 'residues',
-                 '--analysis', 'cavities', '--analysis', 'tunnels', '--analysis', 'network', '--analysis', 'features',
+                 '--analysis', 'cavities', '--analysis', 'network', '--analysis', 'features',
                  '--png', '--dpi', '40', '--skip-hydration', '--skip-interactions', '--out-dir', str(out), '--prefix', 'c']) == 0
     _assert_clean_inventory(out)
     files = resolve_files(json.loads((out / 'c_manifest.json').read_text(encoding="utf-8"))['files'], out)
-    assert {'profile.json', 'profile.csv', 'residues.csv', 'cavities.json', 'cavities.csv', 'tunnels.json',
-            'tunnels.csv', 'tunnel_points.csv', 'network.json', 'network_nodes.csv', 'network_edges.csv',
+    assert {'profile.json', 'profile.csv', 'residues.csv', 'cavities.json', 'cavities.csv',
+            'network.json', 'network_nodes.csv', 'network_edges.csv',
             'features.csv', 'profile.png', 'residues.png', 'cavities.png', 'network.png'} == set(files)
     assert _header(files['features.csv']) == ['feature', 'value', 'unit']
     units = {r['feature']: r['unit'] for r in _rows(files['features.csv'])}
@@ -132,16 +126,15 @@ def test_analyze_single_commands_and_trajectory_write_csv_companions(tmp_path, c
 
     single = tmp_path / 'single'
     assert main(['cavities', str(channel_pdb), '--offline', '-o', str(single / 'cav.json')]) == 0
-    assert main(['cavities', '--tunnels', str(channel_pdb), '--offline', '-o', str(single / 'tun.json')]) == 0
     assert main(['residues', '--network', str(channel_pdb), *PROFILE_ARGS, '-o', str(single / 'net.json'),
                  '--connectivity-json', str(single / 'con.json')]) == 0
     assert main(['residues', '--features', str(channel_pdb), *PROFILE_ARGS, '-o', str(single / 'feat.json')]) == 0
     assert sorted(p.name for p in single.iterdir()) == sorted([
-        'cav.json', 'cav.csv', 'tun.json', 'tun.csv', 'tun_points.csv', 'net.json', 'net_nodes.csv',
+        'cav.json', 'cav.csv', 'net.json', 'net_nodes.csv',
         'net_edges.csv', 'con.json', 'con.csv', 'con_groups.csv', 'feat.json', 'feat.csv'])
     assert _header(single / 'con.csv')[:3] == ['residue', 'group', 'is_lining']
-    with pytest.raises(SystemExit):   # the tunnel summary figure was removed
-        main(['cavities', '--tunnels', str(channel_pdb), '--offline', '-o', str(single / 'x.json'), '--png', str(single / 'x.png')])
+    with pytest.raises(SystemExit):   # the grid tunnel search was removed (crevice paths replaces it)
+        main(['cavities', '--tunnels', str(channel_pdb), '--offline', '-o', str(single / 'x.json')])
 
     trajectory = tmp_path / 'trajectory'
     assert main(['trajectory', str(channel_pdb), str(channel_pdb), '-o', str(trajectory / 't.json'),
@@ -225,7 +218,7 @@ def test_network_summary_axis_is_explained_and_counts_residue_contacts(tmp_path,
     figures.plot_network_summary(network, tmp_path / 'summary.png', dpi=40)
     fig = saved['summary.png']
     ax = fig['axes'][0]
-    assert ax['xlabel'] == 'Residue contacts (degree: residues with atom-surface gap ≤ 4.5 Å)'
+    assert ax['xlabel'] == 'Residue contacts (degree: residues with atom-centre distance ≤ 4.5 Å)'
     legend = fig['legends'][0]
     assert legend['labels'] and set(legend['labels']) <= {label for _k, label in figures.INTERACTION_LEGEND}
     # Stacked bar lengths per residue equal its residue-residue degree in the node table.

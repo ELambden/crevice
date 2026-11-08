@@ -70,6 +70,7 @@ class ResidueKey:
     >>> ResidueKey("", 7, "B", "GLY").label
     '_:GLY7B'
     """
+
     chain_id: str
     resid: int
     icode: str
@@ -127,6 +128,7 @@ class Atom:
         the MDAnalysis ``protein`` selection". Analyses use it through
         ``include_hetero`` options.
     """
+
     serial: int
     name: str
     resname: str
@@ -164,6 +166,7 @@ class Residue:
     atoms : tuple of Atom
         Atoms that share ``key``, in the order they appear in the frame.
     """
+
     key: ResidueKey
     atoms: tuple[Atom, ...]
 
@@ -214,6 +217,7 @@ class StructureFrame:
     >>> frame.centroid()
     (2.1666666666666665, 0.0, 0.0)
     """
+
     atoms: tuple[Atom, ...]
     source: str = ""
     model_index: int = 0
@@ -338,7 +342,7 @@ class StructureFrame:
 
 @dataclass(frozen=True)
 class ChannelPoint:
-    """One sample point of a profile, tunnel path or cast.
+    """One sample point of a profile, path or cast.
 
     The same class is used for several result types; the meaning of
     ``radius`` and ``t`` depends on which analysis produced the point.
@@ -355,8 +359,7 @@ class ChannelPoint:
         :func:`crevice.channels.profile_along_path`) this is
         ``max(0, raw_clearance - probe_radius)``: the radius of the largest
         sphere centred here that also leaves room for the probe. For void and
-        rolling-probe cast samples and tunnel grid nodes it equals
-        ``raw_clearance``.
+        rolling-probe cast samples it equals ``raw_clearance``.
     raw_clearance : float
         Signed distance in Å from ``position`` to the nearest atom van der
         Waals surface (centre distance minus atomic radius). Negative inside an
@@ -366,8 +369,6 @@ class ChannelPoint:
         For axial profiles it is the signed axial position relative to
         ``PoreProfile.axis_origin``; for explicit paths it is the cumulative
         path length from the first point; for
-        :func:`crevice.tunnels.find_tunnels` paths it is also the cumulative
-        path length from the start (the step number is :attr:`index`); for
         cast samples it is the projection on the cast's axis or grid
         direction. Exported as ``"axis_position"``.
     nearest_atom_serial : int or None, default None
@@ -375,6 +376,7 @@ class ChannelPoint:
     nearest_residue : str or None, default None
         Label (:attr:`ResidueKey.label`) of that atom's residue.
     """
+
     index: int
     position: Coord
     radius: float
@@ -416,7 +418,7 @@ class PoreProfile:
         Reference point of the axis in Å. The ``t`` of each point is measured
         from here.
     axis_direction : Coord
-        Unit direction of the axis. For explicit paths and tunnels it is the
+        Unit direction of the axis. For explicit paths it is the
         unit vector from the first to the last point.
     points : tuple of ChannelPoint
         Samples in profile order. ``radius`` is clearance minus
@@ -426,9 +428,9 @@ class PoreProfile:
     method : str, default "axial-refined"
         How the profile was obtained: ``"axial-connected"`` (connected channel
         sections, the default of :func:`crevice.channels.pore_profile`),
-        ``"axial-refined"`` (fixed-axis scan, ``search_radius=0``),
-        ``"explicit-path"`` (:func:`crevice.channels.profile_along_path`) or
-        ``"tunnel-path"`` (:func:`crevice.tunnels.tunnel_profile`).
+        ``"axial-refined"`` (samples along a straight axis built directly,
+        the constructor default; no channel connectivity is asserted) or
+        ``"explicit-path"`` (:func:`crevice.channels.profile_along_path`).
     metadata : dict
         Settings and diagnostics recorded by the producing function (atom
         selection, status, sampling). Contents vary by method.
@@ -439,6 +441,7 @@ class PoreProfile:
     computed from the stored samples only. They are sampling estimates: a
     narrower constriction between two samples is not detected.
     """
+
     axis_origin: Coord
     axis_direction: Coord
     points: tuple[ChannelPoint, ...]
@@ -481,10 +484,7 @@ class PoreProfile:
 
         if len(self.points) < 2:
             return 0.0
-        return sum(
-            distance(left.position, right.position)
-            for left, right in zip(self.points, self.points[1:])
-        )
+        return sum(distance(left.position, right.position) for left, right in zip(self.points, self.points[1:]))
 
     @property
     def volume_estimate(self) -> float:
@@ -507,9 +507,10 @@ class PoreProfile:
         from .geometry import distance
 
         # Trapezoidal integration of sampled cross-sectional areas.
-        return sum(math.pi * (left.radius**2 + right.radius**2) * 0.5
-                   * distance(left.position, right.position)
-                   for left, right in zip(self.points, self.points[1:]))
+        return sum(
+            math.pi * (left.radius**2 + right.radius**2) * 0.5 * distance(left.position, right.position)
+            for left, right in zip(self.points, self.points[1:])
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly dictionary including summaries and all points.
@@ -565,6 +566,7 @@ class Cavity:
         :func:`crevice.cavities.detect_cavities` it equals ``volume``. Not a
         probability or energy.
     """
+
     id: int
     center: Coord
     radius: float
@@ -583,68 +585,6 @@ class Cavity:
             "grid_points": self.grid_points,
             "nearest_residues": list(self.nearest_residues),
             "score": self.score,
-        }
-
-
-@dataclass(frozen=True)
-class Tunnel:
-    """A grid path from a start point to the edge of the search box.
-
-    Produced by :func:`crevice.tunnels.find_tunnels`.
-
-    Attributes
-    ----------
-    id : int
-        One-based identifier in the order found (widest bottleneck first).
-    start : Coord
-        First point of the path in Å (the requested start, or the molecule
-        centroid by default).
-    end : Coord
-        Grid node on the box boundary where the path ends, in Å.
-    points : tuple of ChannelPoint
-        Path samples. ``radius`` and ``raw_clearance`` are the atom-surface
-        clearance at each node; ``t`` is the cumulative path length in Å from
-        the start and ``index`` the step number.
-    length : float
-        Polyline length of the path in Å.
-    bottleneck_radius : float
-        Minimum clearance in Å over the path, taking the whole connecting
-        segments into account (not only the nodes).
-    mean_radius : float
-        Arithmetic mean of node clearances in Å.
-    score : float
-        ``bottleneck_radius / (1 + 0.01 * length)``: a ranking heuristic that
-        favours wide, short paths.
-    nearest_residues : tuple of str, default ()
-        Up to ten residue labels lining the path.
-    metadata : dict
-        Grid spacing, seed attachment, per-segment clearances and estimator
-        definitions.
-    """
-    id: int
-    start: Coord
-    end: Coord
-    points: tuple[ChannelPoint, ...]
-    length: float
-    bottleneck_radius: float
-    mean_radius: float
-    score: float
-    nearest_residues: tuple[str, ...] = ()
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-friendly dictionary of all fields, including points."""
-        return {
-            "id": self.id,
-            "start": self.start,
-            "end": self.end,
-            "length": self.length,
-            "bottleneck_radius": self.bottleneck_radius,
-            "mean_radius": self.mean_radius,
-            "score": self.score,
-            "nearest_residues": list(self.nearest_residues),
-            "points": [point.to_dict() for point in self.points],
-            "metadata": self.metadata,
         }
 
 
@@ -679,6 +619,7 @@ class VoidComponent:
     metadata : dict
         Method-specific diagnostics.
     """
+
     id: int
     kind: str
     center: Coord
@@ -773,6 +714,7 @@ class VoidCast:
         Parameters, grid definition and selection decisions of the producing
         method.
     """
+
     components: tuple[VoidComponent, ...]
     points: tuple[ChannelPoint, ...]
     spacing: float
@@ -889,6 +831,7 @@ class ResidueContact:
         plus 1.0 for ``"bottleneck"`` and ``"bottleneck-nearby"`` and 0.25 for ``"lining"``. Describes
         geometric proximity only.
     """
+
     residue: str
     min_distance: float
     mean_distance: float
@@ -911,6 +854,7 @@ class ResidueContact:
             "influence_score": self.influence_score,
         }
 
+
 @dataclass(frozen=True)
 class NetworkNode:
     """Node of a residue-interaction network.
@@ -932,6 +876,7 @@ class NetworkNode:
         For residue nodes: ``resname``, ``chain_id``, ``resid``, ``icode``,
         user ``group`` and ``position`` (centroid of the selected atoms, Å).
     """
+
     id: str
     kind: str
     label: str
@@ -972,6 +917,7 @@ class NetworkEdge:
     metadata : dict
         Closest atom pair and other evidence.
     """
+
     source: str
     target: str
     interaction: str
@@ -1003,6 +949,7 @@ class ResidueInteractionNetwork:
         Construction settings: ``cutoff`` (Å), ``distance_metric``,
         atom-selection flags and rule identifiers.
     """
+
     nodes: tuple[NetworkNode, ...]
     edges: tuple[NetworkEdge, ...]
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -1071,7 +1018,6 @@ class FrameAnalysis:
     profile : PoreProfile or None, default None
         Channel profile, or ``None`` when not requested or unresolved.
     cavities : tuple of Cavity, default ()
-    tunnels : tuple of Tunnel, default ()
     residue_contacts : tuple of ResidueContact, default ()
     network : ResidueInteractionNetwork or None, default None
     features : dict of str to float
@@ -1080,11 +1026,11 @@ class FrameAnalysis:
         Alignment report, profile status and reason, constriction evidence and
         network counts.
     """
+
     frame_index: int
     time: float | None = None
     profile: PoreProfile | None = None
     cavities: tuple[Cavity, ...] = ()
-    tunnels: tuple[Tunnel, ...] = ()
     residue_contacts: tuple[ResidueContact, ...] = ()
     network: ResidueInteractionNetwork | None = None
     features: dict[str, float] = field(default_factory=dict)
@@ -1097,7 +1043,6 @@ class FrameAnalysis:
             "time": self.time,
             "profile": self.profile.to_dict() if self.profile else None,
             "cavities": [cavity.to_dict() for cavity in self.cavities],
-            "tunnels": [tunnel.to_dict() for tunnel in self.tunnels],
             "residue_contacts": [contact.to_dict() for contact in self.residue_contacts],
             "network": self.network.to_dict() if self.network else None,
             "features": self.features,
@@ -1119,6 +1064,7 @@ class TrajectoryAnalysis:
         Trajectory-level settings and summaries (stride, alignment, reference
         profile status, constriction residue frequencies).
     """
+
     frames: tuple[FrameAnalysis, ...]
     analyses: tuple[str, ...]
     metadata: dict[str, Any] = field(default_factory=dict)

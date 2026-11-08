@@ -34,6 +34,7 @@ Examples
 >>> mesh["vertices"].shape[1], mesh["faces"].shape[1]
 (3, 3)
 """
+
 from __future__ import annotations
 
 import base64
@@ -131,8 +132,10 @@ def read_dx_field(path):
         raise ValueError(f"{path}: incomplete OpenDX header")
     size = int(np.prod(shape))
     values = body.split("\n", 1)[1] if "\n" in body else ""
-    cut = min((i for i in (values.find("attribute"), values.find("object"), values.find("component")) if i >= 0),
-              default=len(values))
+    cut = min(
+        (i for i in (values.find("attribute"), values.find("object"), values.find("component")) if i >= 0),
+        default=len(values),
+    )
     data = np.array(values[:cut].split(), dtype=float)
     if data.size != size:
         raise ValueError(f"{path}: {data.size} values for counts {shape}")
@@ -167,6 +170,7 @@ def field_mesh(field, origin, deltas, level=0.5):
     apply to the same field. Faces are re-wound when ``deltas`` is a reflection.
     """
     from skimage.measure import marching_cubes
+
     values = np.asarray(field, dtype=float)
     if values.ndim != 3 or not float(values.min()) < level < float(values.max()):
         return None
@@ -178,8 +182,11 @@ def field_mesh(field, origin, deltas, level=0.5):
     normals /= np.maximum(np.linalg.norm(normals, axis=1, keepdims=True), 1e-12)
     if np.linalg.det(deltas) > 0:
         faces = faces[:, ::-1]  # counter-clockwise seen from outside, the WebGL front face
-    return {"vertices": vertices.astype(np.float32), "faces": faces.astype(np.uint32),
-            "normals": normals.astype(np.float32)}
+    return {
+        "vertices": vertices.astype(np.float32),
+        "faces": faces.astype(np.uint32),
+        "normals": normals.astype(np.float32),
+    }
 
 
 def cast_mesh(cast, smooth=None, smooth_supersample=None):
@@ -201,6 +208,7 @@ def cast_mesh(cast, smooth=None, smooth_supersample=None):
         As :func:`field_mesh`.
     """
     from .volume_export import cast_grid, resolve_display_smoothing
+
     smoothing = resolve_display_smoothing(smooth, smooth_supersample=smooth_supersample)
     binary, origin = cast_grid(cast)
     display, spacing, _ = smoothing.field(binary, cast.spacing)
@@ -248,9 +256,11 @@ def _encode(array, dtype, compress):
     raw = np.ascontiguousarray(array, dtype=dtype).tobytes()
     if compress:
         raw = gzip.compress(raw, compresslevel=9, mtime=0)
-    return {"dtype": "uint32" if dtype == np.uint32 else "float32",
-            "encoding": "gzip+base64" if compress else "base64",
-            "data": base64.b64encode(raw).decode("ascii")}
+    return {
+        "dtype": "uint32" if dtype == np.uint32 else "float32",
+        "encoding": "gzip+base64" if compress else "base64",
+        "data": base64.b64encode(raw).decode("ascii"),
+    }
 
 
 def _rotation_quaternion(matrix):
@@ -368,8 +378,7 @@ class CreviceView:
         CreviceView
             ``self``, so calls can be chained (``v.toggle("lining").show()``).
         """
-        matches = [layer for layer in self.layers
-                   if layer.name == name or layer.name.startswith(name + "_")]
+        matches = [layer for layer in self.layers if layer.name == name or layer.name.startswith(name + "_")]
         if not matches:
             self.layer(name)  # raises KeyError with the valid names
         for layer in matches:
@@ -393,27 +402,46 @@ class CreviceView:
         """
         layers = []
         for layer in self.layers:
-            row = {"name": layer.name, "label": layer.label, "kind": layer.kind, "color": layer.color,
-                   "visible": bool(layer.visible), "opacity": float(layer.opacity),
-                   "description": layer.description}
+            row = {
+                "name": layer.name,
+                "label": layer.label,
+                "kind": layer.kind,
+                "color": layer.color,
+                "visible": bool(layer.visible),
+                "opacity": float(layer.opacity),
+                "description": layer.description,
+            }
             if layer.kind == "mesh":
                 mesh = layer.data
-                row.update(vertices=_encode(mesh["vertices"], np.float32, compress),
-                           faces=_encode(mesh["faces"], np.uint32, compress),
-                           normals=_encode(mesh["normals"], np.float32, compress),
-                           vertex_count=int(len(mesh["vertices"])), face_count=int(len(mesh["faces"])))
+                row.update(
+                    vertices=_encode(mesh["vertices"], np.float32, compress),
+                    faces=_encode(mesh["faces"], np.uint32, compress),
+                    normals=_encode(mesh["normals"], np.float32, compress),
+                    vertex_count=int(len(mesh["vertices"])),
+                    face_count=int(len(mesh["faces"])),
+                )
             elif layer.kind == "sticks":
                 row.update(residues=layer.data["residues"], radius=STICK_RADIUS_A)
             elif layer.kind == "line":
-                row.update(paths=[[[round(float(v), 3) for v in p] for p in path] for path in layer.data["paths"]],
-                           radius=CENTRE_LINE_RADIUS_A)
+                row.update(
+                    paths=[[[round(float(v), 3) for v in p] for p in path] for path in layer.data["paths"]],
+                    radius=CENTRE_LINE_RADIUS_A,
+                )
             elif layer.kind == "spheres":
-                row.update(points=[[round(float(v), 3) for v in p] for p in layer.data["points"]],
-                           radius=float(layer.data.get("radius", WATER_RADIUS_A)))
+                row.update(
+                    points=[[round(float(v), 3) for v in p] for p in layer.data["points"]],
+                    radius=float(layer.data.get("radius", WATER_RADIUS_A)),
+                )
             layers.append(row)
-        return {"schema": SCENE_SCHEMA, "title": self.title, "source": self.source, "notes": self.notes,
-                "structure": {"format": "pdb", "data": self.structure} if self.structure else None,
-                "camera": self.camera, "layers": layers}
+        return {
+            "schema": SCENE_SCHEMA,
+            "title": self.title,
+            "source": self.source,
+            "notes": self.notes,
+            "structure": {"format": "pdb", "data": self.structure} if self.structure else None,
+            "camera": self.camera,
+            "layers": layers,
+        }
 
     def to_html(self, inline_js=True, width="100%", height="100vh"):
         """Standalone HTML page of the view, with layer checkboxes beside the canvas.
@@ -441,8 +469,15 @@ class CreviceView:
             library_tag = f'<script src="{THREEDMOL_CDN}"></script>'
         loader = (_ASSETS / "crevice_view.js").read_text(encoding="utf-8")
         scene = json.dumps(self.scene(), separators=(",", ":")).replace("</", "<\\/")
-        return _PAGE.format(title=html.escape(self.title), library=library_tag, loader=loader, scene=scene,
-                            width=width, height=height, css=_CSS)
+        return _PAGE.format(
+            title=html.escape(self.title),
+            library=library_tag,
+            loader=loader,
+            scene=scene,
+            width=width,
+            height=height,
+            css=_CSS,
+        )
 
     def save_html(self, path, inline_js=True):
         """Write the view as one self-contained interactive HTML file.
@@ -514,10 +549,12 @@ class CreviceView:
         loader = (_ASSETS / "crevice_view.js").read_text(encoding="utf-8")
         scene = json.dumps(self.scene(), separators=(",", ":")).replace("</", "<\\/")
         controls = f"crevice_controls_{uid}"
-        return (f'<style>{_CSS}</style><div class="crevice-row">{fragment}'
-                f'<div class="crevice-controls" id="{controls}"></div></div>'
-                f"<script>\n{loader}\n$3Dmolpromise.then(function() {{ CreviceView.build(viewer_{uid}, "
-                f"document.getElementById('{controls}'), {scene}); }});\n</script>")
+        return (
+            f'<style>{_CSS}</style><div class="crevice-row">{fragment}'
+            f'<div class="crevice-controls" id="{controls}"></div></div>'
+            f"<script>\n{loader}\n$3Dmolpromise.then(function() {{ CreviceView.build(viewer_{uid}, "
+            f"document.getElementById('{controls}'), {scene}); }});\n</script>"
+        )
 
     def show(self, width=720, height=520, offline=False):
         """Display the view in Jupyter/IPython with a checkbox per layer.
@@ -560,9 +597,11 @@ def _import_py3dmol():
     try:
         import py3Dmol
     except ImportError as exc:
-        raise ImportError("Showing a CREVICE view in Jupyter needs py3Dmol: pip install 'crevice[view]' "
-                          "(or pip install py3Dmol). CreviceView.save_html() and 'crevice view' "
-                          "work without it.") from exc
+        raise ImportError(
+            "Showing a CREVICE view in Jupyter needs py3Dmol: pip install 'crevice[view]' "
+            "(or pip install py3Dmol). CreviceView.save_html() and 'crevice view' "
+            "work without it."
+        ) from exc
     return py3Dmol
 
 
@@ -612,6 +651,7 @@ window.creviceReady = CreviceView.build(creviceViewer, document.getElementById("
 # --------------------------------------------------------------------------
 # Scene construction
 # --------------------------------------------------------------------------
+
 
 def _resolve(path_text, directory):
     """The file a manifest entry names, or None.
@@ -672,8 +712,12 @@ def _camera(rotation=None, center=None, span=None, coords=None, focus=None):
             center = focus.min(axis=0) / 2 + focus.max(axis=0) / 2
         if target:
             zoom = float(np.clip(extent / float(target), 1.0, 6.0))
-    return {"center": [float(v) for v in center], "rotation": np.asarray(rotation, float).tolist(),
-            "quaternion": _rotation_quaternion(rotation), "zoom": zoom}
+    return {
+        "center": [float(v) for v in center],
+        "rotation": np.asarray(rotation, float).tolist(),
+        "quaternion": _rotation_quaternion(rotation),
+        "zoom": zoom,
+    }
 
 
 def _mesh_points(layers):
@@ -683,8 +727,11 @@ def _mesh_points(layers):
 
 def _pdb_coords(text):
     rows = [line for line in text.splitlines() if line.startswith(("ATOM", "HETATM"))]
-    return np.asarray([[float(line[30:38]), float(line[38:46]), float(line[46:54])] for line in rows]) \
-        if rows else np.empty((0, 3))
+    return (
+        np.asarray([[float(line[30:38]), float(line[38:46]), float(line[46:54])] for line in rows])
+        if rows
+        else np.empty((0, 3))
+    )
 
 
 def _lining_layers(rows, colors):
@@ -697,11 +744,18 @@ def _lining_layers(rows, colors):
         kind = segment.split("_")[0]
         residues = [{"chain": chain, "resi": sorted(set(resids))} for chain, resids in by_chain.items()]
         count = sum(len(r["resi"]) for r in residues)
-        layers.append(Layer(f"lining_{segment}", f"{_segment_label(segment)} lining ({count})", "sticks",
-                            colors.get(segment, _SEGMENT_HEX.get(kind, NON_CHANNEL_HEX)), visible=False,
-                            data={"residues": residues},
-                            description="residues with an atom centre within the lining cutoff of the segment's "
-                                        "measured grid nodes"))
+        layers.append(
+            Layer(
+                f"lining_{segment}",
+                f"{_segment_label(segment)} lining ({count})",
+                "sticks",
+                colors.get(segment, _SEGMENT_HEX.get(kind, NON_CHANNEL_HEX)),
+                visible=False,
+                data={"residues": residues},
+                description="residues with an atom centre within the lining cutoff of the segment's "
+                "measured grid nodes",
+            )
+        )
     return layers
 
 
@@ -716,8 +770,9 @@ def _from_cast_manifest(directory, manifest_path):
     colors = {}
     segments = scene.get("cast_segments") or []
     if segments:
-        order = sorted(segments, key=lambda r: ({"entry": 0, "lumen": 1, "exit": 2}.get(r["segment_type"], 3),
-                                                r["segment"]))
+        order = sorted(
+            segments, key=lambda r: ({"entry": 0, "lumen": 1, "exit": 2}.get(r["segment_type"], 3), r["segment"])
+        )
         for row in order:
             dx = _resolve(files.get(f"segment_{row['segment']}_display_dx"), directory)
             if dx is None:
@@ -727,9 +782,16 @@ def _from_cast_manifest(directory, manifest_path):
                 continue
             color = row.get("color_hex") or _hex(row["color_rgb"])
             colors[row["segment"]] = color
-            layers.append(_mesh_layer(row["segment"], _segment_label(row["segment"]), color, mesh,
-                                      description=f"{row['segment_type']} segment display surface; measured "
-                                                  f"volume {row.get('measured_volume_A3', float('nan')):.1f} Å³"))
+            layers.append(
+                _mesh_layer(
+                    row["segment"],
+                    _segment_label(row["segment"]),
+                    color,
+                    mesh,
+                    description=f"{row['segment_type']} segment display surface; measured "
+                    f"volume {row.get('measured_volume_A3', float('nan')):.1f} Å³",
+                )
+            )
     else:
         dx = _resolve(files.get("display_dx"), directory)
         if dx is not None:
@@ -738,8 +800,15 @@ def _from_cast_manifest(directory, manifest_path):
                 color = _hex(scene["cast_color_rgb"]) if scene.get("cast_color_rgb") else NON_CHANNEL_HEX
                 channel = color.lower() == LUMEN_HEX
                 colors["lumen"] = color
-                layers.append(_mesh_layer("cast", "Channel cast" if channel else "Cast", color, mesh,
-                                          description="display surface of the measured cast"))
+                layers.append(
+                    _mesh_layer(
+                        "cast",
+                        "Channel cast" if channel else "Cast",
+                        color,
+                        mesh,
+                        description="display surface of the measured cast",
+                    )
+                )
     lining_csv = _resolve(files.get("lining_residues_csv"), directory)
     if lining_csv:
         with open(lining_csv, newline="", encoding="utf-8") as handle:
@@ -750,13 +819,33 @@ def _from_cast_manifest(directory, manifest_path):
         paths += [p.get("points") if isinstance(p, dict) else p for p in scene["exit_paths"]]
         paths = [p for p in paths if p and len(p) > 1]
     if paths:
-        layers.append(Layer("centre_line", "Profile centre line", "line", CENTRE_LINE_HEX, visible=False,
-                            data={"paths": paths}, description="axial profile samples and lateral exit legs"))
-    camera = _camera(scene.get("camera_rotation"), scene.get("center"), scene.get("vertical_span"),
-                     _pdb_coords(structure) if structure else None, focus=_mesh_points(layers))
+        layers.append(
+            Layer(
+                "centre_line",
+                "Profile centre line",
+                "line",
+                CENTRE_LINE_HEX,
+                visible=False,
+                data={"paths": paths},
+                description="axial profile samples and lateral exit legs",
+            )
+        )
+    camera = _camera(
+        scene.get("camera_rotation"),
+        scene.get("center"),
+        scene.get("vertical_span"),
+        _pdb_coords(structure) if structure else None,
+        focus=_mesh_points(layers),
+    )
     title = f"{manifest.get('prefix', Path(directory).name)} - CREVICE view"
-    return CreviceView(layers, structure=structure, title=title, camera=camera, source=str(manifest_path),
-                       notes=["Surfaces are display geometry; measured volumes are in the bundle's tables."])
+    return CreviceView(
+        layers,
+        structure=structure,
+        title=title,
+        camera=camera,
+        source=str(manifest_path),
+        notes=["Surfaces are display geometry; measured volumes are in the bundle's tables."],
+    )
 
 
 def _from_analysis_scene(directory, scene_path, snapshot=0):
@@ -775,15 +864,26 @@ def _from_analysis_scene(directory, scene_path, snapshot=0):
         dx = _resolve(surface.get("dx"), root)
         if dx is None:
             continue
-        mesh = field_mesh(*read_dx_field(dx), level=float(surface.get("level", .5)))
+        mesh = field_mesh(*read_dx_field(dx), level=float(surface.get("level", 0.5)))
         if mesh is None:
             continue
         name, label = names.get(surface["key"], (surface["key"], surface["key"]))
-        layers.append(_mesh_layer(name, label, _hex(surface["color_rgb"]), mesh,
-                                  opacity=_INTERACTIVE_OPACITY.get(surface["key"], float(surface.get("opacity", 1.))),
-                                  description=surface.get("meaning", "")))
-    residues = [r for r in scene.get("residues") or () if r.get("residue") in set(scene.get("display_residues") or ())
-                or r.get("key") in set(scene.get("display_residues") or ())]
+        layers.append(
+            _mesh_layer(
+                name,
+                label,
+                _hex(surface["color_rgb"]),
+                mesh,
+                opacity=_INTERACTIVE_OPACITY.get(surface["key"], float(surface.get("opacity", 1.0))),
+                description=surface.get("meaning", ""),
+            )
+        )
+    residues = [
+        r
+        for r in scene.get("residues") or ()
+        if r.get("residue") in set(scene.get("display_residues") or ())
+        or r.get("key") in set(scene.get("display_residues") or ())
+    ]
     sticks = {}
     for row in residues:
         chain, resid = row.get("viewer_chain"), row.get("viewer_resid")
@@ -791,28 +891,56 @@ def _from_analysis_scene(directory, scene_path, snapshot=0):
             continue
         sticks.setdefault(chain or "", []).append(int(resid))
     if sticks:
-        layers.append(Layer("lining_region", f"Region boundary residues ({sum(map(len, sticks.values()))})",
-                            "sticks", "#7b8794", visible=False,
-                            data={"residues": [{"chain": c, "resi": sorted(set(r))} for c, r in sticks.items()]},
-                            description="direct boundary contributors of the reference region"))
+        layers.append(
+            Layer(
+                "lining_region",
+                f"Region boundary residues ({sum(map(len, sticks.values()))})",
+                "sticks",
+                "#7b8794",
+                visible=False,
+                data={"residues": [{"chain": c, "resi": sorted(set(r))} for c, r in sticks.items()]},
+                description="direct boundary contributors of the reference region",
+            )
+        )
     waters = scene.get("member_waters")
     if waters and chosen is not None:
-        record = next((s for s in waters.get("snapshots") or ()
-                       if s.get("source_frame_index") == chosen.get("source_frame_index")), None)
+        record = next(
+            (
+                s
+                for s in waters.get("snapshots") or ()
+                if s.get("source_frame_index") == chosen.get("source_frame_index")
+            ),
+            None,
+        )
         if record and record.get("pdb") and (root / record["pdb"]).is_file():
             points = _pdb_coords((root / record["pdb"]).read_text(encoding="utf-8"))
-            layers.append(Layer("waters", f"Member waters ({len(points)})", "spheres",
-                                _hex(waters.get("color_rgb", (1., .5, 0.))), data={
-                                    "points": points.tolist(), "radius": float(waters.get("sphere_radius_A", .7))},
-                                description=waters.get("definition", "")))
+            layers.append(
+                Layer(
+                    "waters",
+                    f"Member waters ({len(points)})",
+                    "spheres",
+                    _hex(waters.get("color_rgb", (1.0, 0.5, 0.0))),
+                    data={"points": points.tolist(), "radius": float(waters.get("sphere_radius_A", 0.7))},
+                    description=waters.get("definition", ""),
+                )
+            )
     camera = scene.get("camera") or {}
-    view = _camera(camera.get("camera_rotation"), camera.get("center"), camera.get("vertical_span"),
-                   _pdb_coords(structure) if structure else None, focus=_mesh_points(layers))
+    view = _camera(
+        camera.get("camera_rotation"),
+        camera.get("center"),
+        camera.get("vertical_span"),
+        _pdb_coords(structure) if structure else None,
+        focus=_mesh_points(layers),
+    )
     when = "" if chosen is None else f" frame {chosen['source_frame_index']}"
-    return CreviceView(layers, structure=structure, title=f"{scene.get('prefix', root.name)}{when} - CREVICE view",
-                       camera=view, source=str(scene_path),
-                       notes=["Member waters are geometric membership (oxygen centre inside the measured region), "
-                              "not binding."])
+    return CreviceView(
+        layers,
+        structure=structure,
+        title=f"{scene.get('prefix', root.name)}{when} - CREVICE view",
+        camera=view,
+        source=str(scene_path),
+        notes=["Member waters are geometric membership (oxygen centre inside the measured region), not binding."],
+    )
 
 
 def _find_one(directory, pattern):
@@ -820,8 +948,21 @@ def _find_one(directory, pattern):
     return found[0] if found else None
 
 
-def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lining=None, waters=None,
-         kind="auto", snapshot=0, smooth=None, smooth_supersample=None, title=None):
+def view(
+    source=None,
+    *,
+    frame=None,
+    cast=None,
+    segments=None,
+    profile=None,
+    lining=None,
+    waters=None,
+    kind="auto",
+    snapshot=0,
+    smooth=None,
+    smooth_supersample=None,
+    title=None,
+):
     """Build an interactive view of CREVICE results for Jupyter or a browser.
 
     Parameters
@@ -899,26 +1040,41 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
         if target is None:
             manifest = None
             if kind in ("auto", "cast"):
-                manifest = next((p for p in sorted(directory.glob("*_manifest.json"))
-                                 if not p.name.endswith(("_hydration_manifest.json", "_cavity_manifest.json"))), None)
+                manifest = next(
+                    (
+                        p
+                        for p in sorted(directory.glob("*_manifest.json"))
+                        if not p.name.endswith(("_hydration_manifest.json", "_cavity_manifest.json"))
+                    ),
+                    None,
+                )
             analysis = _find_one(directory, "*_analysis_scene.json") if kind in ("auto", "region") else None
             target = manifest or analysis
             if target is None and kind == "auto" and _find_one(directory, "*_paths.json") is not None:
                 # crevice paths output: one line layer per branch (crevice.paths).
                 from .paths import paths_view_from_json
+
                 return paths_view_from_json(_find_one(directory, "*_paths.json"), title=title)
             if target is None and any(directory.glob("*_cavity_manifest.json")):
-                raise ValueError(f"{directory}: this trajectory run wrote data only (the 0.3 default), so there "
-                                 "is no scene to view; rerun it with --outputs default,hydration (or --all) to "
-                                 "write the analysis scene")
+                raise ValueError(
+                    f"{directory}: this trajectory run wrote data only (the 0.3 default), so there "
+                    "is no scene to view; rerun it with --outputs default,hydration (or --all) to "
+                    "write the analysis scene"
+                )
             if target is None:
-                raise FileNotFoundError(f"{directory}: no CREVICE cast/publish manifest (*_manifest.json) or "
-                                        "hydration scene (*_analysis_scene.json)")
+                raise FileNotFoundError(
+                    f"{directory}: no CREVICE cast/publish manifest (*_manifest.json) or "
+                    "hydration scene (*_analysis_scene.json)"
+                )
         if target.name.endswith("_paths.json"):
             from .paths import paths_view_from_json
+
             return paths_view_from_json(target, title=title)
-        result = (_from_analysis_scene(directory, target, snapshot) if target.name.endswith("_analysis_scene.json")
-                  else _from_cast_manifest(directory, target))
+        result = (
+            _from_analysis_scene(directory, target, snapshot)
+            if target.name.endswith("_analysis_scene.json")
+            else _from_cast_manifest(directory, target)
+        )
         if title:
             result.title = title
         return result
@@ -930,6 +1086,7 @@ def view(source=None, *, frame=None, cast=None, segments=None, profile=None, lin
 def _frame_pdb(frame):
     import tempfile
     from .presentation import write_viewer_structure
+
     with tempfile.TemporaryDirectory() as tmp:
         path = write_viewer_structure(frame, Path(tmp) / "frame.pdb")
         return path.read_text(encoding="utf-8")
@@ -938,6 +1095,7 @@ def _frame_pdb(frame):
 def _from_memory(frame, cast, segments, profile, lining, waters, smooth, smooth_supersample, title):
     from dataclasses import replace
     from .presentation import cast_rgb
+
     structure = _frame_pdb(frame) if frame is not None else None
     layers = [Layer("protein", "Protein", "cartoon", PROTEIN_HEX, opacity=PROTEIN_OPACITY)] if structure else []
     colors = {}
@@ -946,8 +1104,7 @@ def _from_memory(frame, cast, segments, profile, lining, waters, smooth, smooth_
         parts = []
         if segments:
             parts.append(("lumen", cast))
-            parts += [(c.metadata["segment"], replace(cast, components=(c,), points=tuple(c.points)))
-                      for c in segments]
+            parts += [(c.metadata["segment"], replace(cast, components=(c,), points=tuple(c.points))) for c in segments]
         else:
             parts.append(("cast", cast))
         cast_color = _hex(cast_rgb(cast))
@@ -963,25 +1120,41 @@ def _from_memory(frame, cast, segments, profile, lining, waters, smooth, smooth_
             label = _segment_label(name) if segments else ("Channel cast" if color == LUMEN_HEX else "Cast")
             layers.append(_mesh_layer(name, label, color, mesh))
         order = {"entry": 0, "lumen": 1, "exit": 2}
-        meshes = sorted((layer for layer in layers if layer.kind == "mesh"),
-                        key=lambda layer: (order.get(layer.name.split("_")[0], 3), layer.name))
+        meshes = sorted(
+            (layer for layer in layers if layer.kind == "mesh"),
+            key=lambda layer: (order.get(layer.name.split("_")[0], 3), layer.name),
+        )
         layers = [layer for layer in layers if layer.kind != "mesh"] + meshes
     if lining:
         layers += _lining_layers(lining, colors)
     paths = _profile_paths(profile)
     if paths:
-        layers.append(Layer("centre_line", "Profile centre line", "line", CENTRE_LINE_HEX, visible=False,
-                            data={"paths": paths}))
+        layers.append(
+            Layer("centre_line", "Profile centre line", "line", CENTRE_LINE_HEX, visible=False, data={"paths": paths})
+        )
     if waters is not None and len(waters):
-        layers.append(Layer("waters", f"Member waters ({len(waters)})", "spheres", WATER_HEX,
-                            data={"points": np.asarray(waters, float).tolist(), "radius": WATER_RADIUS_A}))
+        layers.append(
+            Layer(
+                "waters",
+                f"Member waters ({len(waters)})",
+                "spheres",
+                WATER_HEX,
+                data={"points": np.asarray(waters, float).tolist(), "radius": WATER_RADIUS_A},
+            )
+        )
     camera = None
     if frame is not None and cast is not None:
         from .presentation import scene_geometry
+
         try:
             geometry = scene_geometry(cast, frame, profile)
-            camera = _camera(geometry.get("camera_rotation"), geometry.get("center"), geometry.get("vertical_span"),
-                             np.asarray([a.coord for a in frame.atoms]), focus=_mesh_points(layers))
+            camera = _camera(
+                geometry.get("camera_rotation"),
+                geometry.get("center"),
+                geometry.get("vertical_span"),
+                np.asarray([a.coord for a in frame.atoms]),
+                focus=_mesh_points(layers),
+            )
         except (ValueError, KeyError, TypeError):
             camera = None
     return CreviceView(layers, structure=structure, title=title or "CREVICE view", camera=camera, source="memory")

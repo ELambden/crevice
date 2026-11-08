@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import re
 import json
 import shutil
 from pathlib import Path
@@ -26,9 +27,9 @@ from crevice.cli import (COMMAND_LAYOUT, DEPRECATED_COMMANDS, build_parser, cano
                          translate_argv)
 from inventory_cases import HYDRATION_ARGS, PROFILE_ARGS, channel_pdb, md_inputs, pocket_pdb, region_definition
 
-#: The 25 commands of CREVICE 0.3.3.
+#: The 25 commands of CREVICE 0.3.3 except ``tunnels`` (removed in 0.5 with ``cavities --tunnels``).
 COMMANDS_03 = ("region-init", "region-prepare", "region-compare", "region-trajectory", "hydration",
-               "cavity-trajectory", "cast", "profile", "residues", "cavities", "tunnels", "network",
+               "cavity-trajectory", "cast", "profile", "residues", "cavities", "network",
                "residue-evidence", "features", "trajectory", "publish", "fingerprint", "fetch", "fetch-example",
                "view", "analyze", "benchmark", "static-suite", "paths", "track-cavities")
 
@@ -48,7 +49,7 @@ def _parsed(argv):
 
 def test_layout_covers_every_03_command_once():
     analyses = [mode.analysis for modes in COMMAND_LAYOUT.values() for mode in modes]
-    assert sorted(analyses) == sorted(COMMANDS_03) and len(set(analyses)) == 25
+    assert sorted(analyses) == sorted(COMMANDS_03) and len(set(analyses)) == 24
     assert list(COMMAND_LAYOUT) == ["fetch", "profile", "cavities", "paths", "residues", "report", "trajectory",
                                     "region", "view"]
     assert set(DEPRECATED_COMMANDS) == set(COMMANDS_03) - set(COMMAND_LAYOUT)
@@ -101,8 +102,7 @@ def test_value_modes_and_conflicting_modes():
     assert translate_argv(["region", "compare", "a", "b", "--out-dir", "o"]).argv == \
         ["region-compare", "a", "b", "--out-dir", "o"]
     assert translate_argv(["profile", "x.pdb", "-o", "o.json", "--", "--fingerprint"]).argv[0] == "profile"
-    for argv in (["cavities", "--cast", "--tunnels", "x.pdb"], ["residues", "x", "--network", "--features"],
-                 ["report", "--suite", "--benchmark"]):
+    for argv in (["residues", "x", "--network", "--features"], ["report", "--suite", "--benchmark"]):
         with pytest.raises(SystemExit):
             build_parser().parse_args(argv)
 
@@ -118,12 +118,24 @@ def test_help_lists_only_the_nine_public_commands(capsys):
     with pytest.raises(SystemExit):
         main(["cavities", "--cast", "--help"])
     text = capsys.readouterr().out
-    assert text.startswith("usage: crevice cavities --cast") and "crevice cavities --tunnels" in text
+    assert text.startswith("usage: crevice cavities --cast") and "crevice cavities  " not in text
+    assert "crevice cavities: Find buried cavities" in text and "--tunnels" not in text
     with pytest.raises(SystemExit):
         main(["region", "--help"])
     assert "init" in capsys.readouterr().out
     with pytest.raises(SystemExit):
         main(["region", "bogus"])
+
+
+@pytest.mark.parametrize("argv", [["cavities", "--tunnels", "x.pdb", "-o", "t.json"],
+                                  ["cavities", "x.pdb", "--tunnels=1"], ["tunnels", "x.pdb", "-o", "t.json"]])
+def test_removed_tunnel_search_fails_and_names_crevice_paths(argv, capsys):
+    with pytest.raises(SystemExit):
+        main(argv)
+    err = capsys.readouterr().err
+    assert "was removed in CREVICE 0.5; use crevice paths" in err
+    with pytest.raises(ValueError, match="use crevice paths"):
+        canonical_command("cavities --tunnels")
 
 
 def test_old_names_print_one_deprecation_line(capsys):
@@ -210,7 +222,6 @@ def _case(name: str, inputs: Path, out: Path) -> list[str]:
         "cavities": ["cavities", pdb, "--offline", "-o", f"{out}/cav.json"],
         "cast": ["cast", pocket, "--offline", "--min-component-volume", "30", "--dpi", "40", *HYDRATION_ARGS,
                  "--out-dir", str(out), "--prefix", "p"],
-        "tunnels": ["tunnels", pdb, "--offline", "-o", f"{out}/tun.json"],
         "paths": ["paths", pdb, "--offline", "-o", str(out), "--seed", "0,0,0", "--probe-radius", "1.0"],
         "residues": ["residues", pdb, *PROFILE_ARGS, "-o", f"{out}/res.csv"],
         "network": ["network", pdb, *PROFILE_ARGS, "-o", f"{out}/net.json"],
@@ -223,7 +234,7 @@ def _case(name: str, inputs: Path, out: Path) -> list[str]:
                     "--prefix", "c"],
         "static-suite": ["static-suite", "1GRM", "--cache-dir", str(cache), "--format", "pdb", "--out-dir", str(out),
                          "--samples", "11", "--search-radius", "8", "--probe-radius", "0", "--cast-spacing", "1",
-                         "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "40"],
+                         "--skip-cavities", "--skip-network", "--dpi", "40"],
         "benchmark": ["benchmark", "1GRM", "--cache-dir", str(cache), "--format", "pdb", "--samples", "11",
                       "--search-radius", "8", "--output", f"{out}/bench.json"],
         "trajectory": ["trajectory", pdb, pdb, "-o", f"{out}/t.json", "--samples", "21", "--search-radius", "8",
@@ -273,7 +284,10 @@ def test_old_command_and_new_form_write_identical_outputs(name, tmp_path):
         assert code == 0, (label, stderr)
         notes = [line for line in stderr.splitlines() if "is deprecated; use" in line]
         assert len(notes) == (1 if label == "old" and name in DEPRECATED_COMMANDS else 0)
-        results[label] = (stdout, [l for l in stderr.splitlines() if l not in notes], _snapshot(out))
+        # Status lines carry wall-clock times, which differ between the two runs.
+        lines = [re.sub(r"\b\d+(?:\.\d+)? s\b|\b\d+:\d\d(?::\d\d)?\b", "<time>", l)
+                 for l in stderr.splitlines() if l not in notes]
+        results[label] = (stdout, lines, _snapshot(out))
     assert results["old"][0] == results["new"][0]
     assert results["old"][1] == results["new"][1]
     old_files, new_files = results["old"][2], results["new"][2]

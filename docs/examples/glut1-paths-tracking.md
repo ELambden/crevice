@@ -8,9 +8,8 @@ tracks the cavities around the site through all 21 frames of the example.
 
 ```{admonition} Status
 :class: note
-Run by hand on 15 October 2026 with the commands below (CREVICE 0.3.0
-development branch), and again on 19 October 2026 for the list of left-out
-routes; not yet run in CI. The numbers are geometric measurements
+The numbers below come from one run of the commands shown; this page is not
+run when the documentation is built. They are geometric measurements
 under the stated probes. They are not transport pathways, a conformational
 assignment or a functional claim, and the membrane sides of this simulation
 are not assigned to cytoplasm or exterior.

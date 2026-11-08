@@ -142,10 +142,10 @@ A zero radius anywhere in the lumen gives *G* = 0 (occluded). For a
 trajectory, the conductance is computed in every frame and summarised.
 
 **How it compares.** On gramicidin A (1GRM) with *ρ* = 1/12 Ω m, CREVICE gives
-*G*<sub>macro</sub> ≈ 390 pS with the default radii and 318 pS with the HOLE
-radius set; HOLE 2.3.1 on the same structure gives 280 pS (its integration
-runs past the mouths to a 5 Å end radius). With the HOLE divisor, CREVICE gives
-57–70 pS. The measured single-channel conductance of gramicidin A in 1 M salt
+*G*<sub>macro</sub> ≈ 375 pS with the default radii and 309 pS with the HOLE
+radius set (`--resistivity 0.0833333`, `--radii hole`); HOLE 2.3.1 on the same
+structure gives 280 pS (its integration runs past the mouths to a 5 Å end
+radius). With the HOLE divisor, CREVICE gives 55–67 pS. The measured single-channel conductance of gramicidin A in 1 M salt
 is about 10–30 pS, so the uncorrected value is 10–40 times too high and the
 corrected value 2–7 times too high: the overestimate Smart et al. (1997)
 describe for narrow pores.

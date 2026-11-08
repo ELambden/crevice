@@ -15,13 +15,20 @@ files are indented with sorted keys. Nothing is plotted here; figures are in
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 from ._script_paths import PYMOL_INPUT, script_relative
 from ._portable_paths import dumps_record
 from typing import Any, Iterable, Sequence
 
-from .models import Cavity, ChannelPoint, PoreProfile, ResidueContact, ResidueInteractionNetwork, TrajectoryAnalysis, Tunnel, VoidCast
+from .models import (
+    Cavity,
+    ChannelPoint,
+    PoreProfile,
+    ResidueContact,
+    ResidueInteractionNetwork,
+    TrajectoryAnalysis,
+    VoidCast,
+)
 
 
 def write_profile_json(profile: PoreProfile, path: str | Path) -> None:
@@ -45,8 +52,14 @@ def write_profile_json(profile: PoreProfile, path: str | Path) -> None:
 
 
 # CSV column names carry their unit (ASCII: _A = Å, _A2 = Å², _A3 = Å³, _ps, _degrees).
-POINT_COLUMNS = {"x": "x_A", "y": "y_A", "z": "z_A", "radius": "radius_A",
-                 "raw_clearance": "raw_clearance_A", "axis_position": "axis_position_A"}
+POINT_COLUMNS = {
+    "x": "x_A",
+    "y": "y_A",
+    "z": "z_A",
+    "radius": "radius_A",
+    "raw_clearance": "raw_clearance_A",
+    "axis_position": "axis_position_A",
+}
 
 
 def _point_row(point: ChannelPoint) -> dict[str, Any]:
@@ -135,59 +148,6 @@ def write_cavities_pdb(cavities: Sequence[Cavity], path: str | Path) -> None:
     write_points_pdb(points, path, resname="CAV")
 
 
-def write_tunnels_json(tunnels: Sequence[Tunnel], path: str | Path) -> None:
-    """Write tunnels as JSON.
-
-    The file holds ``{"tunnels": [...]}`` with each
-    :meth:`crevice.models.Tunnel.to_dict`: ``id``, ``start``/``end`` (Å),
-    ``length`` (Å), ``bottleneck_radius`` and ``mean_radius`` (Å), ``score``,
-    ``nearest_residues``, every path node (``axis_position`` = cumulative path
-    length from the start, Å) and metadata (grid spacing, whether it was
-    enlarged).
-
-    Parameters
-    ----------
-    tunnels : sequence of Tunnel
-        From :func:`crevice.tunnels.find_tunnels`.
-    path : str or Path
-        Output JSON path.
-    """
-    _write_json({"tunnels": [tunnel.to_dict() for tunnel in tunnels]}, path)
-
-
-def write_tunnels_pdb(tunnels: Sequence[Tunnel], path: str | Path) -> None:
-    """Write every tunnel path node as a dummy atom.
-
-    Residue name ``TUN``; atoms of all tunnels are numbered consecutively, in
-    tunnel order then path order, with B-factor = node clearance radius (Å). The
-    tunnel ID is not stored; use the CSV or JSON to separate tunnels.
-
-    Parameters
-    ----------
-    tunnels : sequence of Tunnel
-        From :func:`crevice.tunnels.find_tunnels`.
-    path : str or Path
-        Output PDB path.
-    """
-    points: list[ChannelPoint] = []
-    serial = 1
-    for tunnel in tunnels:
-        for point in tunnel.points:
-            points.append(
-                ChannelPoint(
-                    index=serial,
-                    position=point.position,
-                    radius=point.radius,
-                    raw_clearance=point.raw_clearance,
-                    t=point.t,
-                    nearest_atom_serial=point.nearest_atom_serial,
-                    nearest_residue=point.nearest_residue,
-                )
-            )
-            serial += 1
-    write_points_pdb(points, path, resname="TUN")
-
-
 def write_void_cast_json(cast: VoidCast, path: str | Path, *, include_points: bool = False) -> None:
     """Write a void cast as JSON.
 
@@ -249,7 +209,7 @@ def write_trajectory_json(analysis: TrajectoryAnalysis, path: str | Path) -> Non
     """Write a trajectory analysis as JSON.
 
     The file holds :meth:`crevice.models.TrajectoryAnalysis.to_dict`: per frame
-    the profile (or its unresolved status and reason), cavities, tunnels, network
+    the profile (or its unresolved status and reason), cavities, network
     counts, alignment record and features, plus the analysis metadata. The same
     per-frame values are tabulated by :func:`write_trajectory_csv`.
 
@@ -279,15 +239,31 @@ def write_residue_contacts_csv(contacts: Sequence[ResidueContact], path: str | P
     path : str or Path
         Output CSV (parent directories are created).
     """
-    fields = ["residue", "min_distance_A", "mean_distance_A", "atom_count", "point_count",
-              "role", "properties", "influence_score"]
+    fields = [
+        "residue",
+        "min_distance_A",
+        "mean_distance_A",
+        "atom_count",
+        "point_count",
+        "role",
+        "properties",
+        "influence_score",
+    ]
     rows = []
     for contact in contacts:
         row = contact.to_dict()
-        rows.append({"residue": row["residue"], "min_distance_A": row["min_distance"],
-                     "mean_distance_A": row["mean_distance"], "atom_count": row["atom_count"],
-                     "point_count": row["point_count"], "role": row["role"],
-                     "properties": ";".join(row["properties"]), "influence_score": row["influence_score"]})
+        rows.append(
+            {
+                "residue": row["residue"],
+                "min_distance_A": row["min_distance"],
+                "mean_distance_A": row["mean_distance"],
+                "atom_count": row["atom_count"],
+                "point_count": row["point_count"],
+                "role": row["role"],
+                "properties": ";".join(row["properties"]),
+                "influence_score": row["influence_score"],
+            }
+        )
     _write_rows(path, rows, fields)
 
 
@@ -308,8 +284,9 @@ def write_residue_contacts_json(contacts: Sequence[ResidueContact], path: str | 
     _write_json({"residue_contacts": [contact.to_dict() for contact in contacts]}, path)
 
 
-def write_void_cast_csv(cast: VoidCast, path: str | Path, *, labels: dict[int, str] | None = None,
-                        extra_components=()) -> None:
+def write_void_cast_csv(
+    cast: VoidCast, path: str | Path, *, labels: dict[int, str] | None = None, extra_components=()
+) -> None:
     """Write one row per retained cast region.
 
     Columns: ``region_id``, ``label`` (display-region label, empty when the
@@ -334,22 +311,64 @@ def write_void_cast_csv(cast: VoidCast, path: str | Path, *, labels: dict[int, s
         ``label`` ``lateral_exit_<end>_<leg>``; their volumes are not part of
         ``cast.total_volume``.
     """
-    fields = ["region_id", "label", "kind", "volume_A3", "point_count", "center_x_A", "center_y_A",
-              "center_z_A", "min_radius_A", "mean_radius_A", "max_radius_A", "spacing_A", "score",
-              "boundary_faces", "nearest_residues"]
+    fields = [
+        "region_id",
+        "label",
+        "kind",
+        "volume_A3",
+        "point_count",
+        "center_x_A",
+        "center_y_A",
+        "center_z_A",
+        "min_radius_A",
+        "mean_radius_A",
+        "max_radius_A",
+        "spacing_A",
+        "score",
+        "boundary_faces",
+        "nearest_residues",
+    ]
     labels = labels or {}
-    rows = [{"region_id": c.id, "label": labels.get(c.id, ""), "kind": c.kind, "volume_A3": c.volume,
-             "point_count": c.point_count, "center_x_A": c.center[0], "center_y_A": c.center[1],
-             "center_z_A": c.center[2], "min_radius_A": c.min_radius, "mean_radius_A": c.mean_radius,
-             "max_radius_A": c.max_radius, "spacing_A": cast.spacing, "score": c.score,
-             "boundary_faces": ";".join(c.boundary_faces), "nearest_residues": ";".join(c.nearest_residues)}
-            for c in cast.components]
-    rows += [{"region_id": c.id, "label": f"lateral_exit_{c.metadata.get('end')}_{c.metadata.get('leg')}",
-              "kind": c.kind, "volume_A3": c.volume, "point_count": c.point_count, "center_x_A": c.center[0],
-              "center_y_A": c.center[1], "center_z_A": c.center[2], "min_radius_A": c.min_radius,
-              "mean_radius_A": c.mean_radius, "max_radius_A": c.max_radius, "spacing_A": cast.spacing,
-              "score": c.score, "boundary_faces": ";".join(c.boundary_faces),
-              "nearest_residues": ";".join(c.nearest_residues)} for c in extra_components]
+    rows = [
+        {
+            "region_id": c.id,
+            "label": labels.get(c.id, ""),
+            "kind": c.kind,
+            "volume_A3": c.volume,
+            "point_count": c.point_count,
+            "center_x_A": c.center[0],
+            "center_y_A": c.center[1],
+            "center_z_A": c.center[2],
+            "min_radius_A": c.min_radius,
+            "mean_radius_A": c.mean_radius,
+            "max_radius_A": c.max_radius,
+            "spacing_A": cast.spacing,
+            "score": c.score,
+            "boundary_faces": ";".join(c.boundary_faces),
+            "nearest_residues": ";".join(c.nearest_residues),
+        }
+        for c in cast.components
+    ]
+    rows += [
+        {
+            "region_id": c.id,
+            "label": f"lateral_exit_{c.metadata.get('end')}_{c.metadata.get('leg')}",
+            "kind": c.kind,
+            "volume_A3": c.volume,
+            "point_count": c.point_count,
+            "center_x_A": c.center[0],
+            "center_y_A": c.center[1],
+            "center_z_A": c.center[2],
+            "min_radius_A": c.min_radius,
+            "mean_radius_A": c.mean_radius,
+            "max_radius_A": c.max_radius,
+            "spacing_A": cast.spacing,
+            "score": c.score,
+            "boundary_faces": ";".join(c.boundary_faces),
+            "nearest_residues": ";".join(c.nearest_residues),
+        }
+        for c in extra_components
+    ]
     _write_rows(path, rows, fields)
 
 
@@ -368,58 +387,31 @@ def write_cavities_csv(cavities: Sequence[Cavity], path: str | Path) -> None:
     path : str or Path
         Output CSV.
     """
-    fields = ["cavity_id", "center_x_A", "center_y_A", "center_z_A", "max_radius_A", "volume_A3",
-              "grid_points", "score", "nearest_residues"]
-    rows = [{"cavity_id": c.id, "center_x_A": c.center[0], "center_y_A": c.center[1], "center_z_A": c.center[2],
-             "max_radius_A": c.radius, "volume_A3": c.volume, "grid_points": c.grid_points, "score": c.score,
-             "nearest_residues": ";".join(c.nearest_residues)} for c in cavities]
-    _write_rows(path, rows, fields)
-
-
-def write_tunnels_csv(tunnels: Sequence[Tunnel], path: str | Path) -> None:
-    """Write one row per tunnel.
-
-    Columns: ``tunnel_id``, ``start_{x,y,z}_A``, ``end_{x,y,z}_A``,
-    ``length_A`` (polyline length), ``bottleneck_radius_A`` (minimum clearance
-    over the connecting segments), ``mean_radius_A``, ``score``,
-    ``point_count``, ``grid_spacing_A`` and ``nearest_residues``
-    (semicolon-separated). Per-node samples are in :func:`write_tunnel_points_csv`.
-
-    Parameters
-    ----------
-    tunnels : sequence of Tunnel
-        From :func:`crevice.tunnels.find_tunnels`.
-    path : str or Path
-        Output CSV.
-    """
-    fields = ["tunnel_id", "start_x_A", "start_y_A", "start_z_A", "end_x_A", "end_y_A", "end_z_A",
-              "length_A", "bottleneck_radius_A", "mean_radius_A", "score", "point_count", "grid_spacing_A",
-              "nearest_residues"]
-    rows = [{"tunnel_id": t.id, "start_x_A": t.start[0], "start_y_A": t.start[1], "start_z_A": t.start[2],
-             "end_x_A": t.end[0], "end_y_A": t.end[1], "end_z_A": t.end[2], "length_A": t.length,
-             "bottleneck_radius_A": t.bottleneck_radius, "mean_radius_A": t.mean_radius, "score": t.score,
-             "point_count": len(t.points), "grid_spacing_A": t.metadata.get("spacing_A", ""),
-             "nearest_residues": ";".join(t.nearest_residues)} for t in tunnels]
-    _write_rows(path, rows, fields)
-
-
-def write_tunnel_points_csv(tunnels: Sequence[Tunnel], path: str | Path) -> None:
-    """Write one row per tunnel path node.
-
-    Columns: ``tunnel_id`` followed by the profile point columns of
-    :func:`write_profile_csv`; ``index`` is the step number and
-    ``axis_position_A`` the cumulative path length from the start (Å).
-
-    Parameters
-    ----------
-    tunnels : sequence of Tunnel
-        From :func:`crevice.tunnels.find_tunnels`.
-    path : str or Path
-        Output CSV.
-    """
-    fields = ["tunnel_id", "index", "x_A", "y_A", "z_A", "radius_A", "raw_clearance_A", "axis_position_A",
-              "nearest_atom_serial", "nearest_residue"]
-    rows = [{"tunnel_id": t.id, **_point_row(point)} for t in tunnels for point in t.points]
+    fields = [
+        "cavity_id",
+        "center_x_A",
+        "center_y_A",
+        "center_z_A",
+        "max_radius_A",
+        "volume_A3",
+        "grid_points",
+        "score",
+        "nearest_residues",
+    ]
+    rows = [
+        {
+            "cavity_id": c.id,
+            "center_x_A": c.center[0],
+            "center_y_A": c.center[1],
+            "center_z_A": c.center[2],
+            "max_radius_A": c.radius,
+            "volume_A3": c.volume,
+            "grid_points": c.grid_points,
+            "score": c.score,
+            "nearest_residues": ";".join(c.nearest_residues),
+        }
+        for c in cavities
+    ]
     _write_rows(path, rows, fields)
 
 
@@ -455,40 +447,92 @@ def write_network_csv(network: ResidueInteractionNetwork, nodes_path: str | Path
             continue
         residue_degree[edge.source] = residue_degree.get(edge.source, 0) + 1
         residue_degree[edge.target] = residue_degree.get(edge.target, 0) + 1
-    node_fields = ["node_id", "kind", "label", "residue", "resname", "chain_id", "resid", "icode", "group",
-                   "properties", "x_A", "y_A", "z_A", "degree", "residue_degree"]
+    node_fields = [
+        "node_id",
+        "kind",
+        "label",
+        "residue",
+        "resname",
+        "chain_id",
+        "resid",
+        "icode",
+        "group",
+        "properties",
+        "x_A",
+        "y_A",
+        "z_A",
+        "degree",
+        "residue_degree",
+    ]
     node_rows = []
     for node in network.nodes:
         meta = node.metadata or {}
         position = meta.get("position") or (None, None, None)
-        node_rows.append({"node_id": node.id, "kind": node.kind, "label": node.label, "residue": node.residue or "",
-                          "resname": meta.get("resname", ""), "chain_id": meta.get("chain_id", ""),
-                          "resid": meta.get("resid", ""), "icode": meta.get("icode", ""),
-                          "group": meta.get("group") or "", "properties": ";".join(node.properties),
-                          "x_A": position[0], "y_A": position[1], "z_A": position[2],
-                          "degree": degree.get(node.id, 0), "residue_degree": residue_degree.get(node.id, 0)})
+        node_rows.append(
+            {
+                "node_id": node.id,
+                "kind": node.kind,
+                "label": node.label,
+                "residue": node.residue or "",
+                "resname": meta.get("resname", ""),
+                "chain_id": meta.get("chain_id", ""),
+                "resid": meta.get("resid", ""),
+                "icode": meta.get("icode", ""),
+                "group": meta.get("group") or "",
+                "properties": ";".join(node.properties),
+                "x_A": position[0],
+                "y_A": position[1],
+                "z_A": position[2],
+                "degree": degree.get(node.id, 0),
+                "residue_degree": residue_degree.get(node.id, 0),
+            }
+        )
     _write_rows(nodes_path, node_rows, node_fields)
-    edge_fields = ["source", "target", "interaction", "distance_A", "distance_metric", "cutoff_A", "weight",
-                   "closest_atoms", "center_distance_A", "surface_distance_A", "charged_atom_pairs",
-                   "sequence_separation_observed", "different_chains", "nonlocal_contact", "point_count"]
+    edge_fields = [
+        "source",
+        "target",
+        "interaction",
+        "distance_A",
+        "distance_metric",
+        "cutoff_A",
+        "weight",
+        "closest_atoms",
+        "center_distance_A",
+        "surface_distance_A",
+        "charged_atom_pairs",
+        "sequence_separation_observed",
+        "different_chains",
+        "nonlocal_contact",
+        "point_count",
+    ]
     metric = network.metadata.get("distance_metric", "")
     edge_rows = []
     for edge in network.edges:
         meta = edge.metadata or {}
         pair = meta.get("closest_pair") or {}
         region = edge.source in regions or edge.target in regions
-        edge_rows.append({
-            "source": edge.source, "target": edge.target, "interaction": edge.interaction,
-            "distance_A": edge.distance,
-            "distance_metric": "region_surface_gap" if region else metric,
-            "cutoff_A": network.metadata.get("cutoff", ""), "weight": edge.weight,
-            "closest_atoms": "-".join(pair.get("atoms", [])),
-            "center_distance_A": pair.get("center_distance", ""), "surface_distance_A": pair.get("surface_distance", ""),
-            "charged_atom_pairs": ";".join("-".join(str(v) for v in item[:2]) + f"@{item[2]:.3f}"
-                                           for item in meta.get("charged_atom_pairs", [])),
-            "sequence_separation_observed": meta.get("sequence_separation_observed", ""),
-            "different_chains": meta.get("different_chains", ""), "nonlocal_contact": meta.get("nonlocal_contact", ""),
-            "point_count": meta.get("point_count", "")})
+        edge_rows.append(
+            {
+                "source": edge.source,
+                "target": edge.target,
+                "interaction": edge.interaction,
+                "distance_A": edge.distance,
+                "distance_metric": "region_surface_gap" if region else metric,
+                "cutoff_A": network.metadata.get("cutoff", ""),
+                "weight": edge.weight,
+                "closest_atoms": "-".join(pair.get("atoms", [])),
+                "center_distance_A": pair.get("center_distance", ""),
+                "surface_distance_A": pair.get("surface_distance", ""),
+                "charged_atom_pairs": ";".join(
+                    "-".join(str(v) for v in item[:2]) + f"@{item[2]:.3f}"
+                    for item in meta.get("charged_atom_pairs", [])
+                ),
+                "sequence_separation_observed": meta.get("sequence_separation_observed", ""),
+                "different_chains": meta.get("different_chains", ""),
+                "nonlocal_contact": meta.get("nonlocal_contact", ""),
+                "point_count": meta.get("point_count", ""),
+            }
+        )
     _write_rows(edges_path, edge_rows, edge_fields)
 
 
@@ -510,15 +554,34 @@ def write_connectivity_csv(report: dict[str, Any], residues_path: str | Path, gr
     residues_path, groups_path : str or Path
         Output CSVs.
     """
-    fields = ["residue", "group", "is_lining", "removed", "reachable", "cost_to_lining", "hops_to_lining",
-              "path", "path_hops", "lining_occupancy", "bridge_endpoint", "articulation_point"]
+    fields = [
+        "residue",
+        "group",
+        "is_lining",
+        "removed",
+        "reachable",
+        "cost_to_lining",
+        "hops_to_lining",
+        "path",
+        "path_hops",
+        "lining_occupancy",
+        "bridge_endpoint",
+        "articulation_point",
+    ]
     rows = [{**row, "path": ">".join(row.get("path") or [])} for row in report.get("residues", [])]
     _write_rows(residues_path, rows, fields)
     _write_rows(groups_path, report.get("group_contacts", []), ["source", "target", "contact_count", "total_strength"])
 
 
-FEATURE_UNITS = {"min_radius": "Å", "max_radius": "Å", "mean_radius": "Å", "length": "Å",
-                 "volume_estimate": "Å³", "bottleneck_position": "Å", "radius_variance": "Å²"}
+FEATURE_UNITS = {
+    "min_radius": "Å",
+    "max_radius": "Å",
+    "mean_radius": "Å",
+    "length": "Å",
+    "volume_estimate": "Å³",
+    "bottleneck_position": "Å",
+    "radius_variance": "Å²",
+}
 
 
 def write_features_csv(features: dict[str, Any], path: str | Path) -> None:
@@ -542,15 +605,44 @@ def write_features_csv(features: dict[str, Any], path: str | Path) -> None:
 #: Column order of :func:`summary_statistics_rows` and
 #: :func:`write_summary_statistics_csv`.
 SUMMARY_STATISTICS_FIELDS = (
-    "quantity", "item", "value", "total_frames", "observed_frames", "missing_frames", "coverage_fraction",
-    "mean", "sample_sd", "median", "quantile_025", "quantile_975", "minimum", "maximum",
-    "first_half_mean", "second_half_mean", "statistical_inefficiency", "effective_frames",
-    "interval_status", "interval_method", "interval_confidence", "mean_lower", "mean_upper",
-    "simultaneous_lower", "simultaneous_upper", "block_length_frames", "replicates",
+    "quantity",
+    "item",
+    "value",
+    "total_frames",
+    "observed_frames",
+    "missing_frames",
+    "coverage_fraction",
+    "mean",
+    "sample_sd",
+    "median",
+    "quantile_025",
+    "quantile_975",
+    "minimum",
+    "maximum",
+    "first_half_mean",
+    "second_half_mean",
+    "statistical_inefficiency",
+    "effective_frames",
+    "interval_status",
+    "interval_method",
+    "interval_confidence",
+    "mean_lower",
+    "mean_upper",
+    "simultaneous_lower",
+    "simultaneous_upper",
+    "block_length_frames",
+    "replicates",
     # Added in 0.4 (crevice.uncertainty.sampling_uncertainty); earlier columns are unchanged.
-    "effective_sample_size", "integrated_autocorrelation_time_frames", "autocorrelation_window_frames",
-    "blocking_standard_error", "blocking_block_size_frames", "block_bootstrap_status", "block_bootstrap_lower",
-    "block_bootstrap_upper", "block_bootstrap_standard_error", "block_bootstrap_block_length_frames",
+    "effective_sample_size",
+    "integrated_autocorrelation_time_frames",
+    "autocorrelation_window_frames",
+    "blocking_standard_error",
+    "blocking_block_size_frames",
+    "block_bootstrap_status",
+    "block_bootstrap_lower",
+    "block_bootstrap_upper",
+    "block_bootstrap_standard_error",
+    "block_bootstrap_block_length_frames",
 )
 _SAMPLING_COLUMNS = SUMMARY_STATISTICS_FIELDS[27:]
 _SERIES_FIELDS = SUMMARY_STATISTICS_FIELDS[3:18]
@@ -658,14 +750,17 @@ def summary_statistics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             interval = node.get("confidence_interval") or {}
             row = {"quantity": ".".join(path), "item": item, "value": ""}
             row.update({key: blank(node.get(key)) for key in _SERIES_FIELDS})
-            row.update(interval_status=blank(interval.get("status")), interval_method=blank(interval.get("method")),
-                       interval_confidence=blank(interval.get("confidence")),
-                       mean_lower=blank(_single(interval.get("pointwise_lower"))),
-                       mean_upper=blank(_single(interval.get("pointwise_upper"))),
-                       simultaneous_lower=blank(_single(interval.get("simultaneous_lower"))),
-                       simultaneous_upper=blank(_single(interval.get("simultaneous_upper"))),
-                       block_length_frames=blank(interval.get("block_length_frames")),
-                       replicates=blank(interval.get("replicates")))
+            row.update(
+                interval_status=blank(interval.get("status")),
+                interval_method=blank(interval.get("method")),
+                interval_confidence=blank(interval.get("confidence")),
+                mean_lower=blank(_single(interval.get("pointwise_lower"))),
+                mean_upper=blank(_single(interval.get("pointwise_upper"))),
+                simultaneous_lower=blank(_single(interval.get("simultaneous_lower"))),
+                simultaneous_upper=blank(_single(interval.get("simultaneous_upper"))),
+                block_length_frames=blank(interval.get("block_length_frames")),
+                replicates=blank(interval.get("replicates")),
+            )
             sampling = node.get("sampling_uncertainty") or {}
             row.update({key: blank(sampling.get(key)) for key in _SAMPLING_COLUMNS})
             rows.append(row)
@@ -673,8 +768,14 @@ def summary_statistics_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
             for key, value in node.items():
                 named = any("correlation" in part for part in path + (str(key),))
                 if named and (value is None or isinstance(value, (int, float))) and not isinstance(value, bool):
-                    rows.append({**{field: "" for field in SUMMARY_STATISTICS_FIELDS},
-                                 "quantity": ".".join(path + (str(key),)), "item": item, "value": blank(value)})
+                    rows.append(
+                        {
+                            **{field: "" for field in SUMMARY_STATISTICS_FIELDS},
+                            "quantity": ".".join(path + (str(key),)),
+                            "item": item,
+                            "value": blank(value),
+                        }
+                    )
                 else:
                     visit(value, path + (str(key),), item)
         elif isinstance(node, list):
@@ -727,7 +828,7 @@ def write_trajectory_csv(analysis: TrajectoryAnalysis, frames_path: str | Path, 
     ``not_attempted``, or empty when no profile was requested; see
     :func:`crevice.trajectory.analyze_trajectory`),
     ``residue_contact_count``, ``cavity_count``,
-    ``tunnel_count``, ``network_node_count``, ``network_edge_count``,
+    ``network_node_count``, ``network_edge_count``,
     ``alignment_status``, ``alignment_rmsd_before_A``,
     ``alignment_rmsd_after_A`` and one ``feature_<name>`` column per numeric
     feature (unit appended for the geometric features: ``_A``, ``_A2``, ``_A3``).
@@ -749,35 +850,54 @@ def write_trajectory_csv(analysis: TrajectoryAnalysis, frames_path: str | Path, 
         meta = frame.metadata or {}
         alignment = meta.get("alignment") or {}
         profile = frame.profile
-        row = {"frame_index": frame.frame_index, "source_index": meta.get("source_index", ""),
-               "time_ps": frame.time if frame.time is not None else "",
-               "profile_status": meta.get("profile_status", "resolved" if profile else ""),
-               "profile_reason": meta.get("profile_reason", ""),
-               "min_radius_A": profile.min_radius if profile else "",
-               "mean_radius_A": profile.mean_radius if profile else "",
-               "max_radius_A": profile.max_radius if profile else "",
-               "bottleneck_axis_position_A": profile.bottleneck.t if profile else "",
-               "bottleneck_residue": (profile.bottleneck.nearest_residue or "") if profile else "",
-               "profile_point_count": len(profile.points) if profile else 0,
-               "enclosure_radius_A": profile.metadata.get("enclosure_radius_A", "") if profile else "",
-               "enclosure_probe_source": (meta.get("enclosure_probe") or {}).get("source", ""),
-               "residue_contact_count": len(frame.residue_contacts), "cavity_count": len(frame.cavities),
-               "tunnel_count": len(frame.tunnels),
-               "network_node_count": len(frame.network.nodes) if frame.network else meta.get("network_node_count", ""),
-               "network_edge_count": len(frame.network.edges) if frame.network else meta.get("network_edge_count", ""),
-               "alignment_status": alignment.get("status", ""),
-               "alignment_rmsd_before_A": alignment.get("rmsd_before_A", ""),
-               "alignment_rmsd_after_A": alignment.get("rmsd_after_A", "")}
+        row = {
+            "frame_index": frame.frame_index,
+            "source_index": meta.get("source_index", ""),
+            "time_ps": frame.time if frame.time is not None else "",
+            "profile_status": meta.get("profile_status", "resolved" if profile else ""),
+            "profile_reason": meta.get("profile_reason", ""),
+            "min_radius_A": profile.min_radius if profile else "",
+            "mean_radius_A": profile.mean_radius if profile else "",
+            "max_radius_A": profile.max_radius if profile else "",
+            "bottleneck_axis_position_A": profile.bottleneck.t if profile else "",
+            "bottleneck_residue": (profile.bottleneck.nearest_residue or "") if profile else "",
+            "profile_point_count": len(profile.points) if profile else 0,
+            "enclosure_radius_A": profile.metadata.get("enclosure_radius_A", "") if profile else "",
+            "enclosure_probe_source": (meta.get("enclosure_probe") or {}).get("source", ""),
+            "residue_contact_count": len(frame.residue_contacts),
+            "cavity_count": len(frame.cavities),
+            "network_node_count": len(frame.network.nodes) if frame.network else meta.get("network_node_count", ""),
+            "network_edge_count": len(frame.network.edges) if frame.network else meta.get("network_edge_count", ""),
+            "alignment_status": alignment.get("status", ""),
+            "alignment_rmsd_before_A": alignment.get("rmsd_before_A", ""),
+            "alignment_rmsd_after_A": alignment.get("rmsd_after_A", ""),
+        }
         for key, value in (frame.features or {}).items():
             row[f"feature_{key}{suffix.get(FEATURE_UNITS.get(key, ''), '')}"] = value
         frame_rows.append(row)
         if profile:
-            profile_rows.extend({"frame_index": frame.frame_index, "time_ps": row["time_ps"], **_point_row(point)}
-                                for point in profile.points)
+            profile_rows.extend(
+                {"frame_index": frame.frame_index, "time_ps": row["time_ps"], **_point_row(point)}
+                for point in profile.points
+            )
     _write_rows(frames_path, frame_rows)
-    _write_rows(profiles_path, profile_rows, ["frame_index", "time_ps", "index", "x_A", "y_A", "z_A", "radius_A",
-                                              "raw_clearance_A", "axis_position_A", "nearest_atom_serial",
-                                              "nearest_residue"])
+    _write_rows(
+        profiles_path,
+        profile_rows,
+        [
+            "frame_index",
+            "time_ps",
+            "index",
+            "x_A",
+            "y_A",
+            "z_A",
+            "radius_A",
+            "raw_clearance_A",
+            "axis_position_A",
+            "nearest_atom_serial",
+            "nearest_residue",
+        ],
+    )
 
 
 def _write_rows(path: str | Path, rows: Sequence[dict[str, Any]], fields: Sequence[str] | None = None) -> None:
@@ -807,7 +927,7 @@ def write_points_pdb(points: Iterable[ChannelPoint], path: str | Path, *, resnam
         Output PDB path.
     resname : str, default "DUM"
         Three-character residue name identifying the point set (``PRF``
-        profile, ``CAV`` cavities, ``TUN`` tunnels, ``VOI`` cast samples).
+        profile, ``CAV`` cavities, ``VOI`` cast samples).
 
     Examples
     --------
@@ -952,6 +1072,7 @@ orient crevice_cartoon or {object_name} or crevice_pore_fill
 zoom crevice_cartoon or {object_name} or crevice_pore_fill, 6
 {png_block}"""
     Path(script_path).write_text(script, encoding="utf-8", newline="\n")
+
 
 def _write_json(data: object, path: str | Path) -> None:
     _ensure_parent(path)

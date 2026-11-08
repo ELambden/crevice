@@ -16,6 +16,18 @@ Every test is xdist-safe: outputs go to ``tmp_path``. Run in parallel with
 """
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _quiet_status_lines(monkeypatch):
+    """Tests run with command-line status lines off (``CREVICE_PROGRESS=0``).
+
+    The ``crevice: ...`` status lines carry wall-clock times and would make
+    every comparison of standard error depend on timing. Tests of the lines
+    themselves set ``CREVICE_PROGRESS`` explicitly (``monkeypatch.setenv``
+    inside a test overrides this).
+    """
+    monkeypatch.setenv("CREVICE_PROGRESS", "0")
+
 #: Test node ids (parameters stripped) of the slow tests, longest first.
 SLOW_TESTS = {
     "tests/test_command_aliases.py::test_old_command_and_new_form_write_identical_outputs",
@@ -34,9 +46,7 @@ SLOW_TESTS = {
     "tests/test_radius_sets.py::test_parallel_cavity_trajectory_workers_use_the_chosen_set",
     "tests/test_publish_fallback_and_sticks.py::test_resolved_profile_keeps_extras_and_reports_resolved",
     "tests/test_output_inventory.py::test_network_summary_axis_is_explained_and_counts_residue_contacts",
-    "tests/test_auto_enclosure.py::test_publish_records_the_choice_or_the_refusal",
     "tests/test_output_inventory.py::test_chord_colours_follow_the_interaction_names_networks_write",
-    "tests/test_auto_enclosure.py::test_static_suite_and_benchmark_default_to_auto",
     "tests/test_region_radii.py::test_prepare_with_an_explicit_set_stores_it_and_trajectory_uses_it",
     "tests/test_region_definition.py::test_region_cli_runs_each_frame_and_retains_region_provenance",
     "tests/test_region_radii.py::test_hydration_cavity_results_uses_or_checks_the_recorded_set",

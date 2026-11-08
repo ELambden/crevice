@@ -38,7 +38,7 @@ so update scripts when convenient.
 | `crevice fingerprint` | `crevice profile --fingerprint` |
 | `crevice cavities` | `crevice cavities` (unchanged) |
 | `crevice cast` | `crevice cavities --cast` |
-| `crevice tunnels` | `crevice cavities --tunnels` |
+| `crevice tunnels` | removed in 0.5 (with `crevice cavities --tunnels`); use `crevice paths` |
 | `crevice paths` | `crevice paths` (unchanged) |
 | `crevice residues` | `crevice residues` (unchanged) |
 | `crevice network` | `crevice residues --network` |
@@ -72,7 +72,7 @@ works too).
   the default mode and lists the others; `crevice cavities --cast --help`
   shows the cast options.
 - **One mode at a time.** Two mode flags of the same command
-  (`crevice cavities --cast --tunnels`) are an error.
+  (`crevice residues --network --features`) are an error.
 - **`--example NAME` and `--region DEFINITION` take a value**: it is the
   dataset name or the prepared region definition, the first input of that
   mode.

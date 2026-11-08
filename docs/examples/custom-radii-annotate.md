@@ -6,9 +6,10 @@ with three radius sets, then draws the same figure with and without its
 explanatory text. It takes under a minute. See
 [Atomic radii](../methods/atomic-radii.md) for the presets and file formats.
 
-The enclosure probe is fixed at 0.75 Å (the value the automatic rule chooses
-for this structure, see the [1GRM example](1grm-profile-cast.md)) so that only
-the radii change between runs.
+The enclosure probe is fixed at 0.75 Å in every slice so that only the radii
+change between runs. By default each slice chooses its own probe (see the
+[1GRM example](1grm-profile-cast.md)), and that choice can itself shift a
+little with the radii.
 
 ```bash
 crevice fetch 1GRM --cache-dir .crevice/pdb
@@ -36,13 +37,14 @@ with `my_radii.json`:
 
 | Radius set | Minimum radius (Å) | Nearest residue at the bottleneck |
 |---|---:|---|
-| standard (Bondi) | 1.337 | A:TRP13 |
+| standard (Bondi) | 1.337 | A:TRP15 |
 | `hole` (C 1.85, O 1.65, N 1.75 Å, ...) | 1.201 | B:TRP15 |
-| `my_radii.json` (O 1.60 Å) | 1.288 | A:TRP11 |
+| `my_radii.json` (O 1.60 Å) | 1.288 | A:TRP13 |
 
 Larger atoms leave a narrower channel, and with other radii a different residue
-limits the narrowest sample (with the `hole` set it is also at the other end of
-the channel). The difference between the standard and `hole` sets (0.14 Å) is larger than many effects one might want
+is nearest to the narrowest sample (with the `hole` set it is also at the
+other end of the channel). With the default per-slice probe the minima are
+1.337, 1.200 and 1.290 Å. The difference between the standard and `hole` sets (0.14 Å) is larger than many effects one might want
 to interpret, so always state the radius set.
 
 When you choose a set, the output records it under `metadata.radii`: its
@@ -74,10 +76,11 @@ crevice profile 1GRM --axis auto --enclosure-radius 0.75 --annotate -o annotated
 :alt: 1GRM radius profile with title and bottleneck value
 :width: 85%
 
-`annotated.png`: the figure of `standard.png` (shown clean in the
-[1GRM example](1grm-profile-cast.md)) with the title "CREVICE pore radius
+`annotated.png`: the figure of `standard.png` (the
+[1GRM example](1grm-profile-cast.md) shows the clean figure of the default
+run, whose per-slice probe gives a slightly longer channel) with the title "CREVICE pore radius
 profile" and the bottleneck value "1.34 Å". The two mouth labels with their
-axial positions (−11.67 Å and 11.60 Å) are drawn only when the mouth guides
+axial positions (−11.66 Å and 11.61 Å) are drawn only when the mouth guides
 are also requested (`--annotate --mouth-guides`). The data, colours and axes are the
 same; the measurement files are identical.
 ```
@@ -94,10 +97,10 @@ print(info["Description"])
 
 ```text
 omitted (recorded here; draw with annotate=True or --annotate)
-Pore radius against axial coordinate for one resolved channel profile; minimum radius 1.337 Å at the bottleneck (sample 73, t = 9.56 Å, nearest residue A:TRP13); mean radius 1.571 Å over 81 samples
+Pore radius against axial coordinate for one resolved channel profile; minimum radius 1.337 Å at the bottleneck (sample 73, t = 9.57 Å, nearest residue A:TRP15); mean radius 1.573 Å over 81 samples
 Label: 1.34 Å
-Note: Lower mouth at -11.67 Å (bracket -11.68 to -11.66 Å); mouth guides not drawn
-Note: Upper mouth at 11.60 Å (bracket 11.59 to 11.61 Å); mouth guides not drawn
+Note: Lower mouth at -11.66 Å (bracket -11.67 to -11.65 Å); mouth guides not drawn
+Note: Upper mouth at 11.61 Å (bracket 11.60 to 11.62 Å); mouth guides not drawn
 Title: CREVICE pore radius profile
 ```
 
@@ -109,7 +112,7 @@ and residue labels.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The numbers above were produced with CREVICE 0.1.0 and re-run with 0.4.0. They show how much a
+The numbers above come from one run of the commands shown. They show how much a
 setting can move a measurement, which is exactly why the radius set belongs in
 your methods section; none of them is a biological reference value.
 :::

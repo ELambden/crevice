@@ -42,6 +42,24 @@ def test_legacy_outputs_was_removed_in_04(tmp_path, capsys):
         flatten_settings({"command": "publish", "outputs": {"legacy_outputs": True}})
 
 
+def test_removed_tunnel_and_report_cavity_settings_load_and_outputs_tokens_are_refused():
+    """0.4 settings files recorded the tunnel options; they load with those keys ignored."""
+    from crevice.config import flatten_settings
+    values = flatten_settings({"command": "publish", "outputs": {"skip_tunnels": False, "skip_network": True}})
+    assert values == {"skip_network": True}
+    values = flatten_settings({"command": "analyze", "geometry": {"tunnel_spacing": 2.0, "tunnel_start": None,
+                                                                  "max_tunnels": 3, "cavity_spacing": 3.0}})
+    assert values == {"cavity_spacing": 3.0}
+    with pytest.raises(OutputSelectionError, match="removed in CREVICE 0.5"):
+        resolve_outputs("publish", "default,tunnels")
+    with pytest.raises(OutputSelectionError, match="run crevice cavities"):
+        resolve_outputs("publish", "cavities")
+    assert flatten_settings({"command": "publish", "outputs": {"skip_cavities": True}}) == {}
+    assert flatten_settings({"command": "static-suite", "outputs": {"skip_cavities": True}}) == {"skip_cavities": True}
+    with pytest.raises(ValueError, match="use crevice paths"):
+        flatten_settings({"command": "tunnels"})
+
+
 @pytest.mark.parametrize("mode", sorted(EXPECTED))
 def test_exact_inventories_of_default_selected_and_all_modes(mode, tmp_path):
     case, *extra = mode.split(" ")
@@ -137,7 +155,7 @@ def test_compute_writes_nothing_and_export_matches_the_wrapper(tmp_path):
     before = sorted(p.name for p in tmp_path.iterdir())
     result = compute_static_workflow(load_structure(pdb), samples=21, search_radius=8)
     assert sorted(p.name for p in tmp_path.iterdir()) == before
-    assert result.status == "resolved" and result.cavities is not None and result.cast.total_volume > 0
+    assert result.status == "resolved" and result.network is not None and result.cast.total_volume > 0
     export_static_workflow(result, structure_path=pdb, output_dir=tmp_path / "out", prefix="c", dpi=40,
                            outputs="figures")
     assert not [f for f in inventory(tmp_path / "out") if f.endswith(SCRIPT_SUFFIXES)]

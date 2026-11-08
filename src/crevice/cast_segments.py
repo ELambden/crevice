@@ -62,6 +62,7 @@ and ``crevice_exit_N`` (rust ``#c2410c``); lining residues as stick objects
 ``crevice_<segment>_lining`` (disabled by default) and selections
 ``crevice_<segment>_lining_sel``.
 """
+
 from __future__ import annotations
 
 import csv
@@ -70,8 +71,6 @@ from pathlib import Path
 
 from .presentation import CHANNEL_CAST_RGB
 
-#: Segment types in display order.
-SEGMENT_TYPES = ("entry", "lumen", "exit")
 #: Default segment surface colours as RGB in 0-1. Entry yellow ``#f0d43a``,
 #: lumen teal ``#1494a1`` (the channel colour), exit rust ``#c2410c``.
 SEGMENT_RGB = {"entry": (0.941, 0.831, 0.227), "lumen": CHANNEL_CAST_RGB, "exit": (0.761, 0.255, 0.047)}
@@ -87,20 +86,24 @@ VESTIBULE_DEFINITION = (
     "mouth sample's centre, away from the lumen, every 0.25 A until the first sample in bulk; filled with the "
     "lateral-exit cast rule (lumen lattice, beyond the mouth plane, outside bulk, core nodes in centre-line free "
     "spheres with clearance >= enclosure probe, swept by enclosure probe - min_radius, connected to the centre "
-    "line). Reported separately; never part of the axial channel volume")
+    "line). Reported separately; never part of the axial channel volume"
+)
 SEGMENT_DEFINITION = (
     "LUMEN = axial channel cast between the mouth planes (total_volume); ENTRY/EXIT = space-filling probe-swept "
     "casts beyond each mouth out to the bulk-solvent boundary (rolling bulk probe of bulk_radius_A connected to "
     "the outside; an outer boundary, not a width limit): the axial vestibule at an open mouth, one segment per "
-    "lateral exit leg at a capped mouth. Disjoint; volumes reported separately")
+    "lateral exit leg at a capped mouth. Disjoint; volumes reported separately"
+)
 LABEL_RULE_DEFINITION = (
     "auto: if exactly one end is capped with lateral exit legs, those legs are EXITs and the open axial end is the "
     "ENTRY; otherwise the axis start (lower end) is the ENTRY and the axis end the EXIT. entry_end='start'|'end' "
-    "forces the ENTRY end. Geometric labels only, not a claim about transport direction")
+    "forces the ENTRY end. Geometric labels only, not a claim about transport direction"
+)
 LINING_DEFINITION = (
     "residue with any atom centre within cutoff_A of a measured grid node of the segment (probe-centre positions "
     "clear of every atomic van der Waals sphere of the radius set in force); distance = atom centre to nearest "
-    "node, overestimating the distance to the continuous cast by at most spacing*sqrt(3)/2")
+    "node, overestimating the distance to the continuous cast by at most spacing*sqrt(3)/2"
+)
 
 
 def segment_roles(profile, entry_end: str | None = "auto") -> tuple[dict[str, str], str]:
@@ -154,8 +157,9 @@ def segment_roles(profile, entry_end: str | None = "auto") -> tuple[dict[str, st
     return {end: ("entry" if end == entry else "exit") for end in ("lower", "upper")}, rule
 
 
-def axial_vestibule_leg(frame, profile, cast, end: str, *, bulk_radius: float = 6.0,
-                        bulk_spacing: float = 1.0, step: float = 0.25) -> dict | None:
+def axial_vestibule_leg(
+    frame, profile, cast, end: str, *, bulk_radius: float = 6.0, bulk_spacing: float = 1.0, step: float = 0.25
+) -> dict | None:
     """Straight centre line beyond an open axial mouth, out to bulk.
 
     Parameters
@@ -187,20 +191,23 @@ def axial_vestibule_leg(frame, profile, cast, end: str, *, bulk_radius: float = 
     from .channel_exits import BulkEnvelope
     from .geometry import add, scale
     from .spatial import SpatialIndex
+
     meta = cast.metadata
-    atoms = frame.selected_atoms(include_hydrogen=meta.get("include_hydrogen", False),
-                                 include_hetero=meta.get("include_hetero", True))
+    atoms = frame.selected_atoms(
+        include_hydrogen=meta.get("include_hydrogen", False), include_hetero=meta.get("include_hetero", True)
+    )
     spatial = SpatialIndex(atoms)
     sign = -1 if end == "lower" else 1
     mouth = profile.points[0] if end == "lower" else profile.points[-1]
     basis = meta["grid_basis"]
-    bulk = BulkEnvelope(spatial.atoms, profile.axis_origin, basis, mouth.t, sign,
-                        spacing=bulk_spacing, bulk_radius=bulk_radius)
+    bulk = BulkEnvelope(
+        spatial.atoms, profile.axis_origin, basis, mouth.t, sign, spacing=bulk_spacing, bulk_radius=bulk_radius
+    )
     direction = scale(profile.axis_direction, sign)
     points, raw = [], []
     reached = False
-    for k in range(1, int(MAX_VESTIBULE_LENGTH_A/step)+1):
-        position = add(mouth.position, scale(direction, k*step))
+    for k in range(1, int(MAX_VESTIBULE_LENGTH_A / step) + 1):
+        position = add(mouth.position, scale(direction, k * step))
         clearance = spatial.nearest_surface(position)[0]
         if clearance <= 0:
             break
@@ -211,13 +218,21 @@ def axial_vestibule_leg(frame, profile, cast, end: str, *, bulk_radius: float = 
             break
     if not points:
         return None
-    return {"points": [list(p) for p in points], "raw_clearances_A": raw, "leg": 1,
-            "bulk_radius_A": bulk_radius, "bulk_grid_spacing_A": bulk_spacing,
-            "bottleneck_radius_A": min(raw), "length_A": len(points)*step, "reaches_bulk": reached}
+    return {
+        "points": [list(p) for p in points],
+        "raw_clearances_A": raw,
+        "leg": 1,
+        "bulk_radius_A": bulk_radius,
+        "bulk_grid_spacing_A": bulk_spacing,
+        "bottleneck_radius_A": min(raw),
+        "length_A": len(points) * step,
+        "reaches_bulk": reached,
+    }
 
 
-def segment_casts(frame, profile, cast, *, entry_end: str | None = "auto", bulk_radius: float | None = None,
-                  lateral_casts=None) -> tuple:
+def segment_casts(
+    frame, profile, cast, *, entry_end: str | None = "auto", bulk_radius: float | None = None, lateral_casts=None
+) -> tuple:
     """ENTRY and EXIT segment casts beyond the two mouths of a channel cast.
 
     The lumen is ``cavities --cast`` itself and is not modified. Rules: module docstring.
@@ -257,16 +272,28 @@ def segment_casts(frame, profile, cast, *, entry_end: str | None = "auto", bulk_
     """
     from dataclasses import replace
     from .channel_exits import lateral_exit_casts, probe_swept_leg_casts
-    if (cast is None or cast.metadata.get("export_mode") != "connected_section_fill"
-            or cast.metadata.get("focus_points") or not profile.points):
+
+    if (
+        cast is None
+        or cast.metadata.get("export_mode") != "connected_section_fill"
+        or cast.metadata.get("focus_points")
+        or not profile.points
+    ):
         return ()
     roles, rule = segment_roles(profile, entry_end)
     exits = profile.metadata.get("exits") or {}
     lateral = tuple(lateral_casts) if lateral_casts is not None else lateral_exit_casts(frame, profile, cast)
     if bulk_radius is None:
-        bulk_radius = next((leg.get("bulk_radius_A") for e in exits.values() for leg in (e or {}).get("legs", ())
-                            if leg.get("bulk_radius_A")), 6.0)
-    next_id = max((c.id for c in (*cast.components, *lateral)), default=0)+1
+        bulk_radius = next(
+            (
+                leg.get("bulk_radius_A")
+                for e in exits.values()
+                for leg in (e or {}).get("legs", ())
+                if leg.get("bulk_radius_A")
+            ),
+            6.0,
+        )
+    next_id = max((c.id for c in (*cast.components, *lateral)), default=0) + 1
     found = {"lower": [], "upper": []}
     for c in lateral:
         found[c.metadata["end"]].append(c)
@@ -276,8 +303,15 @@ def segment_casts(frame, profile, cast, *, entry_end: str | None = "auto", bulk_
         leg = axial_vestibule_leg(frame, profile, cast, end, bulk_radius=bulk_radius)
         if leg is None:
             continue
-        made = probe_swept_leg_casts(frame, profile, cast, [(end, leg)], kind="axial_vestibule",
-                                     definition=VESTIBULE_DEFINITION, first_id=next_id)
+        made = probe_swept_leg_casts(
+            frame,
+            profile,
+            cast,
+            [(end, leg)],
+            kind="axial_vestibule",
+            definition=VESTIBULE_DEFINITION,
+            first_id=next_id,
+        )
         for c in made:
             c.metadata.update({"centre_line_reaches_bulk": leg["reaches_bulk"], "bulk_radius_A": bulk_radius})
         found[end].extend(made)
@@ -288,10 +322,20 @@ def segment_casts(frame, profile, cast, *, entry_end: str | None = "auto", bulk_
             if roles[end] != kind:
                 continue
             for index, c in enumerate(sorted(found[end], key=lambda c: c.metadata["leg"]), 1):
-                result.append(replace(c, metadata={**c.metadata, "segment": f"{kind}_{index}",
-                                                   "segment_type": kind, "segment_index": index,
-                                                   "source": c.kind, "label_rule": rule,
-                                                   "segment_definition": SEGMENT_DEFINITION}))
+                result.append(
+                    replace(
+                        c,
+                        metadata={
+                            **c.metadata,
+                            "segment": f"{kind}_{index}",
+                            "segment_type": kind,
+                            "segment_index": index,
+                            "source": c.kind,
+                            "label_rule": rule,
+                            "segment_definition": SEGMENT_DEFINITION,
+                        },
+                    )
+                )
     return tuple(result)
 
 
@@ -322,19 +366,38 @@ def segment_summary(cast, segments) -> list[dict]:
     ('lumen', 0)
     """
     points = [p for c in cast.components for p in c.points]
-    lumen = {"segment": "lumen", "segment_type": "lumen", "segment_index": 1, "end": "both",
-             "source": "axial_lumen", "component_ids": [c.id for c in cast.components],
-             "volume_A3": cast.total_volume, "point_count": len(points),
-             "min_clearance_A": min((p.raw_clearance for p in points), default=None),
-             "max_clearance_A": max((p.raw_clearance for p in points), default=None),
-             "label_rule": segments[0].metadata["label_rule"] if segments else None}
-    rows = [{"segment": c.metadata["segment"], "segment_type": c.metadata["segment_type"],
-             "segment_index": c.metadata["segment_index"], "end": c.metadata["end"],
-             "source": c.metadata["source"], "component_ids": [c.id], "volume_A3": c.volume,
-             "point_count": c.point_count, "min_clearance_A": c.min_radius, "max_clearance_A": c.max_radius,
-             "label_rule": c.metadata["label_rule"]} for c in segments]
-    return ([r for r in rows if r["segment_type"] == "entry"] + [lumen]
-            + [r for r in rows if r["segment_type"] == "exit"])
+    lumen = {
+        "segment": "lumen",
+        "segment_type": "lumen",
+        "segment_index": 1,
+        "end": "both",
+        "source": "axial_lumen",
+        "component_ids": [c.id for c in cast.components],
+        "volume_A3": cast.total_volume,
+        "point_count": len(points),
+        "min_clearance_A": min((p.raw_clearance for p in points), default=None),
+        "max_clearance_A": max((p.raw_clearance for p in points), default=None),
+        "label_rule": segments[0].metadata["label_rule"] if segments else None,
+    }
+    rows = [
+        {
+            "segment": c.metadata["segment"],
+            "segment_type": c.metadata["segment_type"],
+            "segment_index": c.metadata["segment_index"],
+            "end": c.metadata["end"],
+            "source": c.metadata["source"],
+            "component_ids": [c.id],
+            "volume_A3": c.volume,
+            "point_count": c.point_count,
+            "min_clearance_A": c.min_radius,
+            "max_clearance_A": c.max_radius,
+            "label_rule": c.metadata["label_rule"],
+        }
+        for c in segments
+    ]
+    return (
+        [r for r in rows if r["segment_type"] == "entry"] + [lumen] + [r for r in rows if r["segment_type"] == "exit"]
+    )
 
 
 def segment_points(cast, segments) -> dict:
@@ -385,7 +448,7 @@ def viewer_residue_ids(frame) -> dict:
     out, counts = {}, {}
     for a in frame.atoms:
         if a.residue_key not in out:
-            counts[a.chain_id] = counts.get(a.chain_id, 0)+1
+            counts[a.chain_id] = counts.get(a.chain_id, 0) + 1
             out[a.residue_key] = (chain_map[a.chain_id], counts[a.chain_id])
     return out
 
@@ -424,11 +487,18 @@ def lining_residues(frame, cast, segments=(), *, cutoff: float = DEFAULT_LINING_
     """
     import numpy as np
     from scipy.spatial import cKDTree
+
     if not math.isfinite(cutoff) or cutoff <= 0:
         raise ValueError("lining cutoff must be finite and positive")
     meta = cast.metadata
-    selected = set(map(id, frame.selected_atoms(include_hydrogen=meta.get("include_hydrogen", False),
-                                                include_hetero=meta.get("include_hetero", True))))
+    selected = set(
+        map(
+            id,
+            frame.selected_atoms(
+                include_hydrogen=meta.get("include_hydrogen", False), include_hetero=meta.get("include_hetero", True)
+            ),
+        )
+    )
     atoms = [(i, a) for i, a in enumerate(frame.atoms, 1) if id(a) in selected]
     if not atoms:
         return []
@@ -439,7 +509,7 @@ def lining_residues(frame, cast, segments=(), *, cutoff: float = DEFAULT_LINING_
         serials.setdefault(a.residue_key, []).append(i)
     order = {key: n for n, key in enumerate(viewer)}
     groups = segment_points(cast, segments)
-    names = ([n for n in groups if n.startswith("entry")] + ["lumen"] + [n for n in groups if n.startswith("exit")])
+    names = [n for n in groups if n.startswith("entry")] + ["lumen"] + [n for n in groups if n.startswith("exit")]
     rows = []
     for name in names:
         points = groups[name]
@@ -456,19 +526,59 @@ def lining_residues(frame, cast, segments=(), *, cutoff: float = DEFAULT_LINING_
                     record[0], record[1] = float(d), atom.name
         for key in sorted(best, key=order.get):
             d, closest, count, atom = best[key]
-            rows.append({"segment": name, "segment_type": name.split("_")[0], "role": f"{name}_lining",
-                         "residue": key.label, "chain_id": key.chain_id, "resname": key.resname,
-                         "resid": key.resid, "icode": key.icode.strip(), "hetero": bool(atom.hetero),
-                         "min_distance_A": round(d, 4), "closest_atom": closest, "atoms_within": count,
-                         "cutoff_A": cutoff, "viewer_chain": viewer[key][0], "viewer_resid": viewer[key][1],
-                         "viewer_atom_serials": serials[key]})
+            rows.append(
+                {
+                    "segment": name,
+                    "segment_type": name.split("_")[0],
+                    "role": f"{name}_lining",
+                    "residue": key.label,
+                    "chain_id": key.chain_id,
+                    "resname": key.resname,
+                    "resid": key.resid,
+                    "icode": key.icode.strip(),
+                    "hetero": bool(atom.hetero),
+                    "min_distance_A": round(d, 4),
+                    "closest_atom": closest,
+                    "atoms_within": count,
+                    "cutoff_A": cutoff,
+                    "viewer_chain": viewer[key][0],
+                    "viewer_resid": viewer[key][1],
+                    "viewer_atom_serials": serials[key],
+                }
+            )
     return rows
 
 
-LINING_FIELDS = ("segment", "segment_type", "role", "residue", "chain_id", "resname", "resid", "icode", "hetero",
-                 "min_distance_A", "closest_atom", "atoms_within", "cutoff_A", "viewer_chain", "viewer_resid")
-SEGMENT_FIELDS = ("segment", "segment_type", "segment_index", "end", "source", "component_ids", "volume_A3",
-                  "point_count", "min_clearance_A", "max_clearance_A", "label_rule")
+LINING_FIELDS = (
+    "segment",
+    "segment_type",
+    "role",
+    "residue",
+    "chain_id",
+    "resname",
+    "resid",
+    "icode",
+    "hetero",
+    "min_distance_A",
+    "closest_atom",
+    "atoms_within",
+    "cutoff_A",
+    "viewer_chain",
+    "viewer_resid",
+)
+SEGMENT_FIELDS = (
+    "segment",
+    "segment_type",
+    "segment_index",
+    "end",
+    "source",
+    "component_ids",
+    "volume_A3",
+    "point_count",
+    "min_clearance_A",
+    "max_clearance_A",
+    "label_rule",
+)
 
 
 def write_segments_csv(rows, path) -> None:
@@ -551,7 +661,7 @@ def add_lining_columns(path, rows, *, residue_field: str = "residue") -> bool:
         row["lumen_lining"] = ("lumen" in found) if label else ""
         row["lining_segments"] = ";".join(found)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields+["lumen_lining", "lining_segments"])
+        writer = csv.DictWriter(handle, fieldnames=fields + ["lumen_lining", "lining_segments"])
         writer.writeheader()
         writer.writerows(table)
     return True

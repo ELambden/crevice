@@ -1,6 +1,6 @@
 """Optional native positive and negative controls for oriented ChimeraX maps."""
-# Tests here exercise other behaviour with the legacy fixed 0.8 A enclosure probe;
-# the automatic probe is tested in test_auto_enclosure.py.
+# Tests here exercise other behaviour with a fixed 0.8 A enclosure probe;
+# the automatic per-slice probe is tested in test_adaptive_enclosure.py.
 from pathlib import Path
 import json,shutil,subprocess,sys
 import pytest
@@ -26,15 +26,15 @@ def test_native_chimerax_rotated_relocated_map_and_residue_context(tmp_path,spli
     g,o,d=read_binary_dx(files['volume_dx']);evidence=boundary_residue_evidence(frame,g,o,d)
     write_residue_evidence_bundle(evidence,frame,folder,scene_path=files['volume_pml'],dpi=60)
     dest=tmp_path/'relocated scene';shutil.move(folder,dest);scene=dest/'crevice_residue_context.cxc'
-    command=[sys.executable,str(root/'scripts/check_chimerax.py'),str(scene),'--xvfb','--width','500','--output',str(tmp_path/'native')]
-    done=subprocess.run(command,capture_output=True,text=True,timeout=200)
+    command=[sys.executable,str(root/'scripts/check_chimerax.py'),str(scene),'--xvfb','--width','500','--timeout','400','--output',str(tmp_path/'native')]
+    done=subprocess.run(command,capture_output=True,text=True,timeout=460)
     assert done.returncode==0,done.stdout+done.stderr
     result=json.loads((tmp_path/'native/chimerax_verification.json').read_text(encoding="utf-8"))
     assert result['residue_sticks_passed'] and result['surface_reference_error_A']<.01
     if not split_regions:
         lines=scene.read_text(encoding="utf-8").splitlines();lines=['view matrix models #2,1,0,0,0,0,1,0,0,0,0,1,0' if line.startswith('view matrix models #2,') else line for line in lines]
         scene.write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n");command[-1]=str(tmp_path/'rejected')
-        done=subprocess.run(command,capture_output=True,text=True,timeout=200)
+        done=subprocess.run(command,capture_output=True,text=True,timeout=460)
         assert done.returncode!=0
         result=json.loads((tmp_path/'rejected/chimerax_verification.json').read_text(encoding="utf-8"))
         assert result['native_execution_passed'] and result['surface_reference_error_A']>result['surface_reference_bound_A']

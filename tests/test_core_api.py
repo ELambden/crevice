@@ -5,13 +5,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from channel_fixtures import channel_frame, channel_pdb_text
+
 from crevice import (
     Atom,
     StructureFrame,
     annotate_residues,
     cluster_profiles,
     detect_cavities,
-    find_tunnels,
     load_structure,
     pore_profile,
     profile_features,
@@ -37,11 +38,11 @@ class CoreApiTests(unittest.TestCase):
             self.assertEqual(frame.atoms[0].element, "C")
 
     def test_pore_profile_and_residue_contacts(self) -> None:
-        frame = _channel_frame()
-        profile = pore_profile(frame, axis="z", samples=5, search_radius=0.0)
+        frame = channel_frame()
+        profile = pore_profile(frame, axis="z", samples=5)
         contacts = annotate_residues(frame, profile.points, cutoff=4.0)
 
-        self.assertEqual(len(profile.points), 5)
+        self.assertGreaterEqual(len(profile.points), 5)
         self.assertGreater(profile.min_radius, 3.0)
         self.assertTrue(any(contact.role in {"lining", "bottleneck", "bottleneck-nearby"} for contact in contacts))
         self.assertTrue(any("hydrophobic" in contact.properties for contact in contacts))
@@ -54,17 +55,9 @@ class CoreApiTests(unittest.TestCase):
         self.assertGreaterEqual(len(cavities), 1)
         self.assertGreater(cavities[0].volume, 0.0)
 
-    def test_tunnel_search_reaches_boundary(self) -> None:
-        frame = _channel_frame()
-        tunnels = find_tunnels(frame, start=(0.0, 0.0, 0.0), spacing=2.5, min_radius=1.0, max_tunnels=1)
-
-        self.assertEqual(len(tunnels), 1)
-        self.assertGreater(tunnels[0].length, 0.0)
-        self.assertGreater(tunnels[0].bottleneck_radius, 1.0)
-
     def test_io_and_ml_helpers(self) -> None:
-        frame = _channel_frame()
-        profile = pore_profile(frame, axis="z", samples=5, search_radius=0.0)
+        frame = channel_frame()
+        profile = pore_profile(frame, axis="z", samples=5)
         contacts = annotate_residues(frame, profile.points, cutoff=4.0)
         features = profile_features(profile, contacts)
         labels = cluster_profiles([profile, profile], k=2)
@@ -83,7 +76,7 @@ class CoreApiTests(unittest.TestCase):
             write_residue_contacts_csv(contacts, out / "contacts.csv")
 
             data = json.loads((out / "profile.json").read_text(encoding="utf-8"))
-            self.assertEqual(data["point_count"], 5)
+            self.assertEqual(data["point_count"], len(profile.points))
             self.assertIn("HETATM", (out / "profile.pdb").read_text(encoding="utf-8"))
             self.assertIn("residue", (out / "contacts.csv").read_text(encoding="utf-8").splitlines()[0])
 
@@ -94,7 +87,7 @@ class CoreApiTests(unittest.TestCase):
             output = root / "profile.json"
             csv_output = root / "profile.csv"
             pdb_output = root / "profile.pdb"
-            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
+            structure.write_text(channel_pdb_text(), encoding="utf-8", newline="\n")
 
             status = main([
                 "profile",
@@ -103,8 +96,6 @@ class CoreApiTests(unittest.TestCase):
                 "z",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "-o",
                 str(output),
                 "--csv",
@@ -122,13 +113,14 @@ class CoreApiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             structure = root / "mini.pdb"
-            structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
-            status = main(["profile", str(structure), "--axis", "z", "--samples", "5", "--search-radius", "0",
+            structure.write_text(channel_pdb_text(), encoding="utf-8", newline="\n")
+            status = main(["profile", str(structure), "--axis", "z", "--samples", "5",
                            "-o", str(root / "out" / "run.json")])
             self.assertEqual(status, 0)
             header = (root / "out" / "run.csv").read_text(encoding="utf-8").splitlines()[0]
             self.assertTrue(header.startswith("index,x_A,y_A,z_A,radius_A"))
-            self.assertEqual(len((root / "out" / "run.csv").read_text(encoding="utf-8").splitlines()), 6)
+            points = json.loads((root / "out" / "run.json").read_text(encoding="utf-8"))["point_count"]
+            self.assertEqual(len((root / "out" / "run.csv").read_text(encoding="utf-8").splitlines()), points + 1)
 
 
 def _channel_frame() -> StructureFrame:

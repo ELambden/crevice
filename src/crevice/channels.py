@@ -50,27 +50,20 @@ def pore_profile(frame: StructureFrame, *, radii: RadiusSet | str | None = None,
     Thin wrapper around :func:`crevice.analysis.pore_profile`; all keyword
     arguments are passed through unchanged.
 
-    Two modes are selected by ``search_radius``:
-
-    * ``search_radius > 0`` (default 6.0): **connected-channel** mode
-      (``method="axial-connected"``). For each candidate direction (the three
-      principal axes when ``axis="auto"``, otherwise the given axis), the
-      structure is cut into planes about every 0.75 Å. In each plane, grid
-      points with spacing ``section_spacing`` inside a square of half-width
-      ``search_radius`` are kept where a sphere of radius
-      ``max(probe_radius, enclosure_radius)`` fits; connected groups of such
-      points that do not reach the square's edge are *enclosed sections*.
-      Sections in adjacent planes are joined when the straight segment between
-      them clears the same sphere. The joined path with the longest axial span
-      that has open space beyond both ends is the channel. It is resampled
-      between refined mouths, and where a plane contains the lumen plus a small
-      wall pocket the widest full-length path is followed. By default the
-      enclosure probe is chosen automatically (see ``enclosure_radius``).
-    * ``search_radius == 0``: **fixed-axis scan** (``method="axial-refined"``,
-      ``metadata["status"] = "unvalidated_axis_scan"``). ``samples`` points are
-      placed evenly on the straight axis through ``origin`` between the extreme
-      atom projections (extended by ``padding``), and the clearance is read at
-      each point without moving it. No channel connectivity is asserted.
+    The result has ``method="axial-connected"``. For each candidate direction
+    (the three principal axes when ``axis="auto"``, otherwise the given axis),
+    the channel is followed from the seed outwards in planes at most 0.75 Å
+    apart. In each plane the centre is climbed from the previous centre to the
+    local in-plane clearance maximum, and the plane belongs to the channel
+    when the free component around that centre is laterally enclosed: grid
+    points with spacing ``section_spacing`` where an enclosure-probe sphere
+    fits, connected without reaching a square of half-width ``search_radius``
+    (twice or four times that for a wide lumen). Adjacent centres are joined
+    when the straight segment between them clears the probe. The channel ends
+    at its mouths, the first planes that are not enclosed (or not joinable),
+    and is resampled evenly between them. By default each plane uses its own
+    enclosure probe (see ``enclosure_radius`` and
+    :mod:`crevice.adaptive_channel`); a number uses that probe in every plane.
 
     Parameters
     ----------
@@ -84,23 +77,17 @@ def pore_profile(frame: StructureFrame, *, radii: RadiusSet | str | None = None,
             selected atoms and fails if two give comparable spans.
         origin : Coord, optional
             A point inside the intended channel (Å). Defaults to the atom
-            centroid. In connected mode a supplied origin must have clearance
-            greater than the enclosure and measurement probes.
+            centroid. A supplied origin must have clearance greater than the
+            smallest enclosure probe and the measurement probe.
         samples : int, default 81
-            Number of profile points. In connected mode this is a minimum:
-            more points are used if needed to keep steps at or below 0.75 Å.
-            Must be at least 2.
-        padding : float, default 0.0
-            Å added beyond both atom extremes; only allowed with
-            ``search_radius=0``.
+            Minimum number of profile points; more are used if needed to keep
+            steps at or below 0.75 Å. Must be at least 2.
         search_radius : float, default 6.0
-            Half-width (Å) of the square transverse search region around the
-            axis in connected mode; 0 selects the fixed-axis scan.
+            Base half-width (Å) of the square transverse search region around
+            the axis; must be positive.
         refinement_steps : int, default 4
-            Slice-centre refinement (:meth:`crevice.sections.SectionGeometry.refine`):
-            0 keeps the grid-point centres; a positive value converges each centre
-            to its local clearance maximum (0.0001 Å) with at least this many step
-            halvings.
+            Minimum step halvings of each in-plane centre climb (at least 1);
+            the climb converges to the local clearance maximum within 0.0001 Å.
         probe_radius : float, default 0.0
             Probe radius (Å) subtracted from each clearance to give ``radius``.
         include_hydrogen : bool, default False
@@ -110,16 +97,15 @@ def pore_profile(frame: StructureFrame, *, radii: RadiusSet | str | None = None,
         section_spacing : float, default 0.5
             Transverse grid spacing (Å) used to find sections. Smaller values
             resolve narrower passages but cost more.
-        enclosure_radius : float or None, default None
+        enclosure_radius : float, "auto" or None, default None
             Radius (Å) of the sphere used for the lateral-enclosure and
             connectivity tests (the larger of this and ``probe_radius`` is
-            used). ``None`` chooses it automatically: the channel is resolved
-            at every probe of a 0.5-3.0 Å ladder, results are grouped into
-            channels, and the smallest probe of the channel that resolves at
-            the most probes (at least two) is used; the choice, every probe
-            tried and the reason are recorded in
-            ``metadata["enclosure_probe_selection"]``. A number runs exactly
-            that probe (0.8 Å was the fixed default before).
+            used). ``None`` (or ``"auto"``) chooses it per plane: the smallest
+            probe of a 0.30-3.00 Å ladder at which the plane's lumen is
+            enclosed; each sample's probe is in
+            ``metadata["enclosure_probes_A"]`` and the rule in
+            ``metadata["enclosure_probe_selection"]`` (``mode="adaptive"``).
+            A number runs exactly that probe in every plane.
         lateral_exits : bool, default False
             Accept a capped end whose straight axial exit is blocked if a
             lateral exit to bulk exists; every distinct exit leg is reported
@@ -154,12 +140,11 @@ def pore_profile(frame: StructureFrame, *, radii: RadiusSet | str | None = None,
     ------
     crevice.sections.ChannelResolutionError
         If no laterally enclosed channel with two open ends is found, or the
-        axis or region is ambiguous (connected mode only). With the automatic
-        probe the error lists every probe tried and carries the selection
-        record as ``probe_selection``.
+        axis or region is ambiguous. With the automatic probe the error
+        carries the probe record as ``probe_selection``.
     ValueError
         For invalid parameter values (for example ``samples < 2``, negative
-        radii, non-finite origin, or ``padding`` with connected mode).
+        radii, non-finite origin, or ``search_radius=0``).
 
     See Also
     --------

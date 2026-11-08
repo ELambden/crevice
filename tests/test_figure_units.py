@@ -47,6 +47,10 @@ def test_publication_figures_use_the_angstrom_sign(tmp_path, labels):
     figures.write_static_publication_bundle(frame, enclosure_radius=0.8, structure_path=source, output_dir=root, prefix="c",
                                             samples=41, search_radius=8, cast_spacing=.5, dpi=60,
                                             annotate=True)
+    # The cavity summary is no longer part of the bundle (crevice cavities draws it).
+    from crevice.models import Cavity
+    figures.plot_cavity_summary((Cavity(1, (0.0, 0.0, 0.0), 2.1, 64.0, 8, (), 64.0),), root / "c_cavity_summary.png",
+                                dpi=60, annotate=True)
     assert len(labels) >= 6
     offending = {name: [t for t in texts if ASCII_UNIT.search(t)] for name, texts in labels.items()}
     assert not any(offending.values()), offending

@@ -202,7 +202,7 @@ def test_publication_measurements_identical_with_and_without_smoothing(tmp_path)
                           'legacy': {'surface_smoothing': .6}}.items():
         files = write_static_publication_bundle(frame, structure_path=source, output_dir=tmp_path/name, prefix='c',
                                                 samples=41, search_radius=8, cast_spacing=.5, dpi=60,
-                                                include_cavities=False, include_tunnels=False, **options)
+                                                **options)
         outputs[name] = files
     for suffix in MEASUREMENT_FILES:
         blobs = {(tmp_path/name/('c'+suffix)).read_bytes() for name in outputs}

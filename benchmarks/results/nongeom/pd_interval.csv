@@ -1,0 +1,6 @@
+# Coverage of the Garwood interval used for q0/pd; truth = pooled mean count. Synthetic.
+model,molecules,frames,replicates,mean_events_per_replicate,variance_of_events,index_of_dispersion_across_replicates,mean_block_dispersion_index,garwood_95_coverage_before,dispersion_95_coverage_after,mean_width_after_over_before,note
+independent,20,4000,300,91.1267,71.3217,0.7827,0.9795,0.9733,0.9767,1.0745,q0 and pd intervals are this count interval scaled; truth = pooled mean; interval from crevice.permeation.dispersion_count_interval (10 blocks)
+single_file,16,20000,300,40.5000,81.4013,2.0099,1.9277,0.8567,0.9533,1.3988,q0 and pd intervals are this count interval scaled; truth = pooled mean; interval from crevice.permeation.dispersion_count_interval (10 blocks)
+gated_fast_dwell_T/100,20,20000,300,231.1567,710.4670,3.0735,3.2106,0.7433,0.9400,1.7753,q0 and pd intervals are this count interval scaled; truth = pooled mean; interval from crevice.permeation.dispersion_count_interval (10 blocks)
+gated_slow_dwell_T/20,20,20000,300,229.9833,2776.1770,12.0712,10.2254,0.3900,0.9133,3.2873,q0 and pd intervals are this count interval scaled; truth = pooled mean; interval from crevice.permeation.dispersion_count_interval (10 blocks)

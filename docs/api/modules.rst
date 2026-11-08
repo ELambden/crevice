@@ -12,8 +12,10 @@ CLI on import) is deliberately excluded.
 .. autosummary::
    :toctree: generated
 
+   crevice._kernels
    crevice._portable_paths
    crevice._script_paths
+   crevice.adaptive_channel
    crevice.analysis
    crevice.analysis_report
    crevice.analysis_scene_templates
@@ -77,7 +79,6 @@ CLI on import) is deliberately excluded.
    crevice.static_workflow
    crevice.tracking
    crevice.trajectory
-   crevice.tunnels
    crevice.uncertainty
    crevice.viewer
    crevice.voids

@@ -15,9 +15,7 @@ from crevice.presentation import write_viewer_structure
 from test_channel_coordinate import rectangular_channel
 
 
-EXTRA_FILES = ("cavities_json", "cavities_csv", "cavities_pdb", "cavity_summary_png", "tunnels_json", "tunnels_csv",
-               "tunnel_points_csv", "tunnels_pdb", "network_json", "network_nodes_csv", "network_edges_csv",
-               "network_summary_png", "network_chord_png")
+EXTRA_FILES = ("network_json", "network_nodes_csv", "network_edges_csv", "network_summary_png", "network_chord_png")
 
 
 @pytest.fixture(scope="module")
@@ -35,8 +33,6 @@ def unresolved_bundle(tmp_path_factory):
 
 def test_unresolved_profile_completes_requested_extras_without_a_profile(unresolved_bundle):
     from crevice.residue_evidence import read_binary_dx
-    from crevice.rolling import _SphereQueries
-    from crevice.radii import atom_vdw_radius
     frame, files = unresolved_bundle
     manifest = json.loads(Path(files["manifest_json"]).read_text(encoding="utf-8"))
     for key in EXTRA_FILES:
@@ -51,18 +47,10 @@ def test_unresolved_profile_completes_requested_extras_without_a_profile(unresol
     fallback = manifest["fallback_analyses"]
     assert status["fallback_analyses"] == fallback
     assert {name: row["status"] for name, row in fallback.items()} == {
-        "cavities": "completed", "tunnels": "completed", "network": "completed"}
-    # Tunnel seed is the maximum-clearance sample of the complete measured map.
+        "network": "completed"}
+    # The network region is every sample of the complete measured map.
     grid, origin, deltas = read_binary_dx(files["volume_dx"])
     samples = np.argwhere(grid) @ deltas + origin
-    query = _SphereQueries(np.asarray([a.coord for a in frame.atoms]),
-                           np.asarray([atom_vdw_radius(a) for a in frame.atoms]))
-    clearance, _ = query.points(samples)
-    assert fallback["tunnels"]["start"] == pytest.approx(samples[int(np.argmax(clearance))].tolist(), abs=0)
-    tunnels = json.loads(Path(files["tunnels_json"]).read_text(encoding="utf-8"))["tunnels"]
-    assert tunnels and len(tunnels) == fallback["tunnels"]["tunnel_count"]
-    assert all(t["start"] == pytest.approx(fallback["tunnels"]["start"]) for t in tunnels)
-    assert json.loads(Path(files["cavities_json"]).read_text(encoding="utf-8"))["cavities"] == []
     network = json.loads(Path(files["network_json"]).read_text(encoding="utf-8"))["network"]
     region = [n for n in network["nodes"] if n["kind"] == "region"]
     assert len(region) == 1 and region[0]["id"] == "region:void:1"
@@ -77,15 +65,15 @@ def test_unresolved_profile_records_skipped_requests(tmp_path):
     with pytest.warns(RuntimeWarning):
         files = write_static_publication_bundle(frame, enclosure_radius=0.8, structure_path=source, output_dir=tmp_path / "out",
             cast_spacing=.5, cast_max_grid_points=500000, cast_min_component_volume=30, include_hetero=False,
-            include_cavities=False, include_tunnels=False, include_network=False, dpi=60)
+            include_network=False, dpi=60)
     manifest = json.loads(Path(files["manifest_json"]).read_text(encoding="utf-8"))
     assert not any(key in files for key in EXTRA_FILES)
     assert {k: v["status"] for k, v in manifest["fallback_analyses"].items()} == {
-        "cavities": "skipped_by_request", "tunnels": "skipped_by_request", "network": "skipped_by_request"}
+        "network": "skipped_by_request"}
 
 
 def test_resolved_profile_keeps_extras_and_reports_resolved(tmp_path):
-    from crevice import find_tunnels, pore_profile
+    from crevice import pore_profile
     from crevice.figures import write_static_publication_bundle
     frame = rectangular_channel()
     source = write_viewer_structure(frame, tmp_path / "channel.pdb")
@@ -99,9 +87,6 @@ def test_resolved_profile_keeps_extras_and_reports_resolved(tmp_path):
     profile = json.loads(Path(files["profile_json"]).read_text(encoding="utf-8"))
     assert profile["points"] and profile["min_radius"] == pytest.approx(
         pore_profile(frame, enclosure_radius=0.8, samples=41, search_radius=8).min_radius)
-    # The resolved path's tunnel call is unchanged: default start and obstacles.
-    expected = find_tunnels(frame)
-    assert len(json.loads(Path(files["tunnels_json"]).read_text(encoding="utf-8"))["tunnels"]) == len(expected)
 
 
 def test_publish_cli_prints_unresolved_profile(tmp_path, capsys):
@@ -111,11 +96,10 @@ def test_publish_cli_prints_unresolved_profile(tmp_path, capsys):
     with pytest.warns(RuntimeWarning):
         assert main(["report", str(source), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--exclude-hetero",
                      "--cast-spacing", "0.5", "--min-component-volume", "30", "--skip-hydration",
-                     "--skip-network", "--dpi", "60", "--outputs", "default,cavities,tunnels"]) == 0
+                     "--dpi", "60", "--outputs", "default,network"]) == 0
     assert "profile=unresolved" in capsys.readouterr().out
     manifest = json.loads((tmp_path / "out/pocket_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["fallback_analyses"]["network"]["status"] == "skipped_by_request"
-    assert manifest["fallback_analyses"]["tunnels"]["status"] == "completed"
+    assert manifest["fallback_analyses"]["network"]["status"] == "completed"
     assert (tmp_path / "out" / manifest["files"]["input_report_json"]).is_file()
 
 

@@ -4,7 +4,7 @@
 structure. By default it runs the profile, cast, lining residues and the typed
 residue interactions, and writes the tables, the key figures and PyMOL, VMD and
 ChimeraX scenes into one directory, with a manifest listing every file and
-setting. Cavities, tunnels, the residue network, hydration, the fingerprint
+setting. The residue network, hydration, the fingerprint
 and more figures are one option away (`--outputs`, `--all`; see
 {ref}`output-policy`). It
 doesn't measure anything new; it runs the other tools for you, consistently.
@@ -50,10 +50,9 @@ exits in rust.
 3. [Lining residues](residues.md) and the typed residue–residue interactions
    of the lining residues (hydrogen bonds, salt-bridge and aromatic
    candidates; `--skip-interactions` leaves them out).
-4. On request: [cavities](cavities.md), [tunnels](tunnels.md) and a
-   [network](network.md) (`--outputs default,cavities,tunnels,network` or
-   `--all`; `--skip-cavities`, `--skip-tunnels`, `--skip-network` remove them
-   from `--all`).
+4. On request: a [network](network.md) (`--outputs default,network` or
+   `--all`; `--skip-network` removes it from `--all`). The grid search for
+   buried cavities is a separate command, [`crevice cavities`](cavities.md).
 5. On request: [hydration](hydration.md) (`--outputs default,hydration` or
    `--all`).
 6. A [pore fingerprint](fingerprint.md), with `--fingerprint`,
@@ -126,8 +125,7 @@ portal. `--exit-centre-lines` adds a thin blue tube along each leg.
 If the profile doesn't resolve, `report` still runs everything else on the
 fallback cast: the typed residue interactions by default, and the extras you
 asked for. No profile is invented: there is no profile JSON, CSV or radius
-plot (or fingerprint, even with `--all`). A requested tunnel search starts
-from the widest point of the cast, a requested network treats the whole cast
+plot (or fingerprint, even with `--all`). A requested network treats the whole cast
 as its region node, and
 `<prefix>_profile_status.json` records `status: "unresolved"` with the reason.
 The manifest marks each extra as `completed`, `skipped_by_request` or
@@ -146,7 +144,7 @@ hydrogens) fail instead of switching silently.
 | `--entry-end` | `auto` | which end is the entry |
 | `--lining-cutoff` | 3.3 Å | distance for lining residues |
 | `--outputs`, `--all`, `--dry-run` | compact default | choose files and optional analyses ({ref}`output-policy`) |
-| `--skip-cavities`, `--skip-tunnels`, `--skip-network`, `--skip-hydration` | off | leave parts out (also from `--all`) |
+| `--skip-network`, `--skip-hydration` | off | leave parts out (also from `--all`) |
 | `--fingerprint` | off | add a [pore fingerprint](fingerprint.md) of the resolved channel |
 
 Profile settings, atomic radii, figure text, mouth guides and smoothing are
@@ -176,13 +174,12 @@ To get more, name what you want or take everything:
 
 ```bash
 crevice report 1GRM --out-dir r --outputs default,hydration     # add water
-crevice report 1GRM --out-dir r --outputs default,cavities,tunnels,network
+crevice report 1GRM --out-dir r --outputs default,network
 crevice report 1GRM --out-dir r --all                           # everything
 ```
 
-With `--outputs`/`--all` come `*_cavities.csv`, `*_tunnels.csv`,
-`*_tunnel_points.csv`, `*_network_nodes.csv`, `*_network_edges.csv`, the
-annotated radius, cavity and network figures, the hydration tables (see
+With `--outputs`/`--all` come `*_network_nodes.csv`, `*_network_edges.csv`, the
+annotated radius and network figures, the hydration tables (see
 [Hydration](hydration.md#what-you-get)), dummy-atom PDB files and the
 `*_pore_cast.*` alias scenes (`*_pore_cast.*` is the same scene as
 `*_volume.*`). (`--legacy-outputs`, which wrote the exact 0.2 file
@@ -195,10 +192,9 @@ scenes are clean unless you add `--annotate`.
 
 A bundle is only as good as the settings behind it, and they're all in the
 manifest; report them. `report` keeps heteroatoms as walls unless you pass
-`--exclude-hetero`, unlike `cavities --cast`, and its network uses the Python defaults
-(surface gap, no heteroatoms) rather than those of `crevice residues --network`. An
-unresolved profile doesn't show the protein is closed: in our runs 4PYP is
-unresolved at every probe, and its fallback cast still measures a large
+`--exclude-hetero`, unlike `cavities --cast`, and its network leaves heteroatoms out, unlike `crevice residues --network`. An
+unresolved profile doesn't show the protein is closed: in our runs 4PYP has
+no through-channel profile, and its fallback cast still measures a large
 cavity. Segment labels are geometry, not transport direction. Open the scenes
 and check them before using them in a figure.
 

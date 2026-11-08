@@ -94,6 +94,17 @@ meant only to make CREVICE faster should leave every output file byte for byte
 the same; `--keep-outputs DIR` keeps the outputs of each run for that
 comparison.
 
+## Code style
+
+The package is formatted with ruff and kept free of pyflakes warnings
+(settings under `[tool.ruff]` in `pyproject.toml`; CI runs both):
+
+```bash
+python -m pip install "ruff==0.17.3"
+ruff format src/crevice
+ruff check src/crevice
+```
+
 ## Building the documentation
 
 The Read the Docs site is built with Sphinx from `docs/` (MyST Markdown). Use a

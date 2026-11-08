@@ -6,7 +6,14 @@ CREVICE runs on Python 3.10 or newer and installs with pip:
 python -m pip install crevice
 ```
 
-That's all you need for every analysis. Check that it worked:
+That's all you need for every analysis. For channel profiles several times
+faster, add the compiled kernels (`numba`):
+
+```bash
+python -m pip install "crevice[fast]"
+```
+
+The results are identical either way. Check that it worked:
 
 ```bash
 crevice --help
@@ -20,13 +27,15 @@ library versions.
 
 ## Supported platforms
 
-CREVICE is pure Python and runs wherever its libraries install:
+CREVICE is pure Python and runs wherever its libraries install; the optional
+`fast` extra adds compiled kernels through numba, which has wheels for these
+platforms:
 
 | Platform | Tested automatically |
 |---|---|
-| Linux | the full test suite on Python 3.10 to 3.13, plus the oldest supported library versions |
-| macOS | the fast test suite (without the slow tests) on Python 3.10 and 3.13 |
-| Windows | the fast test suite (without the slow tests) on Python 3.10 and 3.13 |
+| Linux | the full test suite on Python 3.10 to 3.13 with numba, and without it with the oldest supported library versions |
+| macOS | the fast test suite (without the slow tests) on Python 3.10 and 3.13, with numba |
+| Windows | the fast test suite (without the slow tests) on Python 3.10 and 3.13, with numba |
 
 macOS and Windows support is new in version 0.3.2, so please
 [report](https://github.com/ELambden/crevice/issues) anything that behaves
@@ -58,12 +67,13 @@ installed:
 
 | Extra | Adds | Used for | Without it |
 |---|---|---|---|
+| `fast` | numba | compiled kernels for channel profiles (several times faster; identical results) | the same results from NumPy code; set `CREVICE_DISABLE_NUMBA=1` to force that path |
 | `structures` | Gemmi | validated, entity-aware mmCIF reading | built-in mmCIF parser; `--parser gemmi` fails and names the extra |
 | `hydration` | MDTraj | DSSP secondary structure in hydration reports | DSSP reported as explicitly unavailable |
 | `networks` | NetworkX | weighted residue paths (`residues --network --connectivity-json`, {mod}`crevice.connectivity`) | those functions raise an error naming the extra |
 | `ml` | scikit-learn | PCA in {func}`crevice.ml.reduce_dimensions` | column truncation, which is not PCA |
 | `view` | py3Dmol | interactive 3D views in Jupyter ({func}`crevice.view`, `.show()`) | `.show()` raises an error naming the extra; `crevice view` and `.save_html()` still work |
-| `science` | Gemmi, MDTraj, NetworkX and scikit-learn | every optional scientific library (not `view`) | — |
+| `science` | numba, Gemmi, MDTraj, NetworkX and scikit-learn | every optional scientific library (not `view`) | — |
 | `test` | pytest, pytest-xdist, Gemmi, NetworkX, MDTraj (and `tomli` on Python 3.10) | running the regression suite, in parallel with `-n auto` | — |
 
 To get everything at once:

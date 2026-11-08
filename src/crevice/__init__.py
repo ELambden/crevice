@@ -4,7 +4,7 @@ CREVICE stands for Cavity and Residue Environment Visualisation, Interaction and
 Connectivity Evaluation.
 
 CREVICE measures empty space in protein structures and MD trajectories
-(channel radius profiles, cavities, pockets, tunnels and cast volumes) and
+(channel radius profiles, cavities, pockets, routes to bulk solvent and cast volumes) and
 relates it to the residues and waters around it (lining residues, contact
 networks, hydration and typed interactions). All lengths are in ångström,
 areas in Å², volumes in Å³ and MD times in ps.
@@ -15,7 +15,8 @@ in its defining module. The main groups are:
 * loading: :func:`~crevice.parser.load_structure`, :func:`~crevice.pdb.resolve_structure`,
   :func:`~crevice.trajectory.load_trajectory`;
 * geometry: :func:`~crevice.channels.pore_profile`, :func:`~crevice.rolling.rolling_probe_cast`,
-  :func:`~crevice.voids.void_cast`, :func:`~crevice.cavities.detect_cavities`, :func:`~crevice.tunnels.find_tunnels`;
+  :func:`~crevice.voids.void_cast`, :func:`~crevice.cavities.detect_cavities`,
+  :func:`~crevice.paths.find_paths`;
 * residues and networks: :func:`~crevice.analysis.annotate_residues`,
   :func:`~crevice.networks.build_residue_network`, :func:`~crevice.networks.build_cavity_network`;
 * trajectories and statistics: :func:`~crevice.trajectory.analyze_trajectory`,
@@ -41,7 +42,6 @@ from .benchmarks import (
     BENCHMARK_SYSTEMS,
     DEFAULT_BENCHMARK_IDS,
     BenchmarkSystem,
-    DownloadRecord,
     benchmark_path,
     benchmark_systems,
     fetch_all_benchmark_structures,
@@ -82,8 +82,6 @@ from .io import (
     write_features_csv,
     write_network_csv,
     write_trajectory_csv,
-    write_tunnel_points_csv,
-    write_tunnels_csv,
     write_void_cast_csv,
     write_cavities_json,
     write_cavities_pdb,
@@ -93,9 +91,7 @@ from .io import (
     write_profile_pdb,
     write_residue_contacts_csv,
     write_residue_contacts_json,
-    write_tunnels_json,
     write_trajectory_json,
-    write_tunnels_pdb,
     write_void_cast_json,
     write_void_cast_pdb,
 )
@@ -122,7 +118,6 @@ from .models import (
     ResidueInteractionNetwork,
     StructureFrame,
     TrajectoryAnalysis,
-    Tunnel,
     VoidCast,
     VoidComponent,
 )
@@ -147,13 +142,30 @@ from .trajectory import (
     profile_timeseries,
     trajectory_from_frames,
 )
-from .tunnels import cluster_tunnels, find_tunnels, rank_tunnels, tunnel_profile
 from .voids import component_profile, validate_void_cast, void_cast
 
+from .residue_dynamics import ResidueDynamics, write_dynamics_summary
+from .residue_evidence import (
+    boundary_residue_evidence,
+    profile_constriction_evidence,
+    read_binary_dx,
+    restore_viewer_identities,
+    select_stick_residues,
+    write_residue_evidence_bundle,
+)
+from .rolling import rolling_probe_cast
+from .trajectory import align_frame_report
+from .uncertainty import block_mean_confidence
+from .viewer import CreviceView, view
+
 __all__ = [
-    "write_void_cast_dx", "write_volume_viewer_bundle",
-    "profile_distribution", "write_profile_distribution_csv", "persistent_network",
-    "lining_connectivity", "plot_lining_connectivity",
+    "write_void_cast_dx",
+    "write_volume_viewer_bundle",
+    "profile_distribution",
+    "write_profile_distribution_csv",
+    "persistent_network",
+    "lining_connectivity",
+    "plot_lining_connectivity",
     "Atom",
     "BENCHMARK_SYSTEMS",
     "BenchmarkSystem",
@@ -171,7 +183,6 @@ __all__ = [
     "StructureFrame",
     "Trajectory",
     "TrajectoryAnalysis",
-    "Tunnel",
     "VoidComponent",
     "VoidCast",
     "analyze_trajectory",
@@ -188,7 +199,6 @@ __all__ = [
     "classify_voids",
     "cluster_conformations",
     "cluster_profiles",
-    "cluster_tunnels",
     "void_cast",
     "validate_void_cast",
     "component_profile",
@@ -212,7 +222,6 @@ __all__ = [
     "resolve_structure",
     "structure_url",
     "DownloadRecord",
-    "find_tunnels",
     "get_benchmark_system",
     "lining_residues",
     "load_static_frames",
@@ -240,7 +249,6 @@ __all__ = [
     "radii_preset",
     "load_radius_file",
     "use_radii",
-    "rank_tunnels",
     "reduce_dimensions",
     "representative_frames",
     "representative_profile",
@@ -251,7 +259,6 @@ __all__ = [
     "trace_centerline",
     "trajectory_from_frames",
     "transition_summary",
-    "tunnel_profile",
     "write_cavities_json",
     "write_cavities_pdb",
     "write_network_json",
@@ -261,8 +268,6 @@ __all__ = [
     "write_profile_pdb",
     "write_residue_contacts_csv",
     "write_residue_contacts_json",
-    "write_tunnels_json",
-    "write_tunnels_pdb",
     "write_void_cast_pdb",
     "write_void_cast_json",
     "write_cavities_csv",
@@ -270,31 +275,20 @@ __all__ = [
     "write_features_csv",
     "write_network_csv",
     "write_trajectory_csv",
-    "write_tunnel_points_csv",
-    "write_tunnels_csv",
     "write_void_cast_csv",
+    "rolling_probe_cast",
+    "boundary_residue_evidence",
+    "read_binary_dx",
+    "write_residue_evidence_bundle",
+    "ResidueDynamics",
+    "write_dynamics_summary",
+    "block_mean_confidence",
+    "align_frame_report",
+    "profile_constriction_evidence",
+    "restore_viewer_identities",
+    "select_stick_residues",
+    "CreviceView",
+    "view",
 ]
 
-from .rolling import rolling_probe_cast
-__all__.append("rolling_probe_cast")
-
-__version__ = "0.4.1"
-
-from .residue_evidence import boundary_residue_evidence,read_binary_dx,write_residue_evidence_bundle
-from .residue_dynamics import ResidueDynamics,write_dynamics_summary
-from .uncertainty import block_mean_confidence
-from .trajectory import align_frame_report
-__all__.extend(["boundary_residue_evidence","read_binary_dx","write_residue_evidence_bundle",
-                "ResidueDynamics","write_dynamics_summary","block_mean_confidence","align_frame_report"])
-
-from .residue_evidence import profile_constriction_evidence
-__all__.append("profile_constriction_evidence")
-
-from .residue_evidence import restore_viewer_identities
-__all__.append("restore_viewer_identities")
-
-from .residue_evidence import select_stick_residues
-__all__.append("select_stick_residues")
-
-from .viewer import CreviceView, view
-__all__.extend(["CreviceView", "view"])
+__version__ = "0.5.0"

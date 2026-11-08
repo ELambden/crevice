@@ -72,20 +72,26 @@ bluish-green (``#009e73``) dash-dot continuation beyond the mouth against path
 length along the leg. No text or labels are drawn. None of this is written
 unless a lateral exit exists.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import heapq
 import math
 
+from . import _kernels
 from .geometry import add, scale, sub, dot, distance
 from .radii import atom_vdw_radius
 
-EXIT_DEFINITION = ("widest free path (maximin segment clearance > enclosure probe) from the capped "
-                   "end of the axial profile into bulk, restricted to the half-space beyond that end; "
-                   "bulk = space swept by a rolling probe of bulk_radius connected to the outside")
-LEG_RADIUS_DEFINITION = ("distance from each leg sample to the nearest atom van der Waals surface, "
-                         "minus probe_radius; a free-sphere (tunnel-like) radius, not a planar section radius")
+EXIT_DEFINITION = (
+    "widest free path (maximin segment clearance > enclosure probe) from the capped "
+    "end of the axial profile into bulk, restricted to the half-space beyond that end; "
+    "bulk = space swept by a rolling probe of bulk_radius connected to the outside"
+)
+LEG_RADIUS_DEFINITION = (
+    "distance from each leg sample to the nearest atom van der Waals surface, "
+    "minus probe_radius; a free-sphere (tunnel-like) radius, not a planar section radius"
+)
 
 
 @dataclass
@@ -124,6 +130,7 @@ class ExitLeg:
     ``metadata["exits"][end]["legs"]`` of the profile, with radii reduced by
     ``probe_radius``.
     """
+
     end: str
     points: tuple
     clearances: tuple
@@ -151,19 +158,22 @@ class ExitLeg:
             ``length_A``, ``lattice_nodes_explored``, ``definition``,
             ``radius_definition`` and every ``metadata`` entry.
         """
-        return {"type": "lateral", "end": self.end,
-                "points": [list(p) for p in self.points],
-                "radii_A": [max(0.0, c-probe_radius) for c in self.clearances],
-                "raw_clearances_A": list(self.clearances),
-                "bottleneck_radius_A": max(0.0, self.bottleneck_clearance-probe_radius),
-                "bottleneck_raw_clearance_A": self.bottleneck_clearance,
-                "bottleneck_position": list(self.bottleneck_position),
-                "exit_point": list(self.points[-1]),
-                "length_A": self.length,
-                "lattice_nodes_explored": self.lattice_nodes_explored,
-                "definition": EXIT_DEFINITION,
-                "radius_definition": LEG_RADIUS_DEFINITION,
-                **self.metadata}
+        return {
+            "type": "lateral",
+            "end": self.end,
+            "points": [list(p) for p in self.points],
+            "radii_A": [max(0.0, c - probe_radius) for c in self.clearances],
+            "raw_clearances_A": list(self.clearances),
+            "bottleneck_radius_A": max(0.0, self.bottleneck_clearance - probe_radius),
+            "bottleneck_raw_clearance_A": self.bottleneck_clearance,
+            "bottleneck_position": list(self.bottleneck_position),
+            "exit_point": list(self.points[-1]),
+            "length_A": self.length,
+            "lattice_nodes_explored": self.lattice_nodes_explored,
+            "definition": EXIT_DEFINITION,
+            "radius_definition": LEG_RADIUS_DEFINITION,
+            **self.metadata,
+        }
 
 
 class BulkEnvelope:
@@ -210,29 +220,47 @@ class BulkEnvelope:
         import numpy as np
         from scipy import ndimage
         from .rolling import _SphereQueries, _connected
+
         self.origin_world = np.asarray(origin, dtype=float)
         self.basis = np.asarray(basis, dtype=float)  # rows: u, v, axis
         xyz = np.asarray([a.coord for a in atoms], dtype=float)
-        local = (xyz-self.origin_world) @ self.basis.T
+        local = (xyz - self.origin_world) @ self.basis.T
         radii = np.asarray([atom_vdw_radius(a) for a in atoms], dtype=float)
-        pad = float(radii.max())+bulk_radius+2*spacing
-        low = local.min(axis=0)-pad
-        high = local.max(axis=0)+pad
+        pad = float(radii.max()) + bulk_radius + 2 * spacing
+        low = local.min(axis=0) - pad
+        high = local.max(axis=0) + pad
         if sign > 0:
             low[2] = t_limit
         else:
             high[2] = t_limit
-        dims = tuple(int(v) for v in np.ceil((high-low)/spacing).astype(int)+1)
+        dims = tuple(int(v) for v in np.ceil((high - low) / spacing).astype(int) + 1)
         if math.prod(dims) > 20_000_000:
-            raise ValueError("Bulk-envelope grid for the lateral exit exceeds 20 million points; increase exit bulk spacing")
+            raise ValueError(
+                "Bulk-envelope grid for the lateral exit exceeds 20 million points; increase exit bulk spacing"
+            )
         self.low, self.spacing, self.dims, self.sign = low, spacing, dims, sign
         self.bulk_radius = bulk_radius
         queries = _SphereQueries(local, radii)
-        ijk = np.indices(dims).reshape(3, -1).T
-        clearance = np.empty(len(ijk))
-        for start in range(0, len(ijk), 262144):
-            clearance[start:start+262144] = queries.points(low+ijk[start:start+262144]*spacing)[0]
-        clearance = clearance.reshape(dims)
+        if _kernels.HAVE_NUMBA:
+            # The clearances below are only compared with bulk_radius and with the safe-edge threshold of
+            # rolling._connected; the compiled kernel gives each point's side of both, and a stand-in array with
+            # the same comparisons replaces the clearances (same mask, same labels).
+            safe = bulk_radius + spacing / 2 + 1e-10
+            classes = _kernels.envelope_classes(
+                np.ascontiguousarray(low, dtype=float),
+                float(spacing),
+                np.asarray(dims, dtype=np.int64),
+                float(bulk_radius),
+                float(safe),
+                *_kernels.atom_cells(local, radii),
+            )
+            clearance = np.array([-math.inf, bulk_radius, safe])[classes]
+        else:
+            ijk = np.indices(dims).reshape(3, -1).T
+            clearance = np.empty(len(ijk))
+            for start in range(0, len(ijk), 262144):
+                clearance[start : start + 262144] = queries.points(low + ijk[start : start + 262144] * spacing)[0]
+            clearance = clearance.reshape(dims)
         labels = _connected(clearance >= bulk_radius, clearance, low, spacing, bulk_radius, queries)
         faces = [labels[0], labels[-1], labels[:, 0], labels[:, -1], labels[:, :, -1 if sign > 0 else 0]]
         outside = np.unique(np.concatenate([f.ravel() for f in faces]))
@@ -255,7 +283,8 @@ class BulkEnvelope:
             ``(u, v, axis)`` components relative to the channel origin, Å.
         """
         import numpy as np
-        return (np.asarray(point, dtype=float)-self.origin_world) @ self.basis.T
+
+        return (np.asarray(point, dtype=float) - self.origin_world) @ self.basis.T
 
     def depth(self, point) -> float:
         """Distance beyond the swept bulk region (0 inside bulk); outside the box counts as bulk.
@@ -271,10 +300,11 @@ class BulkEnvelope:
             ``max(0, distance to the nearest bulk centre - bulk_radius)``, Å.
         """
         import numpy as np
-        index = np.rint((self.local(point)-self.low)/self.spacing).astype(int)
+
+        index = np.rint((self.local(point) - self.low) / self.spacing).astype(int)
         if np.any(index < 0) or np.any(index >= np.asarray(self.dims)):
             return 0.0
-        return max(0.0, float(self.distance[tuple(index)])-self.bulk_radius)
+        return max(0.0, float(self.distance[tuple(index)]) - self.bulk_radius)
 
 
 #: Largest number of distinct lateral exit legs reported per capped end.
@@ -284,7 +314,8 @@ DISTINCT_EXIT_DEFINITION = (
     "a further exit is distinct when its exit point is more than exit_separation_A from every kept exit "
     "point (default twice the bulk probe radius: no single bulk-probe position touches both) and the "
     "parts of the two routes farther than route_separation_A from the start (default the bulk probe "
-    "radius) never come within route_separation_A of each other")
+    "radius) never come within route_separation_A of each other"
+)
 
 #: Edge of the lattice blocks whose clearances the exit search computes together.
 _BLOCK = 4
@@ -292,8 +323,7 @@ _STEPS = tuple((i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0
 _STEP_INDEX = {step: s for s, step in enumerate(_STEPS)}
 
 
-def lateral_exit(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.0, bulk_spacing=1.0,
-                 max_nodes=1_000_000):
+def lateral_exit(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.0, bulk_spacing=1.0, max_nodes=1_000_000):
     """Return the widest free path from ``start`` (a Section) to bulk, or None.
 
     ``geometry`` is the channel's :class:`crevice.sections.SectionGeometry`;
@@ -325,13 +355,35 @@ def lateral_exit(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.0, bu
     ExitLeg or None
         The widest leg, or ``None`` when no free path reaches bulk.
     """
-    legs, _ = lateral_exit_legs(geometry, start, sign, end=end, spacing=spacing, bulk_radius=bulk_radius,
-                                bulk_spacing=bulk_spacing, max_nodes=max_nodes, max_legs=1)
+    legs, _ = lateral_exit_legs(
+        geometry,
+        start,
+        sign,
+        end=end,
+        spacing=spacing,
+        bulk_radius=bulk_radius,
+        bulk_spacing=bulk_spacing,
+        max_nodes=max_nodes,
+        max_legs=1,
+    )
     return legs[0] if legs else None
 
 
-def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.0, bulk_spacing=1.0,
-                      max_nodes=1_000_000, max_legs=MAX_EXIT_LEGS, separation=None, route_separation=None):
+def lateral_exit_legs(
+    geometry,
+    start,
+    sign,
+    *,
+    end,
+    spacing=0.5,
+    bulk_radius=6.0,
+    bulk_spacing=1.0,
+    max_nodes=1_000_000,
+    max_legs=MAX_EXIT_LEGS,
+    separation=None,
+    route_separation=None,
+    envelope=None,
+):
     """All distinct lateral exits from ``start`` to bulk, widest first.
 
     Parameters
@@ -369,6 +421,11 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     route_separation : float, optional
         Minimum distance (Å) between the outer parts (farther than this from
         the start) of the routes of distinct legs; default ``bulk_radius``.
+    envelope : BulkEnvelope, optional
+        The bulk envelope of this end, already built for the same atoms,
+        frame, start plane, ``sign``, ``bulk_spacing`` and ``bulk_radius``
+        (it does not depend on the probe, so a search repeated at a smaller
+        probe can reuse it); built here by default.
 
     Returns
     -------
@@ -396,14 +453,23 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     apart (default ``bulk_radius``: the routes leave through different
     openings). Symmetric portals, such as the two C2-related portals of a K2P
     dimer, therefore give one leg each instead of a tie-break.
+
+    With numba installed the search and the distinct-exit selection run as
+    compiled loops (:func:`crevice._kernels.exit_search`,
+    :func:`crevice._kernels.distinct_exits`) that give the same legs and
+    ``info`` as the NumPy path (``tests/test_kernels.py``); a search the
+    compiled loop cannot settle exactly is rerun on the NumPy path.
     """
     import numpy as np
+
     spatial, probe = geometry.spatial, geometry.probe
     u, v, axis = geometry.u, geometry.v, geometry.direction
-    separation = 2.0*bulk_radius if separation is None else separation
+    separation = 2.0 * bulk_radius if separation is None else separation
     route_separation = bulk_radius if route_separation is None else route_separation
-    envelope = BulkEnvelope(geometry.atoms, geometry.origin, (u, v, axis), start.t, sign,
-                            spacing=bulk_spacing, bulk_radius=bulk_radius)
+    if envelope is None:
+        envelope = BulkEnvelope(
+            geometry.atoms, geometry.origin, (u, v, axis), start.t, sign, spacing=bulk_spacing, bulk_radius=bulk_radius
+        )
     origin = start.center
     w = scale(axis, sign)
 
@@ -413,7 +479,9 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
         p = positions.get(node)
         if p is None:
             i, j, k = node
-            p = positions[node] = add(origin, add(scale(u, i*spacing), add(scale(v, j*spacing), scale(w, k*spacing))))
+            p = positions[node] = add(
+                origin, add(scale(u, i * spacing), add(scale(v, j * spacing), scale(w, k * spacing)))
+            )
         return p
 
     clear = {}
@@ -430,8 +498,13 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     # every node and segment must still clear the enclosure probe.
     mouth_sphere = clearance(root)
 
+    mouth = {}
+
     def in_mouth(node):
-        return distance(position(node), origin) <= mouth_sphere
+        inside = mouth.get(node)
+        if inside is None:
+            inside = mouth[node] = distance(position(node), origin) <= mouth_sphere
+        return inside
 
     filled = set()
 
@@ -443,13 +516,31 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
             if key in filled:
                 continue
             filled.add(key)
-            block += [q for q in ((key[0]*_BLOCK+a, key[1]*_BLOCK+b, key[2]*_BLOCK+c)
-                                  for a in range(_BLOCK) for b in range(_BLOCK) for c in range(_BLOCK))
-                      if q not in clear]
+            block += [
+                q
+                for q in (
+                    (key[0] * _BLOCK + a, key[1] * _BLOCK + b, key[2] * _BLOCK + c)
+                    for a in range(_BLOCK)
+                    for b in range(_BLOCK)
+                    for c in range(_BLOCK)
+                )
+                if q not in clear
+            ]
         if block:
-            clear.update(zip(block, spatial.nearest_surface_values(
-                [add(origin, add(scale(u, q[0]*spacing), add(scale(v, q[1]*spacing), scale(w, q[2]*spacing))))
-                 for q in block]).tolist()))
+            clear.update(
+                zip(
+                    block,
+                    spatial.nearest_surface_values(
+                        [
+                            add(
+                                origin,
+                                add(scale(u, q[0] * spacing), add(scale(v, q[1] * spacing), scale(w, q[2] * spacing))),
+                            )
+                            for q in block
+                        ]
+                    ).tolist(),
+                )
+            )
 
     # Segment clearances computed ahead, per lattice block: when a node of a
     # block first needs segment tests, every segment the search could test
@@ -461,21 +552,37 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
     prefetched = set()
 
     def prefetch(node):
-        key = (node[0]//_BLOCK, node[1]//_BLOCK, node[2]//_BLOCK)
+        key = (node[0] // _BLOCK, node[1] // _BLOCK, node[2] // _BLOCK)
         if key in prefetched:
             return
         prefetched.add(key)
-        fill({(key[0]+a, key[1]+b, key[2]+c) for a in (-1, 0, 1) for b in (-1, 0, 1) for c in (-1, 0, 1)
-              if key[2]+c >= 0})
-        nodes = [q for q in ((key[0]*_BLOCK+a, key[1]*_BLOCK+b, key[2]*_BLOCK+c)
-                             for a in range(_BLOCK) for b in range(_BLOCK) for c in range(_BLOCK))
-                 if q[2] >= 0 and clear.get(q, -math.inf) > probe]
+        fill(
+            {
+                (key[0] + a, key[1] + b, key[2] + c)
+                for a in (-1, 0, 1)
+                for b in (-1, 0, 1)
+                for c in (-1, 0, 1)
+                if key[2] + c >= 0
+            }
+        )
+        nodes = [
+            q
+            for q in (
+                (key[0] * _BLOCK + a, key[1] * _BLOCK + b, key[2] * _BLOCK + c)
+                for a in range(_BLOCK)
+                for b in range(_BLOCK)
+                for c in range(_BLOCK)
+            )
+            if q[2] >= 0 and clear.get(q, -math.inf) > probe
+        ]
         if not nodes:
             return
         # Bulk nodes are terminals and never expanded; skip them (an
         # approximate, batched depth only decides what is prepared).
-        index = np.rint(((np.asarray([position(q) for q in nodes])-envelope.origin_world) @ envelope.basis.T
-                         - envelope.low)/envelope.spacing).astype(int)
+        index = np.rint(
+            ((np.asarray([position(q) for q in nodes]) - envelope.origin_world) @ envelope.basis.T - envelope.low)
+            / envelope.spacing
+        ).astype(int)
         inside = np.all((index >= 0) & (index < np.asarray(envelope.dims)), axis=1)
         deep = np.zeros(len(nodes), bool)
         deep[inside] = envelope.distance[tuple(index[inside].T)] > envelope.bulk_radius
@@ -485,13 +592,13 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
                 continue
             cq = clear[q]
             for s, step in enumerate(_STEPS):
-                other = (q[0]+step[0], q[1]+step[1], q[2]+step[2])
+                other = (q[0] + step[0], q[1] + step[1], q[2] + step[2])
                 if other[2] < 0:
                     continue
                 c = clear[other]
                 if c <= probe:
                     continue
-                bound = (cq+c-spacing*math.sqrt(step[0]**2+step[1]**2+step[2]**2))/2
+                bound = (cq + c - spacing * math.sqrt(step[0] ** 2 + step[1] ** 2 + step[2] ** 2)) / 2
                 if bound <= probe or bound < c:
                     pending.append((q, s))
                     starts.append(position(q))
@@ -500,23 +607,90 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
             for (q, s), value in zip(pending, spatial.segment_clearances(starts, ends).tolist()):
                 row = segment_cache.get(q)
                 if row is None:
-                    row = segment_cache[q] = [None]*len(_STEPS)
+                    row = segment_cache[q] = [None] * len(_STEPS)
                 row[s] = value
 
+    info = {
+        "distinct_exit_definition": DISTINCT_EXIT_DEFINITION,
+        "exit_separation_A": separation,
+        "route_separation_A": route_separation,
+        "max_legs": max_legs,
+        "legs_truncated": False,
+        "search_truncated": False,
+    }
+
+    def make_leg(route, node_width, explored, rank):
+        leg = _leg_from_route(
+            spatial,
+            route,
+            end,
+            mouth_sphere,
+            explored,
+            origin,
+            axis,
+            spacing=spacing,
+            bulk_radius=bulk_radius,
+            bulk_spacing=bulk_spacing,
+            bulk_grid_points=envelope.grid_points,
+            rank=rank,
+        )
+        leg.metadata["ranking_width_raw_clearance_A"] = node_width if math.isfinite(node_width) else None
+        outer_samples = [c for q, c in zip(leg.points, leg.clearances) if distance(q, origin) > mouth_sphere]
+        leg.metadata["beyond_mouth_min_raw_clearance_A"] = min(outer_samples) if outer_samples else None
+        leg.metadata["mouth_sphere_radius_A"] = mouth_sphere
+        return leg
+
+    if _kernels.HAVE_NUMBA:
+        found = _compiled_search(
+            spatial, probe, origin, u, v, w, spacing, mouth_sphere, envelope, max_nodes, max_legs == 1, position
+        )
+        if found is not None:
+            status, explored, terminals, parent, width, block_ijk = found
+            if status == _kernels.EXIT_NO_TERMINAL:
+                raise ValueError(f"Lateral-exit search exceeded {max_nodes} lattice nodes; increase exit_spacing")
+            info["search_truncated"] = status == _kernels.EXIT_TRUNCATED
+            info["lattice_nodes_explored"] = explored
+            info["terminals_examined"] = len(terminals)
+            kept, truncated = _kernels.distinct_exits(
+                terminals,
+                parent,
+                block_ijk,
+                np.asarray(origin, dtype=float),
+                np.asarray(u, dtype=float),
+                np.asarray(v, dtype=float),
+                np.asarray(w, dtype=float),
+                float(spacing),
+                float(separation),
+                float(route_separation),
+                int(max_legs),
+            )
+            info["legs_truncated"] = bool(truncated)
+            legs = []
+            for node in kept.tolist():
+                route = []
+                walk = node
+                while walk >= 0:
+                    route.append(position(tuple(int(x) for x in _kernels._node_ijk(walk, block_ijk))))
+                    walk = int(parent[walk])
+                route.reverse()
+                route[0] = origin
+                legs.append(make_leg(route, float(width[node]), explored, len(legs) + 1))
+            return legs, info
+
     width = {root: math.inf}
+    rounded_width = {root: round(width[root], 10)}
     parent = {root: None}
     counter = 0
     travelled = {root: 0.0}
+    step_length = {step: spacing * math.sqrt(step[0] ** 2 + step[1] ** 2 + step[2] ** 2) for step in _STEPS}
     # Widest first; among equally wide routes the shorter one (lexicographic
     # maximin-then-length Dijkstra, exact on the lattice).
-    heap = [(-round(width[root], 10), 0.0, counter, root)]
+    heap = [(-rounded_width[root], 0.0, counter, root)]
     terminals = []
-    info = {"distinct_exit_definition": DISTINCT_EXIT_DEFINITION, "exit_separation_A": separation,
-            "route_separation_A": route_separation, "max_legs": max_legs, "legs_truncated": False, "search_truncated": False}
     while heap:
         key, walked, _, node = heapq.heappop(heap)
-        current = width[node]
-        if -key < round(current, 10) or (-key == round(current, 10) and walked > travelled[node] + 1e-9):
+        current, current_rounded = width[node], rounded_width[node]
+        if -key < current_rounded or (-key == current_rounded and walked > travelled[node] + 1e-9):
             continue
         p = position(node)
         if envelope.depth(p) == 0.0:
@@ -533,20 +707,20 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
             break
         # Batched, exact: the clearances of all new neighbours, then the
         # segment clearances the bound test asks for, each in one call.
-        neighbours = [(step, (node[0]+step[0], node[1]+step[1], node[2]+step[2])) for step in _STEPS]
+        neighbours = [(step, (node[0] + step[0], node[1] + step[1], node[2] + step[2])) for step in _STEPS]
         neighbours = [(step, other) for step, other in neighbours if other[2] >= 0]
         if any(other not in clear for _, other in neighbours):
-            fill({(o[0]//_BLOCK, o[1]//_BLOCK, o[2]//_BLOCK) for _, o in neighbours if o not in clear})
+            fill({(o[0] // _BLOCK, o[1] // _BLOCK, o[2] // _BLOCK) for _, o in neighbours if o not in clear})
         plan = []
         for step, other in neighbours:
             c = clear[other]
             if c <= probe:
                 continue
-            length = spacing*math.sqrt(step[0]**2+step[1]**2+step[2]**2)
+            length = step_length[step]
             inside = in_mouth(other)
             new = current if inside else min(current, c)
             # (clear[node]+c-length)/2 is a lower bound on the segment clearance.
-            bound = (clear[node]+c-length)/2
+            bound = (clear[node] + c - length) / 2
             plan.append((other, length, inside, new, (bound <= probe) if inside else (bound < new), step))
         if any(row[4] for row in plan):
             prefetch(node)
@@ -561,8 +735,12 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
                 else:
                     values[step] = value
         if missing:
-            values.update(zip((step for _, step in missing), spatial.segment_clearances(
-                [p]*len(missing), [position(other) for other, _ in missing]).tolist()))
+            values.update(
+                zip(
+                    (step for _, step in missing),
+                    spatial.segment_clearances([p] * len(missing), [position(other) for other, _ in missing]).tolist(),
+                )
+            )
         segments = iter([values[row[5]] for row in plan if row[4]])
         plan = [row[:5] for row in plan]
         for other, length, inside, new, test in plan:
@@ -573,9 +751,10 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
                 if not inside:
                     new = min(new, segment)
             rounded, total = round(new, 10), travelled[node] + length
-            known = round(width[other], 10) if other in width else -math.inf
+            known = rounded_width.get(other, -math.inf)
             if rounded > known or (rounded == known and total < travelled[other] - 1e-9):
                 width[other] = new
+                rounded_width[other] = rounded
                 travelled[other] = total
                 parent[other] = node
                 counter += 1
@@ -596,59 +775,137 @@ def lateral_exit_legs(geometry, start, sign, *, end, spacing=0.5, bulk_radius=6.
         route.reverse()
         route[0] = origin
         outer = [q for q in route if distance(q, origin) > route_separation]
-        if not outer or any(_min_pair_distance(outer, other_outer) <= route_separation
-                            for _, other_outer in accepted if other_outer):
+        if not outer or any(
+            _min_pair_distance(outer, other_outer) <= route_separation for _, other_outer in accepted if other_outer
+        ):
             continue
         if len(legs) >= max_legs:
             info["legs_truncated"] = True
             break
-        leg = _leg_from_route(spatial, route, end, clearance(root), len(width), origin, axis,
-                              spacing=spacing, bulk_radius=bulk_radius, bulk_spacing=bulk_spacing,
-                              bulk_grid_points=envelope.grid_points, rank=len(legs)+1)
-        leg.metadata["ranking_width_raw_clearance_A"] = width[node] if math.isfinite(width[node]) else None
-        outer_samples = [c for q, c in zip(leg.points, leg.clearances) if distance(q, origin) > mouth_sphere]
-        leg.metadata["beyond_mouth_min_raw_clearance_A"] = min(outer_samples) if outer_samples else None
-        leg.metadata["mouth_sphere_radius_A"] = mouth_sphere
-        legs.append(leg)
+        legs.append(make_leg(route, width[node], len(width), len(legs) + 1))
         accepted.append((p, outer))
     return legs, info
+
+
+def _compiled_search(
+    spatial, probe, origin, u, v, w, spacing, root_clearance, envelope, max_nodes, first_only, position
+):
+    """Run :func:`crevice._kernels.exit_search`; None when the NumPy path must decide (``EXIT_FALLBACK``).
+
+    The lattice index box holds every node the search can label or test: non-terminal nodes lie on the bulk
+    envelope's grid (a node off it is in bulk), their neighbours one step farther, plus a margin of three nodes.
+    """
+    import numpy as np
+
+    if spatial._xyz is not None:
+        xyz, radii = spatial._xyz, spatial._radius_array
+    else:
+        xyz = np.asarray([a.coord for a in spatial.atoms], dtype=float)
+        radii = np.asarray([spatial._radii[a] for a in spatial.atoms], dtype=float)
+    cells = getattr(spatial, "_exit_cells", None)
+    if cells is None:
+        cells = spatial._exit_cells = _kernels.atom_cells(xyz, radii)
+    xyz, radii, cell_origin, cell, cell_dims, starts, order = cells
+    o = np.asarray(origin, dtype=float)
+    local = (o - envelope.origin_world) @ envelope.basis.T
+    es, dims = envelope.spacing, np.asarray(envelope.dims, dtype=float)
+    lo = (envelope.low - 0.5 * es - local) / spacing
+    hi = (envelope.low + (dims - 0.5) * es - local) / spacing
+    margin = 3
+    i0, j0 = (int(math.floor(x)) - margin for x in lo[:2])
+    i1, j1 = (int(math.ceil(x)) + margin for x in hi[:2])
+    # Axial lattice index k runs along sign * axis from the start plane (k >= 0).
+    sign = 1.0 if float(np.dot(np.asarray(w, dtype=float), envelope.basis[2])) > 0 else -1.0
+    k1 = int(math.ceil(max(sign * lo[2], sign * hi[2], 0.0))) + margin
+    box_low = np.array([i0, j0, 0], dtype=np.int64)
+    box_dims = np.array([i1 - i0 + 1, j1 - j0 + 1, k1 + 1], dtype=np.int64)
+    # Bulk tests the compiled arithmetic cannot settle exactly are made by BulkEnvelope.depth itself.
+    _kernels._DEPTH_NODE[0] = lambda i, j, k: envelope.depth(position((i, j, k))) == 0.0
+    try:
+        found = _kernels.exit_search(
+            xyz,
+            radii,
+            float(radii.max()),
+            cell_origin,
+            cell,
+            cell_dims,
+            starts,
+            order,
+            o,
+            np.asarray(u, dtype=float),
+            np.asarray(v, dtype=float),
+            np.asarray(w, dtype=float),
+            float(spacing),
+            float(probe),
+            float(root_clearance),
+            np.ascontiguousarray(envelope.origin_world, dtype=float),
+            np.ascontiguousarray(envelope.basis, dtype=float),
+            np.ascontiguousarray(envelope.low, dtype=float),
+            float(es),
+            np.asarray(envelope.dims, dtype=np.int64),
+            np.ascontiguousarray(envelope.distance, dtype=float).ravel(),
+            float(envelope.bulk_radius),
+            box_low,
+            box_dims,
+            int(max_nodes),
+            bool(first_only),
+        )
+    finally:
+        _kernels._DEPTH_NODE[0] = None
+    status, explored, terminals, parent, width, block_ijk = found
+    if status == _kernels.EXIT_FALLBACK:
+        return None
+    return status, int(explored), terminals, parent, width, block_ijk
 
 
 def _min_pair_distance(first, second):
     """``min(distance(q, r) for q in first for r in second)``, batched and bit-identical."""
     import numpy as np
+
     a = np.asarray(first, dtype=float).reshape(-1, 3)
     b = np.asarray(second, dtype=float).reshape(-1, 3)
     best = math.inf
     chunk = max(1, 1_000_000 // max(1, len(b)))
     for k in range(0, len(a), chunk):
-        q = a[k:k+chunk, None, :]
+        q = a[k : k + chunk, None, :]
         dx = q[..., 0] - b[None, :, 0]
         dy = q[..., 1] - b[None, :, 1]
         dz = q[..., 2] - b[None, :, 2]
-        best = min(best, float(np.sqrt(dx*dx + dy*dy + dz*dz).min()))
+        best = min(best, float(np.sqrt(dx * dx + dy * dy + dz * dz).min()))
     return best
 
 
-def _leg_from_route(spatial, nodes, end, root_clearance, explored, origin, axis, *, spacing, bulk_radius,
-                    bulk_spacing, bulk_grid_points, rank):
+def _leg_from_route(
+    spatial,
+    nodes,
+    end,
+    root_clearance,
+    explored,
+    origin,
+    axis,
+    *,
+    spacing,
+    bulk_radius,
+    bulk_spacing,
+    bulk_grid_points,
+    rank,
+):
     """Straighten, resample and measure one lattice route (start ... bulk node)."""
     edges = [spatial.segment_clearance(a, b) for a, b in zip(nodes, nodes[1:])]
-    bottleneck = min(edges) if edges else root_clearance
     # Straight cuts, each no narrower than the stretch of route it replaces:
     # fewer lattice kinks, and neither the whole-route bottleneck nor the
     # width beyond the mouth used to rank exits can drop.
     kept, i = [nodes[0]], 0
-    while i < len(nodes)-1:
-        j = len(nodes)-1
-        while j > i+1 and spatial.segment_clearance(nodes[i], nodes[j]) < min(edges[i:j])-1e-9:
+    while i < len(nodes) - 1:
+        j = len(nodes) - 1
+        while j > i + 1 and spatial.segment_clearance(nodes[i], nodes[j]) < min(edges[i:j]) - 1e-9:
             j -= 1
         kept.append(nodes[j])
         i = j
     samples = [kept[0]]
     for a, b in zip(kept, kept[1:]):
-        n = max(1, int(math.ceil(distance(a, b)/0.25)))
-        samples += [add(a, scale(sub(b, a), s/n)) for s in range(1, n+1)]
+        n = max(1, int(math.ceil(distance(a, b) / 0.25)))
+        samples += [add(a, scale(sub(b, a), s / n)) for s in range(1, n + 1)]
     segment_clearances = [spatial.segment_clearance(a, b) for a, b in zip(kept, kept[1:])]
     exact = min(segment_clearances) if segment_clearances else root_clearance
     sample_clearances = tuple(spatial.nearest_surface_values(samples).tolist())
@@ -656,19 +913,31 @@ def _leg_from_route(spatial, nodes, end, root_clearance, explored, origin, axis,
     length = sum(distance(a, b) for a, b in zip(kept, kept[1:]))
     arc = [0.0]
     for a, b in zip(samples, samples[1:]):
-        arc.append(arc[-1]+distance(a, b))
-    return ExitLeg(end, tuple(samples), sample_clearances, exact,
-                   samples[worst], length, explored,
-                   metadata={"leg": rank,
-                             "bottleneck_arc_length_from_start_A": arc[worst],
-                             "arc_lengths_A": arc,
-                             "exit_grid_spacing_A": spacing, "bulk_radius_A": bulk_radius,
-                             "bulk_grid_spacing_A": bulk_spacing, "bulk_grid_points": bulk_grid_points,
-                             "axial_offset_of_exit_point_A": dot(sub(samples[-1], origin), axis),
-                             "lateral_offset_of_exit_point_A": math.dist(
-                                 samples[-1], add(origin, scale(axis, dot(sub(samples[-1], origin), axis)))),
-                             "segment_clearances_A": segment_clearances,
-                             "vertices": [list(p) for p in kept]})
+        arc.append(arc[-1] + distance(a, b))
+    return ExitLeg(
+        end,
+        tuple(samples),
+        sample_clearances,
+        exact,
+        samples[worst],
+        length,
+        explored,
+        metadata={
+            "leg": rank,
+            "bottleneck_arc_length_from_start_A": arc[worst],
+            "arc_lengths_A": arc,
+            "exit_grid_spacing_A": spacing,
+            "bulk_radius_A": bulk_radius,
+            "bulk_grid_spacing_A": bulk_spacing,
+            "bulk_grid_points": bulk_grid_points,
+            "axial_offset_of_exit_point_A": dot(sub(samples[-1], origin), axis),
+            "lateral_offset_of_exit_point_A": math.dist(
+                samples[-1], add(origin, scale(axis, dot(sub(samples[-1], origin), axis)))
+            ),
+            "segment_clearances_A": segment_clearances,
+            "vertices": [list(p) for p in kept],
+        },
+    )
 
 
 EXIT_CAST_DEFINITION = (
@@ -678,7 +947,8 @@ EXIT_CAST_DEFINITION = (
     "enclosure probe, swept by (enclosure probe - min_radius); swept nodes need clearance >= min_radius, "
     "must lie outside bulk, must connect (continuous edge test) to a node on the leg "
     "centre line, and a node shared by several legs belongs to the leg with the nearest centre-line sample. "
-    "Reported separately; never part of the axial channel volume")
+    "Reported separately; never part of the axial channel volume"
+)
 
 
 def lateral_exit_casts(frame, profile, cast):
@@ -743,8 +1013,12 @@ def lateral_exit_casts(frame, profile, cast):
     ()
     """
     exits = profile.metadata.get("exits") or {}
-    legs = [(label, leg) for label in ("lower", "upper") if (exits.get(label) or {}).get("type") == "lateral"
-            for leg in exits[label].get("legs", ())]
+    legs = [
+        (label, leg)
+        for label in ("lower", "upper")
+        if (exits.get(label) or {}).get("type") == "lateral"
+        for leg in exits[label].get("legs", ())
+    ]
     return probe_swept_leg_casts(frame, profile, cast, legs, kind="lateral_exit", definition=EXIT_CAST_DEFINITION)
 
 
@@ -788,19 +1062,27 @@ def probe_swept_leg_casts(frame, profile, cast, legs, *, kind, definition, first
     from .models import ChannelPoint, VoidComponent
     from .spatial import SpatialIndex
     from .voids import _cluster_point_indices
-    if (not legs or cast is None or cast.metadata.get("export_mode") != "connected_section_fill"
-            or cast.metadata.get("focus_points")):
+
+    if (
+        not legs
+        or cast is None
+        or cast.metadata.get("export_mode") != "connected_section_fill"
+        or cast.metadata.get("focus_points")
+    ):
         return ()
     meta = cast.metadata
     spacing, min_radius = cast.spacing, cast.min_radius
     q = meta["enclosure_radius_A"]
-    sweep = max(0.0, q-min_radius)
+    sweep = max(0.0, q - min_radius)
     origin = np.asarray(meta["grid_origin"], dtype=float)
     basis = np.asarray(meta["grid_basis"], dtype=float)
     nz = int(meta["grid_dimensions"][2])
     low = meta["mouth_planes_A"][0]
-    spatial = SpatialIndex(frame.selected_atoms(include_hydrogen=meta.get("include_hydrogen", False),
-                                                include_hetero=meta.get("include_hetero", True)))
+    spatial = SpatialIndex(
+        frame.selected_atoms(
+            include_hydrogen=meta.get("include_hydrogen", False), include_hetero=meta.get("include_hetero", True)
+        )
+    )
     connectivity = GridConnectivity(spatial, tuple(origin), spacing, min_radius, basis=tuple(map(tuple, basis)))
     clear = {}
 
@@ -814,23 +1096,28 @@ def probe_swept_leg_casts(frame, profile, cast, legs, *, kind, definition, first
     def envelope(label, leg):
         if label not in envelopes:
             point = profile.points[0] if label == "lower" else profile.points[-1]
-            envelopes[label] = BulkEnvelope(spatial.atoms, profile.axis_origin, basis, point.t,
-                                            -1 if label == "lower" else 1,
-                                            spacing=leg.get("bulk_grid_spacing_A", 1.0),
-                                            bulk_radius=leg.get("bulk_radius_A", 6.0))
+            envelopes[label] = BulkEnvelope(
+                spatial.atoms,
+                profile.axis_origin,
+                basis,
+                point.t,
+                -1 if label == "lower" else 1,
+                spacing=leg.get("bulk_grid_spacing_A", 1.0),
+                bulk_radius=leg.get("bulk_radius_A", 6.0),
+            )
         return envelopes[label]
 
     def beyond(label, k):
-        return k < 0 if label == "lower" else k > nz-1
+        return k < 0 if label == "lower" else k > nz - 1
 
-    reach = int(math.ceil(sweep/spacing))
-    offsets = np.asarray([d for d in np.ndindex(2*reach+1, 2*reach+1, 2*reach+1)], dtype=int)-reach
-    offsets = offsets[(offsets**2).sum(1)*spacing**2 <= sweep**2+1e-12]
+    reach = int(math.ceil(sweep / spacing))
+    offsets = np.asarray([d for d in np.ndindex(2 * reach + 1, 2 * reach + 1, 2 * reach + 1)], dtype=int) - reach
+    offsets = offsets[(offsets**2).sum(1) * spacing**2 <= sweep**2 + 1e-12]
     per_leg, seeds, lines = [], [], []
     for label, leg in legs:
         samples = np.asarray(leg["points"], dtype=float)
         radii = np.asarray(leg["raw_clearances_A"], dtype=float)
-        local = (samples-origin) @ basis.T/spacing
+        local = (samples - origin) @ basis.T / spacing
         lines.append(samples)
         bulk = envelope(label, leg)
         inside = {}
@@ -839,21 +1126,24 @@ def probe_swept_leg_casts(frame, profile, cast, legs, *, kind, definition, first
             if idx not in inside:
                 inside[idx] = beyond(label, idx[2]) and bulk.depth(connectivity.position(idx)) > 0.0
             return inside[idx]
+
         core = set()
         for centre, r in zip(local, radii):
             if r <= 0:
                 continue
-            n = r/spacing
-            lo, hi = np.floor(centre-n).astype(int), np.ceil(centre+n).astype(int)
-            box = np.stack(np.meshgrid(*[np.arange(a, b+1) for a, b in zip(lo, hi)], indexing="ij"), -1).reshape(-1, 3)
-            box = box[((box-centre)**2).sum(1) <= n*n+1e-9]
+            n = r / spacing
+            lo, hi = np.floor(centre - n).astype(int), np.ceil(centre + n).astype(int)
+            box = np.stack(np.meshgrid(*[np.arange(a, b + 1) for a, b in zip(lo, hi)], indexing="ij"), -1).reshape(
+                -1, 3
+            )
+            box = box[((box - centre) ** 2).sum(1) <= n * n + 1e-9]
             for idx in map(tuple, box.tolist()):
                 if idx not in core and enclosed(idx) and clearance(idx) >= q:
                     core.add(idx)
         swept = set()
         for idx in core:
             for d in offsets.tolist():
-                other = (idx[0]+d[0], idx[1]+d[1], idx[2]+d[2])
+                other = (idx[0] + d[0], idx[1] + d[1], idx[2] + d[2])
                 if enclosed(other) and clearance(other) >= min_radius:
                     swept.add(other)
         nearest = {tuple(np.rint(p).astype(int).tolist()) for p in local}
@@ -865,36 +1155,54 @@ def probe_swept_leg_casts(frame, profile, cast, legs, *, kind, definition, first
         for idx in swept:
             if idx in owner:
                 p = np.asarray(connectivity.position(idx))
-                mine = float(np.min(np.linalg.norm(lines[rank]-p, axis=1)))
-                theirs = float(np.min(np.linalg.norm(lines[owner[idx]]-p, axis=1)))
-                if mine < theirs-1e-9:
+                mine = float(np.min(np.linalg.norm(lines[rank] - p, axis=1)))
+                theirs = float(np.min(np.linalg.norm(lines[owner[idx]] - p, axis=1)))
+                if mine < theirs - 1e-9:
                     owner[idx] = rank
             else:
                 owner[idx] = rank
     components = []
-    next_id = first_id if first_id is not None else max((c.id for c in cast.components), default=0)+1
+    next_id = first_id if first_id is not None else max((c.id for c in cast.components), default=0) + 1
     for rank, ((label, leg), (core, _)) in enumerate(zip(legs, per_leg)):
         nodes = {idx for idx, o in owner.items() if o == rank}
-        clusters = _cluster_point_indices(nodes, edge_allowed=lambda a, b: connectivity.allows(
-            a, b, clearance(a), clearance(b)))
+        clusters = _cluster_point_indices(
+            nodes, edge_allowed=lambda a, b: connectivity.allows(a, b, clearance(a), clearance(b))
+        )
         kept = sorted(idx for cluster in clusters if seeds[rank] & set(cluster) for idx in cluster)
         if not kept:
             continue
         points = []
         for i, idx in enumerate(kept):
             raw, atom = clear[idx]
-            points.append(ChannelPoint(i, connectivity.position(idx), raw, raw, low+idx[2]*spacing,
-                                       atom.serial, atom.residue_key.label))
+            points.append(
+                ChannelPoint(
+                    i, connectivity.position(idx), raw, raw, low + idx[2] * spacing, atom.serial, atom.residue_key.label
+                )
+            )
         centre = tuple(float(v) for v in np.mean([p.position for p in points], axis=0))
-        components.append(VoidComponent(
-            next_id, kind, centre, len(points)*spacing**3, tuple(points),
-            nearest_residues=tuple(sorted({p.nearest_residue for p in points})),
-            metadata={"end": label, "leg": leg.get("leg", rank+1), "definition": definition,
-                      "core_point_count": len(core & set(kept)), "enclosure_radius_A": q,
-                      "probe_sweep_radius_A": sweep, "grid_origin": tuple(origin.tolist()),
-                      "grid_basis": tuple(map(tuple, basis.tolist())), "grid_spacing": spacing,
-                      "leg_bottleneck_radius_A": leg.get("bottleneck_radius_A"),
-                      "leg_length_A": leg.get("length_A")}))
+        components.append(
+            VoidComponent(
+                next_id,
+                kind,
+                centre,
+                len(points) * spacing**3,
+                tuple(points),
+                nearest_residues=tuple(sorted({p.nearest_residue for p in points})),
+                metadata={
+                    "end": label,
+                    "leg": leg.get("leg", rank + 1),
+                    "definition": definition,
+                    "core_point_count": len(core & set(kept)),
+                    "enclosure_radius_A": q,
+                    "probe_sweep_radius_A": sweep,
+                    "grid_origin": tuple(origin.tolist()),
+                    "grid_basis": tuple(map(tuple, basis.tolist())),
+                    "grid_spacing": spacing,
+                    "leg_bottleneck_radius_A": leg.get("bottleneck_radius_A"),
+                    "leg_length_A": leg.get("length_A"),
+                },
+            )
+        )
         next_id += 1
     return tuple(components)
 
@@ -921,9 +1229,20 @@ def exit_cast_summary(components) -> list[dict]:
     >>> exit_cast_summary(())
     []
     """
-    return [{"component_id": c.id, "end": c.metadata["end"], "leg": c.metadata["leg"], "kind": c.kind,
-             "volume_A3": c.volume, "point_count": c.point_count, "center": list(c.center),
-             "min_clearance_A": c.min_radius, "max_clearance_A": c.max_radius,
-             "core_point_count": c.metadata["core_point_count"],
-             "nearest_residues": list(c.nearest_residues), "definition": c.metadata["definition"]}
-            for c in components]
+    return [
+        {
+            "component_id": c.id,
+            "end": c.metadata["end"],
+            "leg": c.metadata["leg"],
+            "kind": c.kind,
+            "volume_A3": c.volume,
+            "point_count": c.point_count,
+            "center": list(c.center),
+            "min_clearance_A": c.min_radius,
+            "max_clearance_A": c.max_radius,
+            "core_point_count": c.metadata["core_point_count"],
+            "nearest_residues": list(c.nearest_residues),
+            "definition": c.metadata["definition"],
+        }
+        for c in components
+    ]

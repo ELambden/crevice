@@ -88,8 +88,8 @@ BENCHMARK_SYSTEMS: dict[str, BenchmarkSystem] = {
         name="gramicidin channel system",
         expected_geometry="channel",
         notes="Small membrane-channel benchmark for fast end-to-end checks. Its "
-              "modified polymer residues are deposited as HETATM and must be "
-              "retained by entity membership, not dropped as ligands.",
+        "modified polymer residues are deposited as HETATM and must be "
+        "retained by entity membership, not dropped as ligands.",
         identity_source=RCSB_ENTRY + "1GRM",
     ),
     "2CHB": BenchmarkSystem(
@@ -97,8 +97,8 @@ BENCHMARK_SYSTEMS: dict[str, BenchmarkSystem] = {
         name="cholera toxin B-pentamer complex",
         expected_geometry="unassigned",
         notes="Set aside pending a scope decision. The earlier 'channel benchmark "
-              "system' label misidentified this entry; no pore geometry is claimed "
-              "for it here and it is not part of any curated benchmark set.",
+        "system' label misidentified this entry; no pore geometry is claimed "
+        "for it here and it is not part of any curated benchmark set.",
         curation_status="set_aside",
         identity_source=RCSB_ENTRY + "2CHB",
     ),
@@ -107,8 +107,8 @@ BENCHMARK_SYSTEMS: dict[str, BenchmarkSystem] = {
         name="Escherichia coli maltoporin–sucrose trimer",
         expected_geometry="channel",
         notes="Identity and deposited trimeric assembly checked against RCSB on "
-              "14 September 2026. Per-protomer channels and the central interfacial "
-              "space still require separate geometric/accessibility validation.",
+        "14 September 2026. Per-protomer channels and the central interfacial "
+        "space still require separate geometric/accessibility validation.",
         identity_source=RCSB_ENTRY + "1AF6",
     ),
     "4PYP": BenchmarkSystem(
@@ -116,9 +116,9 @@ BENCHMARK_SYSTEMS: dict[str, BenchmarkSystem] = {
         name="human glucose transporter GLUT1",
         expected_geometry="unassigned",
         notes="Corrected from an earlier 'photoactive yellow protein' label, which "
-              "was a misidentification. Its inward-open annotation is not "
-              "equivalent to a buried, disconnected cavity, so the previous "
-              "cavity mode is withdrawn rather than reassigned.",
+        "was a misidentification. Its inward-open annotation is not "
+        "equivalent to a buried, disconnected cavity, so the previous "
+        "cavity mode is withdrawn rather than reassigned.",
         identity_source=RCSB_ENTRY + "4PYP",
     ),
     "6MVY": BenchmarkSystem(
@@ -126,8 +126,8 @@ BENCHMARK_SYSTEMS: dict[str, BenchmarkSystem] = {
         name="large membrane-channel benchmark system",
         expected_geometry="channel",
         notes="Large, complex benchmark for scalability and robust exports. The "
-              "deposited two-chain coordinates are not the biological tetramer; an "
-              "assembly must be chosen explicitly before any geometric claim.",
+        "deposited two-chain coordinates are not the biological tetramer; an "
+        "assembly must be chosen explicitly before any geometric claim.",
         identity_source=RCSB_ENTRY + "6MVY",
     ),
 }
@@ -169,10 +169,7 @@ def benchmark_ids_with_status(status: str) -> tuple[str, ...]:
 
     if status not in CURATION_STATUSES:
         raise ValueError(f"status must be one of {', '.join(CURATION_STATUSES)}")
-    return tuple(
-        pdb_id for pdb_id in DEFAULT_BENCHMARK_IDS
-        if BENCHMARK_SYSTEMS[pdb_id].curation_status == status
-    )
+    return tuple(pdb_id for pdb_id in DEFAULT_BENCHMARK_IDS if BENCHMARK_SYSTEMS[pdb_id].curation_status == status)
 
 
 def curated_benchmark_ids() -> tuple[str, ...]:
@@ -213,9 +210,7 @@ def get_benchmark_system(pdb_id: str) -> BenchmarkSystem:
         ) from exc
 
 
-def benchmark_path(
-    cache_dir: str | Path, pdb_id: str, *, extension: str = "cif", assembly: int | None = None
-) -> Path:
+def benchmark_path(cache_dir: str | Path, pdb_id: str, *, extension: str = "cif", assembly: int | None = None) -> Path:
     """Cache path of a registered benchmark structure.
 
     Parameters
@@ -283,8 +278,13 @@ def fetch_benchmark_structure(
     """
 
     return fetch_benchmark_record(
-        pdb_id, cache_dir, extension=extension, overwrite=overwrite,
-        timeout=timeout, max_bytes=max_bytes, assembly=assembly,
+        pdb_id,
+        cache_dir,
+        extension=extension,
+        overwrite=overwrite,
+        timeout=timeout,
+        max_bytes=max_bytes,
+        assembly=assembly,
     ).path
 
 
@@ -336,8 +336,13 @@ def fetch_benchmark_record(
 
     system = get_benchmark_system(pdb_id)
     return fetch_structure(
-        system.normalized_id, cache_dir, fmt=extension, assembly=assembly,
-        overwrite=overwrite, timeout=timeout, max_bytes=max_bytes,
+        system.normalized_id,
+        cache_dir,
+        fmt=extension,
+        assembly=assembly,
+        overwrite=overwrite,
+        timeout=timeout,
+        max_bytes=max_bytes,
     )
 
 
@@ -378,10 +383,20 @@ def fetch_all_benchmark_structures(
 
 
 __all__ = [
-    "BENCHMARK_SYSTEMS", "CURATION_STATUSES", "DEFAULT_BENCHMARK_IDS",
-    "BenchmarkSystem", "DownloadRecord", "benchmark_ids_with_status",
-    "benchmark_path", "benchmark_systems", "curated_benchmark_ids",
-    "fetch_all_benchmark_structures", "fetch_benchmark_record",
-    "fetch_benchmark_structure", "get_benchmark_system", "provenance_path",
-    "read_provenance", "verify_cached_structure",
+    "BENCHMARK_SYSTEMS",
+    "CURATION_STATUSES",
+    "DEFAULT_BENCHMARK_IDS",
+    "BenchmarkSystem",
+    "DownloadRecord",
+    "benchmark_ids_with_status",
+    "benchmark_path",
+    "benchmark_systems",
+    "curated_benchmark_ids",
+    "fetch_all_benchmark_structures",
+    "fetch_benchmark_record",
+    "fetch_benchmark_structure",
+    "get_benchmark_system",
+    "provenance_path",
+    "read_provenance",
+    "verify_cached_structure",
 ]

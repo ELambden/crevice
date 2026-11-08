@@ -31,8 +31,8 @@ def channel_display():
 def test_mouth_brackets_capture_end_sphere_enclosure(channel_display):
     frame, profile, _ = channel_display
     mouths = profile.metadata['channel_mouths']
-    # End-wall spheres (r + q = 2.5), 1 A atom separation: last touching disks.
-    expected = 10+math.sqrt(2.5**2-.5**2)
+    # The channel ends at the atoms' van der Waals envelope (end rings at z = +-10, r = 1.7 A).
+    expected = 10+1.7
     for label, sign in [('lower',-1),('upper',1)]:
         mouth = mouths[label]
         assert mouth['axial_bracket_width_A'] <= .025

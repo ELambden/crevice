@@ -150,8 +150,13 @@ def load_structure(
     """
 
     return load_structure_report(
-        path, model_index=model_index, parser=parser, chain_ids=chain_ids, md_selection=md_selection,
-        radii=radii, hetero_polymer=hetero_polymer,
+        path,
+        model_index=model_index,
+        parser=parser,
+        chain_ids=chain_ids,
+        md_selection=md_selection,
+        radii=radii,
+        hetero_polymer=hetero_polymer,
     )[0]
 
 
@@ -280,15 +285,22 @@ def load_structure_report(
         raise ValueError(f"hetero_polymer must be one of {', '.join(HETERO_POLYMER_CHOICES)}")
     with use_radii(radii):
         if is_md_object(path):
-            return _load_md_object_report(path, model_index=model_index, parser=parser, md_selection=md_selection,
-                                          hetero_polymer=hetero_polymer)
-        return _load_structure_report(Path(path), model_index=model_index, parser=parser,
-                                      chain_ids=chain_ids, md_selection=md_selection,
-                                      hetero_polymer=hetero_polymer)
+            return _load_md_object_report(
+                path, model_index=model_index, parser=parser, md_selection=md_selection, hetero_polymer=hetero_polymer
+            )
+        return _load_structure_report(
+            Path(path),
+            model_index=model_index,
+            parser=parser,
+            chain_ids=chain_ids,
+            md_selection=md_selection,
+            hetero_polymer=hetero_polymer,
+        )
 
 
-def _load_md_object_report(value, *, model_index: int, parser: str, md_selection: str,
-                           hetero_polymer: str = "include") -> tuple[StructureFrame, dict]:
+def _load_md_object_report(
+    value, *, model_index: int, parser: str, md_selection: str, hetero_polymer: str = "include"
+) -> tuple[StructureFrame, dict]:
     """Current frame of a Universe or AtomGroup, read like a GRO file."""
     if parser != "auto":
         raise ValueError("MDAnalysis Universe/AtomGroup input uses the MDAnalysis reader; use parser=auto")
@@ -296,15 +308,20 @@ def _load_md_object_report(value, *, model_index: int, parser: str, md_selection
         raise ValueError("model_index applies to files; move the Universe to the frame first (u.trajectory[i])")
     from .mdinput import universe_of
     from .trajectory import load_trajectory_report
+
     current = universe_of(value).trajectory.ts.frame
-    trajectory, report = load_trajectory_report(value, selection=md_selection, start=current, stop=current + 1,
-                                                hetero_polymer=hetero_polymer)
-    return _with_radius_note(trajectory.frames[0], {**report, "parser": "mdanalysis", "input_format": "mdanalysis",
-                                                    "coordinate_units": "Angstrom (MDAnalysis)"})
+    trajectory, report = load_trajectory_report(
+        value, selection=md_selection, start=current, stop=current + 1, hetero_polymer=hetero_polymer
+    )
+    return _with_radius_note(
+        trajectory.frames[0],
+        {**report, "parser": "mdanalysis", "input_format": "mdanalysis", "coordinate_units": "Angstrom (MDAnalysis)"},
+    )
 
 
-def _load_structure_report(source: Path, *, model_index: int, parser: str, chain_ids: str,
-                           md_selection: str, hetero_polymer: str = "include") -> tuple[StructureFrame, dict]:
+def _load_structure_report(
+    source: Path, *, model_index: int, parser: str, chain_ids: str, md_selection: str, hetero_polymer: str = "include"
+) -> tuple[StructureFrame, dict]:
     """Body of :func:`load_structure_report`, run inside the chosen radius set."""
     if parser not in PARSERS:
         raise ValueError(f"parser must be one of {', '.join(PARSERS)}")
@@ -314,29 +331,36 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
         if parser != "auto":
             raise ValueError("GRO input uses MDAnalysis; use parser=auto")
         from .trajectory import load_trajectory_report
-        trajectory, report = load_trajectory_report(source, selection=md_selection,
-                                                    start=model_index, stop=model_index+1,
-                                                    hetero_polymer=hetero_polymer)
+
+        trajectory, report = load_trajectory_report(
+            source, selection=md_selection, start=model_index, stop=model_index + 1, hetero_polymer=hetero_polymer
+        )
         frame = trajectory.frames[0]
-        return _with_radius_note(frame, {**report, "parser": "mdanalysis", "input_format": "gro",
-                                                "coordinate_units": "Angstrom (converted from GRO nm)"})
+        return _with_radius_note(
+            frame,
+            {
+                **report,
+                "parser": "mdanalysis",
+                "input_format": "gro",
+                "coordinate_units": "Angstrom (converted from GRO nm)",
+            },
+        )
     mmcif_input = is_mmcif_path(source)
     if parser == "gemmi" and not mmcif_input:
-        raise ValueError(
-            f"The gemmi parser reads mmCIF; {source.name} is not a .cif or .mmcif file"
-        )
+        raise ValueError(f"The gemmi parser reads mmCIF; {source.name} is not a .cif or .mmcif file")
     if mmcif_input and parser != "builtin":
         from . import mmcif
 
         available = mmcif.gemmi_available()
         if parser == "gemmi" and not available:
-            raise RuntimeError(
-                "Validated mmCIF intake requires pip install 'crevice[structures]'"
-            )
+            raise RuntimeError("Validated mmCIF intake requires pip install 'crevice[structures]'")
         if available:
             frame, report = mmcif.load_mmcif(
-                source, model_index=model_index, selection="all",
-                chain_ids=chain_ids, hetero_policy="auto" if hetero_polymer == "include" else "group_pdb",
+                source,
+                model_index=model_index,
+                selection="all",
+                chain_ids=chain_ids,
+                hetero_policy="auto" if hetero_polymer == "include" else "group_pdb",
             )
             report["hetero_polymer"] = hetero_polymer
             if hetero_polymer == "include" and report["hetero_definition"] == "group_pdb":
@@ -346,8 +370,7 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
                 report.update(record, hetero_definition="group_pdb_except_polymer")
             with source.open(errors="replace", encoding="utf-8") as handle:
                 header = handle.read(65536)
-            return _with_radius_note(frame, {**report, "input_format": "mmcif",
-                                             **predicted_model_report(header)})
+            return _with_radius_note(frame, {**report, "input_format": "mmcif", **predicted_model_report(header)})
 
     text = source.read_text(encoding="utf-8")
     if chain_ids not in {"label", "auth"}:
@@ -364,21 +387,24 @@ def _load_structure_report(source: Path, *, model_index: int, parser: str, chain
     if hetero_polymer == "include":
         atoms, polymer_record = _include_polymer_hetero(atoms, modified=modified, sequences=sequences)
     frame = StructureFrame(tuple(atoms), source=str(source), model_index=model_index)
-    return _with_radius_note(frame, {
-        **predicted_model_report(text),
-        "parser": "builtin",
-        "input_format": "mmcif" if mmcif_input else "pdb",
-        "model_index": model_index,
-        "atom_count": len(frame.atoms),
-        "residue_count": len(frame.residues()),
-        "chain_id_namespace": chain_ids if mmcif_input else "PDB chain column",
-        "altloc_policy": ALTLOC_POLICY,
-        "zero_occupancy_policy": "retained",
-        "hetero_definition": "group_pdb_except_polymer" if hetero_polymer == "include" else "group_pdb",
-        **polymer_record,
-        "element_source": "type_symbol or name inference",
-        "completeness_validated": False,
-    })
+    return _with_radius_note(
+        frame,
+        {
+            **predicted_model_report(text),
+            "parser": "builtin",
+            "input_format": "mmcif" if mmcif_input else "pdb",
+            "model_index": model_index,
+            "atom_count": len(frame.atoms),
+            "residue_count": len(frame.residues()),
+            "chain_id_namespace": chain_ids if mmcif_input else "PDB chain column",
+            "altloc_policy": ALTLOC_POLICY,
+            "zero_occupancy_policy": "retained",
+            "hetero_definition": "group_pdb_except_polymer" if hetero_polymer == "include" else "group_pdb",
+            **polymer_record,
+            "element_source": "type_symbol or name inference",
+            "completeness_validated": False,
+        },
+    )
 
 
 def _with_radius_note(frame: StructureFrame, report: dict) -> tuple[StructureFrame, dict]:
@@ -411,6 +437,7 @@ def _with_radius_note(frame: StructureFrame, report: dict) -> tuple[StructureFra
     """
     from collections import Counter
     from .radii import UnrecognisedElementWarning, effective_radii, unrecognised_element_message
+
     kept, by_element, by_name = partition_atoms_with_radii(frame.atoms)
     report["radius_set"] = effective_radii().name
     report["unsupported_radius_elements"] = sorted(by_element)
@@ -427,8 +454,11 @@ def _with_radius_note(frame: StructureFrame, report: dict) -> tuple[StructureFra
     else:
         note = f"every atom has a radius in radius set {effective_radii().name!r}"
     report["radius_note"] = note
-    ions = Counter(f"{atom.resname.strip().upper()}:{atom.name.strip().upper()}" for atom in frame.atoms
-                   if is_recognised_ion(atom.name, atom.resname, atom.element))
+    ions = Counter(
+        f"{atom.resname.strip().upper()}:{atom.name.strip().upper()}"
+        for atom in frame.atoms
+        if is_recognised_ion(atom.name, atom.resname, atom.element)
+    )
     report["recognised_ion_atoms"] = dict(sorted(ions.items()))
     return frame, report
 
@@ -462,9 +492,12 @@ def predicted_model_report(text: str) -> dict:
     """
     head = text[:65536]
     if "ALPHAFOLD" in head.upper() or re.search(r"(?m)^_entry\.id\s+['\"]?AF-", head):
-        return {"model_type": "predicted", "predictor": "AlphaFold",
-                "bfactor_meaning": "pLDDT per-residue confidence (0-100), not a crystallographic B-factor; "
-                                   "treat low-confidence regions with caution"}
+        return {
+            "model_type": "predicted",
+            "predictor": "AlphaFold",
+            "bfactor_meaning": "pLDDT per-residue confidence (0-100), not a crystallographic B-factor; "
+            "treat low-confidence regions with caution",
+        }
     return {}
 
 
@@ -524,8 +557,7 @@ def _parse_pdb(text: str, *, model_index: int = 0) -> list[Atom]:
     return _select_altlocs(atoms)
 
 
-def polymer_linked_residues(keys, chains, names, coords, *, polymer, candidates, resnames=None,
-                            sequences=None) -> set:
+def polymer_linked_residues(keys, chains, names, coords, *, polymer, candidates, resnames=None, sequences=None) -> set:
     """Candidate residues that belong to a polymer chain by peptide bonds.
 
     The rule shared by every reader (:data:`POLYMER_HETATM_RULE`). Two residues
@@ -567,6 +599,7 @@ def polymer_linked_residues(keys, chains, names, coords, *, polymer, candidates,
     """
     import numpy as np
     from scipy.spatial import cKDTree
+
     candidates = set(candidates)
     if not candidates:
         return set()
@@ -598,8 +631,12 @@ def polymer_linked_residues(keys, chains, names, coords, *, polymer, candidates,
                     seen.add(other)
                     run.add(other)
                     stack.append(other)
-        in_sequence = (sequences is not None and resnames is not None and len(run) > 1
-                       and all(resnames.get(key) in sequences.get(chain_of[key], ()) for key in run))
+        in_sequence = (
+            sequences is not None
+            and resnames is not None
+            and len(run) > 1
+            and all(resnames.get(key) in sequences.get(chain_of[key], ()) for key in run)
+        )
         if touches_polymer or in_sequence:
             linked |= run
     return linked
@@ -612,17 +649,28 @@ def _include_polymer_hetero(atoms: list[Atom], *, modified=frozenset(), sequence
     ``sequences`` maps chain ID to its SEQRES residue names.
     """
     from collections import Counter
+
     keys = [atom.residue_key for atom in atoms]
     hetero = {key for key, atom in zip(keys, atoms) if atom.hetero}
     if not hetero:
-        return atoms, {"hetero_polymer": "include", "polymer_hetatm_retained": 0, "polymer_hetatm_residues": {},
-                       "polymer_hetatm_rule": POLYMER_HETATM_RULE}
+        return atoms, {
+            "hetero_polymer": "include",
+            "polymer_hetatm_retained": 0,
+            "polymer_hetatm_residues": {},
+            "polymer_hetatm_rule": POLYMER_HETATM_RULE,
+        }
     polymer = {key for key, atom in zip(keys, atoms) if not atom.hetero}
     listed = {key for key in hetero if (key.chain_id, key.resid, key.icode, key.resname) in modified}
     linked = listed | polymer_linked_residues(
-        keys, [a.chain_id for a in atoms], [a.name for a in atoms], [a.coord for a in atoms],
-        polymer=polymer | listed, candidates=hetero - listed,
-        resnames={key: key.resname for key in hetero}, sequences=sequences)
+        keys,
+        [a.chain_id for a in atoms],
+        [a.name for a in atoms],
+        [a.coord for a in atoms],
+        polymer=polymer | listed,
+        candidates=hetero - listed,
+        resnames={key: key.resname for key in hetero},
+        sequences=sequences,
+    )
     if linked:
         atoms = [replace(atom, hetero=False) if key in linked else atom for key, atom in zip(keys, atoms)]
     return atoms, {
@@ -640,8 +688,14 @@ def _pdb_modres(text: str) -> set[tuple[str, int, str, str]]:
         if line.startswith("MODRES"):
             resname = _slice(line, 12, 15).strip()
             if resname:
-                found.add((_slice(line, 16, 17).strip(), _safe_int(_slice(line, 18, 22), 0),
-                           _slice(line, 22, 23).strip(), resname))
+                found.add(
+                    (
+                        _slice(line, 16, 17).strip(),
+                        _safe_int(_slice(line, 18, 22), 0),
+                        _slice(line, 22, 23).strip(),
+                        resname,
+                    )
+                )
     return found
 
 
@@ -725,11 +779,7 @@ def _parse_mmcif(text: str, *, model_index: int = 0, chain_ids: str = "label") -
 
         def cols(*names: str) -> tuple[int, ...]:
             """Every present column for a field, in preference order."""
-            return tuple(
-                tag_index[f"_atom_site.{name}"]
-                for name in names
-                if f"_atom_site.{name}" in tag_index
-            )
+            return tuple(tag_index[f"_atom_site.{name}"] for name in names if f"_atom_site.{name}" in tag_index)
 
         columns = {
             "record": cols("group_PDB"),
@@ -738,8 +788,9 @@ def _parse_mmcif(text: str, *, model_index: int = 0, chain_ids: str = "label") -
             "name": cols("auth_atom_id", "label_atom_id"),
             "altloc": cols("label_alt_id"),
             "resname": cols("auth_comp_id", "label_comp_id"),
-            "chain": (cols("label_asym_id", "auth_asym_id") if chain_ids == "label"
-                      else cols("auth_asym_id", "label_asym_id")),
+            "chain": (
+                cols("label_asym_id", "auth_asym_id") if chain_ids == "label" else cols("auth_asym_id", "label_asym_id")
+            ),
             "resid": cols("auth_seq_id", "label_seq_id"),
             "icode": cols("pdbx_PDB_ins_code"),
             "x": cols("Cartn_x"),
@@ -821,15 +872,6 @@ def _safe_int(text: str, default: int) -> int:
     except ValueError:
         match = re.search(r"-?\d+", cleaned)
         return int(match.group(0)) if match else default
-
-
-def _safe_float(text: str, default: float) -> float:
-    """Parse a float, else return ``default``."""
-    cleaned = _clean(text)
-    try:
-        return float(cleaned)
-    except ValueError:
-        return default
 
 
 def _optional_float(text: str) -> float | None:

@@ -68,7 +68,8 @@ No single probe suits every structure: a potassium-channel selectivity filter
 (3UKM) is only passed by a 0.5 Å probe, while in a wide vestibule a small
 probe also finds narrow gaps between atoms and reports them as extra routes.
 With the default `--probe-radius auto`, CREVICE tries the probes 0.5–3.0 Å
-(the ladder that [`profile`](profile.md) uses for its enclosure probe) and,
+(0.50, 0.55, …, 0.80, then 0.90 to 1.60 in 0.1 Å steps, 1.80, 2.00, 2.20,
+2.40, 2.70, 3.00) and,
 on each side, keeps the **smallest probe of the route set found at the most
 probes**:
 

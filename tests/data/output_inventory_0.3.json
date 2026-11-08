@@ -1,5 +1,5 @@
 {
- "_comment": "Exact CREVICE 0.3 file inventories of the synthetic cases in tests/inventory_cases.py (key: case name plus extra CLI arguments). Software characterisation only. 0.4: trajectory adds t_frame_statistics.csv/.json.",
+ "_comment": "Exact CREVICE 0.3 file inventories of the synthetic cases in tests/inventory_cases.py (key: case name plus extra CLI arguments). Software characterisation only. 0.4: trajectory adds t_frame_statistics.csv/.json. 0.5: the grid tunnel search was removed (publish --all no longer writes PREFIX_tunnels.csv/.json/.pdb or PREFIX_tunnel_points.csv; use crevice paths), and report no longer runs the separate grid cavity search (no PREFIX_cavities.csv/.json/.pdb or PREFIX_cavity_summary.png; use crevice cavities).",
  "cases": {
   "analyze": {
    "count": 10,
@@ -439,7 +439,7 @@
    ]
   },
   "publish --all": {
-   "count": 94,
+   "count": 86,
    "files": [
     "c_analysis.cxc",
     "c_analysis.pml",
@@ -466,10 +466,6 @@
     "c_analysis_render.cxc",
     "c_analysis_scene.json",
     "c_cast_segments.csv",
-    "c_cavities.csv",
-    "c_cavities.json",
-    "c_cavities.pdb",
-    "c_cavity_summary.png",
     "c_display.dx",
     "c_fingerprint.csv",
     "c_fingerprint.json",
@@ -519,10 +515,6 @@
     "c_residue_contacts.png",
     "c_scene.json",
     "c_structure.pdb",
-    "c_tunnel_points.csv",
-    "c_tunnels.csv",
-    "c_tunnels.json",
-    "c_tunnels.pdb",
     "c_view.html",
     "c_viewer.identities.json",
     "c_viewer.pdb",
@@ -628,7 +620,7 @@
    ]
   },
   "publish-unresolved --all": {
-   "count": 87,
+   "count": 79,
    "files": [
     "p_analysis.cxc",
     "p_analysis.pml",
@@ -654,10 +646,6 @@
     "p_analysis_reference.tsv",
     "p_analysis_render.cxc",
     "p_analysis_scene.json",
-    "p_cavities.csv",
-    "p_cavities.json",
-    "p_cavities.pdb",
-    "p_cavity_summary.png",
     "p_display.dx",
     "p_end_view.cxc",
     "p_end_view.pml",
@@ -700,10 +688,6 @@
     "p_scene.json",
     "p_selection.json",
     "p_structure.pdb",
-    "p_tunnel_points.csv",
-    "p_tunnels.csv",
-    "p_tunnels.json",
-    "p_tunnels.pdb",
     "p_view.html",
     "p_viewer.identities.json",
     "p_viewer.pdb",

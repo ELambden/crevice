@@ -9,7 +9,7 @@ two samples.
 Use it for passages that run right through a protein and are open at both
 ends, such as ion channels and pores. For pockets, buried cavities and
 one-sided tunnels, use a [cast](cast.md), [`cavities`](cavities.md) or
-[`cavities --tunnels`](tunnels.md) instead.
+[`paths`](paths.md) instead.
 
 ## Quick start
 
@@ -22,7 +22,7 @@ from crevice import load_structure, plot_profile_radius, pore_profile, write_pro
 
 frame = load_structure(".crevice/pdb/1GRM.cif")
 profile = pore_profile(frame, axis="auto", samples=101, section_spacing=0.25)
-print(profile.min_radius, profile.metadata["enclosure_probe_selection"]["chosen_A"])
+print(profile.min_radius, profile.metadata["enclosure_probe_range_A"])
 write_profile_json(profile, "1GRM_profile.json")
 plot_profile_radius(profile, "1GRM_profile_radius.png")
 ```
@@ -34,45 +34,40 @@ plot_profile_radius(profile, "1GRM_profile_radius.png")
 
 1. **Find the direction.** With `--axis auto` (the default) CREVICE tries the
    three principal directions of the selected atoms and keeps one only if it
-   holds a connected, enclosed passage with two open ends. You can fix the
-   direction with `--axis x|y|z|x,y,z`, and point at the right channel with
-   `--origin x,y,z`, a seed inside it.
-2. **Slice and connect.** At each position along the axis, CREVICE looks for
-   space where an *enclosure probe* fits (`--enclosure-radius`) and that is
-   walled in sideways, so the probe can't reach the edge of the search disc
-   (`--search-radius`). Neighbouring slices are joined only by straight
-   segments that also clear the probe, and the joined slices must run from one
-   end of the channel to the other. The search square is a window, not a
-   wall: a non-circular lumen can just touch its edge in a slab thinner than
-   the sample step, although protein still encloses it there. Between the
-   channel ends, if the slices would otherwise not join up, a slice that
-   touches the edge is accepted when it is enclosed in a square twice as wide
-   (`window_bridged_samples` in the metadata lists those points). The same
-   applies when the slices only join up through a path much narrower than
-   the one found first (by more than one grid spacing), which happens when
-   the lumen touches the edge in one slice and a pocket in the wall of that
-   slice is joinable instead; the wider of the two paths is then kept. A real gap
-   in the wall stays open in the wider square and still breaks the channel.
-   This keeps the result from depending on the number of samples.
-3. **Follow the widest path.** A slice can contain small pockets in the
-   channel wall as well as the lumen. When several equally long routes exist,
-   CREVICE follows the one whose narrowest step is widest, then breaks any
-   remaining tie in a fixed order, so the same input always gives the same
-   path.
-4. **Centre each slice.** The grid point of a slice farthest from any atom
-   surface is moved, within the slice plane, to the exact top of its clearance
-   hill: the point equidistant from three atom surfaces that surround it,
-   found to within 0.0001 Å (see [Slice centres](#slice-centres)).
-5. **Measure.** The radius at each point is the distance from the path to the
-   nearest atom surface, minus `--probe-radius` (0 by default). The segments
-   between points are checked exactly, so `continuous_bottleneck_radius_A` can
-   be smaller than every sampled radius.
-6. **Mark the ends.** The plot shows where the walls stop enclosing the
-   channel, to within 0.025 Å.
+   holds a connected, enclosed passage. You can fix the direction with
+   `--axis x|y|z|x,y,z`, and point at the right channel with `--origin x,y,z`,
+   a seed inside it.
+2. **Follow the lumen, slice by slice.** Starting from the seed, CREVICE moves
+   along the axis in steps of at most 0.75 Å. In each slice it starts from the
+   previous slice's centre and climbs, within the slice plane, to the point
+   farthest from any atom surface (see [Slice centres](#slice-centres)). The
+   path therefore stays in the lumen and never jumps to a separate pocket in
+   the wall.
+3. **Check that the slice is walled in.** The slice counts as part of the
+   channel only if the free space around its centre is enclosed sideways: an
+   *enclosure probe* placed in it cannot reach the edge of the search square
+   (`--search-radius`). Each slice uses the smallest probe at which it is
+   enclosed (see [Choosing the enclosure probe](#choosing-the-enclosure-probe)).
+   The search square is a window, not a wall: a slice whose lumen just touches
+   its edge is accepted if it is enclosed in a square twice as wide, and a wide
+   lumen gets a wider square (twice or four times `--search-radius`, so the
+   square is always at least twice as wide as the lumen).
+4. **Join the slices.** Neighbouring centres are joined only by a straight
+   segment that clears the smaller of the two slices' probes.
+5. **Find the mouths.** Going outwards from the seed, the channel ends at the
+   first slice that is not enclosed at any probe, or that cannot be joined, or
+   at the outermost atom surfaces along the axis. Each mouth is located to
+   within 0.025 Å. An end counts as open when the straight line along the axis
+   from its mouth leaves the protein without touching an atom; otherwise it is
+   capped (see [Capped channels and side exits](#capped-channels-and-side-exits)).
+6. **Measure.** The points are spread evenly between the mouths. The radius at
+   each point is the distance from the centre to the nearest atom surface,
+   minus `--probe-radius` (0 by default). The segments between points are
+   checked exactly, so `continuous_bottleneck_radius_A` can be smaller than
+   every sampled radius.
 
-If no channel qualifies, or two are equally good, the command stops and
-explains why. `--search-radius 0` instead runs a simple fixed-axis clearance
-scan, and its metadata says that no channel was checked.
+The same input always gives the same profile. If no channel qualifies, or two
+are equally good, the command stops and explains why.
 
 ### Slice centres
 
@@ -83,20 +78,19 @@ to peaks and ridges between the atoms. A peak is always a point equidistant
 from three atom surfaces whose atoms surround it (a vertex); a point on a
 ridge, equidistant from only two, can still move along the ridge.
 
-CREVICE starts at the slice's grid point with the largest clearance and
-climbs from it. At each step length (starting at half the grid spacing) it
+CREVICE starts from the previous slice's centre, moved onto the new slice
+plane, and climbs from it. At each step length (starting at half the grid spacing) it
 tries the eight grid directions and one move chosen from the local atom
 geometry, which can follow a ridge at any angle, takes the best move that
 increases the clearance, and halves the step when none does, down to
 0.0001 Å. It then solves for the peak exactly: the highest vertex within
-0.35 Å that is higher still. The climb never leaves the slice's grid cells
-and every move keeps a straight path clear of the enclosure probe, so the
-centre stays in the same free space. The result is the exact top of the hill
-that holds the starting grid point, so it no longer depends on how close a
-grid point happens to fall to that top. Which hill is climbed is still
-decided by the grid: a slice can hold a second, slightly higher hill that the
-grid samples less well, and the climb does not jump to it, because the
-centre is also the point joined to the neighbouring slices.
+0.35 Å that is higher still. Every move increases the clearance, so the climb
+cannot cross a wall. A wide lumen can hold more than one hill, so CREVICE also
+climbs from the slice's grid point of largest clearance and keeps the higher
+of the two tops, provided both lie in the same enclosed space and the
+straight line between them never comes closer to an atom than 90 % of the
+lower top's clearance, so the two tops belong to one lumen. A neighbouring
+passage joined to the lumen only through a narrower neck is never taken.
 `metadata.section_refinement` records the method and its settings, and
 `--refinement-steps 0` keeps the grid points instead (`refinement_steps=0`
 in Python).
@@ -105,41 +99,37 @@ in Python).
 
 The enclosure probe decides which gaps in the wall count as wall. Too small,
 and the lumen leaks sideways between atoms; too large, and it no longer fits
-through the constriction. Different structures need different probes: in our
-examples gramicidin A (1GRM) resolves at 0.8 to 1.2 Å, the TWIK-1 filter
-(3UKM) only at about 0.54 to 0.61 Å, and the isolated nAChR pore domain (1OED),
-whose helices leave gaps near 1.5 Å, only from about 1.6 Å. Within the window
-that works, the radii barely change (by 0.005 Å or less in these cases), but
-the channel mouths move outwards as the probe grows.
+through the constriction. A single probe for the whole channel often cannot do
+both. In KcsA (1K4C), for example, the selectivity filter is only 0.75 Å wide
+(Bondi radii), while the central cavity below it leaks through gaps between
+the helices at every probe up to 0.7 Å.
 
 So by default (`--enclosure-radius auto`, Python `enclosure_radius=None`)
-CREVICE chooses for you:
+each slice chooses its own probe: the smallest probe of a fixed ladder (0.30,
+0.35, …, 0.80, 0.90, 1.00, 1.10, 1.20, 1.40, 1.60, 1.80, 2.00, 2.40 and
+3.00 Å) at which the slice's lumen is enclosed. The probe must be smaller than
+the slice's own clearance. A space enclosed at one probe stays enclosed at
+every larger one, so the smallest is well defined. Each slice's probe is the
+size of the widest sideways opening of the lumen there, and it is reported
+for every point (`metadata.enclosure_probes_A`, with the range in
+`enclosure_probe_range_A`). The command prints the range.
 
-1. It tries every probe on a fixed ladder from 0.5 to 3.0 Å (0.50, 0.55, …,
-   0.80, then 0.90 to 1.60 in 0.1 Å steps, 1.80, 2.00, 2.20, 2.40, 2.70, 3.00),
-   with all other settings unchanged. Probes at or above the clearance of an
-   explicit `--origin` are skipped.
-2. It groups the results into channels: the same channel has a parallel axis
-   (|cos| ≥ 0.99), the same end types, a minimum radius within 0.05 Å or 2 %,
-   and axial ranges that overlap by at least 60 %.
-3. A channel must appear at two or more probes. If none does, the two
-   half-step probes beside each single hit are tried as well.
-4. The channel found at the most probes wins (ties go to the smaller probe),
-   and its smallest probe is used.
+The probes decide only where the channel is and where it ends; the measured
+radii are atom-surface distances and do not depend on them.
 
-Preferring a channel that persists over a range of probes avoids one that
-appears at a single threshold, and taking the smallest probe of that range
-keeps the wall as strict as possible. The result is exactly what you would get
-by passing that probe yourself. `metadata.enclosure_probe_selection` records
-every probe tried and why it passed or failed, and the command prints the
-choice. If no channel resolves at two probes, the profile is reported as
-unresolved, with the reasons; you can still pass a probe explicitly. A number
-such as `--enclosure-radius 0.8` runs that probe only.
+A slice has to be resolved on the section grid. When its clearance is within
+half a grid diagonal of the smallest probe, it is re-gridded at half the
+spacing, up to eight times finer. The narrowest constriction that can be
+followed is therefore just above the smallest probe: 0.32 Å with 0.25 Å
+sections and 0.34 Å with the default 0.5 Å. This holds wherever the sample
+points fall.
 
-The automatic choice runs one profile per probe, so it takes about 10 s for
-1GRM with 0.25 Å sections and about a minute for 1OED or 4PYP. `trajectory`
-chooses once, on the reference frame, and uses that probe for every frame.
-`cavities --cast` uses its own fixed 0.8 Å probe, which plays a different role (see
+A number, such as `--enclosure-radius 0.8`, runs that probe in every slice
+instead: a slice whose lumen is narrower than it ends the channel there.
+
+`trajectory` repeats the per-slice choice in every frame and keeps the axis
+and seed of the first frame. `cavities --cast` uses its own fixed 0.8 Å probe,
+which plays a different role (see
 [why the cast probe is fixed](cast.md#why-the-probe-radius-is-fixed)).
 
 ### Capped channels and side exits
@@ -152,12 +142,24 @@ bulk solvent exists**:
 
 1. The axial profile is measured as usual, between the two mouths where the
    walls stop enclosing it.
-2. From the last point at the capped end, CREVICE searches a lattice
+2. A capped end leaves sideways in any case, so it is placed where the widest
+   route to bulk leaves the lumen. From each slice between the end and the
+   channel's narrowest slice (and the seed), CREVICE looks for a route to bulk
+   that is clearly wider than the rest of the axial path beyond that slice,
+   its own exit included (by 0.1 Å or 10 %, whichever is larger). Such a route
+   cannot continue through the lumen, so it is a side exit; if one exists, the
+   capped end moves to the slice with the widest one (mouth reason
+   `lateral_branch`, recorded in `exits.<end>.lateral_branch`). This finds
+   side portals that leave a chamber obliquely, which no single slice shows as
+   an opening wider than the lumen. Open ends never move.
+3. From the last point at the capped end, CREVICE searches a lattice
    (`--exit-spacing`, 0.5 Å) for the widest free route into bulk that never
-   turns back into the channel. Every step must clear the enclosure probe.
-3. Bulk is the space a large rolling probe (`--exit-bulk-radius`, 6 Å) can
+   turns back into the channel. Every step must clear a probe: the end slice's
+   own probe or, if no route clears it, about half of it and then the smallest
+   probe (`exit_probe_A` records the one used).
+4. Bulk is the space a large rolling probe (`--exit-bulk-radius`, 6 Å) can
    reach from outside.
-4. Every distinct exit is reported, up to eight per end. Two exits count as
+5. Every distinct exit is reported, up to eight per end. Two exits count as
    distinct when their exit points are more than twice the bulk radius apart
    and their routes stay apart, so symmetric portals, like the two portals of
    TWIK-1, give one leg each.
@@ -170,6 +172,12 @@ CSV. The plot draws each leg as a green dash-dot continuation beyond its mouth,
 and in `report` each leg gets its own cast. Without `--lateral-exits`, nothing
 changes.
 
+An end whose last point already lies in bulk solvent (inside the rolling-probe
+envelope) is an open end even when the straight line along the axis is
+blocked: it is never refused, with or without `--lateral-exits`
+(`exits.<end>.type` is `bulk`, or `metadata.ends_in_bulk` without
+`--lateral-exits`).
+
 **How this compares with HOLE.** HOLE (Smart *et al.*, 1996) keeps its planes
 perpendicular to one vector and lets the sphere slide sideways within each
 plane, so under a cap it measures the largest sphere in a plane that cuts
@@ -179,13 +187,11 @@ reports the portal separately as a 3D route to bulk, and refuses a closed cap.
 
 ### Wide pores with gaps in the wall
 
-Every slice must be walled in at the enclosure probe. In an isolated pore
-domain without its lipids, gaps between helices can be wider than a small
-probe, so the lumen leaks sideways and the channel is refused even though it
-is wide. A larger probe closes those gaps without touching a much wider
-lumen, and the automatic choice finds it (1OED: 1.6 Å with 0.25 Å sections).
-The measured radii do not depend on the probe unless the lumen is narrower
-than it.
+In an isolated pore domain without its lipids, gaps between helices can be
+wider than a small probe, so the lumen leaks sideways in those slices. Each
+such slice uses a larger probe, which closes the gaps without touching a much
+wider lumen, while the narrow slices keep their small probes. A slice whose
+lumen opens wider than any probe on the ladder ends the channel there.
 
 ## Options you'll use most
 
@@ -195,9 +201,9 @@ than it.
 | `--origin` | none | a seed inside the channel you want, `x,y,z` in Å |
 | `--samples` | 81 | minimum number of points; extra points keep steps at 0.75 Å or less |
 | `--section-spacing` | 0.5 Å | grid spacing within each slice; 0.25 Å resolves finer detail |
-| `--enclosure-radius` | `auto` | the enclosure probe, chosen automatically or fixed in Å |
+| `--enclosure-radius` | `auto` | the enclosure probe: chosen per slice (`auto`) or fixed in Å |
 | `--probe-radius` | 0 Å | subtracted from every reported radius |
-| `--search-radius` | 6 Å | sideways search half-width; `0` runs an unchecked fixed-axis scan |
+| `--search-radius` | 6 Å | sideways search half-width (twice or four times as wide for a wide lumen) |
 | `--lateral-exits` | off | accept a capped end if a side exit to bulk exists |
 | `--exit-bulk-radius` | 6 Å | rolling probe that defines bulk solvent for side exits |
 
@@ -207,8 +213,9 @@ Every option is listed under [`crevice profile`](../reference/cli/profile.md).
 
 ## What you get
 
-- **`-o profile.json`**: the sampled centres, radii, slice areas, chosen axis,
-  seed, bottleneck, end clearances and every setting. Its `volume_estimate`
+- **`-o profile.json`**: the sampled centres, radii, slice areas, each slice's
+  enclosure probe, search half-width and grid spacing, chosen axis, seed,
+  bottleneck, end clearances and every setting. Its `volume_estimate`
   adds up inscribed circles; for a volume that follows the real shape, use a
   cast.
 - **`<stem>.csv`** beside the JSON (or `--csv PATH`): one row per point with
@@ -237,7 +244,8 @@ and a conductance estimate along the same channel, and
 A profile is a measurement with the settings you chose: the numbers move a
 little with the grid, the sample count and the input format (1GRM gives a
 minimum of 1.337 Å with the quick-start settings and 1.337 to 1.338 Å with
-0.25 Å grids and 81 to 201 samples). Report the enclosure probe with your results. The method assumes a
+0.25 Å grids and 81 to 201 samples). Report the enclosure-probe setting with
+your results. The method assumes a
 channel that runs roughly in one direction; branched or strongly curved
 passages are not followed (use [`crevice paths`](paths.md) for those), openings narrower than the slice grid can be
 missed, and two exits closer than twice the bulk probe are reported as one. If

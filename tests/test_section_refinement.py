@@ -174,13 +174,6 @@ def test_every_1grm_section_centre_is_an_exact_clearance_vertex():
     assert len(profile.points) == 101 and stalled == []
 
 
-def test_without_the_linearised_move_a_1grm_centre_stalls_on_a_ridge(monkeypatch):
-    """Negative control: eight fixed directions alone stop short of a vertex on a two-atom ridge."""
-    monkeypatch.setattr(SectionGeometry, "_linear_move", lambda self, *args: None)
-    _, stalled = _1grm_profile()
-    assert stalled
-
-
 @pytest.mark.parametrize("samples", [153, 159, 189])
 def test_4hfi_profile_does_not_detour_through_a_wall_pocket(samples):
     """Optional (curated 4HFI benchmark input and HOLE's simple.rad; skipped when absent).

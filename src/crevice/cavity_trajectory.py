@@ -18,9 +18,10 @@ Profiles describe measured planar sections, including one-sided/closed cavities.
 They are not a through-path, permeation radius, or functional gate assignment.
 Unresolved frames are missing values, never zeros.
 """
+
 from __future__ import annotations
 from collections.abc import Sequence
-from dataclasses import dataclass,replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from ._portable_paths import dumps_record
 import math
@@ -60,6 +61,7 @@ class CavityReference:
     grid_phase : tuple of float
         Lattice phase as fractions of a spacing in [0, 1) along each basis axis.
     """
+
     points: object
     basis: object
     anchor: object
@@ -70,10 +72,10 @@ class CavityReference:
     deltas: object
     source_path: str | None = None
     source_sha256: str | None = None
-    grid_phase: tuple = (0.,0.,0.)
+    grid_phase: tuple = (0.0, 0.0, 0.0)
 
     @classmethod
-    def from_dx(cls,path,*,spacing=None,axis=None,profile_padding=4.,grid_phase=(0.,0.,0.)):
+    def from_dx(cls, path, *, spacing=None, axis=None, profile_padding=4.0, grid_phase=(0.0, 0.0, 0.0)):
         """Read a reference cavity from a binary DX map.
 
         Parameters
@@ -106,31 +108,53 @@ class CavityReference:
         import numpy as np
         from .residue_evidence import read_binary_dx
         from .geometry import basis_from_direction
-        grid,origin,deltas=read_binary_dx(path)
-        points=np.argwhere(grid)@deltas+origin
-        if not len(points):raise ValueError('Reference volume is empty')
-        h=float(np.linalg.norm(deltas[0])) if spacing is None else float(spacing)
-        if not math.isfinite(h) or h<=0:raise ValueError('spacing must be positive')
-        if not math.isfinite(profile_padding) or profile_padding<0:raise ValueError('profile_padding must be nonnegative')
+
+        grid, origin, deltas = read_binary_dx(path)
+        points = np.argwhere(grid) @ deltas + origin
+        if not len(points):
+            raise ValueError('Reference volume is empty')
+        h = float(np.linalg.norm(deltas[0])) if spacing is None else float(spacing)
+        if not math.isfinite(h) or h <= 0:
+            raise ValueError('spacing must be positive')
+        if not math.isfinite(profile_padding) or profile_padding < 0:
+            raise ValueError('profile_padding must be nonnegative')
         if axis is None:
-            basis=deltas/np.linalg.norm(deltas,axis=1)[:,None]
+            basis = deltas / np.linalg.norm(deltas, axis=1)[:, None]
         else:
-            direction=np.asarray(axis,dtype=float)
-            if direction.shape!=(3,) or not np.isfinite(direction).all() or np.linalg.norm(direction)==0:raise ValueError('axis must be a finite nonzero direction')
-            direction/=np.linalg.norm(direction);u,v=basis_from_direction(tuple(direction));basis=np.array([u,v,direction])
-        if not np.allclose(basis@basis.T,np.eye(3),atol=1e-8):raise ValueError('Reference grid must be orthogonal')
-        if np.linalg.det(basis)<0:basis[0]*=-1
-        phase=np.asarray(grid_phase,dtype=float)
-        if phase.shape!=(3,) or not np.isfinite(phase).all() or np.any((phase<0)|(phase>=1)):
+            direction = np.asarray(axis, dtype=float)
+            if direction.shape != (3,) or not np.isfinite(direction).all() or np.linalg.norm(direction) == 0:
+                raise ValueError('axis must be a finite nonzero direction')
+            direction /= np.linalg.norm(direction)
+            u, v = basis_from_direction(tuple(direction))
+            basis = np.array([u, v, direction])
+        if not np.allclose(basis @ basis.T, np.eye(3), atol=1e-8):
+            raise ValueError('Reference grid must be orthogonal')
+        if np.linalg.det(basis) < 0:
+            basis[0] *= -1
+        phase = np.asarray(grid_phase, dtype=float)
+        if phase.shape != (3,) or not np.isfinite(phase).all() or np.any((phase < 0) | (phase >= 1)):
             raise ValueError("grid_phase must contain three finite fractions in [0,1)")
-        anchor=points.mean(0)+(phase*h)@basis
-        t=(points-anchor)@basis[2]
-        axial=np.arange(math.floor((t.min()-profile_padding)/h),math.ceil((t.max()+profile_padding)/h)+1)
+        anchor = points.mean(0) + (phase * h) @ basis
+        t = (points - anchor) @ basis[2]
+        axial = np.arange(math.floor((t.min() - profile_padding) / h), math.ceil((t.max() + profile_padding) / h) + 1)
         import hashlib
-        return cls(points,basis,anchor,h,axial,origin,grid,deltas,str(Path(path).resolve()),hashlib.sha256(Path(path).read_bytes()).hexdigest(),tuple(map(float,phase)))
+
+        return cls(
+            points,
+            basis,
+            anchor,
+            h,
+            axial,
+            origin,
+            grid,
+            deltas,
+            str(Path(path).resolve()),
+            hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+            tuple(map(float, phase)),
+        )
 
 
-def match_reference_component(cast,reference,*,minimum_overlap=.1,ambiguity_ratio=.8):
+def match_reference_component(cast, reference, *, minimum_overlap=0.1, ambiguity_ratio=0.8):
     """Symmetric sampled overlap, with explicit rejection of ambiguous identity.
 
     For each cast component, *precision* is the fraction of its samples within
@@ -167,28 +191,44 @@ def match_reference_component(cast,reference,*,minimum_overlap=.1,ambiguity_rati
     """
     import numpy as np
     from scipy.spatial import cKDTree
-    if not 0<minimum_overlap<=1 or not 0<ambiguity_ratio<=1:raise ValueError('Matching thresholds must lie in (0,1]')
-    target=np.asarray(reference.points);tree=cKDTree(target);rows=[]
-    tolerance=.9*max(reference.spacing,cast.spacing)
+
+    if not 0 < minimum_overlap <= 1 or not 0 < ambiguity_ratio <= 1:
+        raise ValueError('Matching thresholds must lie in (0,1]')
+    target = np.asarray(reference.points)
+    tree = cKDTree(target)
+    rows = []
+    tolerance = 0.9 * max(reference.spacing, cast.spacing)
     for component in cast.components:
-        points=np.asarray([p.position for p in component.points])
-        precision=float(np.mean(tree.query(points)[0]<=tolerance))
-        recall=float(np.mean(cKDTree(points).query(target)[0]<=tolerance)) if precision else 0.
-        score=2*precision*recall/(precision+recall) if precision+recall else 0.
-        rows.append({'component_id':component.id,'overlap_score':score,'reference_recall':recall,
-                     'candidate_precision':precision,'volume_A3':component.volume})
-    rows.sort(key=lambda r:(-r['overlap_score'],r['component_id']))
-    report={'candidates':rows,'minimum_overlap':minimum_overlap,'ambiguity_ratio':ambiguity_ratio,
-            'distance_tolerance_A':tolerance,'definition':'harmonic mean of sampled nearest-neighbor overlap fractions; matching the fixed aligned reference, not a biological identity proof'}
-    if not rows or rows[0]['overlap_score']<minimum_overlap:
-        return None,{**report,'status':'unresolved_no_reference_match'}
-    if len(rows)>1 and rows[1]['overlap_score']>=ambiguity_ratio*rows[0]['overlap_score']:
-        return None,{**report,'status':'unresolved_ambiguous_reference_match'}
-    winner=next(c for c in cast.components if c.id==rows[0]['component_id'])
-    return winner,{**report,'status':'matched','selected':rows[0]}
+        points = np.asarray([p.position for p in component.points])
+        precision = float(np.mean(tree.query(points)[0] <= tolerance))
+        recall = float(np.mean(cKDTree(points).query(target)[0] <= tolerance)) if precision else 0.0
+        score = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        rows.append(
+            {
+                'component_id': component.id,
+                'overlap_score': score,
+                'reference_recall': recall,
+                'candidate_precision': precision,
+                'volume_A3': component.volume,
+            }
+        )
+    rows.sort(key=lambda r: (-r['overlap_score'], r['component_id']))
+    report = {
+        'candidates': rows,
+        'minimum_overlap': minimum_overlap,
+        'ambiguity_ratio': ambiguity_ratio,
+        'distance_tolerance_A': tolerance,
+        'definition': 'harmonic mean of sampled nearest-neighbor overlap fractions; matching the fixed aligned reference, not a biological identity proof',
+    }
+    if not rows or rows[0]['overlap_score'] < minimum_overlap:
+        return None, {**report, 'status': 'unresolved_no_reference_match'}
+    if len(rows) > 1 and rows[1]['overlap_score'] >= ambiguity_ratio * rows[0]['overlap_score']:
+        return None, {**report, 'status': 'unresolved_ambiguous_reference_match'}
+    winner = next(c for c in cast.components if c.id == rows[0]['component_id'])
+    return winner, {**report, 'status': 'matched', 'selected': rows[0]}
 
 
-def cavity_section_profile(component,reference):
+def cavity_section_profile(component, reference):
     """Measured lattice planes: area-equivalent diameters and local sphere size.
 
     For every reference axial plane, the component's samples in that plane give
@@ -223,31 +263,61 @@ def cavity_section_profile(component,reference):
     """
     import numpy as np
     from scipy import ndimage
-    xyz=np.asarray([p.position for p in component.points]);h=reference.spacing
-    local=(xyz-reference.anchor)@reference.basis.T/h
-    index=np.rint(local).astype(int)
-    if not np.allclose(local,index,atol=1e-5,rtol=0):raise ValueError('Profile requires the fixed reference lattice')
-    clear=np.asarray([p.raw_clearance for p in component.points]);n=len(reference.axial_indices)
-    total=np.zeros(n);largest=np.zeros(n);sphere=np.zeros(n);pieces=np.zeros(n,dtype=int)
-    for j,k in enumerate(reference.axial_indices):
-        selected=index[:,2]==k
-        if not selected.any():continue
-        xy=index[selected,:2];xy=xy-xy.min(0)
-        plane=np.zeros(tuple(xy.max(0)+3),bool);plane[tuple((xy+1).T)]=True
-        labels,count=ndimage.label(plane);sizes=np.bincount(labels.ravel())[1:]
-        total[j]=selected.sum()*h*h;largest[j]=sizes.max()*h*h;pieces[j]=count
-        sphere[j]=2*max(0.,float(clear[selected].max()))
-    return {'total_area_A2':total,'largest_area_A2':largest,
-            'equivalent_diameter_A':2*np.sqrt(total/np.pi),
-            'largest_component_diameter_A':2*np.sqrt(largest/np.pi),
-            'maximum_atom_clear_sphere_diameter_A':sphere,'section_component_count':pieces,
-            'outside_profile_volume_A3':float(np.sum(~np.isin(index[:,2],reference.axial_indices))*h**3),
-            'extent_A':[float(index[:,2].min()*h),float(index[:,2].max()*h)]}
+
+    xyz = np.asarray([p.position for p in component.points])
+    h = reference.spacing
+    local = (xyz - reference.anchor) @ reference.basis.T / h
+    index = np.rint(local).astype(int)
+    if not np.allclose(local, index, atol=1e-5, rtol=0):
+        raise ValueError('Profile requires the fixed reference lattice')
+    clear = np.asarray([p.raw_clearance for p in component.points])
+    n = len(reference.axial_indices)
+    total = np.zeros(n)
+    largest = np.zeros(n)
+    sphere = np.zeros(n)
+    pieces = np.zeros(n, dtype=int)
+    for j, k in enumerate(reference.axial_indices):
+        selected = index[:, 2] == k
+        if not selected.any():
+            continue
+        xy = index[selected, :2]
+        xy = xy - xy.min(0)
+        plane = np.zeros(tuple(xy.max(0) + 3), bool)
+        plane[tuple((xy + 1).T)] = True
+        labels, count = ndimage.label(plane)
+        sizes = np.bincount(labels.ravel())[1:]
+        total[j] = selected.sum() * h * h
+        largest[j] = sizes.max() * h * h
+        pieces[j] = count
+        sphere[j] = 2 * max(0.0, float(clear[selected].max()))
+    return {
+        'total_area_A2': total,
+        'largest_area_A2': largest,
+        'equivalent_diameter_A': 2 * np.sqrt(total / np.pi),
+        'largest_component_diameter_A': 2 * np.sqrt(largest / np.pi),
+        'maximum_atom_clear_sphere_diameter_A': sphere,
+        'section_component_count': pieces,
+        'outside_profile_volume_A3': float(np.sum(~np.isin(index[:, 2], reference.axial_indices)) * h**3),
+        'extent_A': [float(index[:, 2].min() * h), float(index[:, 2].max() * h)],
+    }
 
 
-def analyze_cavity_frame(frame,reference_frame,reference,*,geometry=None,alignment_residues=None,
-                         minimum_overlap=.1,ambiguity_ratio=.8,lining_distance=1.5,contact_cutoff=4.5,
-                         geometry_mode="rolling",region_margin=2.,obstacles=None,waters=None):
+def analyze_cavity_frame(
+    frame,
+    reference_frame,
+    reference,
+    *,
+    geometry=None,
+    alignment_residues=None,
+    minimum_overlap=0.1,
+    ambiguity_ratio=0.8,
+    lining_distance=1.5,
+    contact_cutoff=4.5,
+    geometry_mode="rolling",
+    region_margin=2.0,
+    obstacles=None,
+    waters=None,
+):
     """Align one frame and measure its cavity, boundary residues and contacts.
 
     1. Rigidly align ``frame`` onto ``reference_frame``
@@ -323,53 +393,140 @@ def analyze_cavity_frame(frame,reference_frame,reference,*,geometry=None,alignme
     from .volume_export import cast_grid
     from .residue_evidence import boundary_residue_evidence
     from .networks import build_residue_network
-    aligned,fit=align_frame_report(frame,reference_frame,residues=alignment_residues)
+
+    aligned, fit = align_frame_report(frame, reference_frame, residues=alignment_residues)
     # Contacts remain defined even if cavity correspondence is unresolved.
-    network=build_residue_network(aligned,cutoff=contact_cutoff,distance_metric='center')
-    settings=dict(geometry or {})
-    for key in ['grid_basis','grid_anchor','spacing','max_components']:
-        if key in settings:raise ValueError(f'{key} is controlled by the trajectory reference')
-    settings.setdefault('selection_mode','dominant');settings.setdefault('min_component_volume',1.)
-    obstacle_atoms=None;obstacle_report=None
+    network = build_residue_network(aligned, cutoff=contact_cutoff, distance_metric='center')
+    settings = dict(geometry or {})
+    for key in ['grid_basis', 'grid_anchor', 'spacing', 'max_components']:
+        if key in settings:
+            raise ValueError(f'{key} is controlled by the trajectory reference')
+    settings.setdefault('selection_mode', 'dominant')
+    settings.setdefault('min_component_volume', 1.0)
+    obstacle_atoms = None
+    obstacle_report = None
     if obstacles is not None:
-        if geometry_mode!="reference-region":raise ValueError("Explicit obstacles currently require reference-region geometry")
-        obstacle_atoms,obstacle_report=obstacles.prepare(frame,aligned,fit,reference,margin=region_margin,probe_radius=settings.get("probe_radius",1.4),max_grid_points=settings.get("max_grid_points",2_000_000))
-    exclusion=None
-    if geometry_mode=='reference-region':
+        if geometry_mode != "reference-region":
+            raise ValueError("Explicit obstacles currently require reference-region geometry")
+        obstacle_atoms, obstacle_report = obstacles.prepare(
+            frame,
+            aligned,
+            fit,
+            reference,
+            margin=region_margin,
+            probe_radius=settings.get("probe_radius", 1.4),
+            max_grid_points=settings.get("max_grid_points", 2_000_000),
+        )
+    exclusion = None
+    if geometry_mode == 'reference-region':
         from .regional_volume import regional_probe_cast
         from scipy.spatial import cKDTree
-        cast,component,regional=regional_probe_cast(aligned,reference,margin=region_margin,probe_radius=settings.get('probe_radius',1.4),max_grid_points=settings.get('max_grid_points',2_000_000),obstacle_atoms=obstacle_atoms)
-        tree=cKDTree(reference.points)
-        exclusion=lambda centers:tree.query(centers)[0]>=max(0.,region_margin-.9*reference.spacing)
-        matching={'status':'regional_measured','regional_definition':regional,'selected':{}}
-    elif geometry_mode=='rolling':
-        cast=rolling_probe_cast(aligned,spacing=reference.spacing,grid_basis=reference.basis,
-                                grid_anchor=reference.anchor,max_components=None,**settings)
-        component,matching=match_reference_component(cast,reference,minimum_overlap=minimum_overlap,ambiguity_ratio=ambiguity_ratio)
-    else:raise ValueError('geometry_mode must be rolling or reference-region')
-    result={'frame_index':frame.frame_index,'alignment':fit,'matching':matching,'network':network,
-            'obstacles':obstacle_report,'status':matching['status'],'volume_A3':None,'profile':None,'boundary':None}
+
+        cast, component, regional = regional_probe_cast(
+            aligned,
+            reference,
+            margin=region_margin,
+            probe_radius=settings.get('probe_radius', 1.4),
+            max_grid_points=settings.get('max_grid_points', 2_000_000),
+            obstacle_atoms=obstacle_atoms,
+        )
+        tree = cKDTree(reference.points)
+        exclusion = lambda centers: tree.query(centers)[0] >= max(0.0, region_margin - 0.9 * reference.spacing)
+        matching = {'status': 'regional_measured', 'regional_definition': regional, 'selected': {}}
+    elif geometry_mode == 'rolling':
+        cast = rolling_probe_cast(
+            aligned,
+            spacing=reference.spacing,
+            grid_basis=reference.basis,
+            grid_anchor=reference.anchor,
+            max_components=None,
+            **settings,
+        )
+        component, matching = match_reference_component(
+            cast, reference, minimum_overlap=minimum_overlap, ambiguity_ratio=ambiguity_ratio
+        )
+    else:
+        raise ValueError('geometry_mode must be rolling or reference-region')
+    result = {
+        'frame_index': frame.frame_index,
+        'alignment': fit,
+        'matching': matching,
+        'network': network,
+        'obstacles': obstacle_report,
+        'status': matching['status'],
+        'volume_A3': None,
+        'profile': None,
+        'boundary': None,
+    }
     if component is not None and not component.points:
-        ids=sorted({a.residue_key.label for a in aligned.atoms if not a.hetero and a.element!='H'})
-        blank={'lining_residues':[],'boundary_area_A2':0.,'excluded_boundary_area_A2':0.,'assigned_boundary_area_A2':0.,'measurement_volume_A3':0.,
-               'residues':[{'residue':key,'role':'other','boundary_area_A2':0.,'boundary_fraction':0.,'contacted_lining_boundary_fraction':0.,'nonlocal_lining_partners':[]} for key in ids]}
-        empty={key:np.zeros(len(reference.axial_indices)) for key in ['total_area_A2','largest_area_A2','equivalent_diameter_A','largest_component_diameter_A','maximum_atom_clear_sphere_diameter_A','section_component_count']}
-        empty.update(outside_profile_volume_A3=0.,extent_A=[None,None])
-        result.update(volume_A3=0.,profile=empty,boundary=blank)
+        ids = sorted({a.residue_key.label for a in aligned.atoms if not a.hetero and a.element != 'H'})
+        blank = {
+            'lining_residues': [],
+            'boundary_area_A2': 0.0,
+            'excluded_boundary_area_A2': 0.0,
+            'assigned_boundary_area_A2': 0.0,
+            'measurement_volume_A3': 0.0,
+            'residues': [
+                {
+                    'residue': key,
+                    'role': 'other',
+                    'boundary_area_A2': 0.0,
+                    'boundary_fraction': 0.0,
+                    'contacted_lining_boundary_fraction': 0.0,
+                    'nonlocal_lining_partners': [],
+                }
+                for key in ids
+            ],
+        }
+        empty = {
+            key: np.zeros(len(reference.axial_indices))
+            for key in [
+                'total_area_A2',
+                'largest_area_A2',
+                'equivalent_diameter_A',
+                'largest_component_diameter_A',
+                'maximum_atom_clear_sphere_diameter_A',
+                'section_component_count',
+            ]
+        }
+        empty.update(outside_profile_volume_A3=0.0, extent_A=[None, None])
+        result.update(volume_A3=0.0, profile=empty, boundary=blank)
     elif component is not None:
-        measured=replace(cast,components=(component,),points=component.points)
-        grid,origin=cast_grid(measured);delta=reference.basis*reference.spacing
-        boundary=boundary_residue_evidence(aligned,grid,origin,delta,lining_distance=lining_distance,contact_cutoff=contact_cutoff,boundary_exclusion=exclusion,obstacle_atoms=obstacle_atoms)
-        result.update(volume_A3=component.volume,profile=cavity_section_profile(component,reference),boundary=boundary)
+        measured = replace(cast, components=(component,), points=component.points)
+        grid, origin = cast_grid(measured)
+        delta = reference.basis * reference.spacing
+        boundary = boundary_residue_evidence(
+            aligned,
+            grid,
+            origin,
+            delta,
+            lining_distance=lining_distance,
+            contact_cutoff=contact_cutoff,
+            boundary_exclusion=exclusion,
+            obstacle_atoms=obstacle_atoms,
+        )
+        result.update(
+            volume_A3=component.volume, profile=cavity_section_profile(component, reference), boundary=boundary
+        )
     if waters is not None:
         # Paired with this frame's measured grid and fit; the grid itself is not retained.
         from .water_membership import frame_water_membership
-        result['water_membership']=frame_water_membership(frame,fit,reference,component,waters,geometry_mode=geometry_mode,
-            region_margin=region_margin,probe_radius=settings.get('probe_radius',1.4),max_grid_points=settings.get('max_grid_points',2_000_000))
+
+        result['water_membership'] = frame_water_membership(
+            frame,
+            fit,
+            reference,
+            component,
+            waters,
+            geometry_mode=geometry_mode,
+            region_margin=region_margin,
+            probe_radius=settings.get('probe_radius', 1.4),
+            max_grid_points=settings.get('max_grid_points', 2_000_000),
+        )
     return result
 
 
-def auto_workers(frame_count,*,max_grid_points=2_000_000,limit=4):
+def auto_workers(frame_count, *, max_grid_points=2_000_000, limit=4):
     """Default number of worker processes for a per-frame trajectory analysis.
 
     ``min(limit, usable CPUs, frame_count)``, then reduced so that the
@@ -394,18 +551,19 @@ def auto_workers(frame_count,*,max_grid_points=2_000_000,limit=4):
         Worker count, at least 1.
     """
     import os
+
     try:
-        cpus=len(os.sched_getaffinity(0))
-    except (AttributeError,OSError):
-        cpus=os.cpu_count() or 1
-    workers=max(1,min(int(limit),cpus,int(frame_count)))
-    per_worker=0.3e9+400.*max_grid_points
+        cpus = len(os.sched_getaffinity(0))
+    except (AttributeError, OSError):
+        cpus = os.cpu_count() or 1
+    workers = max(1, min(int(limit), cpus, int(frame_count)))
+    per_worker = 0.3e9 + 400.0 * max_grid_points
     try:
         with open('/proc/meminfo', encoding="utf-8") as handle:
-            fields={line.split(':')[0]:line.split()[1:] for line in handle}
-        available=float(fields['MemAvailable'][0])*1024
-        workers=max(1,min(workers,int(available//per_worker)))
-    except (OSError,KeyError,ValueError,IndexError):
+            fields = {line.split(':')[0]: line.split()[1:] for line in handle}
+        available = float(fields['MemAvailable'][0]) * 1024
+        workers = max(1, min(workers, int(available // per_worker)))
+    except (OSError, KeyError, ValueError, IndexError):
         pass
     return workers
 
@@ -430,13 +588,14 @@ def _process_context():
     import multiprocessing as mp
     import os
     import sys
-    method=os.environ.get('CREVICE_MP_START_METHOD','').strip()
+
+    method = os.environ.get('CREVICE_MP_START_METHOD', '').strip()
     if not method:
-        method='fork' if sys.platform.startswith('linux') and 'fork' in mp.get_all_start_methods() else 'spawn'
+        method = 'fork' if sys.platform.startswith('linux') and 'fork' in mp.get_all_start_methods() else 'spawn'
     return mp.get_context(method)
 
 
-def _uninvolved_row(residue,group=None):
+def _uninvolved_row(residue, group=None):
     """Boundary row of a residue with no boundary area and no lining partner.
 
     The exact row (keys, order, values and types) that
@@ -445,22 +604,40 @@ def _uninvolved_row(residue,group=None):
     writes for every residue of a frame whose measured cavity is empty.
     """
     if group is None:
-        return {'residue':residue,'role':'other','boundary_area_A2':0.,'boundary_fraction':0.,
-                'contacted_lining_boundary_fraction':0.,'nonlocal_lining_partners':[]}
-    return {'residue':residue,'group':group,'role':'other','boundary_area_A2':0.,'boundary_fraction':0.,
-            'minimum_boundary_gap_A':None,'nonlocal_lining_contact_count':0,
-            'contacted_lining_boundary_fraction':0,'nonlocal_lining_partners':[]}
+        return {
+            'residue': residue,
+            'role': 'other',
+            'boundary_area_A2': 0.0,
+            'boundary_fraction': 0.0,
+            'contacted_lining_boundary_fraction': 0.0,
+            'nonlocal_lining_partners': [],
+        }
+    return {
+        'residue': residue,
+        'group': group,
+        'role': 'other',
+        'boundary_area_A2': 0.0,
+        'boundary_fraction': 0.0,
+        'minimum_boundary_gap_A': None,
+        'nonlocal_lining_contact_count': 0,
+        'contacted_lining_boundary_fraction': 0,
+        'nonlocal_lining_partners': [],
+    }
 
 
 def _uninvolved_key(row):
     """``(residue, group)`` or ``(residue,)`` if ``row`` is exactly an :func:`_uninvolved_row`, else ``None``."""
-    if not isinstance(row,dict) or 'residue' not in row:return None
-    key=(row['residue'],row['group']) if 'group' in row else (row['residue'],)
-    if not all(type(v) is str for v in key):return None
-    template=_uninvolved_row(*key)
-    same=(list(row)==list(template)
-          and all(type(row[k]) is type(template[k]) and row[k]==template[k] for k in template)
-          and all(math.copysign(1.,row[k])>0 for k in template if type(template[k]) is float))
+    if not isinstance(row, dict) or 'residue' not in row:
+        return None
+    key = (row['residue'], row['group']) if 'group' in row else (row['residue'],)
+    if not all(type(v) is str for v in key):
+        return None
+    template = _uninvolved_row(*key)
+    same = (
+        list(row) == list(template)
+        and all(type(row[k]) is type(template[k]) and row[k] == template[k] for k in template)
+        and all(math.copysign(1.0, row[k]) > 0 for k in template if type(template[k]) is float)
+    )
     return key if same else None
 
 
@@ -476,38 +653,50 @@ class _BoundaryResidues(Sequence):
     of :func:`crevice.residue_evidence.boundary_residue_evidence`; a fresh
     dict for each uninvolved row, so editing one does not change the record.
     """
-    def __init__(self,rows,shared=None):
-        shared={} if shared is None else shared
-        items=[]
+
+    def __init__(self, rows, shared=None):
+        shared = {} if shared is None else shared
+        items = []
         for row in rows:
-            key=_uninvolved_key(row)
-            items.append(row if key is None else shared.setdefault(key,key))
-        self._items=tuple(items)
-    def __len__(self):return len(self._items)
-    def __getitem__(self,index):
-        if isinstance(index,slice):return [self[i] for i in range(*index.indices(len(self)))]
-        item=self._items[index]
-        return _uninvolved_row(*item) if isinstance(item,tuple) else item
-    def __eq__(self,other):
-        if not isinstance(other,Sequence) or isinstance(other,(str,bytes)):return NotImplemented
-        return len(self)==len(other) and all(a==b for a,b in zip(self,other))
-    __hash__=None
-    def __repr__(self):return f'{type(self).__name__}({list(self)!r})'
+            key = _uninvolved_key(row)
+            items.append(row if key is None else shared.setdefault(key, key))
+        self._items = tuple(items)
+
+    def __len__(self):
+        return len(self._items)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        item = self._items[index]
+        return _uninvolved_row(*item) if isinstance(item, tuple) else item
+
+    def __eq__(self, other):
+        if not isinstance(other, Sequence) or isinstance(other, (str, bytes)):
+            return NotImplemented
+        return len(self) == len(other) and all(a == b for a, b in zip(self, other))
+
+    __hash__ = None
+
+    def __repr__(self):
+        return f'{type(self).__name__}({list(self)!r})'
 
 
-_WORKER=None
+_WORKER = None
 
-def _initialize_worker(frames,reference_frame,reference,settings,radii=None,retain_networks=False):
+
+def _initialize_worker(frames, reference_frame, reference, settings, radii=None, retain_networks=False):
     # The radius set in effect in the parent is passed explicitly, so forked and
     # spawned workers measure with the same atomic radii (see crevice.radii.use_radii).
     global _WORKER
-    _WORKER=frames,reference_frame,reference,settings,retain_networks
+    _WORKER = frames, reference_frame, reference, settings, retain_networks
     if radii is not None:
         from .radii import _ACTIVE_RADII
+
         _ACTIVE_RADII.set(radii)
 
 
-def _trajectory_frame(frame,reference_frame,reference,settings,retain_networks=False):
+def _trajectory_frame(frame, reference_frame, reference, settings, retain_networks=False):
     """One :func:`analyze_cavity_frame` record as kept by a trajectory analysis.
 
     The boundary evidence's residue network (``boundary["network"]``, a dict
@@ -516,21 +705,37 @@ def _trajectory_frame(frame,reference_frame,reference,settings,retain_networks=F
     dropped here, in the process that measured the frame, unless
     ``retain_networks``.
     """
-    row=analyze_cavity_frame(frame,reference_frame,reference,**settings)
-    if not retain_networks and row['boundary'] is not None:row['boundary'].pop('network',None)
+    row = analyze_cavity_frame(frame, reference_frame, reference, **settings)
+    if not retain_networks and row['boundary'] is not None:
+        row['boundary'].pop('network', None)
     return row
 
 
 def _analyze_worker(index):
-    frames,reference_frame,reference,settings,retain_networks=_WORKER
-    return index,_trajectory_frame(frames[index],reference_frame,reference,settings,retain_networks)
+    frames, reference_frame, reference, settings, retain_networks = _WORKER
+    return index, _trajectory_frame(frames[index], reference_frame, reference, settings, retain_networks)
 
 
 @radii_option
-def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_residues=None,
-                               minimum_overlap=.1,ambiguity_ratio=.8,lining_distance=1.5,
-                               contact_cutoff=4.5,workers=1,progress_callback=None,geometry_mode="rolling",region_margin=2.,obstacles=None,waters=None,
-                               radii: RadiusSet | str | None = None,retain_networks=False):
+def analyze_cavity_trajectory(
+    trajectory,
+    reference,
+    *,
+    geometry=None,
+    alignment_residues=None,
+    minimum_overlap=0.1,
+    ambiguity_ratio=0.8,
+    lining_distance=1.5,
+    contact_cutoff=4.5,
+    workers=1,
+    progress_callback=None,
+    geometry_mode="rolling",
+    region_margin=2.0,
+    obstacles=None,
+    waters=None,
+    radii: RadiusSet | str | None = None,
+    retain_networks=False,
+):
     """Analyze every input frame; numerical/programming errors propagate.
 
     Each frame is processed by :func:`analyze_cavity_frame` against the first
@@ -619,73 +824,144 @@ def analyze_cavity_trajectory(trajectory,reference,*,geometry=None,alignment_res
     from .residue_evidence import boundary_residue_evidence
     from .trajectory import align_frame_report
     import numpy as np
-    if isinstance(workers,bool) or int(workers)!=workers or workers<1:raise ValueError('workers must be a positive integer')
-    frames=trajectory.frames;first=frames[0];n=len(frames);times=trajectory.times()
+
+    if isinstance(workers, bool) or int(workers) != workers or workers < 1:
+        raise ValueError('workers must be a positive integer')
+    frames = trajectory.frames
+    first = frames[0]
+    n = len(frames)
+    times = trajectory.times()
     # Validate timestamps up front for all subsequent temporal statistics.
-    if any(t is None or not math.isfinite(t) for t in times):raise ValueError('Cavity trajectory requires actual finite timestamps')
-    if n>1 and np.any(np.diff(times)<=0):raise ValueError('Frame times must increase strictly')
-    initial_obstacles=None
+    if any(t is None or not math.isfinite(t) for t in times):
+        raise ValueError('Cavity trajectory requires actual finite timestamps')
+    if n > 1 and np.any(np.diff(times) <= 0):
+        raise ValueError('Frame times must increase strictly')
+    initial_obstacles = None
     if obstacles is not None:
-        if geometry_mode!="reference-region":raise ValueError("Explicit obstacles currently require reference-region geometry")
-        aligned,fit=align_frame_report(first,first,residues=alignment_residues)
-        initial_obstacles,_=obstacles.prepare(first,aligned,fit,reference,margin=region_margin,probe_radius=(geometry or {}).get("probe_radius",1.4),max_grid_points=(geometry or {}).get("max_grid_points",2_000_000))
-    initial=boundary_residue_evidence(first,reference.grid,reference.origin,reference.deltas,
-                                      lining_distance=lining_distance,contact_cutoff=contact_cutoff,obstacle_atoms=initial_obstacles)
-    dynamics=ResidueDynamics(lining_residues=initial['lining_residues'],min_occupancy=0)
-    settings=dict(geometry=geometry,alignment_residues=alignment_residues,minimum_overlap=minimum_overlap,
-                  ambiguity_ratio=ambiguity_ratio,lining_distance=lining_distance,contact_cutoff=contact_cutoff,geometry_mode=geometry_mode,region_margin=region_margin,obstacles=obstacles)
-    if waters is not None:settings['waters']=waters
-    records=[None]*n
+        if geometry_mode != "reference-region":
+            raise ValueError("Explicit obstacles currently require reference-region geometry")
+        aligned, fit = align_frame_report(first, first, residues=alignment_residues)
+        initial_obstacles, _ = obstacles.prepare(
+            first,
+            aligned,
+            fit,
+            reference,
+            margin=region_margin,
+            probe_radius=(geometry or {}).get("probe_radius", 1.4),
+            max_grid_points=(geometry or {}).get("max_grid_points", 2_000_000),
+        )
+    initial = boundary_residue_evidence(
+        first,
+        reference.grid,
+        reference.origin,
+        reference.deltas,
+        lining_distance=lining_distance,
+        contact_cutoff=contact_cutoff,
+        obstacle_atoms=initial_obstacles,
+    )
+    dynamics = ResidueDynamics(lining_residues=initial['lining_residues'], min_occupancy=0)
+    settings = dict(
+        geometry=geometry,
+        alignment_residues=alignment_residues,
+        minimum_overlap=minimum_overlap,
+        ambiguity_ratio=ambiguity_ratio,
+        lining_distance=lining_distance,
+        contact_cutoff=contact_cutoff,
+        geometry_mode=geometry_mode,
+        region_margin=region_margin,
+        obstacles=obstacles,
+    )
+    if waters is not None:
+        settings['waters'] = waters
+    records = [None] * n
     # Streaming: each finished frame is fed to the residue dynamics in time
     # order as soon as every earlier frame has arrived (out-of-order results
     # wait in `pending`), and its contact network is released then, so only
     # the compact per-frame records accumulate.
-    pending={};state={'next':0};shared={}
-    def accept(i,row):
-        row['time_ps']=float(times[i])
-        if progress_callback:progress_callback(i,row)
-        if row['boundary'] is not None:row['boundary']['residues']=_BoundaryResidues(row['boundary']['residues'],shared)
-        pending[i]=row
+    pending = {}
+    state = {'next': 0}
+    shared = {}
+
+    def accept(i, row):
+        row['time_ps'] = float(times[i])
+        if progress_callback:
+            progress_callback(i, row)
+        if row['boundary'] is not None:
+            row['boundary']['residues'] = _BoundaryResidues(row['boundary']['residues'], shared)
+        pending[i] = row
         while state['next'] in pending:
-            j=state['next'];ready=pending.pop(j)
+            j = state['next']
+            ready = pending.pop(j)
             # Sequential accumulation preserves physical time order for split-half motion.
-            dynamics.add(None,ready.pop('network'),frame_index=frames[j].frame_index,time=times[j])
-            records[j]=ready;state['next']=j+1
-    if workers==1:
-        for i in range(n):accept(i,_trajectory_frame(frames[i],first,reference,settings,retain_networks))
+            dynamics.add(None, ready.pop('network'), frame_index=frames[j].frame_index, time=times[j])
+            records[j] = ready
+            state['next'] = j + 1
+
+    if workers == 1:
+        for i in range(n):
+            accept(i, _trajectory_frame(frames[i], first, reference, settings, retain_networks))
     else:
-        from concurrent.futures import ProcessPoolExecutor,wait,FIRST_COMPLETED
-        if geometry_mode=='reference-region':
+        from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
+
+        if geometry_mode == 'reference-region':
             # Build the fixed regional grid once here (it is cached on the
             # reference), so forked workers inherit it instead of each
             # rebuilding the same frame-independent grid.
             from .regional_volume import regional_grid
-            regional_grid(reference,region_margin,(geometry or {}).get('probe_radius',1.4),(geometry or {}).get('max_grid_points',2_000_000),near_only=True)
+
+            regional_grid(
+                reference,
+                region_margin,
+                (geometry or {}).get('probe_radius', 1.4),
+                (geometry or {}).get('max_grid_points', 2_000_000),
+                near_only=True,
+            )
         # Fork shares the read-only compact coordinate trajectory on Linux;
         # spawned workers receive it through the initializer.
-        pool=ProcessPoolExecutor(max_workers=int(workers),mp_context=_process_context(),
-                                initializer=_initialize_worker,initargs=(frames,first,reference,settings,active_radii(),retain_networks))
+        pool = ProcessPoolExecutor(
+            max_workers=int(workers),
+            mp_context=_process_context(),
+            initializer=_initialize_worker,
+            initargs=(frames, first, reference, settings, active_radii(), retain_networks),
+        )
         # Frames are submitted at most `window` ahead of the next frame still
         # awaited in time order, which bounds the results held at once
         # (finished futures and buffered out-of-order records) for any length.
-        window=4*int(workers);submitted=0;running=set()
+        window = 4 * int(workers)
+        submitted = 0
+        running = set()
         try:
-            while submitted<n or running:
-                while submitted<n and submitted<state['next']+window:
-                    running.add(pool.submit(_analyze_worker,submitted));submitted+=1
-                done,running=wait(running,return_when=FIRST_COMPLETED)
-                for i,row in sorted((future.result() for future in done),key=lambda item:item[0]):accept(i,row)
+            while submitted < n or running:
+                while submitted < n and submitted < state['next'] + window:
+                    running.add(pool.submit(_analyze_worker, submitted))
+                    submitted += 1
+                done, running = wait(running, return_when=FIRST_COMPLETED)
+                for i, row in sorted((future.result() for future in done), key=lambda item: item[0]):
+                    accept(i, row)
                 del done
         finally:
-            pool.shutdown(wait=True,cancel_futures=True)
-    return {'frames':records,'reference':reference,'reference_boundary':initial,
-            'residue_dynamics':dynamics.finish(aligned=True,include_contact_frames=True),
-            'residue_centroids':np.asarray(dynamics.positions),
-            'settings':{**settings,'obstacles':obstacles.metadata if obstacles is not None else None,**({'waters':waters.metadata} if waters is not None else {}),'workers':int(workers),'spacing_A':reference.spacing,**radii_fields()},
-            'frame_count':n,'aligned':True,'time_ps':np.asarray(times,dtype=float)}
+            pool.shutdown(wait=True, cancel_futures=True)
+    return {
+        'frames': records,
+        'reference': reference,
+        'reference_boundary': initial,
+        'residue_dynamics': dynamics.finish(aligned=True, include_contact_frames=True),
+        'residue_centroids': np.asarray(dynamics.positions),
+        'settings': {
+            **settings,
+            'obstacles': obstacles.metadata if obstacles is not None else None,
+            **({'waters': waters.metadata} if waters is not None else {}),
+            'workers': int(workers),
+            'spacing_A': reference.spacing,
+            **radii_fields(),
+        },
+        'frame_count': n,
+        'aligned': True,
+        'time_ps': np.asarray(times, dtype=float),
+    }
 
 
-def describe_series(values,*,confidence=.95,block_length=None,replicates=2000,seed=20260913,regular=True):
+def describe_series(values, *, confidence=0.95, block_length=None, replicates=2000, seed=20260913, regular=True):
     """Descriptive coverage plus autocorrelation-aware uncertainty for the mean.
 
     NaN values are missing frames. The record always reports the frame counts
@@ -735,31 +1011,66 @@ def describe_series(values,*,confidence=.95,block_length=None,replicates=2000,se
     (3, 2.0, 'unavailable_missing_frames')
     """
     import numpy as np
-    from .uncertainty import block_mean_confidence,sampling_uncertainty,statistical_inefficiency
-    values=np.asarray(values,dtype=float);observed=values[np.isfinite(values)];n=len(values)
-    result={'total_frames':n,'observed_frames':len(observed),'missing_frames':n-len(observed),
-            'coverage_fraction':len(observed)/n,'mean':None,'sample_sd':None,'median':None,
-            'quantile_025':None,'quantile_975':None,'minimum':None,'maximum':None,
-            'confidence_interval':{'status':'no_observations'},'statistical_inefficiency':None,'effective_frames':None}
+    from .uncertainty import block_mean_confidence, sampling_uncertainty, statistical_inefficiency
+
+    values = np.asarray(values, dtype=float)
+    observed = values[np.isfinite(values)]
+    n = len(values)
+    result = {
+        'total_frames': n,
+        'observed_frames': len(observed),
+        'missing_frames': n - len(observed),
+        'coverage_fraction': len(observed) / n,
+        'mean': None,
+        'sample_sd': None,
+        'median': None,
+        'quantile_025': None,
+        'quantile_975': None,
+        'minimum': None,
+        'maximum': None,
+        'confidence_interval': {'status': 'no_observations'},
+        'statistical_inefficiency': None,
+        'effective_frames': None,
+    }
     if len(observed):
-        q=np.quantile(observed,[.025,.5,.975]);result.update(mean=float(observed.mean()),sample_sd=float(observed.std(ddof=1)) if len(observed)>1 else None,
-           median=float(q[1]),quantile_025=float(q[0]),quantile_975=float(q[2]),minimum=float(observed.min()),maximum=float(observed.max()))
-        result['first_half_mean']=float(np.nanmean(values[:n//2])) if np.isfinite(values[:n//2]).any() else None
-        result['second_half_mean']=float(np.nanmean(values[n//2:])) if np.isfinite(values[n//2:]).any() else None
-        if len(observed)==n and n>=2:
-            g=statistical_inefficiency(values);result.update(statistical_inefficiency=g,effective_frames=n/g)
-        if len(observed)==n and np.ptp(observed)==0:
-            result['confidence_interval']={'status':'unavailable_observed_constant','reason':'No variation observed; a zero-width sampling interval is not justified for unobserved transitions'}
-        elif len(observed)!=n:result['confidence_interval']={'status':'unavailable_missing_frames'}
-        elif not regular:result['confidence_interval']={'status':'unavailable_irregular_timestamps'}
-        else:result['confidence_interval']=block_mean_confidence(values[:,None],confidence=confidence,block_length=block_length,replicates=replicates,seed=seed)
+        q = np.quantile(observed, [0.025, 0.5, 0.975])
+        result.update(
+            mean=float(observed.mean()),
+            sample_sd=float(observed.std(ddof=1)) if len(observed) > 1 else None,
+            median=float(q[1]),
+            quantile_025=float(q[0]),
+            quantile_975=float(q[2]),
+            minimum=float(observed.min()),
+            maximum=float(observed.max()),
+        )
+        result['first_half_mean'] = float(np.nanmean(values[: n // 2])) if np.isfinite(values[: n // 2]).any() else None
+        result['second_half_mean'] = (
+            float(np.nanmean(values[n // 2 :])) if np.isfinite(values[n // 2 :]).any() else None
+        )
+        if len(observed) == n and n >= 2:
+            g = statistical_inefficiency(values)
+            result.update(statistical_inefficiency=g, effective_frames=n / g)
+        if len(observed) == n and np.ptp(observed) == 0:
+            result['confidence_interval'] = {
+                'status': 'unavailable_observed_constant',
+                'reason': 'No variation observed; a zero-width sampling interval is not justified for unobserved transitions',
+            }
+        elif len(observed) != n:
+            result['confidence_interval'] = {'status': 'unavailable_missing_frames'}
+        elif not regular:
+            result['confidence_interval'] = {'status': 'unavailable_irregular_timestamps'}
+        else:
+            result['confidence_interval'] = block_mean_confidence(
+                values[:, None], confidence=confidence, block_length=block_length, replicates=replicates, seed=seed
+            )
     # Additive (0.4): effective sample size, blocking SE and moving-block bootstrap of the mean.
-    result['sampling_uncertainty']=sampling_uncertainty(values,confidence=confidence,block_length=block_length,
-                                                        replicates=replicates,seed=seed,regular=regular)
+    result['sampling_uncertainty'] = sampling_uncertainty(
+        values, confidence=confidence, block_length=block_length, replicates=replicates, seed=seed, regular=regular
+    )
     return result
 
 
-def summarize_cavity_trajectory(analysis,*,confidence=.95,block_length=None,replicates=2000,seed=20260913):
+def summarize_cavity_trajectory(analysis, *, confidence=0.95, block_length=None, replicates=2000, seed=20260913):
     """All-frame arrays and statistics of a cavity-trajectory analysis.
 
     Volumes, section widths, residue boundary areas and fractions, lining
@@ -803,96 +1114,202 @@ def summarize_cavity_trajectory(analysis,*,confidence=.95,block_length=None,repl
     from collections import Counter
     from copy import deepcopy
     from .uncertainty import block_mean_confidence
-    frames=analysis['frames'];n=len(frames);reference=analysis['reference'];times=analysis['time_ps']
-    dynamics=deepcopy(analysis['residue_dynamics'])
-    regular=n<3 or np.allclose(np.diff(times),np.diff(times)[0],rtol=1e-7,atol=1e-7)
-    options=dict(confidence=confidence,block_length=block_length,replicates=replicates,seed=seed,regular=regular)
-    volume=np.asarray([r['volume_A3'] if r['volume_A3'] is not None else np.nan for r in frames])
-    ids=sorted(r['residue'] for r in analysis['reference_boundary']['residues']);lookup={k:i for i,k in enumerate(ids)}
-    area=np.full((n,len(ids)),np.nan);support=area.copy();fraction=area.copy();partner=area.copy();pairs={}
-    keys=['total_area_A2','largest_area_A2','equivalent_diameter_A','largest_component_diameter_A','maximum_atom_clear_sphere_diameter_A','section_component_count']
-    profiles={key:np.full((n,len(reference.axial_indices)),np.nan) for key in keys}
-    for i,row in enumerate(frames):
-        if row['boundary'] is None:continue
-        for key in keys:profiles[key][i]=row['profile'][key]
+
+    frames = analysis['frames']
+    n = len(frames)
+    reference = analysis['reference']
+    times = analysis['time_ps']
+    dynamics = deepcopy(analysis['residue_dynamics'])
+    regular = n < 3 or np.allclose(np.diff(times), np.diff(times)[0], rtol=1e-7, atol=1e-7)
+    options = dict(confidence=confidence, block_length=block_length, replicates=replicates, seed=seed, regular=regular)
+    volume = np.asarray([r['volume_A3'] if r['volume_A3'] is not None else np.nan for r in frames])
+    ids = sorted(r['residue'] for r in analysis['reference_boundary']['residues'])
+    lookup = {k: i for i, k in enumerate(ids)}
+    area = np.full((n, len(ids)), np.nan)
+    support = area.copy()
+    fraction = area.copy()
+    partner = area.copy()
+    pairs = {}
+    keys = [
+        'total_area_A2',
+        'largest_area_A2',
+        'equivalent_diameter_A',
+        'largest_component_diameter_A',
+        'maximum_atom_clear_sphere_diameter_A',
+        'section_component_count',
+    ]
+    profiles = {key: np.full((n, len(reference.axial_indices)), np.nan) for key in keys}
+    for i, row in enumerate(frames):
+        if row['boundary'] is None:
+            continue
+        for key in keys:
+            profiles[key][i] = row['profile'][key]
         for residue in row['boundary']['residues']:
-            j=lookup[residue['residue']];area[i,j]=residue['boundary_area_A2'];fraction[i,j]=residue['boundary_fraction']
-            support[i,j]=residue['contacted_lining_boundary_fraction'];partner[i,j]=float(residue['role']=='nonlocal_lining_partner')
-            if residue['role']=='nonlocal_lining_partner':
+            j = lookup[residue['residue']]
+            area[i, j] = residue['boundary_area_A2']
+            fraction[i, j] = residue['boundary_fraction']
+            support[i, j] = residue['contacted_lining_boundary_fraction']
+            partner[i, j] = float(residue['role'] == 'nonlocal_lining_partner')
+            if residue['role'] == 'nonlocal_lining_partner':
                 for contact in residue['nonlocal_lining_partners']:
-                    key=tuple(sorted((residue['residue'],contact['residue'])))
-                    pairs.setdefault(key,set()).add(i)
-    valid=np.isfinite(volume);count=int(valid.sum())
+                    key = tuple(sorted((residue['residue'], contact['residue'])))
+                    pairs.setdefault(key, set()).add(i)
+    valid = np.isfinite(volume)
+    count = int(valid.sum())
     # One joint family for widths, keeping missing frames/planes intact.
-    width=profiles['largest_component_diameter_A']
-    ci=block_mean_confidence(width,confidence=confidence,block_length=block_length,replicates=replicates,seed=seed) if regular else {'status':'unavailable_irregular_timestamps'}
-    constant=np.isfinite(width).all(axis=0) & (np.nan_to_num(width).max(axis=0)==np.nan_to_num(width).min(axis=0))
-    ci['constant_columns_without_sampling_interval']=np.flatnonzero(constant).tolist()
-    for key in ['pointwise_lower','pointwise_upper','simultaneous_lower','simultaneous_upper']:
+    width = profiles['largest_component_diameter_A']
+    ci = (
+        block_mean_confidence(width, confidence=confidence, block_length=block_length, replicates=replicates, seed=seed)
+        if regular
+        else {'status': 'unavailable_irregular_timestamps'}
+    )
+    constant = np.isfinite(width).all(axis=0) & (np.nan_to_num(width).max(axis=0) == np.nan_to_num(width).min(axis=0))
+    ci['constant_columns_without_sampling_interval'] = np.flatnonzero(constant).tolist()
+    for key in ['pointwise_lower', 'pointwise_upper', 'simultaneous_lower', 'simultaneous_upper']:
         if key in ci:
-            ci[key]=[None if constant[j] else max(0.,v) if v is not None else None for j,v in enumerate(ci[key])]
-    profile_rows=[]
-    for j,k in enumerate(reference.axial_indices):
-        x=width[:,j];y=x[np.isfinite(x)]
-        row={'position_A':float(k*reference.spacing),'observed_frames':len(y),'coverage_fraction':len(y)/n,
-             'occupied_fraction_of_observed':float(np.mean(y>0)) if len(y) else None,
-             'mean_diameter_A':float(y.mean()) if len(y) else None,'median_diameter_A':float(np.median(y)) if len(y) else None,
-             'fluctuation_lower_A':float(np.quantile(y,.025)) if len(y) else None,'fluctuation_upper_A':float(np.quantile(y,.975)) if len(y) else None}
-        for out,key in [('mean_lower_A','pointwise_lower'),('mean_upper_A','pointwise_upper'),('simultaneous_mean_lower_A','simultaneous_lower'),('simultaneous_mean_upper_A','simultaneous_upper')]:
-            row[out]=ci.get(key,[None]*len(reference.axial_indices))[j]
+            ci[key] = [None if constant[j] else max(0.0, v) if v is not None else None for j, v in enumerate(ci[key])]
+    profile_rows = []
+    for j, k in enumerate(reference.axial_indices):
+        x = width[:, j]
+        y = x[np.isfinite(x)]
+        row = {
+            'position_A': float(k * reference.spacing),
+            'observed_frames': len(y),
+            'coverage_fraction': len(y) / n,
+            'occupied_fraction_of_observed': float(np.mean(y > 0)) if len(y) else None,
+            'mean_diameter_A': float(y.mean()) if len(y) else None,
+            'median_diameter_A': float(np.median(y)) if len(y) else None,
+            'fluctuation_lower_A': float(np.quantile(y, 0.025)) if len(y) else None,
+            'fluctuation_upper_A': float(np.quantile(y, 0.975)) if len(y) else None,
+        }
+        for out, key in [
+            ('mean_lower_A', 'pointwise_lower'),
+            ('mean_upper_A', 'pointwise_upper'),
+            ('simultaneous_mean_lower_A', 'simultaneous_lower'),
+            ('simultaneous_mean_upper_A', 'simultaneous_upper'),
+        ]:
+            row[out] = ci.get(key, [None] * len(reference.axial_indices))[j]
         profile_rows.append(row)
-    residues=[]
-    for j,key in enumerate(ids):
-        lining=np.where(np.isfinite(area[:,j]),(area[:,j]>0).astype(float),np.nan)
-        direct_count=int(np.nansum(lining));partner_count=int(np.nansum(partner[:,j]))
-        residues.append({'residue':key,'observed_geometry_frames':count,'total_frames':n,
-            'lining_frames':direct_count,'lining_frequency_observed':direct_count/count if count else None,
-            'lining_frequency_all_frames_lower':direct_count/n,'lining_frequency_all_frames_upper':(direct_count+n-count)/n,
-            'nonlining_partner_frames':partner_count,'partner_frequency_observed':partner_count/count if count else None,
-            'boundary_area_A2':describe_series(area[:,j],**options),'boundary_fraction':describe_series(fraction[:,j],**options),
-            'lining_occupancy':describe_series(lining,**options),'nonlocal_contacted_boundary_fraction':describe_series(support[:,j],**options)})
+    residues = []
+    for j, key in enumerate(ids):
+        lining = np.where(np.isfinite(area[:, j]), (area[:, j] > 0).astype(float), np.nan)
+        direct_count = int(np.nansum(lining))
+        partner_count = int(np.nansum(partner[:, j]))
+        residues.append(
+            {
+                'residue': key,
+                'observed_geometry_frames': count,
+                'total_frames': n,
+                'lining_frames': direct_count,
+                'lining_frequency_observed': direct_count / count if count else None,
+                'lining_frequency_all_frames_lower': direct_count / n,
+                'lining_frequency_all_frames_upper': (direct_count + n - count) / n,
+                'nonlining_partner_frames': partner_count,
+                'partner_frequency_observed': partner_count / count if count else None,
+                'boundary_area_A2': describe_series(area[:, j], **options),
+                'boundary_fraction': describe_series(fraction[:, j], **options),
+                'lining_occupancy': describe_series(lining, **options),
+                'nonlocal_contacted_boundary_fraction': describe_series(support[:, j], **options),
+            }
+        )
     # Associate motion with geometry using the same aligned frames; descriptive
     # correlation only, conditional on matched frames, no p-values/causal claim.
     for row in dynamics['contacts']:
-        key=tuple(sorted((row['source'],row['target'])));dynamic=pairs.get(key,set())
-        row['dynamic_nonlining_boundary_partner_frames']=len(dynamic)
-        row['dynamic_boundary_eligible_frames']=count
-        row['dynamic_partner_frequency_observed']=len(dynamic)/count if count else None
-        occurrence=np.zeros(n);occurrence[row.pop('contact_frame_rows')]=1.
-        row['occupancy_statistics']=describe_series(occurrence,**options)
-        for key in ['pointwise_lower','pointwise_upper','simultaneous_lower','simultaneous_upper']:
-            interval=row['occupancy_statistics']['confidence_interval']
-            if key in interval:interval[key]=[float(np.clip(v,0,1)) if v is not None else None for v in interval[key]]
-    centroids=analysis.get('residue_centroids')
-    def correlation(a,b):
-        keep=np.isfinite(a)&np.isfinite(b)
-        if keep.sum()<3 or np.std(a[keep])<1e-10 or np.std(b[keep])<1e-10:return None
-        return float(np.corrcoef(a[keep],b[keep])[0,1])
-    for j,row in enumerate(residues):
-        row['volume_boundary_area_correlation']=correlation(volume,area[:,j])
-        row['volume_centroid_distance_correlation']=correlation(volume,np.linalg.norm(centroids[:,j]-reference.anchor,axis=1)) if centroids is not None else None
-        row['correlation_interpretation']='Descriptive Pearson association on matched frames; no uncertainty or causal interpretation; area and volume are geometrically related'
-    report={'frame_count':n,'matched_frames':count,'unresolved_frames':n-count,'status_counts':dict(Counter(r['status'] for r in frames)),
-            'time_range_ps':[float(times[0]),float(times[-1])],'regular_timestamps':bool(regular),'alignment_applied':True,
-            'settings':analysis['settings'],'reference':{'source_path':reference.source_path,'source_sha256':reference.source_sha256,
-              'grid_phase_fraction':list(reference.grid_phase),'grid_basis':reference.basis.tolist(),'grid_anchor_A':reference.anchor.tolist(),'spacing_A':reference.spacing,
-              'coordinate_contract':'Reference map must already be in the first trajectory frame coordinates; geometric matching is not anatomical validation'},
-            'volume_A3':describe_series(volume,**options),
-            'profile':{'rows':profile_rows,'confidence_interval':ci,'axis_direction':reference.basis[2].tolist(),'axis_origin':reference.anchor.tolist(),
-              'definition':'2*sqrt(A/pi), where A is the largest face-connected measured planar section area; zero means no section of a successfully matched cavity',
-              'fluctuation_band':'2.5–97.5% empirical frame quantiles, conditional on matched geometry; not a confidence interval',
-              'mean_band':'autocorrelation-aware joint batch bootstrap; may be unavailable with missing frames or insufficient independent batches',
-              'limitation':'area-equivalent sectional width, not an inscribed permeation diameter or a connected through-path'},
-            'residues':residues,'residue_dynamics':dynamics,
-            'limitations':['Reference matching is geometric and cannot establish biological cavity identity.','Statistical intervals do not include probe/grid, force-field or anatomical errors.','All selected frames are attempted; unresolved geometry is missing, never zero.','Single-trajectory stationarity and convergence are not established.','Residue boundary/contact/motion evidence describes associations, not functional or causal control.']}
-    arrays={'time_ps':times,'volume_A3':volume,'residue_ids':np.asarray(ids),'boundary_area_A2':area,'boundary_fraction':fraction,
-            'nonlocal_contacted_boundary_fraction':support,'nonlining_partner':partner,**profiles}
-    return report,arrays
+        key = tuple(sorted((row['source'], row['target'])))
+        dynamic = pairs.get(key, set())
+        row['dynamic_nonlining_boundary_partner_frames'] = len(dynamic)
+        row['dynamic_boundary_eligible_frames'] = count
+        row['dynamic_partner_frequency_observed'] = len(dynamic) / count if count else None
+        occurrence = np.zeros(n)
+        occurrence[row.pop('contact_frame_rows')] = 1.0
+        row['occupancy_statistics'] = describe_series(occurrence, **options)
+        for key in ['pointwise_lower', 'pointwise_upper', 'simultaneous_lower', 'simultaneous_upper']:
+            interval = row['occupancy_statistics']['confidence_interval']
+            if key in interval:
+                interval[key] = [float(np.clip(v, 0, 1)) if v is not None else None for v in interval[key]]
+    centroids = analysis.get('residue_centroids')
+
+    def correlation(a, b):
+        keep = np.isfinite(a) & np.isfinite(b)
+        if keep.sum() < 3 or np.std(a[keep]) < 1e-10 or np.std(b[keep]) < 1e-10:
+            return None
+        return float(np.corrcoef(a[keep], b[keep])[0, 1])
+
+    for j, row in enumerate(residues):
+        row['volume_boundary_area_correlation'] = correlation(volume, area[:, j])
+        row['volume_centroid_distance_correlation'] = (
+            correlation(volume, np.linalg.norm(centroids[:, j] - reference.anchor, axis=1))
+            if centroids is not None
+            else None
+        )
+        row['correlation_interpretation'] = (
+            'Descriptive Pearson association on matched frames; no uncertainty or causal interpretation; area and volume are geometrically related'
+        )
+    report = {
+        'frame_count': n,
+        'matched_frames': count,
+        'unresolved_frames': n - count,
+        'status_counts': dict(Counter(r['status'] for r in frames)),
+        'time_range_ps': [float(times[0]), float(times[-1])],
+        'regular_timestamps': bool(regular),
+        'alignment_applied': True,
+        'settings': analysis['settings'],
+        'reference': {
+            'source_path': reference.source_path,
+            'source_sha256': reference.source_sha256,
+            'grid_phase_fraction': list(reference.grid_phase),
+            'grid_basis': reference.basis.tolist(),
+            'grid_anchor_A': reference.anchor.tolist(),
+            'spacing_A': reference.spacing,
+            'coordinate_contract': 'Reference map must already be in the first trajectory frame coordinates; geometric matching is not anatomical validation',
+        },
+        'volume_A3': describe_series(volume, **options),
+        'profile': {
+            'rows': profile_rows,
+            'confidence_interval': ci,
+            'axis_direction': reference.basis[2].tolist(),
+            'axis_origin': reference.anchor.tolist(),
+            'definition': '2*sqrt(A/pi), where A is the largest face-connected measured planar section area; zero means no section of a successfully matched cavity',
+            'fluctuation_band': '2.5–97.5% empirical frame quantiles, conditional on matched geometry; not a confidence interval',
+            'mean_band': 'autocorrelation-aware joint batch bootstrap; may be unavailable with missing frames or insufficient independent batches',
+            'limitation': 'area-equivalent sectional width, not an inscribed permeation diameter or a connected through-path',
+        },
+        'residues': residues,
+        'residue_dynamics': dynamics,
+        'limitations': [
+            'Reference matching is geometric and cannot establish biological cavity identity.',
+            'Statistical intervals do not include probe/grid, force-field or anatomical errors.',
+            'All selected frames are attempted; unresolved geometry is missing, never zero.',
+            'Single-trajectory stationarity and convergence are not established.',
+            'Residue boundary/contact/motion evidence describes associations, not functional or causal control.',
+        ],
+    }
+    arrays = {
+        'time_ps': times,
+        'volume_A3': volume,
+        'residue_ids': np.asarray(ids),
+        'boundary_area_A2': area,
+        'boundary_fraction': fraction,
+        'nonlocal_contacted_boundary_fraction': support,
+        'nonlining_partner': partner,
+        **profiles,
+    }
+    return report, arrays
 
 
 @annotate_option
-def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confidence=.95,
-                                   block_length=None,replicates=2000,seed=20260913,dpi=200,annotate=None):
+def write_cavity_trajectory_bundle(
+    analysis,
+    output_dir,
+    *,
+    prefix='crevice',
+    confidence=0.95,
+    block_length=None,
+    replicates=2000,
+    seed=20260913,
+    dpi=200,
+    annotate=None,
+):
     """Write the statistics, tables and figures of ``crevice trajectory --cavities``.
 
     ``analysis`` (from :func:`analyze_cavity_trajectory`) holds, for every
@@ -1004,121 +1421,324 @@ def write_cavity_trajectory_bundle(analysis,output_dir,*,prefix='crevice',confid
     * Width heatmap: ``viridis`` colour scale with a colour bar
       "Area-equivalent diameter (Å)"; light grey = unresolved geometry.
     """
-    import csv,json
+    import csv
     import numpy as np
-    from .figures import _pyplot,_save_figure
-    root=Path(output_dir);root.mkdir(parents=True,exist_ok=True)
-    if not prefix or Path(prefix).name!=prefix:raise ValueError('prefix must be a simple filename stem')
-    report,arrays=summarize_cavity_trajectory(analysis,confidence=confidence,block_length=block_length,replicates=replicates,seed=seed)
-    files={}
-    def path(key,suffix):
-        target=root/(prefix+suffix);files[key]=str(target);return target
-    (_t:=path('statistics_json','_cavity_statistics.json')).write_text(dumps_record(report,_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
+    from .figures import _pyplot, _save_figure
+
+    root = Path(output_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    if not prefix or Path(prefix).name != prefix:
+        raise ValueError('prefix must be a simple filename stem')
+    report, arrays = summarize_cavity_trajectory(
+        analysis, confidence=confidence, block_length=block_length, replicates=replicates, seed=seed
+    )
+    files = {}
+
+    def path(key, suffix):
+        target = root / (prefix + suffix)
+        files[key] = str(target)
+        return target
+
+    (_t := path('statistics_json', '_cavity_statistics.json')).write_text(
+        dumps_record(report, _t, indent=2, allow_nan=False) + '\n', encoding="utf-8", newline="\n"
+    )
     from .io import write_summary_statistics_csv
-    write_summary_statistics_csv(report,path('statistics_summary_csv','_cavity_statistics_summary.csv'))
-    np.savez_compressed(path('all_frame_arrays_npz','_cavity_frames.npz'),**arrays)
-    frame_rows=[]
+
+    write_summary_statistics_csv(report, path('statistics_summary_csv', '_cavity_statistics_summary.csv'))
+    np.savez_compressed(path('all_frame_arrays_npz', '_cavity_frames.npz'), **arrays)
+    frame_rows = []
     for row in analysis['frames']:
-        selected=row['matching'].get('selected',{})
-        frame_rows.append({'frame_index':row['frame_index'],'time_ps':row['time_ps'],'status':row['status'],
-          'volume_A3':row['volume_A3'],'alignment_rmsd_A':row['alignment']['rmsd_after_A'],
-          'matching_score':selected.get('overlap_score'),'reference_recall':selected.get('reference_recall'),
-          'candidate_precision':selected.get('candidate_precision'),
-          'profile_outside_volume_A3':row['profile']['outside_profile_volume_A3'] if row['profile'] else None,
-          'axial_start_A':row['profile']['extent_A'][0] if row['profile'] else None,
-          'axial_end_A':row['profile']['extent_A'][1] if row['profile'] else None,
-          'lining_residues':len(row['boundary']['lining_residues']) if row['boundary'] else None,
-          'excluded_crop_boundary_A2':row['boundary'].get('excluded_boundary_area_A2',0.) if row['boundary'] else None,
-          'region_volume_components':row['matching'].get('regional_definition',{}).get('sampled_volume_components')})
-    def table(target,rows):
+        selected = row['matching'].get('selected', {})
+        frame_rows.append(
+            {
+                'frame_index': row['frame_index'],
+                'time_ps': row['time_ps'],
+                'status': row['status'],
+                'volume_A3': row['volume_A3'],
+                'alignment_rmsd_A': row['alignment']['rmsd_after_A'],
+                'matching_score': selected.get('overlap_score'),
+                'reference_recall': selected.get('reference_recall'),
+                'candidate_precision': selected.get('candidate_precision'),
+                'profile_outside_volume_A3': row['profile']['outside_profile_volume_A3'] if row['profile'] else None,
+                'axial_start_A': row['profile']['extent_A'][0] if row['profile'] else None,
+                'axial_end_A': row['profile']['extent_A'][1] if row['profile'] else None,
+                'lining_residues': len(row['boundary']['lining_residues']) if row['boundary'] else None,
+                'excluded_crop_boundary_A2': row['boundary'].get('excluded_boundary_area_A2', 0.0)
+                if row['boundary']
+                else None,
+                'region_volume_components': row['matching']
+                .get('regional_definition', {})
+                .get('sampled_volume_components'),
+            }
+        )
+
+    def table(target, rows):
         # Rows may be a generator: the per-frame tables are streamed to disk
         # rather than built as one list of frames x residues dicts.
-        rows=iter(rows);head=next(rows,None)
-        if head is None:target.write_text('', encoding="utf-8", newline="\n");return
-        with target.open('w',newline='',encoding='utf-8') as f:
-            writer=csv.DictWriter(f,fieldnames=list(head));writer.writeheader();writer.writerow(head);writer.writerows(rows)
-    table(path('frames_csv','_cavity_frames.csv'),frame_rows)
+        rows = iter(rows)
+        head = next(rows, None)
+        if head is None:
+            target.write_text('', encoding="utf-8", newline="\n")
+            return
+        with target.open('w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=list(head))
+            writer.writeheader()
+            writer.writerow(head)
+            writer.writerows(rows)
+
+    table(path('frames_csv', '_cavity_frames.csv'), frame_rows)
+
     def cell(v):
-        v=float(v);return v if np.isfinite(v) else ''
-    frame_ids=[row['frame_index'] for row in analysis['frames']];frame_times=[row['time_ps'] for row in analysis['frames']]
-    positions=[r['position_A'] for r in report['profile']['rows']]
-    section_keys=[k for k in ['total_area_A2','largest_area_A2','equivalent_diameter_A','largest_component_diameter_A',
-                              'maximum_atom_clear_sphere_diameter_A','section_component_count'] if k in arrays]
-    section_rows=({'frame_index':frame_ids[i],'time_ps':frame_times[i],'position_A':positions[j],**{k:cell(arrays[k][i,j]) for k in section_keys}}
-                  for i in range(len(frame_ids)) if any(np.isfinite(arrays[k][i]).any() for k in section_keys)
-                  for j in range(len(positions)))
-    table(path('section_frames_csv','_cavity_section_frames.csv'),section_rows)
-    residue_keys=[k for k in ['boundary_area_A2','boundary_fraction','nonlocal_contacted_boundary_fraction','nonlining_partner'] if k in arrays]
-    residue_ids=[str(v) for v in arrays['residue_ids']]
-    residue_frame_rows=({'frame_index':frame_ids[i],'time_ps':frame_times[i],'residue':residue_ids[j],**{k:cell(arrays[k][i,j]) for k in residue_keys}}
-                        for i in range(len(frame_ids)) for j in range(len(residue_ids)) if np.isfinite(arrays['boundary_area_A2'][i,j]))
-    table(path('residue_frames_csv','_cavity_residue_frames.csv'),residue_frame_rows)
-    (_t:=path('frame_diagnostics_json','_cavity_frame_diagnostics.json')).write_text(dumps_record([
-        {k:v for k,v in row.items() if k not in {'boundary','profile','water_membership'}} for row in analysis['frames']],_t,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
-    table(path('width_profile_csv','_cavity_width_profile.csv'),report['profile']['rows'])
-    residue_rows=[]
+        v = float(v)
+        return v if np.isfinite(v) else ''
+
+    frame_ids = [row['frame_index'] for row in analysis['frames']]
+    frame_times = [row['time_ps'] for row in analysis['frames']]
+    positions = [r['position_A'] for r in report['profile']['rows']]
+    section_keys = [
+        k
+        for k in [
+            'total_area_A2',
+            'largest_area_A2',
+            'equivalent_diameter_A',
+            'largest_component_diameter_A',
+            'maximum_atom_clear_sphere_diameter_A',
+            'section_component_count',
+        ]
+        if k in arrays
+    ]
+    section_rows = (
+        {
+            'frame_index': frame_ids[i],
+            'time_ps': frame_times[i],
+            'position_A': positions[j],
+            **{k: cell(arrays[k][i, j]) for k in section_keys},
+        }
+        for i in range(len(frame_ids))
+        if any(np.isfinite(arrays[k][i]).any() for k in section_keys)
+        for j in range(len(positions))
+    )
+    table(path('section_frames_csv', '_cavity_section_frames.csv'), section_rows)
+    residue_keys = [
+        k
+        for k in ['boundary_area_A2', 'boundary_fraction', 'nonlocal_contacted_boundary_fraction', 'nonlining_partner']
+        if k in arrays
+    ]
+    residue_ids = [str(v) for v in arrays['residue_ids']]
+    residue_frame_rows = (
+        {
+            'frame_index': frame_ids[i],
+            'time_ps': frame_times[i],
+            'residue': residue_ids[j],
+            **{k: cell(arrays[k][i, j]) for k in residue_keys},
+        }
+        for i in range(len(frame_ids))
+        for j in range(len(residue_ids))
+        if np.isfinite(arrays['boundary_area_A2'][i, j])
+    )
+    table(path('residue_frames_csv', '_cavity_residue_frames.csv'), residue_frame_rows)
+    (_t := path('frame_diagnostics_json', '_cavity_frame_diagnostics.json')).write_text(
+        dumps_record(
+            [
+                {k: v for k, v in row.items() if k not in {'boundary', 'profile', 'water_membership'}}
+                for row in analysis['frames']
+            ],
+            _t,
+            indent=2,
+            allow_nan=False,
+        )
+        + '\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    table(path('width_profile_csv', '_cavity_width_profile.csv'), report['profile']['rows'])
+    residue_rows = []
     for row in report['residues']:
-        area=row['boundary_area_A2'];ci=area['confidence_interval'];freq=row['lining_occupancy']
-        residue_rows.append({'residue':row['residue'],'lining_frames':row['lining_frames'],'observed_geometry_frames':row['observed_geometry_frames'],
-          'total_frames':row['total_frames'],'lining_frequency_observed':row['lining_frequency_observed'],
-          'lining_frequency_all_frames_lower':row['lining_frequency_all_frames_lower'],'lining_frequency_all_frames_upper':row['lining_frequency_all_frames_upper'],
-          'partner_frequency_observed':row['partner_frequency_observed'],'mean_boundary_area_A2':area['mean'],
-          'sd_boundary_area_A2':area['sample_sd'],'boundary_mean_lower_A2':ci.get('pointwise_lower',[None])[0],
-          'boundary_mean_upper_A2':ci.get('pointwise_upper',[None])[0],'mean_CI_status':ci['status'],
-          'lining_occupancy_CI_status':freq['confidence_interval']['status']})
-    table(path('residue_statistics_csv','_cavity_residues.csv'),residue_rows)
-    table(path('contacts_csv','_cavity_contacts.csv'),[
-        {k:v for k,v in row.items() if not isinstance(v,(dict,list))} for row in report['residue_dynamics']['contacts']])
-    plt=_pyplot();times=np.asarray(arrays['time_ps'])/1000;valid=np.isfinite(arrays['volume_A3'])
-    text=FigureText(f"Cavity volume, boundary-residue count and CA fit RMSD against time for all {len(times)} attempted frames "
-                    f"({int(valid.sum())} matched); unresolved frames are gaps")
-    fig,axes=plt.subplots(3,1,figsize=(10,8),sharex=True,layout='constrained')
-    axes[0].plot(times,arrays['volume_A3'],color='#178c91',lw=.9);axes[0].set_ylabel('Cavity volume (Å³)')
-    stat=report['volume_A3'];bounds=stat['confidence_interval']
-    if stat['mean'] is not None:axes[0].axhline(stat['mean'],color='#a36a22',lw=1.4,label='Observed mean')
-    if bounds.get('pointwise_lower',[None])[0] is not None:
-        axes[0].axhspan(bounds['pointwise_lower'][0],bounds['pointwise_upper'][0],color='#d98c33',alpha=.25,label=f'{confidence:.0%} mean interval')
-    text.title(axes[0],f"All {len(times)} frames attempted · {int(valid.sum())} matched · mean interval: {bounds['status']}",fontsize=10)
-    axes[1].plot(times,[r['lining_residues'] if r['lining_residues'] is not None else np.nan for r in frame_rows],color='#d98c33',lw=.9);axes[1].set_ylabel('Boundary residues')
-    axes[2].plot(times,[r['alignment_rmsd_A'] for r in frame_rows],color='#547c9b',lw=.9);axes[2].set_ylabel('CA fit RMSD (Å)');axes[2].set_xlabel('Time (ns)')
-    for ax in axes:ax.spines[['top','right']].set_visible(False)
-    _save_figure(fig,path('volume_timeseries_png','_cavity_volume_timeseries.png'),dpi=dpi,text=text)
-    rows=report['profile']['rows'];x=np.array([r['position_A'] for r in rows])
-    def values(key):return np.array([r[key] if r[key] is not None else np.nan for r in rows])
-    for quantity,scale in [('diameter',1.),('radius',.5)]:
-        text=FigureText(f"Area-equivalent {quantity} of the largest connected planar cavity section along the fixed reference axis: "
-                        "observed frame range, mean and pointwise mean interval, with frame coverage below")
-        fig,axes=plt.subplots(2,1,figsize=(10,6.5),sharex=True,height_ratios=[4,1],layout='constrained')
-        ax=axes[0];ax.fill_between(x,scale*values('fluctuation_lower_A'),scale*values('fluctuation_upper_A'),color=NON_CHANNEL_CAST_HEX,alpha=.20,label='Observed 2.5–97.5% frame range')
-        ax.plot(x,scale*values('mean_diameter_A'),color=NON_CHANNEL_CAST_HEX,lw=1.7,label='Mean over matched frames')
-        lower=values('mean_lower_A');upper=values('mean_upper_A')
-        if np.isfinite(lower).any():ax.fill_between(x,scale*lower,scale*upper,color='#d98c33',alpha=.4,label=f'{confidence:.0%} pointwise mean interval')
-        ax.set_ylabel(f'Area-equivalent {quantity} (Å)');ax.set_ylim(bottom=0);ax.legend(frameon=False,fontsize=9)
-        text.title(ax,'Largest connected planar cavity section · aligned fixed coordinate\nNot an inscribed permeation radius or through-channel assignment',fontsize=11)
-        axes[1].plot(x,values('coverage_fraction'),color='#547c9b',label='Matched coverage')
-        axes[1].plot(x,values('occupied_fraction_of_observed'),color='#a34477',label='Section present | matched')
-        axes[1].set_ylim(-.02,1.02);axes[1].set_ylabel('Fraction');axes[1].set_xlabel('Position along reference axis (Å)');axes[1].legend(frameon=False,fontsize=8,ncol=2)
-        for axis in axes:axis.spines[['top','right']].set_visible(False)
-        text.suptitle(fig,'Mean-band status: '+report['profile']['confidence_interval']['status'],fontsize=10)
-        _save_figure(fig,path(quantity+'_profile_png','_cavity_'+quantity+'_profile.png'),dpi=dpi,text=text)
-    ranked=sorted(residue_rows,key=lambda r:(-(r['lining_frequency_observed'] or 0),-(r['mean_boundary_area_A2'] or 0),r['residue']))[:20]
-    text=FigureText(f"Boundary frequency and mean assigned boundary area of the {len(ranked)} residues most often on the cavity boundary")
-    fig,axes=plt.subplots(1,2,figsize=(12,7),sharey=True,layout='constrained');labels=[r['residue'] for r in ranked]
-    axes[0].barh(labels,[r['lining_frequency_observed'] or 0 for r in ranked],color='#d98c33');axes[0].invert_yaxis();axes[0].set_xlabel('Boundary frequency | matched geometry');axes[0].set_xlim(0,1.02)
-    axes[1].barh(labels,[r['mean_boundary_area_A2'] or 0 for r in ranked],color='#547c9b');axes[1].set_xlabel('Mean assigned boundary area (Å²)')
-    for ax in axes:ax.spines[['top','right']].set_visible(False)
-    text.suptitle(fig,'Changing boundary involvement · geometric evidence, not functional control')
-    _save_figure(fig,path('residue_statistics_png','_cavity_residues.png'),dpi=dpi,text=text)
+        area = row['boundary_area_A2']
+        ci = area['confidence_interval']
+        freq = row['lining_occupancy']
+        residue_rows.append(
+            {
+                'residue': row['residue'],
+                'lining_frames': row['lining_frames'],
+                'observed_geometry_frames': row['observed_geometry_frames'],
+                'total_frames': row['total_frames'],
+                'lining_frequency_observed': row['lining_frequency_observed'],
+                'lining_frequency_all_frames_lower': row['lining_frequency_all_frames_lower'],
+                'lining_frequency_all_frames_upper': row['lining_frequency_all_frames_upper'],
+                'partner_frequency_observed': row['partner_frequency_observed'],
+                'mean_boundary_area_A2': area['mean'],
+                'sd_boundary_area_A2': area['sample_sd'],
+                'boundary_mean_lower_A2': ci.get('pointwise_lower', [None])[0],
+                'boundary_mean_upper_A2': ci.get('pointwise_upper', [None])[0],
+                'mean_CI_status': ci['status'],
+                'lining_occupancy_CI_status': freq['confidence_interval']['status'],
+            }
+        )
+    table(path('residue_statistics_csv', '_cavity_residues.csv'), residue_rows)
+    table(
+        path('contacts_csv', '_cavity_contacts.csv'),
+        [
+            {k: v for k, v in row.items() if not isinstance(v, (dict, list))}
+            for row in report['residue_dynamics']['contacts']
+        ],
+    )
+    plt = _pyplot()
+    times = np.asarray(arrays['time_ps']) / 1000
+    valid = np.isfinite(arrays['volume_A3'])
+    text = FigureText(
+        f"Cavity volume, boundary-residue count and CA fit RMSD against time for all {len(times)} attempted frames "
+        f"({int(valid.sum())} matched); unresolved frames are gaps"
+    )
+    fig, axes = plt.subplots(3, 1, figsize=(10, 8), sharex=True, layout='constrained')
+    axes[0].plot(times, arrays['volume_A3'], color='#178c91', lw=0.9)
+    axes[0].set_ylabel('Cavity volume (Å³)')
+    stat = report['volume_A3']
+    bounds = stat['confidence_interval']
+    if stat['mean'] is not None:
+        axes[0].axhline(stat['mean'], color='#a36a22', lw=1.4, label='Observed mean')
+    if bounds.get('pointwise_lower', [None])[0] is not None:
+        axes[0].axhspan(
+            bounds['pointwise_lower'][0],
+            bounds['pointwise_upper'][0],
+            color='#d98c33',
+            alpha=0.25,
+            label=f'{confidence:.0%} mean interval',
+        )
+    text.title(
+        axes[0],
+        f"All {len(times)} frames attempted · {int(valid.sum())} matched · mean interval: {bounds['status']}",
+        fontsize=10,
+    )
+    axes[1].plot(
+        times,
+        [r['lining_residues'] if r['lining_residues'] is not None else np.nan for r in frame_rows],
+        color='#d98c33',
+        lw=0.9,
+    )
+    axes[1].set_ylabel('Boundary residues')
+    axes[2].plot(times, [r['alignment_rmsd_A'] for r in frame_rows], color='#547c9b', lw=0.9)
+    axes[2].set_ylabel('CA fit RMSD (Å)')
+    axes[2].set_xlabel('Time (ns)')
+    for ax in axes:
+        ax.spines[['top', 'right']].set_visible(False)
+    _save_figure(fig, path('volume_timeseries_png', '_cavity_volume_timeseries.png'), dpi=dpi, text=text)
+    rows = report['profile']['rows']
+    x = np.array([r['position_A'] for r in rows])
+
+    def values(key):
+        return np.array([r[key] if r[key] is not None else np.nan for r in rows])
+
+    for quantity, scale in [('diameter', 1.0), ('radius', 0.5)]:
+        text = FigureText(
+            f"Area-equivalent {quantity} of the largest connected planar cavity section along the fixed reference axis: "
+            "observed frame range, mean and pointwise mean interval, with frame coverage below"
+        )
+        fig, axes = plt.subplots(2, 1, figsize=(10, 6.5), sharex=True, height_ratios=[4, 1], layout='constrained')
+        ax = axes[0]
+        ax.fill_between(
+            x,
+            scale * values('fluctuation_lower_A'),
+            scale * values('fluctuation_upper_A'),
+            color=NON_CHANNEL_CAST_HEX,
+            alpha=0.20,
+            label='Observed 2.5–97.5% frame range',
+        )
+        ax.plot(
+            x, scale * values('mean_diameter_A'), color=NON_CHANNEL_CAST_HEX, lw=1.7, label='Mean over matched frames'
+        )
+        lower = values('mean_lower_A')
+        upper = values('mean_upper_A')
+        if np.isfinite(lower).any():
+            ax.fill_between(
+                x,
+                scale * lower,
+                scale * upper,
+                color='#d98c33',
+                alpha=0.4,
+                label=f'{confidence:.0%} pointwise mean interval',
+            )
+        ax.set_ylabel(f'Area-equivalent {quantity} (Å)')
+        ax.set_ylim(bottom=0)
+        ax.legend(frameon=False, fontsize=9)
+        text.title(
+            ax,
+            'Largest connected planar cavity section · aligned fixed coordinate\nNot an inscribed permeation radius or through-channel assignment',
+            fontsize=11,
+        )
+        axes[1].plot(x, values('coverage_fraction'), color='#547c9b', label='Matched coverage')
+        axes[1].plot(x, values('occupied_fraction_of_observed'), color='#a34477', label='Section present | matched')
+        axes[1].set_ylim(-0.02, 1.02)
+        axes[1].set_ylabel('Fraction')
+        axes[1].set_xlabel('Position along reference axis (Å)')
+        axes[1].legend(frameon=False, fontsize=8, ncol=2)
+        for axis in axes:
+            axis.spines[['top', 'right']].set_visible(False)
+        text.suptitle(fig, 'Mean-band status: ' + report['profile']['confidence_interval']['status'], fontsize=10)
+        _save_figure(fig, path(quantity + '_profile_png', '_cavity_' + quantity + '_profile.png'), dpi=dpi, text=text)
+    ranked = sorted(
+        residue_rows,
+        key=lambda r: (-(r['lining_frequency_observed'] or 0), -(r['mean_boundary_area_A2'] or 0), r['residue']),
+    )[:20]
+    text = FigureText(
+        f"Boundary frequency and mean assigned boundary area of the {len(ranked)} residues most often on the cavity boundary"
+    )
+    fig, axes = plt.subplots(1, 2, figsize=(12, 7), sharey=True, layout='constrained')
+    labels = [r['residue'] for r in ranked]
+    axes[0].barh(labels, [r['lining_frequency_observed'] or 0 for r in ranked], color='#d98c33')
+    axes[0].invert_yaxis()
+    axes[0].set_xlabel('Boundary frequency | matched geometry')
+    axes[0].set_xlim(0, 1.02)
+    axes[1].barh(labels, [r['mean_boundary_area_A2'] or 0 for r in ranked], color='#547c9b')
+    axes[1].set_xlabel('Mean assigned boundary area (Å²)')
+    for ax in axes:
+        ax.spines[['top', 'right']].set_visible(False)
+    text.suptitle(fig, 'Changing boundary involvement · geometric evidence, not functional control')
+    _save_figure(fig, path('residue_statistics_png', '_cavity_residues.png'), dpi=dpi, text=text)
     # Time-position map distinguishes fluctuating shape from missing geometry.
-    text=FigureText("Area-equivalent diameter of the largest connected section at each reference-axis position in every frame")
-    fig,ax=plt.subplots(figsize=(11,5),layout='constrained')
-    im=ax.pcolormesh(x,times,arrays['largest_component_diameter_A'],shading='nearest',cmap='viridis');ax.set_facecolor('#dddddd')
-    fig.colorbar(im,ax=ax,label='Area-equivalent diameter (Å)');ax.set_xlabel('Reference-axis position (Å)');ax.set_ylabel('Time (ns)');text.title(ax,'All-frame cavity width · grey = unresolved geometry')
-    _save_figure(fig,path('width_heatmap_png','_cavity_width_heatmap.png'),dpi=dpi,text=text)
+    text = FigureText(
+        "Area-equivalent diameter of the largest connected section at each reference-axis position in every frame"
+    )
+    fig, ax = plt.subplots(figsize=(11, 5), layout='constrained')
+    im = ax.pcolormesh(x, times, arrays['largest_component_diameter_A'], shading='nearest', cmap='viridis')
+    ax.set_facecolor('#dddddd')
+    fig.colorbar(im, ax=ax, label='Area-equivalent diameter (Å)')
+    ax.set_xlabel('Reference-axis position (Å)')
+    ax.set_ylabel('Time (ns)')
+    text.title(ax, 'All-frame cavity width · grey = unresolved geometry')
+    _save_figure(fig, path('width_heatmap_png', '_cavity_width_heatmap.png'), dpi=dpi, text=text)
     from .cavity_reports import write_additional_cavity_reports
-    files.update(write_additional_cavity_reports(report,arrays,root,prefix=prefix,confidence=confidence,
-                 block_length=block_length,replicates=replicates,seed=seed,dpi=dpi))
+
+    files.update(
+        write_additional_cavity_reports(
+            report,
+            arrays,
+            root,
+            prefix=prefix,
+            confidence=confidence,
+            block_length=block_length,
+            replicates=replicates,
+            seed=seed,
+            dpi=dpi,
+        )
+    )
     from .outputs import drop_blocked
-    drop_blocked(files)   # figures the output plan skipped
-    (_t:=path('manifest_json','_cavity_manifest.json')).write_text(dumps_record({'files':files,'frame_count':len(times),'matched_frames':int(valid.sum()),'interpretation':report['limitations'],**radii_fields()},_t,indent=2)+'\n', encoding="utf-8", newline="\n")
+
+    drop_blocked(files)  # figures the output plan skipped
+    (_t := path('manifest_json', '_cavity_manifest.json')).write_text(
+        dumps_record(
+            {
+                'files': files,
+                'frame_count': len(times),
+                'matched_frames': int(valid.sum()),
+                'interpretation': report['limitations'],
+                **radii_fields(),
+            },
+            _t,
+            indent=2,
+        )
+        + '\n',
+        encoding="utf-8",
+        newline="\n",
+    )
     return files

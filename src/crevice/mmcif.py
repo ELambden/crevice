@@ -40,10 +40,19 @@ from .radii import VDW_RADII
 #: Values RCSB writes when an entry has no accession, e.g. expanded assemblies.
 PLACEHOLDER_ENTRY_IDS = {"", ".", "?", "XXXX"}
 
-REQUIRED_ATOM_SITE_COLUMNS = frozenset({
-    "id", "group_PDB", "type_symbol", "label_atom_id", "label_comp_id",
-    "label_asym_id", "Cartn_x", "Cartn_y", "Cartn_z",
-})
+REQUIRED_ATOM_SITE_COLUMNS = frozenset(
+    {
+        "id",
+        "group_PDB",
+        "type_symbol",
+        "label_atom_id",
+        "label_comp_id",
+        "label_asym_id",
+        "Cartn_x",
+        "Cartn_y",
+        "Cartn_z",
+    }
+)
 
 
 def gemmi_available() -> bool:
@@ -145,8 +154,11 @@ def atom_site_rows(block) -> list[dict]:
 
 
 def load_mmcif(
-    path: str | Path, *, model_index: int = 0,
-    selection: str = "polymer-heavy", chain_ids: str = "label",
+    path: str | Path,
+    *,
+    model_index: int = 0,
+    selection: str = "polymer-heavy",
+    chain_ids: str = "label",
     hetero_policy: str = "group_pdb",
 ) -> tuple[StructureFrame, dict]:
     """Load one model, retaining polymer HETATM via entity membership.
@@ -267,15 +279,20 @@ def load_mmcif(
         if not chain:
             raise ValueError(f"Missing {chain_ids} chain ID")
         atom = Atom(
-            serial=atom_site_id(row), name=atom_name(row),
+            serial=atom_site_id(row),
+            name=atom_name(row),
             resname=_value(row, "auth_comp_id") or _required(row, "label_comp_id"),
-            chain_id=chain, resid=residue_number(row), icode=residue_id(row)[2],
-            x=coordinate(row, "Cartn_x"), y=coordinate(row, "Cartn_y"),
+            chain_id=chain,
+            resid=residue_number(row),
+            icode=residue_id(row)[2],
+            x=coordinate(row, "Cartn_x"),
+            y=coordinate(row, "Cartn_y"),
             z=coordinate(row, "Cartn_z"),
-            element=element, altloc=alt, occupancy=occupancy,
+            element=element,
+            altloc=alt,
+            occupancy=occupancy,
             bfactor=_number(row, "B_iso_or_equiv"),
-            hetero=(not is_polymer) if hetero_definition == "nonpolymer"
-                   else _value(row, "group_PDB") == "HETATM",
+            hetero=(not is_polymer) if hetero_definition == "nonpolymer" else _value(row, "group_PDB") == "HETATM",
         )
         identity = (atom.residue_key, atom.name)
         if identity in seen:
@@ -285,9 +302,16 @@ def load_mmcif(
         if is_polymer and _value(row, "group_PDB") == "HETATM":
             polymer_hetero += 1
             polymer_hetero_residues.add(atom.residue_key)
-        info = chains.setdefault(chain, {"atom_count": 0, "auth_asym_ids": set(),
-                                         "label_asym_ids": set(), "entity_ids": set(),
-                                         "polymer": is_polymer})
+        info = chains.setdefault(
+            chain,
+            {
+                "atom_count": 0,
+                "auth_asym_ids": set(),
+                "label_asym_ids": set(),
+                "entity_ids": set(),
+                "polymer": is_polymer,
+            },
+        )
         info["atom_count"] += 1
         info["polymer"] = info["polymer"] or is_polymer
         for field in ("auth_asym", "label_asym", "entity"):
@@ -302,27 +326,38 @@ def load_mmcif(
                 info[field] = sorted(value)
     entry_id = block.find_value("_entry.id")
     import gemmi
+
     report = {
-        "parser": "gemmi", "parser_version": gemmi.__version__,
-        "entry_id": entry_id, "model_ids": model_ids,
+        "parser": "gemmi",
+        "parser_version": gemmi.__version__,
+        "entry_id": entry_id,
+        "model_ids": model_ids,
         "entry_id_is_placeholder": _is_placeholder(entry_id),
-        "model_index": model_index, "selected_model_id": model_ids[model_index],
-        "selection": selection, "chain_id_namespace": chain_ids,
+        "model_index": model_index,
+        "selected_model_id": model_ids[model_index],
+        "selection": selection,
+        "chain_id_namespace": chain_ids,
         "residue_numbering": "auth_seq_id, label_seq_id fallback",
         "altloc_policy": "blank plus first lexical nonblank per residue",
         "zero_occupancy_policy": "excluded",
         "hetero_definition": hetero_definition,
-        "altloc_residue_count": len(alternatives), "excluded_atoms": dict(excluded),
-        "input_model_atom_count": len(rows), "atom_count": len(atoms),
-        "residue_count": len(frame.residues()), "chains": chains,
+        "altloc_residue_count": len(alternatives),
+        "excluded_atoms": dict(excluded),
+        "input_model_atom_count": len(rows),
+        "atom_count": len(atoms),
+        "residue_count": len(frame.residues()),
+        "chains": chains,
         "entity_types_available": entity_types_available,
-        "polymer_chain_count": (sum(info["polymer"] for info in chains.values())
-                                if entity_types_available else None),
+        "polymer_chain_count": (sum(info["polymer"] for info in chains.values()) if entity_types_available else None),
         "polymer_hetatm_retained": polymer_hetero if entity_types_available else None,
-        "polymer_hetatm_residues": (dict(sorted(Counter(key.resname for key in polymer_hetero_residues).items()))
-                                    if entity_types_available else None),
+        "polymer_hetatm_residues": (
+            dict(sorted(Counter(key.resname for key in polymer_hetero_residues).items()))
+            if entity_types_available
+            else None
+        ),
         "unsupported_radius_elements": sorted({a.element for a in atoms} - VDW_RADII.keys()),
-        "bounds_A": frame.bounding_box(), "coordinate_units": "Angstrom",
+        "bounds_A": frame.bounding_box(),
+        "coordinate_units": "Angstrom",
         "assembly_definitions": category_rows(block, "_pdbx_struct_assembly."),
         "unobserved_residue_records": len(category_rows(block, "_pdbx_unobs_or_zero_occ_residues.")),
         "unobserved_atom_records": len(category_rows(block, "_pdbx_unobs_or_zero_occ_atoms.")),
@@ -352,9 +387,11 @@ def residue_id(row: dict) -> tuple[str, str, str]:
     >>> residue_id({"label_asym_id": "A", "label_seq_id": "7", "auth_seq_id": "107"})
     ('A', '107', '')
     """
-    return (_value(row, "label_asym_id"),
-            _value(row, "auth_seq_id") or _value(row, "label_seq_id"),
-            _value(row, "pdbx_PDB_ins_code"))
+    return (
+        _value(row, "label_asym_id"),
+        _value(row, "auth_seq_id") or _value(row, "label_seq_id"),
+        _value(row, "pdbx_PDB_ins_code"),
+    )
 
 
 def atom_name(row: dict) -> str:
@@ -466,10 +503,7 @@ def _residue_alternatives(rows: list[dict]) -> dict[tuple, set[str]]:
         per_atom.setdefault((residue_id(row), atom_name(row)), set()).add(alt)
     for (residue, name), alts in per_atom.items():
         if "" in alts and len(alts) > 1:
-            raise ValueError(
-                f"Atom {name} of residue {residue} has both blank and labelled "
-                "alternate locations"
-            )
+            raise ValueError(f"Atom {name} of residue {residue} has both blank and labelled alternate locations")
     return alternatives
 
 

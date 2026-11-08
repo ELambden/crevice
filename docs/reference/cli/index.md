@@ -24,7 +24,7 @@ atomic radii are used and whether figures carry text, are described once on
 |---|---|---|
 | [`fetch`](fetch.md) | `--example NAME` | Download structures from the RCSB PDB or AlphaFold DB; a hash-checked example dataset |
 | [`profile`](profile.md) | `--fingerprint` | Radius profile of a channel that runs right through the protein; the pore fingerprint (lining chemistry, water, geometric conductance estimate) |
-| [`cavities`](cavities.md) | `--cast`, `--tunnels` | Buried cavities on a clearance grid; 3D rolling-probe casts of pockets, cavities and channels; widest access tunnels |
+| [`cavities`](cavities.md) | `--cast` | Buried cavities on a clearance grid; 3D rolling-probe casts of pockets, cavities and channels |
 | [`paths`](paths.md) | | Curved and branched widest routes from a seed, residues or region to bulk |
 | [`residues`](residues.md) | `--network`, `--evidence`, `--features` | Residues lining a channel; contact networks; the residues that form a measured cast boundary; profile and residue descriptors |
 | [`report`](report.md) | `--analyze`, `--suite`, `--benchmark` | Tables, figures and PyMOL/VMD/ChimeraX scenes for one structure; selected analyses; benchmark systems |

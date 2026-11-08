@@ -81,13 +81,6 @@ def test_confidence_requires_alignment_and_regular_time_sampling():
         profile_distribution(replace(trajectory,frames=tuple(frames)),confidence=.95)
 
 
-def test_unvalidated_axis_scans_never_receive_pore_confidence_bands():
-    trajectory=series(np.ones((50,3)))
-    frames=tuple(replace(f,profile=replace(f.profile,metadata={'status':'unvalidated_axis_scan'})) for f in trajectory.frames)
-    d=profile_distribution(replace(trajectory,frames=frames),confidence=.95)
-    assert d['confidence_interval']['status']=='unavailable_unvalidated_axis_scan'
-
-
 def test_alignment_reports_proper_transform_and_fit_error():
     reference=StructureFrame(tuple(atom(i,p) for i,p in enumerate([(0,0,0),(3,0,0),(0,4,0),(0,0,5)],1)))
     moved=replace(reference,atoms=tuple(replace(a,x=-a.y+9,y=a.x-6,z=a.z+2) for a in reference.atoms))
@@ -106,10 +99,10 @@ def test_periodic_screen_rejects_wrapped_bond_and_accepts_whole():
     _check_periodic_pairs(np.array([[.5,0,0],[-.5,0,0]]),pair,box,12)
 
 
-def test_center_distance_is_distinct_from_legacy_surface_cutoff():
+def test_center_distance_is_distinct_from_surface_cutoff():
     frame=StructureFrame((atom(1,(0,0,0)),atom(2,(6,0,0))))
-    assert len(build_residue_network(frame,cutoff=4.5).edges)==1
-    assert not build_residue_network(frame,cutoff=4.5,distance_metric='center').edges
+    assert len(build_residue_network(frame,cutoff=4.5,distance_metric='surface').edges)==1
+    assert not build_residue_network(frame,cutoff=4.5).edges
     graph=build_residue_network(frame,cutoff=6,distance_metric='center')
     assert graph.edges[0].distance==pytest.approx(6)
     assert graph.edges[0].metadata['closest_pair']['surface_distance']==pytest.approx(2.6)

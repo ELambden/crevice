@@ -1,0 +1,25 @@
+{
+  "script": "benchmarks/nongeom/lining_residues.py",
+  "machine": {
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.13.13",
+    "cpu_count": 8,
+    "load_average_1_5_15": [
+      0.48828125,
+      0.19482421875,
+      0.12646484375
+    ],
+    "cpu_model": "Intel(R) Core(TM) Ultra 7 268V"
+  },
+  "contacts_glut1": {
+    "frames": 21,
+    "stride": 50,
+    "pairs_reference": 2770,
+    "pairs_crevice": 2770,
+    "pairs_only_in_crevice": 0,
+    "occupancy_mismatches": 0,
+    "dccm_max_abs_difference": 1.3586354263850353e-14,
+    "crevice_seconds": 3.6341828941367567
+  }
+}

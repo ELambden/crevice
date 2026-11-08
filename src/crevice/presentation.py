@@ -12,19 +12,18 @@ Two concerns live here:
   Whatever the setting, the text is recorded with the output (PNG metadata, or
   the scene JSON ``annotations`` entry), so no information is lost.
 """
+
 from __future__ import annotations
 
 import contextlib
 import contextvars
 from dataclasses import replace
 import functools
-import json
 import math
 from pathlib import Path
 from ._portable_paths import dumps_record
 
 from .geometry import add, scale, dot
-from .models import StructureFrame
 from .spatial import SpatialIndex
 
 
@@ -69,39 +68,62 @@ def extend_channel_cast(cast, frame, length=2.0):
         return cast
     if cast.metadata.get("focus_points"):
         return cast  # a crop boundary must not be advertised as a channel mouth
-    spatial = SpatialIndex(frame.selected_atoms(
-        include_hydrogen=cast.metadata.get("include_hydrogen", False),
-        include_hetero=cast.metadata.get("include_hetero", True)))
+    spatial = SpatialIndex(
+        frame.selected_atoms(
+            include_hydrogen=cast.metadata.get("include_hydrogen", False),
+            include_hetero=cast.metadata.get("include_hetero", True),
+        )
+    )
     axis = cast.metadata["axis_direction"]
     planes = cast.metadata["mouth_planes_A"]
-    steps = int(math.floor(length/cast.spacing+1e-9))
+    steps = int(math.floor(length / cast.spacing + 1e-9))
     components, added, extents = [], 0, [0.0, 0.0]
     for component in cast.components:
         points = list(component.points)
         for end, sign in enumerate((-1, 1)):
-            terminal = [p for p in component.points if abs(p.t-planes[end]) < 1e-7]
-            for k in range(1, steps+1):
+            terminal = [p for p in component.points if abs(p.t - planes[end]) < 1e-7]
+            for k in range(1, steps + 1):
                 layer = []
                 for point in terminal:
-                    position = add(point.position, scale(axis, sign*cast.spacing))
+                    position = add(point.position, scale(axis, sign * cast.spacing))
                     raw, nearest = spatial.nearest_surface(position)
-                    if raw >= cast.min_radius and spatial.segment_clearance(point.position, position) >= cast.min_radius:
-                        layer.append(replace(point, index=len(points)+len(layer), position=position,
-                                             t=point.t+sign*cast.spacing, radius=raw, raw_clearance=raw,
-                                             nearest_atom_serial=nearest.serial, nearest_residue=nearest.residue_key.label))
+                    if (
+                        raw >= cast.min_radius
+                        and spatial.segment_clearance(point.position, position) >= cast.min_radius
+                    ):
+                        layer.append(
+                            replace(
+                                point,
+                                index=len(points) + len(layer),
+                                position=position,
+                                t=point.t + sign * cast.spacing,
+                                radius=raw,
+                                raw_clearance=raw,
+                                nearest_atom_serial=nearest.serial,
+                                nearest_residue=nearest.residue_key.label,
+                            )
+                        )
                 points.extend(layer)
                 added += len(layer)
                 terminal = layer
                 if layer:
-                    extents[end] = k*cast.spacing
-        components.append(replace(component, points=tuple(points), volume=len(points)*cast.spacing**3))
+                    extents[end] = k * cast.spacing
+        components.append(replace(component, points=tuple(points), volume=len(points) * cast.spacing**3))
     all_points = tuple(p for c in components for p in c.points)
-    return replace(cast, components=tuple(components), points=all_points,
-                   metadata={**cast.metadata, "display_only": True,
-                             "extension_requested_A": length, "extension_actual_A": extents,
-                             "extension_added_points": added,
-                             "measured_volume_A3": cast.total_volume,
-                             "extension_definition": "constant terminal footprint, clipped by atom-clear axial segments; excluded from measured volume"})
+    return replace(
+        cast,
+        components=tuple(components),
+        points=all_points,
+        metadata={
+            **cast.metadata,
+            "display_only": True,
+            "extension_requested_A": length,
+            "extension_actual_A": extents,
+            "extension_added_points": added,
+            "measured_volume_A3": cast.total_volume,
+            "extension_definition": "constant terminal footprint, clipped by atom-clear axial segments; excluded from measured volume",
+        },
+    )
 
 
 def orthogonal_map_cast(cast):
@@ -122,13 +144,17 @@ def orthogonal_map_cast(cast):
         A copy with every sample position projected onto the basis rows and
         ``grid_basis`` set to the identity.
     """
-    basis = cast.metadata.get("grid_basis", ((1,0,0),(0,1,0),(0,0,1)))
+    basis = cast.metadata.get("grid_basis", ((1, 0, 0), (0, 1, 0), (0, 0, 1)))
+
     def local(p):
         return replace(p, position=tuple(dot(p.position, row) for row in basis))
-    return replace(cast, components=tuple(replace(c, points=tuple(local(p) for p in c.points))
-                                          for c in cast.components),
-                   points=tuple(local(p) for p in cast.points),
-                   metadata={**cast.metadata, "grid_basis": ((1,0,0),(0,1,0),(0,0,1))})
+
+    return replace(
+        cast,
+        components=tuple(replace(c, points=tuple(local(p) for p in c.points)) for c in cast.components),
+        points=tuple(local(p) for p in cast.points),
+        metadata={**cast.metadata, "grid_basis": ((1, 0, 0), (0, 1, 0), (0, 0, 1))},
+    )
 
 
 def write_viewer_structure(frame, path):
@@ -174,7 +200,7 @@ def write_viewer_structure(frame, path):
     chains = list(dict.fromkeys(a.chain_id for a in frame.atoms))
     if len(chains) > len(alphabet) or len(frame.atoms) > 99999:
         raise ValueError("Viewer PDB capacity exceeded (62 chains / 99999 atoms)")
-    chain_map = {c: (c if len(c)==1 and c in alphabet else None) for c in chains}
+    chain_map = {c: (c if len(c) == 1 and c in alphabet else None) for c in chains}
     available = [c for c in alphabet if c not in chain_map.values()]
     for c in chains:
         if chain_map[c] is None:
@@ -183,7 +209,7 @@ def write_viewer_structure(frame, path):
     counts = {}
     for a in frame.atoms:
         if a.residue_key not in residues:
-            counts[a.chain_id] = counts.get(a.chain_id, 0)+1
+            counts[a.chain_id] = counts.get(a.chain_id, 0) + 1
             residues[a.residue_key] = counts[a.chain_id]
     if max(counts.values()) > 9999:
         raise ValueError("Viewer PDB residue capacity exceeded")
@@ -192,21 +218,30 @@ def write_viewer_structure(frame, path):
         if any(not math.isfinite(v) or len(f'{v:8.3f}') > 8 for v in a.coord):
             raise ValueError("Coordinates exceed viewer PDB format")
         record = 'HETATM' if a.hetero else 'ATOM  '
-        name = f' {a.name:<3}' if len(a.element)==1 and len(a.name)<4 else f'{a.name:<4}'
-        lines.append(f'{record}{serial:5d} {name[:4]} {a.resname[:3]:>3} {chain_map[a.chain_id]}'
-                     f'{residues[a.residue_key]:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}'
-                     f'{1.0:6.2f}{0.0:6.2f}          {a.element:>2}\n')
+        name = f' {a.name:<3}' if len(a.element) == 1 and len(a.name) < 4 else f'{a.name:<4}'
+        lines.append(
+            f'{record}{serial:5d} {name[:4]} {a.resname[:3]:>3} {chain_map[a.chain_id]}'
+            f'{residues[a.residue_key]:4d}    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}'
+            f'{1.0:6.2f}{0.0:6.2f}          {a.element:>2}\n'
+        )
     lines.append('END\n')
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(''.join(lines), encoding="utf-8", newline="\n")
-    mapping = {"source": frame.source, "model_index": frame.model_index,
-               "atom_count": len(frame.atoms), "coordinate_rounding_A": 0.001,
-               "chain_mapping": chain_map,
-               "residue_mapping": [{"original": k.label, "viewer_chain": chain_map[k.chain_id],
-                                     "viewer_resid": v} for k, v in residues.items()],
-               "original_serials_in_viewer_order": [a.serial for a in frame.atoms]}
-    output.with_suffix('.identities.json').write_text(dumps_record(mapping, output, indent=2)+'\n', encoding="utf-8", newline="\n")
+    mapping = {
+        "source": frame.source,
+        "model_index": frame.model_index,
+        "atom_count": len(frame.atoms),
+        "coordinate_rounding_A": 0.001,
+        "chain_mapping": chain_map,
+        "residue_mapping": [
+            {"original": k.label, "viewer_chain": chain_map[k.chain_id], "viewer_resid": v} for k, v in residues.items()
+        ],
+        "original_serials_in_viewer_order": [a.serial for a in frame.atoms],
+    }
+    output.with_suffix('.identities.json').write_text(
+        dumps_record(mapping, output, indent=2) + '\n', encoding="utf-8", newline="\n"
+    )
     return output
 
 
@@ -242,48 +277,58 @@ def scene_geometry(cast, frame=None, profile=None):
         per lateral exit leg, drawn as blue tubes in the scenes).
     """
     import numpy as np
+
     basis = np.asarray(cast.metadata.get('grid_basis', np.eye(3)), dtype=float)
     u, v, axis = basis
     camera_axis_definition = 'third grid direction'
     if cast.mode == 'rolling':
         cloud = np.asarray([p.position for c in cast.components for p in c.points])
-        _, singular, directions = np.linalg.svd(cloud-cloud.mean(0), full_matrices=False)
-        if len(singular) >= 2 and singular[0] > 2.5*max(singular[1],1e-12):
+        _, singular, directions = np.linalg.svd(cloud - cloud.mean(0), full_matrices=False)
+        if len(singular) >= 2 and singular[0] > 2.5 * max(singular[1], 1e-12):
             axis = directions[0]
-            reference = basis[np.argmax(np.abs(basis@axis))]
-            if axis@reference < 0:
+            reference = basis[np.argmax(np.abs(basis @ axis))]
+            if axis @ reference < 0:
                 axis = -axis
-            u = basis[np.argmin(np.abs(basis@axis))]
-            u = u-(u@axis)*axis
+            u = basis[np.argmin(np.abs(basis @ axis))]
+            u = u - (u @ axis) * axis
             u /= np.linalg.norm(u)
-            v = np.cross(axis,u)
+            v = np.cross(axis, u)
             camera_axis_definition = 'dominant elongated void direction for display; not a channel assignment'
     camera = np.asarray([u, axis, np.cross(u, axis)])
-    major_regions = sum(c.volume >= .1*max(x.volume for x in cast.components) for c in cast.components)
+    major_regions = sum(c.volume >= 0.1 * max(x.volume for x in cast.components) for c in cast.components)
     multichain = frame is not None and len({a.chain_id for a in frame.atoms}) >= 3
     tilt_degrees = 35 if multichain and major_regions >= 3 else 16
     angle = math.radians(tilt_degrees)
-    tilt = np.array([[1,0,0],[0,math.cos(angle),-math.sin(angle)],[0,math.sin(angle),math.cos(angle)]])
+    tilt = np.array([[1, 0, 0], [0, math.cos(angle), -math.sin(angle)], [0, math.sin(angle), math.cos(angle)]])
     camera = tilt @ camera
     points = [p.position for c in cast.components for p in c.points]
     if frame:
         points += [a.coord for a in frame.atoms]
     coords = np.asarray(points)
     low, high = coords.min(axis=0), coords.max(axis=0)
-    center = (low+high)/2
+    center = (low + high) / 2
     rings = []
     if profile and profile.metadata.get('channel_mouths') and not cast.metadata.get('focus_points'):
-        for label, point in [('lower',profile.points[0]),('upper',profile.points[-1])]:
+        for label, point in [('lower', profile.points[0]), ('upper', profile.points[-1])]:
             t = profile.metadata['channel_mouths'][label]['coordinate_A']
-            c = np.asarray(point.position)+(t-point.t)*np.asarray(profile.axis_direction)
-            terminal = [p for comp in cast.components for p in comp.points
-                        if abs(p.t-point.t) < cast.spacing+1e-6]
-            radius = max([point.raw_clearance]+[float(np.linalg.norm(
-                         (np.asarray(p.position)-c) @ np.array([u,v]).T)) for p in terminal])+0.3
-            ring = [list(c + radius*(math.cos(a)*u+math.sin(a)*v))
-                    for a in np.linspace(0,2*math.pi,65)]
-            rings.append({'end':label, 'coordinate_A':t, 'points':ring,
-                          'definition':'mouth-plane guide, not a measured aperture contour'})
+            c = np.asarray(point.position) + (t - point.t) * np.asarray(profile.axis_direction)
+            terminal = [p for comp in cast.components for p in comp.points if abs(p.t - point.t) < cast.spacing + 1e-6]
+            radius = (
+                max(
+                    [point.raw_clearance]
+                    + [float(np.linalg.norm((np.asarray(p.position) - c) @ np.array([u, v]).T)) for p in terminal]
+                )
+                + 0.3
+            )
+            ring = [list(c + radius * (math.cos(a) * u + math.sin(a) * v)) for a in np.linspace(0, 2 * math.pi, 65)]
+            rings.append(
+                {
+                    'end': label,
+                    'coordinate_A': t,
+                    'points': ring,
+                    'definition': 'mouth-plane guide, not a measured aperture contour',
+                }
+            )
     # Lateral exit legs of capped channel ends: centre lines only, one entry
     # per distinct leg (every leg of every capped end, widest first).
     exits = []
@@ -291,18 +336,30 @@ def scene_geometry(cast, frame=None, profile=None):
         for label, record in (profile.metadata.get('exits') or {}).items():
             if record.get('type') == 'lateral':
                 for leg in record.get('legs', ()):
-                    exits.append({'end': label, 'leg': leg.get('leg', 1),
-                                  'points': [list(map(float, p)) for p in leg['vertices']],
-                                  'definition': 'lateral exit leg centre line (capped end); not a measured surface'})
-    view_span = np.ptp((coords-center) @ camera.T, axis=0)
-    vertical_span = float(max(view_span[1], view_span[0]*.75)+4)*1.10
-    return {'camera_rotation':camera.tolist(), 'camera_axis':axis.tolist(),
-            'camera_tilt_degrees':tilt_degrees, 'end_view_turn_degrees':90-tilt_degrees,
-            'framing_margin':1.10, 'overview_definition':'35-degree elevation for at least three substantial regions in a multimer; otherwise 16 degrees',
-            'camera_axis_definition':camera_axis_definition, 'center':center.tolist(),
-            'vertical_span':vertical_span,
-            'radius':float(np.linalg.norm(high-low)/2+1), 'mouth_rings':rings,
-            **({'exit_paths':exits} if exits else {})}
+                    exits.append(
+                        {
+                            'end': label,
+                            'leg': leg.get('leg', 1),
+                            'points': [list(map(float, p)) for p in leg['vertices']],
+                            'definition': 'lateral exit leg centre line (capped end); not a measured surface',
+                        }
+                    )
+    view_span = np.ptp((coords - center) @ camera.T, axis=0)
+    vertical_span = float(max(view_span[1], view_span[0] * 0.75) + 4) * 1.10
+    return {
+        'camera_rotation': camera.tolist(),
+        'camera_axis': axis.tolist(),
+        'camera_tilt_degrees': tilt_degrees,
+        'end_view_turn_degrees': 90 - tilt_degrees,
+        'framing_margin': 1.10,
+        'overview_definition': '35-degree elevation for at least three substantial regions in a multimer; otherwise 16 degrees',
+        'camera_axis_definition': camera_axis_definition,
+        'center': center.tolist(),
+        'vertical_span': vertical_span,
+        'radius': float(np.linalg.norm(high - low) / 2 + 1),
+        'mouth_rings': rings,
+        **({'exit_paths': exits} if exits else {}),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +544,7 @@ def annotate_option(func):
         The wrapped writer; an explicit ``annotate`` runs it inside
         :func:`figure_annotations`.
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         annotate = kwargs.get("annotate")
@@ -494,6 +552,7 @@ def annotate_option(func):
             return func(*args, **kwargs)
         with figure_annotations(annotate):
             return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -679,10 +738,13 @@ class FigureText:
             line) and ``CREVICE annotations`` (``drawn`` or ``omitted ...``).
         """
         titles = [r.split(": ", 1)[1] for r in self.records if r.startswith("Title: ")]
-        return {"Title": titles[0] if titles else self.shows,
-                "Description": "\n".join([self.shows, *self.records]),
-                ANNOTATION_METADATA_KEY: "drawn" if self.draw else
-                    "omitted (recorded here; draw with annotate=True or --annotate)"}
+        return {
+            "Title": titles[0] if titles else self.shows,
+            "Description": "\n".join([self.shows, *self.records]),
+            ANNOTATION_METADATA_KEY: "drawn"
+            if self.draw
+            else "omitted (recorded here; draw with annotate=True or --annotate)",
+        }
 
 
 def figure_description(path) -> dict[str, str]:
@@ -701,6 +763,7 @@ def figure_description(path) -> dict[str, str]:
         ``CREVICE annotations`` (``drawn`` or ``omitted ...``) and ``Software``.
     """
     from PIL import Image
+
     with Image.open(path) as image:
         return {str(k): str(v) for k, v in getattr(image, "text", {}).items()}
 
@@ -722,5 +785,8 @@ def scene_annotation_record(texts: dict[str, str], *, drawn: bool | None = None)
         ``{"drawn": bool, "texts": texts, "how_to_draw": ...}``.
     """
     drawn = annotations_enabled() if drawn is None else bool(drawn)
-    return {"drawn": drawn, "texts": {k: v for k, v in texts.items() if v},
-            "how_to_draw": "Text is omitted from the viewer scripts by default; rerun with --annotate (CLI) or annotate=True (Python) to draw it."}
+    return {
+        "drawn": drawn,
+        "texts": {k: v for k, v in texts.items() if v},
+        "how_to_draw": "Text is omitted from the viewer scripts by default; rerun with --annotate (CLI) or annotate=True (Python) to draw it.",
+    }

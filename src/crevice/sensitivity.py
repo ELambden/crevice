@@ -7,9 +7,10 @@ headline quantity moves from the baseline run:
 
 * **margin** ±1 Å (region and cavity trajectories in reference-region mode);
 * **probe** the neighbouring radii of the probe ladder
-  (:data:`crevice.sections.AUTO_ENCLOSURE_LADDER`, 0.5–3.0 Å) around the
-  probe actually used: the enclosure probe of a profile, the rolling probe of
-  a cast or region;
+  (:data:`crevice.adaptive_channel.ADAPTIVE_ENCLOSURE_LADDER`, 0.30–3.00 Å)
+  around the probe actually used: a fixed enclosure probe of a profile, the
+  rolling probe of a cast or region (a per-plane profile has no single probe,
+  so only its grid is varied);
 * **grid** 0.25 and 0.5 Å (the cast or region lattice, or the profile's
   transverse section grid), skipping the baseline value.
 
@@ -27,7 +28,6 @@ Main entry points: :func:`run_sensitivity`, :func:`ladder_neighbours`,
 from __future__ import annotations
 
 import csv
-import json
 import math
 import time
 from pathlib import Path
@@ -38,8 +38,19 @@ GRID_VARIANTS_A = (0.25, 0.5)
 MARGIN_DELTA_A = 1.0
 
 #: Columns of :func:`write_sensitivity`'s CSV.
-SENSITIVITY_COLUMNS = ("quantity", "variant", "parameter", "value", "baseline_value", "result", "baseline_result",
-                       "difference", "relative_difference_percent", "status", "seconds")
+SENSITIVITY_COLUMNS = (
+    "quantity",
+    "variant",
+    "parameter",
+    "value",
+    "baseline_value",
+    "result",
+    "baseline_result",
+    "difference",
+    "relative_difference_percent",
+    "status",
+    "seconds",
+)
 
 
 def ladder_neighbours(value, ladder=None):
@@ -50,7 +61,7 @@ def ladder_neighbours(value, ladder=None):
     value : float
         The probe radius used (Å).
     ladder : sequence of float, optional
-        Candidate probes; default :data:`crevice.sections.AUTO_ENCLOSURE_LADDER`.
+        Candidate probes; default :data:`crevice.adaptive_channel.ADAPTIVE_ENCLOSURE_LADDER`.
 
     Returns
     -------
@@ -62,11 +73,11 @@ def ladder_neighbours(value, ladder=None):
     >>> from crevice.sensitivity import ladder_neighbours
     >>> ladder_neighbours(0.8)
     (0.75, 0.9)
-    >>> ladder_neighbours(0.5)
-    (0.55,)
+    >>> ladder_neighbours(0.3)
+    (0.35,)
     """
     if ladder is None:
-        from .sections import AUTO_ENCLOSURE_LADDER as ladder
+        from .adaptive_channel import ADAPTIVE_ENCLOSURE_LADDER as ladder
     values = sorted(float(v) for v in ladder)
     below = [v for v in values if v < float(value) - 1e-9]
     above = [v for v in values if v > float(value) + 1e-9]
@@ -142,9 +153,16 @@ def run_sensitivity(compute, baseline, variants, *, command="", note=""):
             quantities, status = dict(compute(overrides)), "ok"
         except Exception as exc:  # a variant may legitimately fail (for example no channel at that probe)
             quantities, status = {}, f"failed: {type(exc).__name__}: {exc}"
-        runs.append({"variant": "baseline" if parameter is None else f"{parameter}={value:g}",
-                     "parameter": parameter or "", "value": value, "quantities": quantities, "status": status,
-                     "seconds": round(time.perf_counter() - start, 3)})
+        runs.append(
+            {
+                "variant": "baseline" if parameter is None else f"{parameter}={value:g}",
+                "parameter": parameter or "",
+                "value": value,
+                "quantities": quantities,
+                "status": status,
+                "seconds": round(time.perf_counter() - start, 3),
+            }
+        )
     base = runs[0]["quantities"]
     names = list(dict.fromkeys(name for run in runs for name in run["quantities"]))
     spread, rows = {}, []
@@ -153,27 +171,52 @@ def run_sensitivity(compute, baseline, variants, *, command="", note=""):
         values = [float(v) for v in values if v is not None and math.isfinite(float(v))]
         reference = base.get(name)
         low, high = (min(values), max(values)) if values else (None, None)
-        spread[name] = {"baseline": reference, "minimum": low, "maximum": high,
-                        "range": high - low if values else None,
-                        "relative_range_percent": (100 * (high - low) / abs(reference)
-                                                   if values and reference not in (None, 0) else None),
-                        "runs": len(values)}
+        spread[name] = {
+            "baseline": reference,
+            "minimum": low,
+            "maximum": high,
+            "range": high - low if values else None,
+            "relative_range_percent": (
+                100 * (high - low) / abs(reference) if values and reference not in (None, 0) else None
+            ),
+            "runs": len(values),
+        }
         for run in runs:
             result = run["quantities"].get(name)
             difference = result - reference if result is not None and reference is not None else None
-            rows.append({"quantity": name, "variant": run["variant"], "parameter": run["parameter"],
-                         "value": run["value"], "baseline_value": baseline.get(run["parameter"]),
-                         "result": result, "baseline_result": reference, "difference": difference,
-                         "relative_difference_percent": (100 * difference / abs(reference)
-                                                         if difference is not None and reference not in (None, 0) else None),
-                         "status": run["status"], "seconds": run["seconds"]})
-    return {"command": command, "baseline_settings": dict(baseline), "variants": [list(v) for v in variants],
-            "runs": runs, "spread": spread, "rows": rows,
-            "cost_seconds": round(sum(run["seconds"] for run in runs), 3), "note": note,
-            "definition": "one setting changed at a time: margin +/-1 A, neighbouring probe-ladder radii, "
-                          "grid 0.25/0.5 A (where the setting applies)",
-            "interpretation": "spread of the headline numbers over measurement definitions; descriptive, "
-                              "not a confidence interval and not a ranking of the variants"}
+            rows.append(
+                {
+                    "quantity": name,
+                    "variant": run["variant"],
+                    "parameter": run["parameter"],
+                    "value": run["value"],
+                    "baseline_value": baseline.get(run["parameter"]),
+                    "result": result,
+                    "baseline_result": reference,
+                    "difference": difference,
+                    "relative_difference_percent": (
+                        100 * difference / abs(reference)
+                        if difference is not None and reference not in (None, 0)
+                        else None
+                    ),
+                    "status": run["status"],
+                    "seconds": run["seconds"],
+                }
+            )
+    return {
+        "command": command,
+        "baseline_settings": dict(baseline),
+        "variants": [list(v) for v in variants],
+        "runs": runs,
+        "spread": spread,
+        "rows": rows,
+        "cost_seconds": round(sum(run["seconds"] for run in runs), 3),
+        "note": note,
+        "definition": "one setting changed at a time: margin +/-1 A, neighbouring probe-ladder radii, "
+        "grid 0.25/0.5 A (where the setting applies)",
+        "interpretation": "spread of the headline numbers over measurement definitions; descriptive, "
+        "not a confidence interval and not a ranking of the variants",
+    }
 
 
 def write_sensitivity(result, csv_path, json_path=None):
@@ -199,14 +242,19 @@ def write_sensitivity(result, csv_path, json_path=None):
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=SENSITIVITY_COLUMNS, lineterminator="\n")
         writer.writeheader()
-        writer.writerows({k: ("" if row.get(k) is None else row.get(k)) for k in SENSITIVITY_COLUMNS}
-                         for row in result["rows"])
+        writer.writerows(
+            {k: ("" if row.get(k) is None else row.get(k)) for k in SENSITIVITY_COLUMNS} for row in result["rows"]
+        )
     written.append(csv_path)
     if json_path is not None:
         json_path = Path(json_path)
         from ._portable_paths import dumps_record  # 0.4: recorded paths relative to this file
-        json_path.write_text(dumps_record(result, json_path, indent=2, sort_keys=True, default=str) + "\n",
-                             encoding="utf-8", newline="\n")
+
+        json_path.write_text(
+            dumps_record(result, json_path, indent=2, sort_keys=True, default=str) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
         written.append(json_path)
     return written
 
@@ -236,9 +284,13 @@ def describe_spread(result) -> str:
         if s["minimum"] is None:
             lines.append(f"sensitivity {name}: not measured")
             continue
-        relative = f"{s['relative_range_percent']:.3g}% of baseline, " if s["relative_range_percent"] is not None else ""
-        lines.append(f"sensitivity {name}: baseline {s['baseline']:.6g} range {s['minimum']:.6g} to "
-                     f"{s['maximum']:.6g} ({relative}{s['runs']} runs)")
+        relative = (
+            f"{s['relative_range_percent']:.3g}% of baseline, " if s["relative_range_percent"] is not None else ""
+        )
+        lines.append(
+            f"sensitivity {name}: baseline {s['baseline']:.6g} range {s['minimum']:.6g} to "
+            f"{s['maximum']:.6g} ({relative}{s['runs']} runs)"
+        )
     if lines:
         lines[-1] += f"; cost {result['cost_seconds']:.3g} s"
     return "\n".join(lines)

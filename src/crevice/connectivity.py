@@ -3,26 +3,29 @@
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import replace
 from typing import Sequence
 
 from .models import NetworkEdge, ResidueInteractionNetwork
+from .networks import closest_edges
 from .presentation import FigureText, annotate_option
 
 
-def persistent_network(networks: Sequence[ResidueInteractionNetwork], *,
-                       min_occupancy: float = 0.5) -> ResidueInteractionNetwork:
-    """Pool contacts conditional on both nodes being observed in a frame.
+def persistent_network(
+    networks: Sequence[ResidueInteractionNetwork], *, min_occupancy: float = 0.5
+) -> ResidueInteractionNetwork:
+    """Pool per-frame networks into one network weighted by contact occupancy.
 
-    Weights are empirical occupancy. Distances average only contact-present
-    frames. Correlated frames do not give independent uncertainty estimates.
-
-    A typed contact (pair plus interaction class) has occupancy = frames with the
-    contact / frames in which both residues are present; contacts below
-    ``min_occupancy`` are dropped. Each pooled node records ``observed_frames``
-    and ``lining_occupancy`` (fraction of its observed frames with a region-lining
-    contact).
+    Contacts are pooled per node pair, as in
+    :class:`~crevice.residue_dynamics.ResidueDynamics` (the ``crevice
+    trajectory`` contact statistics): a pair counts once per frame with its
+    shortest edge, so a changing interaction label does not split a persistent
+    contact. Unlike ``ResidueDynamics``, nodes may be missing from some frames
+    (for example residues that line a region only part of the time):
+    occupancy = frames with the contact / frames in which both nodes are present.
+    Pairs below ``min_occupancy`` are dropped. Correlated frames do not give
+    independent uncertainty estimates.
 
     Parameters
     ----------
@@ -36,14 +39,18 @@ def persistent_network(networks: Sequence[ResidueInteractionNetwork], *,
     -------
     ResidueInteractionNetwork
         Pooled network: edge ``weight`` = occupancy, ``distance`` = mean
-        distance (Å) over contact frames, edge metadata with the frame counts;
-        network metadata ``weight_kind = "contact_occupancy"``.
+        distance (Å) over contact frames, ``interaction`` = the most frequent
+        label (ties: alphabetical first), edge metadata with the frame counts and
+        ``contact_type_fractions``; each node records ``observed_frames`` and
+        ``lining_occupancy`` (fraction of its observed frames with a
+        ``region_lining`` or ``region_bottleneck`` edge); network metadata
+        ``weight_kind = "contact_occupancy"``.
 
     Raises
     ------
     ValueError
         For no networks, an invalid ``min_occupancy``, inconsistent settings or
-        node identities, duplicate contacts, or already pooled input.
+        node identities, or already pooled input.
     """
     if not networks:
         raise ValueError("At least one network is required")
@@ -61,46 +68,77 @@ def persistent_network(networks: Sequence[ResidueInteractionNetwork], *,
         if len(ids) != len(network.nodes):
             raise ValueError("Duplicate node identities")
         for node in network.nodes:
-            if node.id in nodes and (node.kind != nodes[node.id].kind or
-                                    node.metadata.get("group") != nodes[node.id].metadata.get("group")):
+            if node.id in nodes and (
+                node.kind != nodes[node.id].kind or node.metadata.get("group") != nodes[node.id].metadata.get("group")
+            ):
                 raise ValueError("Node kind and structural group must remain consistent")
             nodes.setdefault(node.id, node)
             observed[node.id].add(frame_index)
         for edge in network.edges:
             if edge.source not in ids or edge.target not in ids:
                 raise ValueError("An edge references an absent node")
-            key = (*sorted((edge.source, edge.target)), edge.interaction)
-            if frame_index in contacts[key]:
-                raise ValueError("Duplicate typed contact in a frame")
-            contacts[key][frame_index] = edge
             if edge.interaction in {"region_lining", "region_bottleneck"}:
                 for node_id in (edge.source, edge.target):
                     if nodes[node_id].kind == "residue":
                         lining[node_id].add(frame_index)
+        for pair, edge in closest_edges(network.edges).items():
+            contacts[pair][frame_index] = edge
     edges = []
-    for (left, right, interaction), frames in sorted(contacts.items()):
+    for (left, right), frames in sorted(contacts.items()):
         eligible = len(observed[left] & observed[right])
         occupancy = len(frames) / eligible
         if occupancy < min_occupancy:
             continue
-        edges.append(NetworkEdge(left, right, interaction,
-                     sum(e.distance for e in frames.values()) / len(frames), occupancy,
-                     {"occupancy": occupancy, "contact_frames": len(frames),
-                      "eligible_frames": eligible, "total_frames": len(networks)}))
-    pooled_nodes = tuple(replace(node, metadata={**node.metadata,
-                         "observed_frames": len(observed[node.id]),
-                         "lining_occupancy": len(lining[node.id]) / len(observed[node.id])})
-                         for _, node in sorted(nodes.items()))
-    return ResidueInteractionNetwork(pooled_nodes, tuple(edges),
-               {**networks[0].metadata, "weight_kind": "contact_occupancy",
-                "frame_count": len(networks), "min_occupancy": min_occupancy,
-                "missing_nodes": "pairwise_observed_denominator",
-                "uncertainty": "not_estimated", "position_source": "first_observed_frame"})
+        types = Counter(e.interaction for e in frames.values())
+        edges.append(
+            NetworkEdge(
+                left,
+                right,
+                min(types, key=lambda label: (-types[label], label)),
+                sum(e.distance for e in frames.values()) / len(frames),
+                occupancy,
+                {
+                    "occupancy": occupancy,
+                    "contact_frames": len(frames),
+                    "eligible_frames": eligible,
+                    "total_frames": len(networks),
+                    "contact_type_fractions": {k: v / len(frames) for k, v in sorted(types.items())},
+                },
+            )
+        )
+    pooled_nodes = tuple(
+        replace(
+            node,
+            metadata={
+                **node.metadata,
+                "observed_frames": len(observed[node.id]),
+                "lining_occupancy": len(lining[node.id]) / len(observed[node.id]),
+            },
+        )
+        for _, node in sorted(nodes.items())
+    )
+    return ResidueInteractionNetwork(
+        pooled_nodes,
+        tuple(edges),
+        {
+            **networks[0].metadata,
+            "weight_kind": "contact_occupancy",
+            "frame_count": len(networks),
+            "min_occupancy": min_occupancy,
+            "occupancy_unit": "node_pair",
+            "missing_nodes": "pairwise_observed_denominator",
+            "uncertainty": "not_estimated",
+            "position_source": "first_observed_frame",
+        },
+    )
 
 
-def lining_connectivity(network: ResidueInteractionNetwork, *,
-                        lining_residues: Sequence[str] | None = None,
-                        removed_residues: Sequence[str] = ()) -> dict:
+def lining_connectivity(
+    network: ResidueInteractionNetwork,
+    *,
+    lining_residues: Sequence[str] | None = None,
+    removed_residues: Sequence[str] = (),
+) -> dict:
     """Find weighted graph paths from pore-lining residues using NetworkX.
 
     Region pseudo-nodes are excluded from traversal. Each edge cost is 1/weight;
@@ -147,12 +185,19 @@ def lining_connectivity(network: ResidueInteractionNetwork, *,
     if removed - set(nodes):
         raise ValueError("removed_residues contains unknown residue IDs")
     if lining_residues is None:
-        sources = {node_id for e in network.edges
-                   if e.interaction in {"region_lining", "region_bottleneck"}
-                   for node_id in (e.source, e.target) if node_id in nodes}
-        sources.update(n.id for n in nodes.values()
-                       if n.metadata.get("lining_occupancy", 0) > 0
-                       and n.metadata["lining_occupancy"] >= network.metadata.get("min_occupancy", 0.5))
+        sources = {
+            node_id
+            for e in network.edges
+            if e.interaction in {"region_lining", "region_bottleneck"}
+            for node_id in (e.source, e.target)
+            if node_id in nodes
+        }
+        sources.update(
+            n.id
+            for n in nodes.values()
+            if n.metadata.get("lining_occupancy", 0) > 0
+            and n.metadata["lining_occupancy"] >= network.metadata.get("min_occupancy", 0.5)
+        )
     else:
         sources = set(lining_residues)
         if sources - set(nodes):
@@ -168,24 +213,35 @@ def lining_connectivity(network: ResidueInteractionNetwork, *,
             continue
         previous = graph.get_edge_data(edge.source, edge.target)
         if previous is None or edge.weight > previous["strength"]:
-            graph.add_edge(edge.source, edge.target, strength=edge.weight,
-                           cost=1.0 / edge.weight, interaction=edge.interaction)
+            graph.add_edge(
+                edge.source, edge.target, strength=edge.weight, cost=1.0 / edge.weight, interaction=edge.interaction
+            )
     active_sources = sorted(sources - removed)
     costs, paths = nx.multi_source_dijkstra(graph, active_sources, weight="cost") if active_sources else ({}, {})
-    hops = nx.multi_source_dijkstra_path_length(graph, active_sources, weight=lambda u, v, d: 1) if active_sources else {}
+    hops = (
+        nx.multi_source_dijkstra_path_length(graph, active_sources, weight=lambda u, v, d: 1) if active_sources else {}
+    )
     bridges = {n for pair in nx.bridges(graph) for n in pair}
     articulations = set(nx.articulation_points(graph))
     rows = []
     for node_id, node in sorted(nodes.items()):
         path = paths.get(node_id, [])
-        rows.append({"residue": node_id, "group": node.metadata.get("group", "unassigned"),
-                     "is_lining": node_id in sources, "removed": node_id in removed,
-                     "reachable": node_id in costs, "cost_to_lining": costs.get(node_id),
-                     "hops_to_lining": hops.get(node_id), "path": path,
-                     "path_hops": len(path) - 1 if path else None,
-                     "lining_occupancy": node.metadata.get("lining_occupancy"),
-                     "bridge_endpoint": node_id in bridges,
-                     "articulation_point": node_id in articulations})
+        rows.append(
+            {
+                "residue": node_id,
+                "group": node.metadata.get("group", "unassigned"),
+                "is_lining": node_id in sources,
+                "removed": node_id in removed,
+                "reachable": node_id in costs,
+                "cost_to_lining": costs.get(node_id),
+                "hops_to_lining": hops.get(node_id),
+                "path": path,
+                "path_hops": len(path) - 1 if path else None,
+                "lining_occupancy": node.metadata.get("lining_occupancy"),
+                "bridge_endpoint": node_id in bridges,
+                "articulation_point": node_id in articulations,
+            }
+        )
     group_edges = defaultdict(lambda: {"contact_count": 0, "total_strength": 0.0})
     for left, right, edge in graph.edges(data=True):
         a, b = (nodes[n].metadata.get("group", "unassigned") for n in (left, right))
@@ -193,18 +249,29 @@ def lining_connectivity(network: ResidueInteractionNetwork, *,
             entry = group_edges[tuple(sorted((a, b)))]
             entry["contact_count"] += 1
             entry["total_strength"] += edge["strength"]
-    return {"residues": rows, "lining_residues": sorted(sources),
-            "removed_residues": sorted(removed),
-            "group_contacts": [{"source": a, "target": b, **v} for (a, b), v in sorted(group_edges.items())],
-            "weight_transform": "1/positive_weight", "parallel_types": "maximum_strength",
-            "region_nodes_used_for_paths": False,
-            "interpretation": "Contact-network association; removal is a graph sensitivity experiment"}
+    return {
+        "residues": rows,
+        "lining_residues": sorted(sources),
+        "removed_residues": sorted(removed),
+        "group_contacts": [{"source": a, "target": b, **v} for (a, b), v in sorted(group_edges.items())],
+        "weight_transform": "1/positive_weight",
+        "parallel_types": "maximum_strength",
+        "region_nodes_used_for_paths": False,
+        "interpretation": "Contact-network association; removal is a graph sensitivity experiment",
+    }
 
 
 @annotate_option
-def plot_lining_connectivity(network: ResidueInteractionNetwork, path=None, *,
-                             lining_residues=None, max_hops: int = 3, max_nodes: int = 50,
-                             dpi: int = 200, annotate: bool | None = None):
+def plot_lining_connectivity(
+    network: ResidueInteractionNetwork,
+    path=None,
+    *,
+    lining_residues=None,
+    max_hops: int = 3,
+    max_nodes: int = 50,
+    dpi: int = 200,
+    annotate: bool | None = None,
+):
     """Draw residues in columns by contact-graph distance from the pore lining.
 
     :func:`lining_connectivity` computes, for every residue, the minimum number
@@ -265,18 +332,23 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path=None, *,
     if max_hops < 0 or max_nodes < 1:
         raise ValueError("max_hops must be >= 0 and max_nodes >= 1")
     report = lining_connectivity(network, lining_residues=lining_residues)
-    rows = sorted((r for r in report["residues"] if r["reachable"] and r["hops_to_lining"] <= max_hops),
-                  key=lambda r: (r["hops_to_lining"], r["group"], r["residue"]))[:max_nodes]
-    text = FigureText(f"{len(rows)} residues within {max_hops} contact hops of the pore lining, in columns by graph distance; "
-                      "marker colour is the residue group, squares are lining residues")
+    rows = sorted(
+        (r for r in report["residues"] if r["reachable"] and r["hops_to_lining"] <= max_hops),
+        key=lambda r: (r["hops_to_lining"], r["group"], r["residue"]),
+    )[:max_nodes]
+    text = FigureText(
+        f"{len(rows)} residues within {max_hops} contact hops of the pore lining, in columns by graph distance; "
+        "marker colour is the residue group, squares are lining residues"
+    )
     plt = _pyplot()
     columns = defaultdict(list)
     for row in rows:
         columns[row["hops_to_lining"]].append(row)
     height = max(4.0, max((len(c) for c in columns.values()), default=0) * 0.32 + 1.8)
     fig, ax = plt.subplots(figsize=(9, height), constrained_layout=True)
-    positions = {r["residue"]: (hop, i - (len(column) - 1) / 2)
-                 for hop, column in columns.items() for i, r in enumerate(column)}
+    positions = {
+        r["residue"]: (hop, i - (len(column) - 1) / 2) for hop, column in columns.items() for i, r in enumerate(column)
+    }
     groups = sorted({r["group"] for r in rows})
     colors = {group: plt.get_cmap("tab20")(i % 20) for i, group in enumerate(groups)}
     shown_edges = set()
@@ -302,8 +374,13 @@ def plot_lining_connectivity(network: ResidueInteractionNetwork, path=None, *,
     for spine in ax.spines.values():
         spine.set_visible(False)
     if len(groups) > 1 or (groups and text.draw):
-        ax.legend(handles=[Line2D([], [], marker="o", linestyle="", color=colors[g], label=g) for g in groups],
-                  frameon=False, loc="upper left", bbox_to_anchor=(1, 1), fontsize=8)
+        ax.legend(
+            handles=[Line2D([], [], marker="o", linestyle="", color=colors[g], label=g) for g in groups],
+            frameon=False,
+            loc="upper left",
+            bbox_to_anchor=(1, 1),
+            fontsize=8,
+        )
     output = Path(path) if path is not None else None
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)

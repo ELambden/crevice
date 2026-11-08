@@ -30,8 +30,10 @@ import math
 GRID_GUARD_FACTOR = 2.0
 #: Spacing recommended for narrow channels (Å).
 RECOMMENDED_SPACING_A = 0.35
-EVIDENCE = ("1GRM rolling-probe cast volume 289.9 / 282.8 / 257.0 / 238.4 A^3 at grid 0.25 / 0.35 / 0.5 / 0.7 A; "
-            "synthetic walls lost narrow openings at coarse grids (CREVICE 0.3 development runs)")
+EVIDENCE = (
+    "1GRM rolling-probe cast volume 289.9 / 282.8 / 257.0 / 238.4 A^3 at grid 0.25 / 0.35 / 0.5 / 0.7 A; "
+    "synthetic walls lost narrow openings at coarse grids (CREVICE 0.3 development runs)"
+)
 
 
 def grid_resolution_check(spacing_A, narrowest_clearance_A, *, clearance_source: str, context: str = "") -> dict:
@@ -66,23 +68,36 @@ def grid_resolution_check(spacing_A, narrowest_clearance_A, *, clearance_source:
     """
     spacing = float(spacing_A)
     threshold = GRID_GUARD_FACTOR * spacing
-    record = {"status": "not_assessed", "spacing_A": spacing, "narrowest_clearance_A": None,
-              "clearance_source": clearance_source, "threshold_A": threshold,
-              "recommended_spacing_A": RECOMMENDED_SPACING_A, "message": None,
-              "rule": f"warn when the narrowest clearance is below {GRID_GUARD_FACTOR:g} grid spacings; "
-                      "settings and results are never changed",
-              "evidence": EVIDENCE}
+    record = {
+        "status": "not_assessed",
+        "spacing_A": spacing,
+        "narrowest_clearance_A": None,
+        "clearance_source": clearance_source,
+        "threshold_A": threshold,
+        "recommended_spacing_A": RECOMMENDED_SPACING_A,
+        "message": None,
+        "rule": f"warn when the narrowest clearance is below {GRID_GUARD_FACTOR:g} grid spacings; "
+        "settings and results are never changed",
+        "evidence": EVIDENCE,
+    }
     if narrowest_clearance_A is None or not math.isfinite(float(narrowest_clearance_A)):
         return record
     clearance = float(narrowest_clearance_A)
     record["narrowest_clearance_A"] = clearance
     if clearance < threshold:
         what = f" of the {context}" if context else ""
-        suggestion = (f"use a spacing of at most {RECOMMENDED_SPACING_A:g} A for narrow channels" if spacing > RECOMMENDED_SPACING_A
-                      else "use a finer spacing")
-        record.update(status="warning", message=(
-            f"the narrowest clearance{what} ({clearance:.2f} A, {clearance_source}) is below two grid spacings "
-            f"({threshold:.2f} A at {spacing:g} A); narrow openings and volume may be lost: {suggestion}"))
+        suggestion = (
+            f"use a spacing of at most {RECOMMENDED_SPACING_A:g} A for narrow channels"
+            if spacing > RECOMMENDED_SPACING_A
+            else "use a finer spacing"
+        )
+        record.update(
+            status="warning",
+            message=(
+                f"the narrowest clearance{what} ({clearance:.2f} A, {clearance_source}) is below two grid spacings "
+                f"({threshold:.2f} A at {spacing:g} A); narrow openings and volume may be lost: {suggestion}"
+            ),
+        )
     else:
         record["status"] = "ok"
     return record

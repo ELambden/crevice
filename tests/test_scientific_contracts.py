@@ -1,7 +1,7 @@
 """Independent scientific contract tests.
 
 Each test states a geometric or intake property with a known answer (analytic
-clearances, model and chain selection, tunnel and network definitions) and
+clearances, model and chain selection, network definitions) and
 checks CREVICE against it without relying on CREVICE's own reference outputs.
 """
 
@@ -13,7 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from crevice import Atom, StructureFrame, load_structure, pore_profile
-from crevice.analysis import annotate_residues, find_tunnels
+from crevice.analysis import annotate_residues
 from crevice.channels import profile_along_path
 from crevice.models import ChannelPoint, PoreProfile
 from crevice.networks import build_residue_network
@@ -45,24 +45,26 @@ def pdb_line(x=5.0):
 
 class ScientificContracts(unittest.TestCase):
     def test_atomistic_ring_clearance(self):
-        profile = pore_profile(ring(), axis="z", samples=3, search_radius=0)
+        # The exact continuous bottleneck is at a ring plane on the axis: radius - carbon VDW radius.
+        profile = pore_profile(ring(), axis="z", samples=3)
+        self.assertAlmostEqual(profile.metadata["continuous_bottleneck_radius_A"], 3.3, places=6)
         for point in profile.points:
-            self.assertAlmostEqual(point.radius, 3.3, places=10)
+            self.assertGreaterEqual(point.radius, 3.3 - 1e-9)
 
     def test_translation_invariance(self):
         frame = ring()
         moved = StructureFrame(tuple(replace(a, x=a.x + 31, y=a.y - 17, z=a.z + 11)
                                      for a in frame.atoms))
-        left = pore_profile(frame, axis="z", samples=9, search_radius=0)
-        right = pore_profile(moved, axis="z", samples=9, search_radius=0)
+        left = pore_profile(frame, axis="z", samples=9)
+        right = pore_profile(moved, axis="z", samples=9)
         for a, b in zip(left.points, right.points):
             self.assertAlmostEqual(a.radius, b.radius, places=10)
 
     def test_explicit_axis_rotation_invariance(self):
         frame = ring()
         moved = StructureFrame(tuple(replace(a, x=a.z, z=-a.x) for a in frame.atoms))
-        left = pore_profile(frame, axis="z", samples=9, search_radius=0)
-        right = pore_profile(moved, axis="x", samples=9, search_radius=0)
+        left = pore_profile(frame, axis="z", samples=9)
+        right = pore_profile(moved, axis="x", samples=9)
         for a, b in zip(left.points, right.points):
             self.assertAlmostEqual(a.radius, b.radius, places=10)
 
@@ -83,14 +85,17 @@ class ScientificContracts(unittest.TestCase):
         atoms = (atom(1, (0, 0, 0), "C"), atom(1, (20, 0, 0), "O"))
         self.assertAlmostEqual(SpatialIndex(atoms).nearest_surface((3, 0, 0))[0], 1.3)
 
-    def test_closed_slice_is_retained(self):
+    def test_an_axial_atom_is_passed_around_not_through(self):
+        # An atom on the axis at z = 0 leaves an annulus (radius 5, wall at 3.3 A, atom 1.7 A): the
+        # connected profile goes round it, off the axis, with about (3.3 - 1.7) / 2 = 0.8 A clearance.
         frame = ring()
         closed = StructureFrame(frame.atoms + (atom(1000, (0, 0, 0)),))
-        profile = pore_profile(closed, axis="z", samples=3, search_radius=0)
-        self.assertEqual(profile.min_radius, 0.0)
+        profile = pore_profile(closed, axis="z", samples=3, origin=(0.0, 0.0, -3.0), lateral_exits=True)
+        self.assertTrue(0.7 < profile.min_radius < 0.9)
+        self.assertGreater(math.hypot(*profile.bottleneck.position[:2]), 2.0)
 
     def test_probe_subtraction_contract(self):
-        profile = pore_profile(ring(), axis="z", samples=3, search_radius=0, probe_radius=1.4)
+        profile = pore_profile(ring(), axis="z", samples=3, probe_radius=1.4)
         self.assertAlmostEqual(profile.min_radius, 1.9)
         self.assertAlmostEqual(profile.bottleneck.raw_clearance, 3.3)
 
@@ -140,9 +145,10 @@ class ScientificContracts(unittest.TestCase):
         graph = build_residue_network(frame)
         self.assertEqual(len({n.id for n in graph.nodes}), 3)
 
-    def test_network_cutoff_is_surface_distance(self):
+    def test_network_cutoff_metrics(self):
         frame = StructureFrame((atom(1, (0, 0, 0)), atom(2, (7.8, 0, 0))))
-        graph = build_residue_network(frame, cutoff=4.5)
+        self.assertEqual(build_residue_network(frame, cutoff=4.5).edges, ())
+        graph = build_residue_network(frame, cutoff=4.5, distance_metric="surface")
         self.assertEqual(len(graph.edges), 1)
         self.assertAlmostEqual(graph.edges[0].distance, 4.4)
 
@@ -154,18 +160,9 @@ class ScientificContracts(unittest.TestCase):
 
     def test_wide_pore_lining_is_not_lost(self):
         frame = ring(radius=10.0)
-        profile = pore_profile(frame, axis="z", samples=3, search_radius=0)
+        profile = pore_profile(frame, axis="z", samples=3)
         contacts = annotate_residues(frame, profile.points)
         self.assertGreater(len(contacts), 0, "All ring atoms bound the pore but are beyond a centerline cutoff")
-
-    def test_tunnel_start_inside_atom_is_rejected(self):
-        frame = StructureFrame((atom(1, (0, 0, 0)),))
-        try:
-            tunnels = find_tunnels(frame, start=(0, 0, 0), spacing=1, padding=4,
-                                   min_radius=0.8, max_tunnels=1)
-        except ValueError:
-            return
-        self.assertEqual(tunnels, (), "An inaccessible start must not teleport to an exterior grid point")
 
     def test_explicit_path_exact_clearance(self):
         frame = StructureFrame((atom(1, (0, 0, 0)),))

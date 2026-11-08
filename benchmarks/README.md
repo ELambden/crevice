@@ -29,10 +29,10 @@ listed, and every attempt (including failures) is recorded.
 | `tunnels_vs_caver.py` | CREVICE `paths` vs CAVER 3.0.3 |
 | `volumes_vs_comparators.py`, `kvfinder_worker.py` | pocket volumes: CREVICE `cavities --cast`/`cavities` vs pyKVFinder and POVME |
 | `mdpocket_vs_region.py` | GLUT1 trajectory pocket: `trajectory --region` vs MDpocket |
-| `probe_sensitivity.py` | automatic enclosure probe under changed grouping rules and ladders |
 | `timing_vs_comparators.py` | run times of CREVICE and the comparators on the same inputs |
 | `timing_trajectory.py`, `trajectory_worker.py` | run time, CPU time and memory over an MD trajectory: CREVICE `trajectory` (channel profile, region volume at several grid spacings) vs HOLE per frame (mdahole2) and MDpocket |
 | `inputs/trajectory_glut1_excerpt.json` | system description for `timing_trajectory.py` on the public GLUT1 excerpt |
+| `nongeom/` | verification of the non-geometric analyses (permeation, pf/pd, current, uncertainty, water, boundary residues) against exact answers and independent references; see `nongeom/README.md` |
 | `make_tables.py` | collects the per-comparison CSVs into `results/validation_channels.csv` and `results/validation_summary.csv` |
 | `results/` | the small result tables (one CSV per comparison) |
 
@@ -55,7 +55,6 @@ CREVICE_KVFINDER_PYTHON=... CREVICE_POVME_PYTHON=... CREVICE_POVME_SCRIPT=... \
     python benchmarks/volumes_vs_comparators.py
 crevice fetch --example glut1-excerpt --cache-dir <work-dir>/examples
 python benchmarks/mdpocket_vs_region.py
-python benchmarks/probe_sensitivity.py
 python benchmarks/timing_vs_comparators.py --repeat 3
 python benchmarks/timing_trajectory.py benchmarks/inputs/trajectory_glut1_excerpt.json --repeat 3 --cpus 0
 python benchmarks/make_tables.py
@@ -105,62 +104,58 @@ The committed tables in `results/` are the reference. Headline numbers
 Per-plane maximal-sphere radius, HOLE interpolated at CREVICE's samples, over
 CREVICE's resolved range trimmed by 2 Å per end. HOLE `simple.rad` in both
 tools (the Bondi run gives the same picture, `channels_vs_hole_bondi.csv`).
+Coverage is CREVICE's resolved range as a fraction of the atoms' axial extent;
+the last two columns give HOLE's minimum within that extent and whether it
+lies inside CREVICE's range.
 
-| Entry | CREVICE, default options | options needed | probe (Å) | CREVICE range (Å) | RMSD (Å) | max \|Δ\| (Å) | min radius CREVICE / HOLE (Å) | HOLE global min (Å) @ s | inside CREVICE range |
+| Entry | default options | options needed | CREVICE range (Å) | coverage | RMSD (Å) | max \|Δ\| (Å) | min radius CREVICE / HOLE (Å) | HOLE min in protein (Å) @ s | inside range |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1GRM gramicidin A | resolved | – | 0.65 | −11.6…11.6 | 0.009 | 0.063 | 1.201 / 1.199 | 1.199 @ −9.6 | yes |
-| 1K4C KcsA (closed gate) | unresolved | unresolved with all options | – | – | – | – | – | 0.62 @ 5.0 | – |
-| 1LNQ MthK pore | unresolved | unresolved with all options | – | – | – | – | – | 0.00 @ −5.6 | – |
-| 1J4N aquaporin-1 | unresolved | lateral exits | 0.55 ‡ | −1.1…3.8 | 0.005 | 0.021 | 1.702 / 1.698 | 0.982 @ 7.0 | no |
-| 2OMF OmpF | unresolved | lateral exits | 1.4 | −1.6…1.7 | 0.002 | 0.005 | 3.563 / 3.559 | 3.559 @ −0.2 | yes |
-| 4HFI GLIC | resolved | – | 1.8 | −14.9…22.1 | 0.003 | 0.029 | 2.594 / 2.593 | 2.593 @ 11.8 | yes |
-| 2BG9 nAChR (full) | unresolved | lateral exits | 2.0 | −14.7…16.8 | 0.006 | 0.052 | 2.565 / 2.564 | 2.18 @ −56.0 | no |
-| 1OED nAChR pore | resolved | – | 2.2 | −19.0…12.8 | 0.003 | 0.021 | 3.114 / 3.113 | 3.113 @ −9.8 | yes |
-| 2VV5 MscS (open) | unresolved | lateral exits, 12 Å search | 2.2 | −23.5…11.2 | 0.002 | 0.012 | 6.030 / 6.030 | 2.06 @ 66.8 | no |
-| 2OAU MscS (closed) | unresolved | lateral exits | 1.1 | −1.7…7.3 | 0.003 | 0.011 | 2.429 / 2.429 | 1.75 @ 75.6 | no |
-| 3UKM TWIK-1 | unresolved | unresolved (resolves with Bondi radii + lateral exits) | – | – | – | – | – | 0.50 @ 5.2 | – |
+| 1GRM gramicidin A | resolved | – | −14.6…14.6 | 1.00 | 0.004 | 0.014 | 1.200 / 1.199 | 1.20 @ −9.6 | yes |
+| 1K4C KcsA (closed gate) | resolved | – | −37.1…23.2 | 0.95 | 0.004 | 0.034 | 0.618 / 0.617 | 0.62 @ 5.0 | yes |
+| 1LNQ MthK pore | unresolved | unresolved | – | – | – | – | – / – | −0.01 @ −5.6 (global) | – |
+| 1J4N aquaporin-1 | unresolved | lateral exits | −19.1…21.5 | 0.63 | 0.073 | 0.561 | 0.983 / 0.982 | 0.98 @ 7.0 | yes |
+| 2OMF OmpF | resolved | – | −21.9…22.5 | 0.76 | 0.270 | 1.258 | 3.563 / 3.559 | 3.56 @ −0.2 | yes |
+| 4HFI GLIC | resolved | – | −70.6…27.7 | 0.86 | 0.003 | 0.026 | 2.593 / 2.593 | 2.59 @ 11.8 | yes |
+| 2BG9 nAChR (full) | unresolved | lateral exits | −23.0…27.7 | 0.32 | 0.005 | 0.041 | 2.566 / 2.564 | 2.18 @ −56.0 | no |
+| 1OED nAChR pore | resolved | – | −23.7…22.7 | 0.84 | 0.004 | 0.040 | 3.114 / 3.113 | 3.11 @ −9.8 | yes |
+| 2VV5 MscS (open) | unresolved | lateral exits | −29.9…41.4 | 0.59 | 0.002 | 0.017 | 6.030 / 6.030 | 2.06 @ 66.8 | no |
+| 2OAU MscS (closed) | unresolved | lateral exits | −39.2…38.6 | 0.63 | 0.002 | 0.024 | 2.429 / 2.429 | 1.75 @ 75.6 | no |
+| 3UKM TWIK-1 | unresolved | lateral exits | −25.1…16.5 | 0.53 | 0.004 | 0.020 | 0.505 / 0.504 | 0.50 @ 5.2 | yes |
 
 Reading the table:
 
-* Where CREVICE resolves a channel, its per-plane radius agrees with HOLE's to
-  0.002–0.009 Å RMSD (Bondi: 0.001–0.011 Å) and the minimum radii over the
-  compared range agree to ≤ 0.005 Å. The two programs measure the same quantity, so this is a check
-  of the implementation, not of biology.
-* With default options CREVICE resolves 3 of 11 entries; with the documented
-  options (`--lateral-exits`, a 12 Å search window for MscS) 8 (Bondi: 9).
-  The automatic enclosure probe starts at 0.5 Å, so a constriction narrower
-  than about 0.5 Å plus the section grid cannot be followed: the K⁺ channel
-  selectivity filters (1LNQ ~0 Å, 3UKM 0.50 Å with `simple.rad`) and the
-  closed KcsA gate (0.62 Å) stay unresolved, while HOLE reports a radius
-  through them. This is a definitional difference (CREVICE requires a
-  probe-connected channel; HOLE reports any plane-wise maximal sphere) and a
-  real limitation for ion-selective pores.
-* ‡ 1J4N: with `simple.rad` the automatic probe finds two channels with the
-  same support of two ladder probes: a short capped fragment at 0.55 and
-  0.60 Å (−1.1…3.8 Å) and the through channel at 0.75 and 0.80 Å
-  (−4.0…11.2 Å). A tie goes to the smaller probe, so the fragment is reported
-  and the compared range does not contain the 0.98 Å constriction at
-  s = 7.0 Å that HOLE reports. With Bondi radii the through channel resolves
-  at one probe only (1.0 Å) and a short fragment (0.70 Å) is reported as well.
-  This is the stated tie rule, kept as is. Giving the probe recovers the
-  through channel: `--enclosure-radius 0.75` (`simple.rad`) gives
-  −4.0…11.2 Å, RMSD 0.0068 Å and minimum 0.985 Å (HOLE 0.982 Å);
-  `--enclosure-radius 1.0` (Bondi) gives −5.9…11.8 Å, RMSD 0.0035 Å and
-  minimum 1.172 Å (HOLE 1.171 Å).
-* For capped channels CREVICE measures the axial part up to the cap and
-  leaves through lateral exits; the cytoplasmic cage of MscS and the
-  intracellular domain of the full receptor (2BG9), where HOLE finds the
-  global minimum, lie outside CREVICE's resolved range. The CREVICE minimum
-  is then the minimum of the measured part only.
-* Every resolved entry is compared on its dense (~0.2 Å step) pass. For 4HFI
-  and 2BG9 (simple radii) a few planes only ~0.1–0.2 Å thick, where the lumen
-  just reaches the 6 Å search window while protein still encloses it, are
-  bridged by the wider window described in the `profile` tool guide. Each
-  section centre is refined to the exact local maximum of the in-plane
-  clearance (the top of the clearance hill holding the best grid point), as
-  HOLE also maximises in-plane; a higher maximum on another hill of the same
-  plane is not searched for. Over 81–201 samples the 2BG9 minimum varies by
-  less than 0.002 Å.
+* The two programs measure the same quantity, so this checks the
+  implementation, not biology. Where both follow the same lumen the per-plane
+  radii agree to 0.002–0.005 Å RMSD and the minimum radii to ≤ 0.004 Å
+  (Bondi: ≤ 0.005 Å except MthK).
+* With default options CREVICE resolves 5 of 11 entries; with the documented
+  options (`--lateral-exits` for capped ends) 10 (Bondi: 11). Every plane uses
+  its own enclosure probe, so narrow filters and leaky wide regions resolve in
+  the same channel: KcsA's 0.62 Å filter and TWIK-1's 0.50 Å filter are
+  followed. The smallest traceable clearance is about 0.32 Å with 0.25 Å
+  sections.
+* HOLE's minimum within the protein lies inside CREVICE's range for 7 of the
+  10 resolved entries. The other three are outside the transmembrane pore:
+  the extracellular domain of the full nAChR (2BG9, s = −56 Å) and the
+  cytoplasmic cage of MscS (2VV5, 2OAU), beyond the capped end where CREVICE
+  leaves through lateral exits.
+* Larger differences come from planes with more than one clearance maximum.
+  In the OmpF vestibules (r > 5.8 Å) CREVICE's centres are exact maxima of the
+  enclosed lumen that are up to 1.26 Å wider than the point HOLE's search
+  settles on; in aquaporin-1 one plane at s = −12 Å holds two maxima, and
+  CREVICE keeps the one continuous with its path. A higher maximum is taken
+  only when it lies in the same lumen (the straight line between the two
+  keeps 90 % of the lower clearance).
+* MthK (1LNQ): the curated pore domain is occluded (HOLE gives 0.0 Å at
+  s = −5.6 Å); with Bondi radii CREVICE resolves only the part above the
+  occlusion.
+* TWIK-1 (3UKM): the capped end stops where the two side portals leave the
+  chamber under the cap (portal legs about 2.0 Å, against 1.0 Å for the route
+  through the cap; the lateral-branch rule of `crevice profile`), so the
+  resolved range ends at s = 16.5 Å rather than inside the cap.
+* Every resolved entry is compared on its dense (~0.2 Å step) pass. The
+  channel's extent comes from its mouths and does not depend on the sample
+  count.
 
 ### Geometric conductance vs measured single-channel conductance
 
@@ -171,24 +166,31 @@ same ρ. Ratios are estimate / measured, per pore (OmpF: trimer / 3).
 
 | Entry | measured (pS) | conditions | CREVICE G_macro (pS) | ratio | lumen (Å) | HOLE G_macro (pS) | ratio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| gramicidin (1GRM) | 10 | 150 mM NaCl | 37.9 | 3.8 | 23.3 | 31.9 | 3.2 |
+| gramicidin (1GRM) | 10 | 150 mM NaCl | 33.4 | 3.3 | 29.3 | 31.9 | 3.2 |
 | MthK (1LNQ) | 242 | 200 mM K⁺, −200 mV | unresolved | – | – | ~0 | ~0 |
-| OmpF (2OMF, per pore) | 1367 | 1 M KCl | 13 730 | 10.0 | 3.2 (capped) | 1897 | 1.4 |
-| GLIC (4HFI) | 9.3 | 160 mM NaCl / 145 mM CsCl | 163.4 | 17.6 | 37.0 | 112.6 | 12.1 |
-| MscS open (2VV5) | 1200 | 200 mM KCl + 90 mM MgCl₂ | 1841 | 1.5 | 34.7 (capped) | 263 | 0.22 |
-| KcsA closed (1K4C) † | 97 | 100 mM KCl | unresolved | – | – | 13.2 | 0.14 |
-| MscS closed (2OAU) † | 1200 | as 2VV5 | 1211 | 1.0 | 9.0 (capped) | 178 | 0.15 |
+| OmpF (2OMF, per pore) | 1367 | 1 M KCl | 2211 | 1.6 | 44.4 | 1897 | 1.4 |
+| GLIC (4HFI) | 9.3 | 160 mM NaCl / 145 mM CsCl | 118.6 | 12.7 | 98.3 | 112.6 | 12.1 |
+| MscS open (2VV5) | 1200 | 200 mM KCl + 90 mM MgCl₂ | 1266 | 1.06 | 71.3 (capped) | 263 | 0.22 |
+| KcsA closed (1K4C) † | 97 | 100 mM KCl | 13.4 | 0.14 | 60.4 | 13.2 | 0.14 |
+| MscS closed (2OAU) † | 1200 | as 2VV5 | 506 | 0.42 | 77.8 (capped) | 178 | 0.15 |
 
 † closed structure vs open-channel measurement: not a like-for-like comparison.
 
 The estimate is not a predictor of single-channel conductance: over the four
-comparable channels CREVICE resolves, the ratio spans 1.5–17.6, and it
-depends on how much of the pore the resolved lumen covers (the capped OmpF
-lumen is 3 Å long). HOLE's whole-profile estimate spans 0.2–12 on the same
-channels. For K⁺ channels the geometric picture fails outright (the filter
-is narrower than a water molecule). Sources and conditions are in
+comparable open channels the ratio spans 1.06–12.7 (HOLE: 0.22–12.1). Where
+CREVICE now covers the pore, its estimate is close to HOLE's (gramicidin,
+OmpF, GLIC, KcsA); for MscS the two differ because HOLE integrates through the
+cytoplasmic cage that CREVICE leaves through its lateral portals. For K⁺
+channels the geometric picture fails outright (the filter is narrower than a
+water molecule). Sources and conditions are in
 `inputs/conductance_literature.csv`; every value was read in the cited
 article.
+
+On a 100 ns OmpF trimer simulation at 561 mV (`nongeom/md_systems/ompf.md`), the same
+estimate on every frame's profile, at the experimental 1 M KCl resistivity, is 1.5–2.0
+times the simulated per-pore conductance. Over 5 ns windows it follows the simulated
+current only weakly (Spearman ρ = 0.32), and it did not change when one pore's K+ current
+fell threefold.
 
 ### Enzyme tunnels vs CAVER 3.0.3
 
@@ -228,29 +230,6 @@ larger, partly open pockets, where each tool bounds the open side
 differently. POVME and `crevice cavities` count probe-centre or
 distance-cutoff points and are several times smaller by construction.
 
-### Automatic enclosure probe sensitivity
-
-`results/probe_sensitivity/`: 13 one-at-a-time variants per channel (Bondi
-radii, the options under which each channel resolved). Over the 9 channels
-resolved by default (117 variant runs) the chosen probe changed in 18 runs,
-the status in 15, and the minimum radius by more than 0.01 Å in none.
-
-| Variant | Channels whose result changes |
-| --- | --- |
-| minimum-radius tolerance 0.025 / 0.1 Å, 1 % / 5 % | none |
-| axial overlap 0.4 | 1OED (probe 2.4 → 1.1 Å), 2OAU (probe 1.2 → 1.0 Å) |
-| axial overlap 0.8 | none |
-| minimum support 3 | 1J4N, 2BG9, 1OED, 3UKM become unresolved |
-| minimum support 4 | 7 of 9 become unresolved |
-| ladder 0.5–2.0 Å | 4HFI, 2BG9, 2VV5 become unresolved; 1OED probe 2.4 → 1.05 Å |
-| ladder 0.5–4.0 Å, 0.4–3.0 Å | none |
-| ladder 0.6–3.0 Å | 3UKM becomes unresolved |
-| every other ladder probe | none |
-
-The grouping tolerances are not critical; the minimum support of two probes
-and the upper end of the ladder are: most channels are resolved at only two
-or three ladder probes, and wide pores need probes above 2 Å.
-
 ### Trajectory pocket volume vs MDpocket (GLUT1 excerpt)
 
 `results/trajectory_pocket/`: the 21-frame public GLUT1 excerpt and its
@@ -272,41 +251,43 @@ statement.
 ### Timing
 
 `results/timing/`: one process per run, median of 3, one core for CREVICE
-(`--workers 1`, single-threaded BLAS); CAVER is a Java program and uses more
-than one thread (its CPU time is given). Intel Core Ultra 7 268V, 8 logical
-CPUs, Linux, Python 3.13; measured on 22 Oct 2026 with the 0.4.0 code on an
-otherwise idle machine (1-minute load 0.9–1.6).
+(`--workers 1`, single-threaded BLAS, with the optional numba kernels);
+CAVER is a Java program and uses more than one thread (its CPU time is given).
+Intel Core Ultra 7 268V, 8 logical CPUs, Linux, Python 3.13; measured on
+3 Nov 2026 on an otherwise idle machine (1-minute load 0.7–2.1; 0.7 for the profiles). Times
+include start-up (about 0.3 s to import CREVICE and its kernels); the numba
+kernels add about 80 MB to CREVICE's peak memory.
 
 | Case | Tool | median wall (s) | median CPU (s) | peak RSS (MB) |
 | --- | --- | --- | --- | --- |
 | 1GRM profile | HOLE 2.3.1 | 0.06 | 0.06 | 19 |
-| | CREVICE profile, automatic probe | 2.4 | 2.4 | 87 |
-| | CREVICE profile, probe fixed | 0.50 | 0.50 | 78 |
-| 1OED profile | HOLE | 0.14 | 0.14 | 19 |
-| | CREVICE, automatic probe | 6.1 | 6.1 | 142 |
-| | CREVICE, probe fixed | 0.80 | 0.80 | 92 |
-| 3UKM profile (lateral exits) | HOLE | 0.11 | 0.11 | 19 |
-| | CREVICE, automatic probe | 45.6 | 45.6 | 287 |
-| | CREVICE, probe fixed | 12.9 | 12.9 | 252 |
-| DhaA tunnels | CAVER 3.0.3 | 0.85 | 4.3 | 447 |
-| | CREVICE paths, automatic probe | 7.0 | 7.0 | 245 |
-| | CREVICE paths, 0.9 Å | 3.4 | 3.4 | 246 |
-| LinB tunnels | CAVER | 0.93 | 4.8 | 446 |
-| | CREVICE paths, automatic / 0.9 Å | 5.7 / 3.3 | 5.7 / 3.3 | 239 |
-| AChE gorge | CAVER | 1.0 | 4.8 | 447 |
-| | CREVICE paths, automatic / 0.9 Å | 14.3 / 5.4 | 14.2 / 5.4 | 329 |
-| T4L cavity | pyKVFinder | 0.20 | 0.97 | 37 |
-| | CREVICE cast | 2.1 | 2.1 | 183 |
-| | POVME 3 | 13.6 | 13.5 | 12 812 |
-| FABP4 pocket | pyKVFinder | 0.16 | 0.74 | 35 |
-| | CREVICE cast | 1.9 | 1.9 | 161 |
-| | POVME 3 | 19.9 | 19.8 | 12 800 |
+| | CREVICE profile, automatic probe | 0.61 | 0.61 | 171 |
+| 1OED profile | HOLE | 0.13 | 0.13 | 19 |
+| | CREVICE, automatic probe | 1.3 | 1.3 | 201 |
+| 3UKM profile (lateral exits) | HOLE | 0.10 | 0.10 | 19 |
+| | CREVICE, automatic probe | 2.7 | 2.7 | 248 |
+| DhaA tunnels | CAVER 3.0.3 | 0.85 | 4.2 | 451 |
+| | CREVICE paths, automatic probe | 7.5 | 7.4 | 246 |
+| | CREVICE paths, 0.9 Å | 3.5 | 3.5 | 246 |
+| LinB tunnels | CAVER | 0.90 | 4.6 | 444 |
+| | CREVICE paths, automatic / 0.9 Å | 6.0 / 3.3 | 6.0 / 3.3 | 241 |
+| AChE gorge | CAVER | 1.0 | 4.6 | 447 |
+| | CREVICE paths, automatic / 0.9 Å | 14.3 / 6.0 | 14.3 / 6.0 | 329 |
+| T4L cavity | pyKVFinder | 0.23 | 0.99 | 37 |
+| | CREVICE cast | 2.1 | 2.1 | 184 |
+| | POVME 3 | 18.3 | 18.2 | 12 813 |
+| FABP4 pocket | pyKVFinder | 0.18 | 0.75 | 35 |
+| | CREVICE cast | 2.3 | 2.3 | 208 |
+| | POVME 3 | 25.1 | 25.0 | 12 800 |
 
-HOLE is 40–400 times faster than CREVICE's automatic-probe profile, mainly
-because CREVICE resolves a connected, laterally enclosed channel at many
-enclosure probes (the automatic probe is 3.5–8 times the cost of a fixed probe); CAVER and
-pyKVFinder are faster than CREVICE's path search and cast. Trajectory
-timings are in the next section.
+HOLE is 10–27 times faster than a CREVICE profile, because CREVICE checks
+that every slice is laterally enclosed at the smallest probe of a ladder and
+joins neighbouring slices, and searches for lateral exits and wider lateral
+branches at capped ends;
+about half of CREVICE's time on 1GRM is start-up. CAVER and pyKVFinder are
+faster than CREVICE's path search and cast. The 0.4 profile code took 2.4,
+6.1 and 45.6 s for the same three channels (22 Oct 2026, `results/timing/` of
+that release). Trajectory timings are in the next section.
 
 ### Trajectory timing
 
@@ -322,7 +303,7 @@ python benchmarks/timing_trajectory.py SYSTEM.json --frames 1000 --repeat 3 \
 
 | Case | Command |
 | --- | --- |
-| `crevice_profile` | `crevice trajectory --topology ... --analysis profile` with the system's axis and channel point (automatic probe, chosen on the first frame, with the per-frame fallback) |
+| `crevice_profile` | `crevice trajectory --topology ... --analysis profile` with the system's axis and channel point (automatic per-slice probe in every frame) |
 | `hole` | HOLE 2.3.1 on every frame through mdahole2: same atoms, frames fitted on the same CA atoms, HOLE `simple.rad`, same channel point and direction |
 | `crevice_region` | `crevice trajectory --region` at the definition's grid spacing |
 | `crevice_region_<s>` | the same region volume at grid spacing `s` Å (`trajectory --cavities --geometry-mode reference-region` with the definition's selections, probe, margin and axis) |
@@ -393,8 +374,8 @@ to 0.4.0's.
 
 The channel-profile rows (CREVICE `trajectory --analysis profile` against
 HOLE 2.3.1 through mdahole2) are not measured yet. GLUT1 has no
-through-channel, so they need a channel trajectory: they will be timed on the
-aquaporin-4 (3GD8) simulation, which is still running.
+through-channel, so they need a channel trajectory: the 100 ns aquaporin-4 (3GD8)
+monomer trajectories are now available for them (`nongeom/md_systems/aqp4.md`).
 
 ## Not done
 

@@ -214,18 +214,21 @@ def test_trajectory_progress_goes_to_stderr_and_never_changes_outputs(tmp_path, 
     def run(name, *extra):
         out = tmp_path / f"{name}.json"
         assert main(["trajectory", str(trajectory), "--topology", str(topology), "--selection", "name CA",
-                     "-o", str(out), "--samples", "5", "--search-radius", "0", *extra]) == 0
+                     "-o", str(out), "--samples", "5", *extra]) == 0
         return out, capsys.readouterr()
 
     monkeypatch.delenv(progress.PROGRESS_ENV, raising=False)
-    quiet_out, quiet = run("default")                  # stderr is not a terminal: no progress
-    assert quiet.err == ""
+    quiet_out, quiet = run("default")                  # stderr is not a terminal: no progress bar,
+    lines = quiet.err.splitlines()                     # only the few status lines
+    assert lines and all(line.startswith("crevice: ") for line in lines) and "trajectory frames: [" not in quiet.err
+    assert "initialising the enclosure probe" in quiet.err and "trajectory: finished in" in lines[-1]
     monkeypatch.setenv(progress.PROGRESS_ENV, "1")
     logged_out, logged = run("logged")
     assert "trajectory frames: [" in logged.err and "5/5 (100%)" in logged.err
     assert logged.out.replace("logged", "default") == quiet.out
     silenced_out, silenced = run("silenced", "--quiet")
-    assert silenced.err == ""
+    # --quiet removes the progress bar and status lines; diagnostics (notes, warnings) remain.
+    assert all(line.startswith(("crevice: note:", "crevice: warning:")) for line in silenced.err.splitlines())
 
     def payload(path):
         data = json.loads(path.read_text(encoding="utf-8"))

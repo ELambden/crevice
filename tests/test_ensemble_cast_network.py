@@ -17,7 +17,7 @@ from crevice import (Atom, StructureFrame, pore_profile, void_cast, detect_cavit
 from crevice.models import (ChannelPoint, PoreProfile, FrameAnalysis, NetworkNode, NetworkEdge,
                           ResidueInteractionNetwork, VoidComponent, VoidCast)
 from crevice.volume_export import cast_grid
-from crevice.trajectory import align_frame
+from crevice.trajectory import align_frame_report
 
 
 def atom(i, xyz, **kw):
@@ -85,6 +85,14 @@ def test_invalid_quantiles_rejected(quantiles):
         profile_distribution([frame_profile(1)], quantiles=quantiles)
 
 
+def test_axial_statistics_refuse_path_profiles_with_a_clear_reason():
+    from crevice import profile_along_path
+    profile = profile_along_path(ring(), [(0.0, 0.0, -2.0), (0.5, 0.0, 0.0), (0.0, 0.0, 2.0)])
+    assert profile.method == "explicit-path"
+    with pytest.raises(ValueError, match="measured along its own path"):
+        profile_distribution([FrameAnalysis(0, profile=profile), FrameAnalysis(1, profile=profile)])
+
+
 def test_axis_and_probe_mismatch_rejected():
     frame = frame_profile(1)
     for profile in (replace(frame.profile, probe_radius=1),
@@ -97,11 +105,11 @@ def test_rigid_alignment_and_fixed_reference():
     reference = ring()
     mobile = replace(reference, atoms=tuple(replace(a, x=-a.z + 8, y=a.y - 5, z=a.x + 3)
                                              for a in reference.atoms))
-    aligned = align_frame(mobile, reference)
+    aligned, _ = align_frame_report(mobile, reference)
     assert np.asarray([a.coord for a in aligned.atoms]) == pytest.approx(
         np.asarray([a.coord for a in reference.atoms]), abs=1e-6)
     result = analyze_trajectory([reference, mobile], align=True,
-                               profile_kwargs={"axis": "auto", "search_radius": 0, "samples": 9})
+                               profile_kwargs={"axis": "auto", "samples": 9})
     rows = profile_distribution(result)["rows"]
     assert all(r["upper_radius"] - r["lower_radius"] < 1e-6 for r in rows)
 
@@ -143,7 +151,7 @@ def test_two_cavities_focus_and_volume_filters():
 
 def test_focus_miss_never_returns_unfocused_cast():
     frame = ring()
-    profile = pore_profile(frame, search_radius=0, samples=13)
+    profile = pore_profile(frame, samples=13)
     far_profile = replace(profile, points=tuple(replace(p, position=(100, 100, p.t)) for p in profile.points))
     assert not void_cast(frame, mode="channel", spacing=1, profile=far_profile).points
     assert not void_cast(frame, mode="all", spacing=1, focus_points=[(100, 100, 100)]).points
@@ -151,14 +159,15 @@ def test_focus_miss_never_returns_unfocused_cast():
 
 def test_sampling_does_not_change_volume_topology_or_maps():
     frame = ring()
-    profile = pore_profile(frame, search_radius=0, samples=13)
+    profile = pore_profile(frame, samples=13)
     full = void_cast(frame, mode="channel", spacing=1, profile=profile)
     thinned = void_cast(frame, mode="channel", spacing=1, profile=profile, max_export_points=5)
     assert len(thinned.points) == 5
     assert thinned.total_volume == full.total_volume > 0
     assert len(thinned.components) == len(full.components)
     assert np.array_equal(cast_grid(thinned)[0], cast_grid(full)[0])
-    assert all(math.hypot(*p.position[:2]) <= 3.3 + 1e-6 for p in full.points)
+    # Inside the ring cylinder (the rings are 4 A apart, so the wall is open between them).
+    assert all(math.hypot(*p.position[:2]) <= 5.0 + 1e-6 for p in full.points)
 
 
 def test_map_preserves_branches_and_components(tmp_path):
@@ -180,7 +189,7 @@ def test_map_preserves_branches_and_components(tmp_path):
 def test_all_viewers_share_map(tmp_path):
     frame = ring()
     cast = void_cast(frame, mode="channel", axis="z", spacing=1,
-                     profile=pore_profile(frame, search_radius=0, samples=13))
+                     profile=pore_profile(frame, samples=13))
     manifest = write_volume_viewer_bundle(cast, structure_path=tmp_path / "protein.pdb",
                                          output_dir=tmp_path / "with spaces")
     metadata = json.loads(__import__("pathlib").Path(manifest["volume_metadata_json"]).read_text(encoding="utf-8"))
@@ -208,7 +217,7 @@ def test_sidechain_evidence_and_full_identity():
 
 def test_wide_pore_network_keeps_lining():
     frame = ring(radius=10)
-    profile = pore_profile(frame, search_radius=0, samples=7)
+    profile = pore_profile(frame, samples=7)
     network = build_cavity_network(frame, profile)
     assert any(e.interaction in {"region_lining", "region_bottleneck"} for e in network.edges)
 

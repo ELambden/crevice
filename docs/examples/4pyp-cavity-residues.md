@@ -15,13 +15,16 @@ crevice profile 4PYP -o 4PYP_profile.json
 ```
 
 ```text
-crevice: error: No enclosure probe resolved a stable channel (automatic choice, 21 probes tried, 0.50-3.00 A). Failures: No connected channel with two open ends was resolved (0.5, 0.55, ..., 3 A). An explicit enclosure_radius (--enclosure-radius) runs a single probe
+crevice: no channel resolved in 4PYP.cif after 19.3 s
+crevice: error: The channel's lower and upper end is capped: the straight continuation along the axis beyond the mouth does not clear the end plane's enclosure probe. Add lateral_exits (--lateral-exits) to accept a capped end with a lateral exit to bulk
+crevice: hint: no through-channel was resolved, so no radius profile was measured. ...
 ```
 
-(exit status 2; probe list shortened here.) No probe of the ladder found a
-laterally enclosed run with two open ends, so no profile is reported. This is
-consistent with an inward-open structure but does not show that the protein is
-closed; see [Outputs and unresolved results](../getting-started/outputs.md).
+(exit status 2; the hint is shortened here.) The per-slice enclosure probe
+followed the central cavity until its lumen stopped being enclosed, but
+neither end continues straight out of the protein, so no profile is reported.
+This is consistent with an inward-open structure but does not show that the
+protein is closed; see [Outputs and unresolved results](../getting-started/outputs.md).
 
 ## Cast the dominant cavity
 
@@ -115,8 +118,8 @@ tables and the bar chart do not change.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The values come from a CREVICE 0.1.0 run on the downloaded entry, re-run
-with 0.3.0 with the same cast volume and wall residues. The wall
+The values come from one run of the commands above on the downloaded entry.
+The wall
 area and partner contacts are geometric evidence: they point to residues worth
 following up, for example by mutagenesis, not to residues shown to control
 transport.

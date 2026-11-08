@@ -3,18 +3,21 @@
 Nodes are residues; an edge joins two residues whose closest atoms are within
 a distance cutoff (4.5 Å by default). Two distance metrics are available:
 
-``"surface"`` (default of the Python functions)
+``"center"`` (default)
+    Minimum heavy-atom centre distance, the usual definition for residue
+    contact networks (protein structure networks and contact maps use
+    4-5 Å).
+``"surface"``
     Van der Waals surface gap: centre distance minus both atomic radii.
     Negative for overlapping spheres, such as covalently bonded neighbours.
-``"center"`` (default of ``crevice residues --network``)
-    Plain atom-centre distance, the usual definition for residue contact
-    networks.
+    Much more permissive at the same cutoff (4.5 Å of gap is about 8 Å
+    between carbon centres).
 
 Each edge is labelled with a coarse class from residue names and atom pairs
 (``salt_bridge_candidate``, ``oppositely_charged_residue_contact``,
 ``hydrophobic_residue_contact``, ``polar_residue_contact`` or
 ``distance_contact``). :func:`build_cavity_network` adds a pseudo-node for a
-profile, tunnel, cavity or cast component, linked to the residues that line
+profile, cavity or cast component, linked to the residues that line
 it.
 
 Main entry points: :func:`build_residue_network`,
@@ -35,8 +38,11 @@ import itertools
 import math
 from typing import Mapping, Sequence
 
+import numpy as np
+from scipy.spatial import cKDTree
+
 from .analysis import annotate_residues
-from .geometry import distance
+from .interaction_chemistry import SALT_BRIDGE_CUTOFF, formal_charge
 from .models import (
     Cavity,
     NetworkEdge,
@@ -45,7 +51,6 @@ from .models import (
     ResidueContact,
     ResidueInteractionNetwork,
     StructureFrame,
-    Tunnel,
     VoidComponent,
 )
 from .radii import RadiusSet, atom_vdw_radius, radii_option, residue_properties
@@ -59,13 +64,10 @@ def build_residue_network(
     include_hydrogen: bool = False,
     include_hetero: bool = False,
     residue_groups: Mapping[str, str] | None = None,
-    distance_metric: str = "surface",
+    distance_metric: str = "center",
     radii: RadiusSet | str | None = None,
 ) -> ResidueInteractionNetwork:
-    """Build residue contacts. The legacy default uses van der Waals gaps.
-
-    ``distance_metric="center"`` uses the minimum heavy-atom centre distance,
-    matching the usual 4.5 Å proximity definition for residue contact networks.
+    """Build residue contacts from the closest atom pair of every residue pair.
 
     Parameters
     ----------
@@ -82,11 +84,10 @@ def build_residue_network(
         Residue label to group name (for example a helix name); stored in each
         node's ``metadata["group"]`` (``"unassigned"`` otherwise). Every key
         must be a residue in the selection.
-    distance_metric : {"surface", "center"}, default "surface"
-        See the module description. ``crevice residues --network`` and ``crevice
-        trajectory`` default to ``"center"``; ``report`` and ``report --analyze`` use
-        this default. Unifying the defaults is an open interface decision; the
-        metric used is recorded in ``metadata["distance_metric"]``.
+    distance_metric : {"center", "surface"}, default "center"
+        See the module description; every CREVICE command uses the default
+        unless ``--contact-metric surface`` is given. The metric is recorded in
+        ``metadata["distance_metric"]``.
     radii : RadiusSet, str or None, optional
         Atomic radius set: a preset name (``"default"``, ``"bondi"``,
         ``"hole"``, ``"charmm_like"``), the path of a JSON, CSV or HOLE ``.rad`` radius
@@ -103,23 +104,24 @@ def build_residue_network(
     ResidueInteractionNetwork
         Nodes for every residue with a selected atom (in structure order) and
         one edge per residue pair, with ``distance`` the minimum over atom
-        pairs (Å). Edge ``weight`` is ``1/(1 + max(gap, 0))`` for the surface
-        metric and ``1/(1 + distance)`` for the centre metric.
+        pairs (Å) under the metric. Edge ``weight`` is ``1/(1 + distance)`` for
+        the centre metric and ``1/(1 + max(gap, 0))`` for the surface metric.
 
     Raises
     ------
     ValueError
         For an unknown metric, a negative or non-finite cutoff, or invalid
         ``residue_groups``.
-    ImportError
-        For the centre metric if NumPy/SciPy cannot be imported.
 
     Notes
     -----
     Edge classes, in order of precedence:
 
-    1. ``salt_bridge_candidate``: a LYS NZ or ARG NE/NH1/NH2 nitrogen within
-       4.0 Å (centre distance) of an ASP OD1/OD2 or GLU OE1/OE2 oxygen.
+    1. ``salt_bridge_candidate``: oppositely charged side-chain atoms of
+       :data:`crevice.interaction_chemistry.CHARGED_SITES` (ARG NE/NH1/NH2,
+       LYS NZ, HSP/HIP ND1/NE2 vs ASP OD1/OD2, GLU OE1/OE2, CYM SG) within
+       4.0 Å centre distance, the definition of the typed interactions.
+       Protonation comes from residue names (LYN, ASH, GLH are neutral).
     2. ``oppositely_charged_residue_contact``: one residue positive and the
        other negative by name (HIS counts as positive).
     3. ``hydrophobic_residue_contact``: both residues hydrophobic.
@@ -127,9 +129,9 @@ def build_residue_network(
        0.5 Å and at least one residue polar.
     5. ``distance_contact``: anything else.
 
-    With the centre metric, edges also record the observed sequence separation
-    within a chain and a ``nonlocal_contact`` flag (different chains or
-    separation greater than 2).
+    Edges also record the closest atom pair (names, serials, centre distance
+    and surface gap), the observed sequence separation within a chain and a
+    ``nonlocal_contact`` flag (different chains or separation greater than 2).
 
     Examples
     --------
@@ -140,11 +142,11 @@ def build_residue_network(
     ...     Atom(2, "OD1", "ASP", "A", 5, 3.0, 0.0, 0.0, "O"),
     ...     Atom(3, "CB", "ALA", "A", 9, 20.0, 0.0, 0.0, "C"),
     ... ))
-    >>> network = build_residue_network(frame, distance_metric="center")
+    >>> network = build_residue_network(frame)
     >>> [(e.source, e.target, e.interaction, e.distance) for e in network.edges]
     [('A:ASP5', 'A:LYS1', 'salt_bridge_candidate', 3.0)]
     """
-    if distance_metric not in {"surface","center"}:
+    if distance_metric not in {"surface", "center"}:
         raise ValueError("distance_metric must be surface or center")
 
     if not math.isfinite(cutoff) or cutoff < 0:
@@ -165,108 +167,37 @@ def build_residue_network(
             label=residue.label,
             residue=residue.label,
             properties=residue_properties(residue.key.resname),
-            metadata={"resname": residue.key.resname, "chain_id": residue.key.chain_id,
-                      "resid": residue.key.resid, "icode": residue.key.icode,
-                      "group": groups.get(residue.label, "unassigned"),
-                      "position": tuple(sum(a.coord[i] for a in residue.atoms if a in selected)
-                                        / sum(a in selected for a in residue.atoms) for i in range(3))},
+            metadata={
+                "resname": residue.key.resname,
+                "chain_id": residue.key.chain_id,
+                "resid": residue.key.resid,
+                "icode": residue.key.icode,
+                "group": groups.get(residue.label, "unassigned"),
+                "position": tuple(
+                    sum(a.coord[i] for a in residue.atoms if a in selected) / sum(a in selected for a in residue.atoms)
+                    for i in range(3)
+                ),
+            },
         )
         for residue in residues
     )
+    return _contact_network(atoms, nodes, cutoff, distance_metric == "center", include_hydrogen, include_hetero, groups)
 
-    if distance_metric=="center":
-        return _center_contact_network(atoms,nodes,cutoff,include_hydrogen,include_hetero,groups)
-
-    radii = {index: atom_vdw_radius(atom) for index, atom in enumerate(atoms)}
-    max_radius = max(radii.values(), default=1.7)
-    center_cutoff = cutoff + 2.0 * max_radius
-    cell_size = max(center_cutoff, 0.1)
-    cells: dict[tuple[int, int, int], list[tuple[int, object]]] = {}
-    for index, atom in enumerate(atoms):
-        cells.setdefault(_cell_index(atom.coord, cell_size), []).append((index, atom))
-
-    best_by_pair: dict[tuple[str, str], float] = {}
-    evidence = {}
-    ionic_pairs = {}
-    for cell_idx in sorted(cells):
-        for neighbor_idx in _neighbor_cell_indices(cell_idx):
-            if neighbor_idx not in cells or neighbor_idx < cell_idx:
-                continue
-            left_items = cells[cell_idx]
-            right_items = cells[neighbor_idx]
-            if neighbor_idx == cell_idx:
-                pairs = itertools.combinations(left_items, 2)
-            else:
-                pairs = itertools.product(left_items, right_items)
-            for (left_index, left_atom), (right_index, right_atom) in pairs:
-                left_label = left_atom.residue_key.label
-                right_label = right_atom.residue_key.label
-                if left_label == right_label:
-                    continue
-                center_distance = distance(left_atom.coord, right_atom.coord)
-                max_pair_center = cutoff + radii[left_index] + radii[right_index]
-                if center_distance > max_pair_center:
-                    continue
-                surface_distance = center_distance - radii[left_index] - radii[right_index]
-                pair = tuple(sorted((left_label, right_label)))
-                if _charged_pair(left_atom, right_atom) and center_distance <= 4.0:
-                    ionic_pairs.setdefault(pair, []).append((left_atom.name, right_atom.name, center_distance))
-                previous = best_by_pair.get(pair)
-                if previous is None or surface_distance < previous:
-                    best_by_pair[pair] = surface_distance
-                    evidence[pair] = {"atoms": [left_atom.name, right_atom.name],
-                                      "residues": [left_label, right_label],
-                                      "center_distance": center_distance}
-
-    edges: list[NetworkEdge] = []
-    for (left_label, right_label), surface_distance in sorted(best_by_pair.items()):
-        left = residue_by_label[left_label]
-        right = residue_by_label[right_label]
-        interaction = _interaction_type(left.key.resname, right.key.resname, surface_distance)
-        if (left_label, right_label) in ionic_pairs:
-            interaction = "salt_bridge_candidate"
-        edges.append(
-            NetworkEdge(
-                source=left_label,
-                target=right_label,
-                interaction=interaction,
-                distance=surface_distance,
-                weight=1.0 / (1.0 + max(surface_distance, 0.0)),
-                metadata={"closest_pair": evidence[(left_label, right_label)],
-                          "charged_atom_pairs": ionic_pairs.get((left_label, right_label), []),
-                          "distance_units": "angstrom"},
-            )
-        )
-    return ResidueInteractionNetwork(
-        nodes=nodes,
-        edges=tuple(edges),
-        metadata={
-            "kind": "residue_interaction_network",
-            "cutoff": cutoff,
-            "include_hydrogen": include_hydrogen,
-            "include_hetero": include_hetero,
-            "method": "atom_cell_list",
-            "interaction_rules": "contact_v2_charged_sidechain_atoms_4A",
-            "distance_metric":"vdw_surface_gap",
-            "weight_kind": "inverse_surface_distance",
-            "group_source": "user_supplied" if groups else "unassigned",
-        },
-    )
 
 @radii_option
 def build_cavity_network(
     frame: StructureFrame,
-    region: PoreProfile | Cavity | Tunnel | VoidComponent,
+    region: PoreProfile | Cavity | VoidComponent,
     *,
     contacts: Sequence[ResidueContact] | None = None,
     cutoff: float = 4.5,
     include_hydrogen: bool = False,
     include_hetero: bool = False,
     residue_groups: Mapping[str, str] | None = None,
-    distance_metric: str = "surface",
+    distance_metric: str = "center",
     radii: RadiusSet | str | None = None,
 ) -> ResidueInteractionNetwork:
-    """Build a residue network augmented with a channel/cavity/tunnel pseudo-node.
+    """Build a residue network augmented with a channel/cavity pseudo-node.
 
     The residue network is built with :func:`build_residue_network`; then a
     node of kind ``"region"`` is added and connected to every residue contact
@@ -275,8 +206,8 @@ def build_cavity_network(
     Parameters
     ----------
     frame : StructureFrame
-    region : PoreProfile, Cavity, Tunnel or VoidComponent
-        The region. Profiles and tunnels contribute their points (with their
+    region : PoreProfile, Cavity or VoidComponent
+        The region. Profiles contribute their points (with their
         clearance spheres), and their bottleneck is identified; void components
         contribute their points; a :class:`~crevice.models.Cavity` contributes only its centre
         point.
@@ -334,7 +265,7 @@ def build_cavity_network(
         contacts = annotate_residues(
             frame,
             points,
-            identify_bottleneck=isinstance(region, (PoreProfile, Tunnel)),
+            identify_bottleneck=isinstance(region, PoreProfile),
             cutoff=cutoff,
             include_hydrogen=include_hydrogen,
             include_hetero=include_hetero,
@@ -432,44 +363,9 @@ def compare_networks(networks: Sequence[ResidueInteractionNetwork]) -> list[dict
     return comparisons
 
 
-
-def _cell_index(coord, cell_size: float) -> tuple[int, int, int]:
-    """Integer cell of a coordinate in a cubic cell list."""
-    return (
-        math.floor(coord[0] / cell_size),
-        math.floor(coord[1] / cell_size),
-        math.floor(coord[2] / cell_size),
-    )
-
-
-def _neighbor_cell_indices(idx: tuple[int, int, int]):
-    """The 27 cells around (and including) a cell."""
-    for offset in itertools.product((-1, 0, 1), repeat=3):
-        yield (idx[0] + offset[0], idx[1] + offset[1], idx[2] + offset[2])
-
-
-def _min_residue_surface_distance(left_atoms, right_atoms) -> float:
-    """Minimum van der Waals surface gap between two atom sets (Å)."""
-    best = float("inf")
-    for left in left_atoms:
-        left_radius = atom_vdw_radius(left)
-        for right in right_atoms:
-            surface_distance = distance(left.coord, right.coord) - left_radius - atom_vdw_radius(right)
-            if surface_distance < best:
-                best = surface_distance
-    return best
-
-
-def _charged_pair(left, right) -> bool:
-    """True for a LYS NZ / ARG NE, NH1, NH2 nitrogen paired with an ASP OD1, OD2 /
-    GLU OE1, OE2 oxygen (names and elements must match).
-    """
-    positive = {"LYS": {"NZ"}, "ARG": {"NE", "NH1", "NH2"}}
-    negative = {"ASP": {"OD1", "OD2"}, "GLU": {"OE1", "OE2"}}
-    def charged(atom, names, element):
-        return atom.name.upper() in names.get(atom.resname.upper(), set()) and atom.element.upper() == element
-    return ((charged(left, positive, "N") and charged(right, negative, "O"))
-            or (charged(right, positive, "N") and charged(left, negative, "O")))
+def _charge(atom) -> int:
+    """Formal side-chain charge of an atom whose element matches its name (see :data:`CHARGED_SITES`)."""
+    return formal_charge(atom.resname, atom.name) if atom.element.upper() == atom.name[:1].upper() else 0
 
 
 def _interaction_type(left_resname: str, right_resname: str, surface_distance: float) -> str:
@@ -485,25 +381,45 @@ def _interaction_type(left_resname: str, right_resname: str, surface_distance: f
     return "distance_contact"
 
 
-def _region_descriptor(region: PoreProfile | Cavity | Tunnel):
+def _region_descriptor(region: PoreProfile | Cavity | VoidComponent):
     """Node id, label and contact points for a region object."""
     if isinstance(region, PoreProfile):
         return "region:channel", "channel", region.points
     if isinstance(region, Cavity):
         return f"region:cavity:{region.id}", f"cavity:{region.id}", (region.center,)
-    if isinstance(region, Tunnel):
-        return f"region:tunnel:{region.id}", f"tunnel:{region.id}", region.points
     if isinstance(region, VoidComponent):
         return f"region:void:{region.id}", f"void:{region.id}", region.points
-    raise TypeError("region must be a PoreProfile, Cavity, Tunnel, or VoidComponent")
+    raise TypeError("region must be a PoreProfile, Cavity or VoidComponent")
+
+
+def closest_edges(edges) -> dict[tuple[str, str], NetworkEdge]:
+    """The shortest edge of every node pair: ``{(min id, max id): edge}``.
+
+    The pooling unit of contact occupancy (:func:`crevice.connectivity.persistent_network`,
+    :class:`crevice.residue_dynamics.ResidueDynamics`): a pair counts once per
+    frame whatever its interaction label.
+
+    Parameters
+    ----------
+    edges : iterable of NetworkEdge
+        Edges of one network (one frame).
+
+    Returns
+    -------
+    dict
+        ``{(min id, max id): edge}`` with the smallest ``distance`` per pair.
+    """
+    best = {}
+    for edge in edges:
+        pair = tuple(sorted((edge.source, edge.target)))
+        if pair not in best or edge.distance < best[pair].distance:
+            best[pair] = edge
+    return best
 
 
 def _edge_set(network: ResidueInteractionNetwork) -> set[tuple[str, str, str]]:
     """Edges as ``(min id, max id, interaction)`` tuples."""
-    return {
-        (min(edge.source, edge.target), max(edge.source, edge.target), edge.interaction)
-        for edge in network.edges
-    }
+    return {(min(edge.source, edge.target), max(edge.source, edge.target), edge.interaction) for edge in network.edges}
 
 
 def _jaccard(left: set, right: set) -> float:
@@ -513,47 +429,89 @@ def _jaccard(left: set, right: set) -> float:
     return len(left & right) / len(left | right)
 
 
-def _center_contact_network(atoms,nodes,cutoff,include_hydrogen,include_hetero,groups):
-    """Exact cutoff pairs with spatial acceleration and atom-level evidence.
+def _contact_network(atoms, nodes, cutoff, center, include_hydrogen, include_hetero, groups):
+    """Closest atom pair of every residue pair within ``cutoff`` (KD-tree, exact).
 
-    Uses a KD-tree to find all atom pairs within ``cutoff`` (centre distance)
-    and keeps the closest pair per residue pair.
+    ``center`` selects the centre-distance metric; otherwise the surface gap is
+    the edge distance and the search reaches ``cutoff`` plus the two largest radii.
     """
-    try:
-        import numpy as np
-        from scipy.spatial import cKDTree
-    except ImportError as exc:
-        raise ImportError("Center-distance contact networks require NumPy and SciPy, which are required CREVICE dependencies but could not be imported; reinstall CREVICE (pip install --force-reinstall crevice)") from exc
-    xyz=np.asarray([a.coord for a in atoms])
-    pairs=cKDTree(xyz).query_pairs(cutoff,output_type='ndarray')
-    best={};charged={}
-    if len(pairs):
-        ds=np.linalg.norm(xyz[pairs[:,0]]-xyz[pairs[:,1]],axis=1)
-        for (i,j),d in zip(pairs,ds):
-            a,b=atoms[int(i)],atoms[int(j)];left,right=a.residue_key.label,b.residue_key.label
-            if left==right:continue
-            key=tuple(sorted((left,right)))
-            value=(float(d),int(i),int(j))
-            if key not in best or value<best[key]:best[key]=value
-            if d<=4 and _charged_pair(a,b):
-                charged.setdefault(key,[]).append((a.name,b.name,float(d)))
-    order={};chain_counts={}
+    xyz = np.asarray([a.coord for a in atoms], dtype=float).reshape(-1, 3)
+    radii = np.asarray([atom_vdw_radius(a) for a in atoms], dtype=float)
+    labels = [a.residue_key.label for a in atoms]
+    codes = {label: k for k, label in enumerate(dict.fromkeys(labels))}
+    residue = np.asarray([codes[label] for label in labels], dtype=np.int64)
+    charge = np.asarray([_charge(a) for a in atoms], dtype=np.int64)
+    reach = cutoff if center else cutoff + 2.0 * float(radii.max(initial=0.0))
+    i, j = cKDTree(xyz).query_pairs(reach, output_type='ndarray').reshape(-1, 2).T
+    d = np.linalg.norm(xyz[i] - xyz[j], axis=1)
+    gap = d - radii[i] - radii[j]
+    measure = d if center else gap
+    keep = (residue[i] != residue[j]) & (measure <= cutoff)
+    i, j, d, gap, measure = i[keep], j[keep], d[keep], gap[keep], measure[keep]
+    pair = np.minimum(residue[i], residue[j]) * len(codes) + np.maximum(residue[i], residue[j])
+    order = np.lexsort((j, i, measure, pair))
+    _, first = np.unique(pair[order], return_index=True)
+
+    def key(k):
+        return tuple(sorted((labels[i[k]], labels[j[k]])))
+
+    best = {key(k): k for k in order[first]}
+    charged = {}
+    salt = np.flatnonzero((d <= SALT_BRIDGE_CUTOFF) & (charge[i] * charge[j] < 0))
+    for k in salt[np.lexsort((j[salt], i[salt]))]:
+        charged.setdefault(key(k), []).append((atoms[i[k]].name, atoms[j[k]].name, float(d[k])))
+    position = {}
+    chain_counts = {}
     for node in nodes:
-        chain=node.metadata['chain_id'];order[node.id]=chain_counts.get(chain,0);chain_counts[chain]=order[node.id]+1
-    lookup={n.id:n for n in nodes};edges=[]
-    for (left,right),(d,i,j) in sorted(best.items()):
-        a,b=atoms[i],atoms[j];gap=d-atom_vdw_radius(a)-atom_vdw_radius(b)
-        same_chain=lookup[left].metadata['chain_id']==lookup[right].metadata['chain_id']
-        separation=abs(order[left]-order[right]) if same_chain else None
-        edges.append(NetworkEdge(left,right,'salt_bridge_candidate' if (left,right) in charged else _interaction_type(a.resname,b.resname,gap),
-                    d,1/(1+d),{'closest_pair':{'atoms':[a.name,b.name],'residues':[a.residue_key.label,b.residue_key.label],
-                    'atom_serials':[a.serial,b.serial],'center_distance':d,'surface_distance':gap},
-                    'charged_atom_pairs':charged.get((left,right),[]),'distance_units':'angstrom',
-                    'sequence_separation_observed':separation,'different_chains':not same_chain,
-                    'nonlocal_contact':not same_chain or separation>2,
-                    'sequence_separation_definition':'index difference in observed residue order within chain'}))
-    return ResidueInteractionNetwork(nodes,tuple(edges),{'kind':'residue_interaction_network','cutoff':cutoff,
-            'distance_metric':'atom_center_distance','include_hydrogen':include_hydrogen,'include_hetero':include_hetero,
-            'method':'exact_kdtree_atom_pairs','interaction_rules':'contact_v2_charged_sidechain_atoms_4A',
-            'weight_kind':'inverse_center_distance','group_source':'user_supplied' if groups else 'unassigned',
-            'interpretation':'Geometric proximity and chemical-class candidates; no hydrogen-bond or energy assignment'})
+        chain = node.metadata['chain_id']
+        position[node.id] = chain_counts.get(chain, 0)
+        chain_counts[chain] = position[node.id] + 1
+    lookup = {n.id: n for n in nodes}
+    edges = []
+    for (left, right), k in sorted(best.items()):
+        a, b = atoms[i[k]], atoms[j[k]]
+        distance, center_distance, surface_distance = float(measure[k]), float(d[k]), float(gap[k])
+        same_chain = lookup[left].metadata['chain_id'] == lookup[right].metadata['chain_id']
+        separation = abs(position[left] - position[right]) if same_chain else None
+        edges.append(
+            NetworkEdge(
+                left,
+                right,
+                'salt_bridge_candidate'
+                if (left, right) in charged
+                else _interaction_type(a.resname, b.resname, surface_distance),
+                distance,
+                1 / (1 + max(distance, 0.0)),
+                {
+                    'closest_pair': {
+                        'atoms': [a.name, b.name],
+                        'residues': [a.residue_key.label, b.residue_key.label],
+                        'atom_serials': [a.serial, b.serial],
+                        'center_distance': center_distance,
+                        'surface_distance': surface_distance,
+                    },
+                    'charged_atom_pairs': charged.get((left, right), []),
+                    'distance_units': 'angstrom',
+                    'sequence_separation_observed': separation,
+                    'different_chains': not same_chain,
+                    'nonlocal_contact': not same_chain or separation > 2,
+                    'sequence_separation_definition': 'index difference in observed residue order within chain',
+                },
+            )
+        )
+    return ResidueInteractionNetwork(
+        nodes,
+        tuple(edges),
+        {
+            'kind': 'residue_interaction_network',
+            'cutoff': cutoff,
+            'distance_metric': 'atom_center_distance' if center else 'vdw_surface_gap',
+            'include_hydrogen': include_hydrogen,
+            'include_hetero': include_hetero,
+            'method': 'exact_kdtree_atom_pairs',
+            'interaction_rules': 'contact_v3_formal_charge_sites_4A',
+            'weight_kind': 'inverse_center_distance' if center else 'inverse_surface_distance',
+            'group_source': 'user_supplied' if groups else 'unassigned',
+            'interpretation': 'Geometric proximity and chemical-class candidates; no hydrogen-bond or energy assignment',
+        },
+    )

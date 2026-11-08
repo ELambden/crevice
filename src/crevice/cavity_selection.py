@@ -20,6 +20,7 @@ Definitions
     radius ``min(atom clearance, depth inside the envelope)``; each sphere
     is therefore wholly atom-free and inside the envelope.
 """
+
 from __future__ import annotations
 import math
 
@@ -34,6 +35,7 @@ def _chain_fields(atoms, coords, origin, spacing, shape):
     import numpy as np
     from .rolling import _ray_enclosure
     from .radii import atom_vdw_radius
+
     chains = sorted({a.chain_id for a in atoms})
     best = np.zeros(shape, dtype=np.uint8)
     owner = np.zeros(shape, dtype=np.int16)
@@ -44,13 +46,13 @@ def _chain_fields(atoms, coords, origin, spacing, shape):
             if atom.chain_id != chain:
                 continue
             radius = atom_vdw_radius(atom)
-            lo = np.maximum(np.ceil((coord-radius-origin)/spacing).astype(int), 0)
-            hi = np.minimum(np.floor((coord+radius-origin)/spacing).astype(int)+1, shape)
+            lo = np.maximum(np.ceil((coord - radius - origin) / spacing).astype(int), 0)
+            hi = np.minimum(np.floor((coord + radius - origin) / spacing).astype(int) + 1, shape)
             if np.any(hi <= lo):
                 continue
             box = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
-            ijk = np.indices(tuple(hi-lo)).transpose(1,2,3,0)+lo
-            blocked[box] |= np.sum((origin+ijk*spacing-coord)**2, axis=-1) <= radius**2
+            ijk = np.indices(tuple(hi - lo)).transpose(1, 2, 3, 0) + lo
+            blocked[box] |= np.sum((origin + ijk * spacing - coord) ** 2, axis=-1) <= radius**2
         rays = _ray_enclosure(blocked)
         contributors += rays >= 6
         take = rays > best
@@ -66,15 +68,16 @@ def _paint_balls(indices, radii, spacing, score, labels, label):
     ``radius - distance``; ``labels`` and ``score`` are updated in place.
     """
     import numpy as np
+
     shape = np.asarray(score.shape)
     for index, radius in zip(indices, radii):
-        extent = int(math.ceil(radius/spacing))
-        lo, hi = np.maximum(index-extent, 0), np.minimum(index+extent+1, shape)
-        box = tuple(slice(int(a), int(b)) for a,b in zip(lo,hi))
-        axes = np.ogrid[tuple(slice(int(a-i), int(b-i)) for a,b,i in zip(lo,hi,index))]
-        distance = np.sqrt(sum(a*a for a in axes))*spacing
-        margin = radius-distance
-        take = (margin >= -1e-10) & (margin > score[box]+1e-10)
+        extent = int(math.ceil(radius / spacing))
+        lo, hi = np.maximum(index - extent, 0), np.minimum(index + extent + 1, shape)
+        box = tuple(slice(int(a), int(b)) for a, b in zip(lo, hi))
+        axes = np.ogrid[tuple(slice(int(a - i), int(b - i)) for a, b, i in zip(lo, hi, index))]
+        distance = np.sqrt(sum(a * a for a in axes)) * spacing
+        margin = radius - distance
+        take = (margin >= -1e-10) & (margin > score[box] + 1e-10)
         score[box][take] = margin[take]
         labels[box][take] = label
 
@@ -91,17 +94,22 @@ def _grouping_sensitivity(groups, clearance, depth, rays, required_rays, probe_r
     enclosure rays, face connectivity); qualified-core groups of the same chain
     that this joins are reported as ``joined_groups`` (lists of core ids).
     """
-    import numpy as np
     from scipy import ndimage
-    tolerance = spacing*math.sqrt(3)/2
-    report = {'tolerance_A': tolerance, 'joined_groups': [],
-              'definition': ('qualified-core groups in different probe-radius supports that are joined when '
-                             'buried nodes are connected at probe radius minus spacing*sqrt(3)/2; such a '
-                             'grouping (and the region volume) can change discontinuously with grid spacing '
-                             'or offset')}
+
+    tolerance = spacing * math.sqrt(3) / 2
+    report = {
+        'tolerance_A': tolerance,
+        'joined_groups': [],
+        'definition': (
+            'qualified-core groups in different probe-radius supports that are joined when '
+            'buried nodes are connected at probe radius minus spacing*sqrt(3)/2; such a '
+            'grouping (and the region volume) can change discontinuously with grid spacing '
+            'or offset'
+        ),
+    }
     if len(groups) < 2:
         return report
-    relaxed = (clearance >= probe_radius-tolerance) & (depth > probe_radius-tolerance) & (rays >= required_rays)
+    relaxed = (clearance >= probe_radius - tolerance) & (depth > probe_radius - tolerance) & (rays >= required_rays)
     labels, _ = ndimage.label(relaxed)
     joined = {}
     for (parent, chain), rows in groups.items():
@@ -111,9 +119,21 @@ def _grouping_sensitivity(groups, clearance, depth, rays, required_rays, probe_r
     return report
 
 
-def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
-                         spacing, probe_radius, enclosure_fraction, queries,
-                         min_component_volume, core_fraction=.08):
+def dominant_sphere_fill(
+    *,
+    atoms,
+    coords,
+    clearance,
+    centers,
+    depth,
+    origin,
+    spacing,
+    probe_radius,
+    enclosure_fraction,
+    queries,
+    min_component_volume,
+    core_fraction=0.08,
+):
     """Qualify dominant buried cores and fill them with atom-clear spheres.
 
     Algorithm:
@@ -186,42 +206,55 @@ def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
     import numpy as np
     from scipy import ndimage
     from .rolling import _connected, _ray_enclosure
+
     if not math.isfinite(core_fraction) or not 0 < core_fraction <= 1:
         raise ValueError('core_fraction must be in (0, 1]')
-    required_rays = math.ceil(26*enclosure_fraction)
+    required_rays = math.ceil(26 * enclosure_fraction)
     rays = _ray_enclosure(clearance < probe_radius)
     buried = centers & (rays >= required_rays)
     empty = np.zeros(clearance.shape, dtype=np.int32)
     if not buried.any():
-        return empty, np.zeros(1, dtype=int), {
-            'algorithm':'dominant_core_variable_sphere_fill', 'candidates': [],
-            'regions': [], 'qualified_count': 0, 'core_radius_A':None,
-            'core_volume_fraction':core_fraction,
-            'fill_definition':'union of atom-clear spheres centered on qualified cores; each radius=min(atom clearance, outer-sweep distance)',
-            'reason':'no probe centers meet the envelope and core-enclosure criteria',
-        }
+        return (
+            empty,
+            np.zeros(1, dtype=int),
+            {
+                'algorithm': 'dominant_core_variable_sphere_fill',
+                'candidates': [],
+                'regions': [],
+                'qualified_count': 0,
+                'core_radius_A': None,
+                'core_volume_fraction': core_fraction,
+                'fill_definition': 'union of atom-clear spheres centered on qualified cores; each radius=min(atom clearance, outer-sweep distance)',
+                'reason': 'no probe centers meet the envelope and core-enclosure criteria',
+            },
+        )
     support = _connected(buried, clearance, origin, spacing, probe_radius, queries)
     peak = float(clearance[buried].max())
-    core_radius = max(probe_radius, min(2., .35*peak))
-    core = _connected(buried & (clearance >= core_radius), clearance,
-                      origin, spacing, core_radius, queries)
+    core_radius = max(probe_radius, min(2.0, 0.35 * peak))
+    core = _connected(buried & (clearance >= core_radius), clearance, origin, spacing, core_radius, queries)
     counts = np.bincount(core.ravel())
-    minimum = max(8, int(math.ceil(min_component_volume*.05/spacing**3)),
-                  int(math.ceil(core_fraction*counts[1:].max())))
-    qualified = [i for i in range(1,len(counts)) if counts[i] >= minimum]
+    minimum = max(
+        8, int(math.ceil(min_component_volume * 0.05 / spacing**3)), int(math.ceil(core_fraction * counts[1:].max()))
+    )
+    qualified = [i for i in range(1, len(counts)) if counts[i] >= minimum]
     boxes = ndimage.find_objects(core)
     chains = sorted({a.chain_id for a in atoms})
     fields = _chain_fields(atoms, coords, origin, spacing, clearance.shape) if len(chains) >= 3 else None
     groups, decisions = {}, []
-    for label in range(1,len(counts)):
+    for label in range(1, len(counts)):
         if not counts[label]:
             continue
-        decisions.append({'core_id': label, 'core_volume_A3': int(counts[label])*spacing**3,
-                          'decision': 'qualified' if label in qualified else 'weak_core'})
+        decisions.append(
+            {
+                'core_id': label,
+                'core_volume_A3': int(counts[label]) * spacing**3,
+                'decision': 'qualified' if label in qualified else 'weak_core',
+            }
+        )
         if label not in qualified:
             continue
-        box = boxes[label-1]
-        idx = np.argwhere(core[box] == label)+np.array([s.start for s in box])
+        box = boxes[label - 1]
+        idx = np.argwhere(core[box] == label) + np.array([s.start for s in box])
         # A higher-clearance core lies in one small-probe support component.
         parent = int(support[tuple(idx[0])])
         chain = 0
@@ -229,71 +262,97 @@ def dominant_sphere_fill(*, atoms, coords, clearance, centers, depth, origin,
             _, best, owner, _ = fields
             votes = owner[tuple(idx.T)].copy()
             votes[best[tuple(idx.T)] < 20] = 0
-            tally = np.bincount(votes, minlength=len(chains)+1)
-            winner = int(np.argmax(tally[1:]))+1
-            if tally[winner] >= .25*len(idx) and tally[winner] >= .6*tally[1:].sum():
+            tally = np.bincount(votes, minlength=len(chains) + 1)
+            winner = int(np.argmax(tally[1:])) + 1
+            if tally[winner] >= 0.25 * len(idx) and tally[winner] >= 0.6 * tally[1:].sum():
                 chain = winner
         # Do not split a two-chain, end-to-end pore such as gramicidin.
         # Multiple strong subunit interiors in larger multimers may remain
         # separate regions even when their mouths share a support component.
-        groups.setdefault((parent,chain), []).append((label,idx))
+        groups.setdefault((parent, chain), []).append((label, idx))
     sensitivity = _grouping_sensitivity(groups, clearance, depth, rays, required_rays, probe_radius, spacing)
     candidates = []
     represented = set()
-    for (parent,chain), rows in groups.items():
+    for (parent, chain), rows in groups.items():
         represented.add(parent)
         idx = np.concatenate([row[1] for row in rows])
         if len(rows) > 1 and not fields:
             # Restore the small-probe support joining lobes across a narrow
             # neck; a neck does not create extra requested cavities.
             idx = np.argwhere(support == parent)
-        candidates.append({'indices':idx, 'kind':'dominant_core', 'support_id':parent,
-                           'chain_id':chains[chain-1] if chain else None,
-                           'core_ids':[row[0] for row in rows], 'core_radius_A':core_radius})
+        candidates.append(
+            {
+                'indices': idx,
+                'kind': 'dominant_core',
+                'support_id': parent,
+                'chain_id': chains[chain - 1] if chain else None,
+                'core_ids': [row[0] for row in rows],
+                'core_radius_A': core_radius,
+            }
+        )
     if fields:
         _, best, _, contributors = fields
         balanced = buried & (contributors >= 3) & (best <= 13)
         # Shared space already belonging to a selected chamber is not another
         # cavity. Only an independent small-probe support is eligible here.
-        shared_counts = np.bincount(support[balanced], minlength=int(support.max())+1)
-        eligible = [(i,int(n)) for i,n in enumerate(shared_counts)
-                    if i and i not in represented and n*spacing**3 >= max(8.,min_component_volume*.25)]
+        shared_counts = np.bincount(support[balanced], minlength=int(support.max()) + 1)
+        eligible = [
+            (i, int(n))
+            for i, n in enumerate(shared_counts)
+            if i and i not in represented and n * spacing**3 >= max(8.0, min_component_volume * 0.25)
+        ]
         if eligible:
-            strongest = max(n for _,n in eligible)
-            for parent,n in eligible:
-                if n < .5*strongest:
+            strongest = max(n for _, n in eligible)
+            for parent, n in eligible:
+                if n < 0.5 * strongest:
                     continue
                 mask = support == parent
-                radius = max(probe_radius, min(2., .35*float(clearance[mask].max())))
+                radius = max(probe_radius, min(2.0, 0.35 * float(clearance[mask].max())))
                 cc = _connected(mask & (clearance >= radius), clearance, origin, spacing, radius, queries)
-                sizes = np.bincount(cc.ravel()); label = int(np.argmax(sizes[1:]))+1
+                sizes = np.bincount(cc.ravel())
+                label = int(np.argmax(sizes[1:])) + 1
                 idx = np.argwhere(cc == label)
-                candidates.append({'indices':idx, 'kind':'shared_interface_core', 'support_id':parent,
-                                   'chain_id':None, 'core_ids':[], 'core_radius_A':radius,
-                                   'balanced_support_volume_A3':n*spacing**3})
+                candidates.append(
+                    {
+                        'indices': idx,
+                        'kind': 'shared_interface_core',
+                        'support_id': parent,
+                        'chain_id': None,
+                        'core_ids': [],
+                        'core_radius_A': radius,
+                        'balanced_support_volume_A3': n * spacing**3,
+                    }
+                )
     # Rank before painting so overlap ownership is independent of a requested
     # output count. Equal scores have deterministic core/support tie-breaks.
-    candidates.sort(key=lambda x:(-len(x['indices']),x['support_id'],x['chain_id'] or ''))
+    candidates.sort(key=lambda x: (-len(x['indices']), x['support_id'], x['chain_id'] or ''))
     score = np.full(clearance.shape, -np.inf, dtype=np.float32)
     labels = empty
     center_counts = [0]
     rows = []
-    for label,candidate in enumerate(candidates, 1):
+    for label, candidate in enumerate(candidates, 1):
         idx = candidate.pop('indices')
         # Both functions are 1-Lipschitz. A ball no larger than atom clearance
         # and distance to the outer sweep is wholly inside admissible space.
         radii = np.minimum(clearance[tuple(idx.T)], depth[tuple(idx.T)])
-        _paint_balls(idx,radii,spacing,score,labels,label)
+        _paint_balls(idx, radii, spacing, score, labels, label)
         center_counts.append(len(idx))
-        rows.append({'region_id':label, **candidate, 'core_points':len(idx),
-                     'core_volume_A3':len(idx)*spacing**3})
+        rows.append({'region_id': label, **candidate, 'core_points': len(idx), 'core_volume_A3': len(idx) * spacing**3})
     labels[(clearance < 0) | (depth <= 0)] = 0
-    return labels, np.asarray(center_counts), {
-        'algorithm':'dominant_core_variable_sphere_fill',
-        'core_radius_A':core_radius, 'core_volume_fraction':core_fraction,
-        'minimum_core_points':minimum, 'qualified_count':len(rows),
-        'candidates':decisions, 'regions':rows, 'grouping_sensitivity':sensitivity,
-        'interface_rule':'independent support; at least 3 chains block >=6 rays each; no chain >13; support >=max(8 A^3, min_volume/4) and >=50% of strongest shared support',
-        'fill_definition':'union of atom-clear spheres centered on qualified cores; each radius=min(atom clearance, outer-sweep distance)',
-        'interpretation':'geometric cavity-region heuristic; not a biological channel classifier',
-    }
+    return (
+        labels,
+        np.asarray(center_counts),
+        {
+            'algorithm': 'dominant_core_variable_sphere_fill',
+            'core_radius_A': core_radius,
+            'core_volume_fraction': core_fraction,
+            'minimum_core_points': minimum,
+            'qualified_count': len(rows),
+            'candidates': decisions,
+            'regions': rows,
+            'grouping_sensitivity': sensitivity,
+            'interface_rule': 'independent support; at least 3 chains block >=6 rays each; no chain >13; support >=max(8 A^3, min_volume/4) and >=50% of strongest shared support',
+            'fill_definition': 'union of atom-clear spheres centered on qualified cores; each radius=min(atom clearance, outer-sweep distance)',
+            'interpretation': 'geometric cavity-region heuristic; not a biological channel classifier',
+        },
+    )

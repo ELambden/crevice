@@ -22,11 +22,12 @@ Definition
 
 Main entry points: :func:`regional_probe_cast` and :func:`regional_grid`.
 """
+
 import math
 from .radii import RadiusSet, radii_option
 
 
-def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000,*,near_only=False):
+def regional_grid(reference, margin=2.0, probe_radius=1.4, max_grid_points=2_000_000, *, near_only=False):
     """Grid covering a reference neighbourhood, cached on the reference.
 
     The grid uses the reference's basis, spacing and anchor, and spans the
@@ -65,27 +66,47 @@ def regional_grid(reference,margin=2.,probe_radius=1.4,max_grid_points=2_000_000
     """
     import numpy as np
     from scipy.spatial import cKDTree
-    if not math.isfinite(margin) or margin<0:raise ValueError('region margin must be finite and nonnegative')
-    if not math.isfinite(probe_radius) or probe_radius<=0:raise ValueError('region probe radius must be finite and positive')
-    h=reference.spacing;basis=reference.basis;anchor=reference.anchor
-    cache=getattr(reference,'_regional_cache',{})
-    key=(margin,probe_radius,max_grid_points,h,tuple(anchor),tuple(basis.ravel()))+(('near_only',) if near_only else ())
+
+    if not math.isfinite(margin) or margin < 0:
+        raise ValueError('region margin must be finite and nonnegative')
+    if not math.isfinite(probe_radius) or probe_radius <= 0:
+        raise ValueError('region probe radius must be finite and positive')
+    h = reference.spacing
+    basis = reference.basis
+    anchor = reference.anchor
+    cache = getattr(reference, '_regional_cache', {})
+    key = (margin, probe_radius, max_grid_points, h, tuple(anchor), tuple(basis.ravel())) + (
+        ('near_only',) if near_only else ()
+    )
     if key not in cache:
-        local=(reference.points-anchor)@basis.T
-        padding=margin+2*probe_radius+2*h
-        low=np.floor((local.min(0)-padding)/h).astype(int);high=np.ceil((local.max(0)+padding)/h).astype(int)
-        shape=tuple(high-low+1)
-        if math.prod(shape)>max_grid_points:raise ValueError('Reference neighborhood exceeds max_grid_points')
-        index=np.indices(shape).reshape(3,-1).T+low
-        xyz=index*h@basis+anchor;tree=cKDTree(reference.points)
-        bound=margin+probe_radius+h if near_only else math.inf
-        distance=tree.query(xyz,distance_upper_bound=bound)[0].reshape(shape)
-        cache[key]=(index,xyz,shape,distance,tree,low);reference._regional_cache=cache
+        local = (reference.points - anchor) @ basis.T
+        padding = margin + 2 * probe_radius + 2 * h
+        low = np.floor((local.min(0) - padding) / h).astype(int)
+        high = np.ceil((local.max(0) + padding) / h).astype(int)
+        shape = tuple(high - low + 1)
+        if math.prod(shape) > max_grid_points:
+            raise ValueError('Reference neighborhood exceeds max_grid_points')
+        index = np.indices(shape).reshape(3, -1).T + low
+        xyz = index * h @ basis + anchor
+        tree = cKDTree(reference.points)
+        bound = margin + probe_radius + h if near_only else math.inf
+        distance = tree.query(xyz, distance_upper_bound=bound)[0].reshape(shape)
+        cache[key] = (index, xyz, shape, distance, tree, low)
+        reference._regional_cache = cache
     return cache[key]
 
 
 @radii_option
-def regional_probe_cast(frame,reference,*,margin=2.,probe_radius=1.4,max_grid_points=2_000_000,obstacle_atoms=None, radii: RadiusSet | str | None = None):
+def regional_probe_cast(
+    frame,
+    reference,
+    *,
+    margin=2.0,
+    probe_radius=1.4,
+    max_grid_points=2_000_000,
+    obstacle_atoms=None,
+    radii: RadiusSet | str | None = None,
+):
     """Measure probe-swept free volume inside a fixed reference neighbourhood.
 
     Parameters
@@ -136,44 +157,96 @@ def regional_probe_cast(frame,reference,*,margin=2.,probe_radius=1.4,max_grid_po
     """
     import numpy as np
     from scipy import ndimage
-    from .rolling import _SphereQueries,_connected
+    from .rolling import _SphereQueries, _connected
     from .radii import atom_vdw_radius
-    from .models import ChannelPoint,VoidComponent,VoidCast
-    h=reference.spacing;basis=reference.basis;anchor=reference.anchor
-    index,xyz,shape,distance,tree,low=regional_grid(reference,margin,probe_radius,max_grid_points,near_only=True)
-    atoms=frame.selected_atoms(include_hydrogen=False,include_hetero=False) if obstacle_atoms is None else tuple(obstacle_atoms)
-    if not atoms:raise ValueError("Regional geometry needs physical obstacles")
-    coords=np.asarray([a.coord for a in atoms])@basis.T
-    queries=_SphereQueries(coords,np.asarray([atom_vdw_radius(a) for a in atoms]))
+    from .models import ChannelPoint, VoidComponent, VoidCast
+
+    h = reference.spacing
+    basis = reference.basis
+    anchor = reference.anchor
+    index, xyz, shape, distance, tree, low = regional_grid(
+        reference, margin, probe_radius, max_grid_points, near_only=True
+    )
+    atoms = (
+        frame.selected_atoms(include_hydrogen=False, include_hetero=False)
+        if obstacle_atoms is None
+        else tuple(obstacle_atoms)
+    )
+    if not atoms:
+        raise ValueError("Regional geometry needs physical obstacles")
+    coords = np.asarray([a.coord for a in atoms]) @ basis.T
+    queries = _SphereQueries(coords, np.asarray([atom_vdw_radius(a) for a in atoms]))
     # Clearances are read only where a node can be a probe centre or in the
     # domain (distance <= margin + probe radius); elsewhere they stay -inf.
     # Per-node values are those of a query over the whole grid.
-    need=np.flatnonzero(distance.ravel()<=margin+probe_radius+1e-9)
-    clearance=np.full(len(xyz),-np.inf);nearest=np.zeros(len(xyz),dtype=np.int32)
-    clearance[need],nearest[need]=queries.points((xyz@basis.T)[need]);clearance=clearance.reshape(shape)
-    domain=distance<=margin+1e-9
-    centers=(distance<=margin+probe_radius+1e-9)&(clearance>=probe_radius)
-    origin=anchor@basis.T+low*h
-    labels=_connected(centers,clearance,origin,h,probe_radius,queries)
-    seeds=centers&(distance<=.9*h)
-    retained=np.unique(labels[seeds]);retained=retained[retained>0]
-    selected=np.isin(labels,retained)&(labels>0)
+    need = np.flatnonzero(distance.ravel() <= margin + probe_radius + 1e-9)
+    clearance = np.full(len(xyz), -np.inf)
+    nearest = np.zeros(len(xyz), dtype=np.int32)
+    clearance[need], nearest[need] = queries.points((xyz @ basis.T)[need])
+    clearance = clearance.reshape(shape)
+    domain = distance <= margin + 1e-9
+    centers = (distance <= margin + probe_radius + 1e-9) & (clearance >= probe_radius)
+    origin = anchor @ basis.T + low * h
+    labels = _connected(centers, clearance, origin, h, probe_radius, queries)
+    seeds = centers & (distance <= 0.9 * h)
+    retained = np.unique(labels[seeds])
+    retained = retained[retained > 0]
+    selected = np.isin(labels, retained) & (labels > 0)
     if selected.any():
-        dist=ndimage.distance_transform_edt(~selected,sampling=h)
-        filled=domain&(clearance>=0)&(dist<=probe_radius+1e-9)
-    else:filled=np.zeros(shape,bool)
-    flat=filled.ravel();raw=clearance.ravel()[flat];near=nearest[flat];positions=xyz[flat]
-    points=tuple(ChannelPoint(i,tuple(map(float,p)),float(r),float(r),float((p-anchor)@basis[2]),atoms[int(j)].serial,atoms[int(j)].residue_key.label)
-                 for i,(p,r,j) in enumerate(zip(positions,raw,near)))
-    pieces,n=ndimage.label(filled)
-    component=VoidComponent(1,'fixed_reference_neighborhood',tuple(map(float,positions.mean(0) if len(positions) else anchor)),len(points)*h**3,points)
-    report={'definition':'Union of probe sweeps from all atom-clear center components intersecting the fixed reference samples, clipped to the reference-neighborhood domain',
-            'reference_margin_A':margin,'probe_radius_A':probe_radius,'reference_seed_distance_A':.9*h,
-            'probe_center_components':len(retained),'sampled_volume_components':int(n),'grid_points':int(math.prod(shape)),
-            'volume_A3':component.volume,'zero_definition':'No retained probe-swept samples in this specified region, not evidence of a closed transport pathway',
-            'crop_boundary_exclusion_band_A':.9*h,
-            'obstacle_definition':'protein heavy atoms' if obstacle_atoms is None else 'explicit physical obstacle atoms',
-            'obstacle_atom_images':len(atoms),
-            'limitations':'A fixed local measurement domain; chosen obstacles and spherical probes do not establish substrate or membrane accessibility'}
-    cast=VoidCast((component,) if points else (),points,h,0.,'rolling',{'grid_basis':basis.tolist(),'grid_origin':(origin@basis).tolist(),'algorithm':'fixed_reference_neighborhood_probe_sweep',**report})
-    return cast,component,report
+        dist = ndimage.distance_transform_edt(~selected, sampling=h)
+        filled = domain & (clearance >= 0) & (dist <= probe_radius + 1e-9)
+    else:
+        filled = np.zeros(shape, bool)
+    flat = filled.ravel()
+    raw = clearance.ravel()[flat]
+    near = nearest[flat]
+    positions = xyz[flat]
+    points = tuple(
+        ChannelPoint(
+            i,
+            tuple(map(float, p)),
+            float(r),
+            float(r),
+            float((p - anchor) @ basis[2]),
+            atoms[int(j)].serial,
+            atoms[int(j)].residue_key.label,
+        )
+        for i, (p, r, j) in enumerate(zip(positions, raw, near))
+    )
+    pieces, n = ndimage.label(filled)
+    component = VoidComponent(
+        1,
+        'fixed_reference_neighborhood',
+        tuple(map(float, positions.mean(0) if len(positions) else anchor)),
+        len(points) * h**3,
+        points,
+    )
+    report = {
+        'definition': 'Union of probe sweeps from all atom-clear center components intersecting the fixed reference samples, clipped to the reference-neighborhood domain',
+        'reference_margin_A': margin,
+        'probe_radius_A': probe_radius,
+        'reference_seed_distance_A': 0.9 * h,
+        'probe_center_components': len(retained),
+        'sampled_volume_components': int(n),
+        'grid_points': int(math.prod(shape)),
+        'volume_A3': component.volume,
+        'zero_definition': 'No retained probe-swept samples in this specified region, not evidence of a closed transport pathway',
+        'crop_boundary_exclusion_band_A': 0.9 * h,
+        'obstacle_definition': 'protein heavy atoms' if obstacle_atoms is None else 'explicit physical obstacle atoms',
+        'obstacle_atom_images': len(atoms),
+        'limitations': 'A fixed local measurement domain; chosen obstacles and spherical probes do not establish substrate or membrane accessibility',
+    }
+    cast = VoidCast(
+        (component,) if points else (),
+        points,
+        h,
+        0.0,
+        'rolling',
+        {
+            'grid_basis': basis.tolist(),
+            'grid_origin': (origin @ basis).tolist(),
+            'algorithm': 'fixed_reference_neighborhood_probe_sweep',
+            **report,
+        },
+    )
+    return cast, component, report

@@ -1,0 +1,44 @@
+{
+  "script": "benchmarks/nongeom/lining_residues.py",
+  "machine": {
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.13.13",
+    "cpu_count": 8,
+    "load_average_1_5_15": [
+      1.52392578125,
+      0.50146484375,
+      0.23388671875
+    ],
+    "cpu_model": "Intel(R) Core(TM) Ultra 7 268V"
+  },
+  "synthetic": {
+    "rows": 72,
+    "roles_all_match": true,
+    "max_abs_crevice_minus_analytic_by_spacing": {
+      "0.25": 0.0037208000963044607,
+      "0.5": 0.005569088250598236,
+      "0.7": 0.011520860790961707
+    },
+    "max_abs_crevice_minus_reference_by_spacing": {
+      "0.25": 0.0037658000963044502,
+      "0.5": 0.005594088250598234,
+      "0.7": 0.01150586079096172
+    }
+  },
+  "4pyp": {
+    "cast_stdout": "cast regions=1 volume_A3=3245.250 spacing_A=0.5",
+    "evidence_stdout": "residue-evidence lining=62",
+    "spacing_A": 0.5000000000003259,
+    "crevice_lining": 62,
+    "distance_based": 74,
+    "both": 62,
+    "jaccard": 0.8378378378378378,
+    "crevice_only": [],
+    "distance_only_count": 12,
+    "bng_contact_residues": 12,
+    "bng_contacts_in_crevice_lining": 12,
+    "bng_contacts_not_lining": [],
+    "bng_heavy_atoms": 21
+  }
+}

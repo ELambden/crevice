@@ -29,8 +29,7 @@ written.
                    viewer or ``viewer-html``
 ``viewer-html``    a self-contained interactive HTML view
                    (:func:`crevice.viewer.view`)
-``structures``     copies of the input and dummy-atom PDBs (cast spheres,
-                   cavity and tunnel centres)
+``structures``     copies of the input and dummy-atom PDBs (cast spheres)
 ``extra-views``    alias and variant scenes: ``PREFIX_pore_cast.*`` copies,
                    ``PREFIX_end_view.*`` and ``PREFIX_pore_spheres.pml``
                    (with the matching viewer kind)
@@ -48,8 +47,6 @@ written.
                    conformations of the lining/boundary residues; on by
                    default (``--skip-interactions`` turns it off). Water
                    bridges need ``hydration``
-``cavities``       separate cavity search (``report``)
-``tunnels``        tunnel search (``report``)
 ``network``        residue/channel contact network (``report``)
 ``fingerprint``    pore fingerprint of a resolved channel (``report``)
 =================  ==========================================================
@@ -68,6 +65,7 @@ active (:func:`use_outputs`). With no active plan every writer behaves as in
 CREVICE 0.2 (everything is written), so direct calls of the ``write_*``
 functions are unchanged unless they are given ``outputs=``.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -79,21 +77,39 @@ from pathlib import Path
 from typing import Iterable, Iterator
 
 #: File kinds, in display order.
-FORMATS = ("data", "key-figures", "figures", "pymol", "vmd", "chimerax", "scenes", "viewer-html",
-           "structures", "extra-views")
+FORMATS = (
+    "data",
+    "key-figures",
+    "figures",
+    "pymol",
+    "vmd",
+    "chimerax",
+    "scenes",
+    "viewer-html",
+    "structures",
+    "extra-views",
+)
 #: Native viewer file kinds.
 VIEWERS = ("pymol", "vmd", "chimerax")
 #: Optional analyses, in display order.
-ANALYSES = ("hydration", "interactions", "cavities", "tunnels", "network", "fingerprint")
+ANALYSES = ("hydration", "interactions", "network", "fingerprint")
 #: Shorthand tokens.
 ALIASES = {"viewers": VIEWERS}
 #: Meta tokens.
 META = ("default", "none")
 
 #: Figure file-name endings (after the prefix) that count as key figures.
-KEY_FIGURES = ("_profile_radius.png", "_residue_contacts.png", "_residue_evidence.png", "_hydration_residues.png",
-               "_cavity_volume_timeseries.png", "_cavity_radius_profile.png", "_cavity_residues.png",
-               "_fingerprint.png", "_permeation.png")
+KEY_FIGURES = (
+    "_profile_radius.png",
+    "_residue_contacts.png",
+    "_residue_evidence.png",
+    "_hydration_residues.png",
+    "_cavity_volume_timeseries.png",
+    "_cavity_radius_profile.png",
+    "_cavity_residues.png",
+    "_fingerprint.png",
+    "_permeation.png",
+)
 
 #: Descriptions printed by ``--outputs help`` and in the plan.
 DESCRIPTIONS = {
@@ -110,8 +126,6 @@ DESCRIPTIONS = {
     "extra-views": "alias and variant scenes (pore_cast.*, end_view.*, pore_spheres.pml)",
     "hydration": "water contacts/occupancy, SASA, water bridges, water density and hydration scenes (implies interactions)",
     "interactions": "typed residue-residue interactions (H-bonds, salt bridges, aromatic) and conformations",
-    "cavities": "separate cavity search",
-    "tunnels": "tunnel search",
     "network": "residue/channel contact network",
     "fingerprint": "pore fingerprint of a resolved channel",
     "default": "the command's default selection",
@@ -148,23 +162,36 @@ _WATER = ("hydration", "interactions")
 
 #: The single place where the per-command defaults are defined.
 COMMANDS = {
-    "publish": CommandOutputs(analyses=("hydration", "interactions", "cavities", "tunnels", "network", "fingerprint"),
-                              default_analyses=("interactions",),
-                              core="profile, cast (with ENTRY/LUMEN/EXIT segments), residue contacts"),
+    "publish": CommandOutputs(
+        analyses=("hydration", "interactions", "network", "fingerprint"),
+        default_analyses=("interactions",),
+        core="profile, cast (with ENTRY/LUMEN/EXIT segments), residue contacts",
+    ),
     "cast": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), core="rolling-probe cast"),
-    "analyze": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), default_formats=(),
-                              core="the --analysis selection (default profile, residues)"),
-    "residue-evidence": CommandOutputs(analyses=_WATER, default_analyses=("interactions",),
-                                       core="boundary residue evidence"),
+    "analyze": CommandOutputs(
+        analyses=_WATER,
+        default_analyses=("interactions",),
+        default_formats=(),
+        core="the --analysis selection (default profile, residues)",
+    ),
+    "residue-evidence": CommandOutputs(
+        analyses=_WATER, default_analyses=("interactions",), core="boundary residue evidence"
+    ),
     "hydration": CommandOutputs(analyses=(), core="hydration (with water density and typed interactions)"),
-    "cavity-trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",),
-                                        core="per-frame cavity geometry and statistics"),
-    "region-trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",),
-                                        core="per-frame region geometry and statistics"),
-    "trajectory": CommandOutputs(analyses=_WATER, default_analyses=("interactions",), default_formats=(),
-                                 formats=("data", "key-figures", "figures", "pymol", "vmd", "chimerax", "scenes"),
-                                 core="the --analysis selection (default profile, features); explicit paths "
-                                      "(--png, --distribution-csv, --network-json) as given"),
+    "cavity-trajectory": CommandOutputs(
+        analyses=_WATER, default_analyses=("interactions",), core="per-frame cavity geometry and statistics"
+    ),
+    "region-trajectory": CommandOutputs(
+        analyses=_WATER, default_analyses=("interactions",), core="per-frame region geometry and statistics"
+    ),
+    "trajectory": CommandOutputs(
+        analyses=_WATER,
+        default_analyses=("interactions",),
+        default_formats=(),
+        formats=("data", "key-figures", "figures", "pymol", "vmd", "chimerax", "scenes"),
+        core="the --analysis selection (default profile, features); explicit paths "
+        "(--png, --distribution-csv, --network-json) as given",
+    ),
 }
 
 
@@ -254,7 +281,7 @@ class OutputPlan:
         if kind == "scenes":
             return "scenes" in self.formats
         if kind == "structures" and Path(path).name.endswith("_pore_cast.pdb") and "extra-views" in self.formats:
-            return True   # the sphere scene (pore_spheres.pml) loads these dummy atoms
+            return True  # the sphere scene (pore_spheres.pml) loads these dummy atoms
         return self.writes(kind)
 
     def to_dict(self) -> dict:
@@ -265,12 +292,16 @@ class OutputPlan:
         dict
         """
         policy = COMMANDS[self.command]
-        return {"mode": self.mode, "requested": list(self.requested),
-                "file_kinds": [f for f in FORMATS if f in self.formats],
-                "optional_analyses_run": [a for a in ANALYSES if a in self.analyses],
-                "optional_analyses_not_run": [a for a in policy.analyses if a not in self.analyses],
-                "skipped_by_flag": list(self.skipped), "core_analyses": policy.core,
-                "definition": "CREVICE 0.3 output policy (crevice.outputs); data and the manifest are always written"}
+        return {
+            "mode": self.mode,
+            "requested": list(self.requested),
+            "file_kinds": [f for f in FORMATS if f in self.formats],
+            "optional_analyses_run": [a for a in ANALYSES if a in self.analyses],
+            "optional_analyses_not_run": [a for a in policy.analyses if a not in self.analyses],
+            "skipped_by_flag": list(self.skipped),
+            "core_analyses": policy.core,
+            "definition": "CREVICE 0.3 output policy (crevice.outputs); data and the manifest are always written",
+        }
 
     def describe(self) -> str:
         """Multi-line, human-readable plan (printed before expensive work).
@@ -280,21 +311,29 @@ class OutputPlan:
         str
         """
         policy = COMMANDS[self.command]
-        label = {"default": "default outputs", "selected": "--outputs " + ",".join(self.requested),
-                 "all": "--all"}[self.mode]
+        label = {"default": "default outputs", "selected": "--outputs " + ",".join(self.requested), "all": "--all"}[
+            self.mode
+        ]
         kinds = [f for f in FORMATS if f in self.formats and f in policy.formats]
         not_kinds = [f for f in policy.formats if f not in kinds and not (f == "key-figures" and "figures" in kinds)]
         from .cli import command_form
+
         lines = [f"{command_form(self.command)} plan ({label}):", f"  core analyses: {policy.core}"]
         if policy.analyses:
             run = [a for a in policy.analyses if a in self.analyses]
             off = [a for a in policy.analyses if a not in self.analyses]
-            lines.append("  optional analyses: " + (", ".join(run) if run else "none")
-                         + (f"; not run: {', '.join(off)}" if off else ""))
-        lines.append("  file kinds: " + ", ".join(kinds) + (f"; not written: {', '.join(not_kinds)}" if not_kinds else ""))
+            lines.append(
+                "  optional analyses: "
+                + (", ".join(run) if run else "none")
+                + (f"; not run: {', '.join(off)}" if off else "")
+            )
+        lines.append(
+            "  file kinds: " + ", ".join(kinds) + (f"; not written: {', '.join(not_kinds)}" if not_kinds else "")
+        )
         if self.mode == "default":
-            lines.append("  add files or analyses with --outputs (e.g. --outputs default,hydration), "
-                         "everything with --all")
+            lines.append(
+                "  add files or analyses with --outputs (e.g. --outputs default,hydration), everything with --all"
+            )
         return "\n".join(lines)
 
 
@@ -349,14 +388,15 @@ def _viewer_of(name: str):
 
 
 _EXTRA_VIEWS = re.compile(r"_(pore_cast\.(pml|vmd|tcl|cxc)|pore_spheres\.pml|end_view\.(pml|vmd|tcl|cxc))$")
-_STRUCTURES = re.compile(r"_(structure(\.[A-Za-z0-9]+)+|pore_cast\.pdb|cavities\.pdb|tunnels\.pdb)$")
+_STRUCTURES = re.compile(r"_(structure(\.[A-Za-z0-9]+)+|pore_cast\.pdb)$")
 _SCENES = re.compile(
     r"(_scene\.json|_volume_metadata\.json|_display\.dx|_display_local\.dx|_pymol_local\.dx|_pymol_mesh\.npz"
     r"|_geometry_reference\.npz|_viewer\.pdb|_viewer\.identities\.json|_analysis_protein\.pdb"
     r"|_analysis_protein\.identities\.json|_analysis_frame_\d+\.pdb|_analysis_frame_\d+\.identities\.json"
     r"|_analysis_member_waters_\d+\.pdb|_analysis_geometry\.npz|_analysis_reference\.tsv|_analysis_cavity\.dx"
     r"|_analysis_cavity_local\.dx|_analysis_evidence\.csv|_residue_reference\.npz|_residue_reference\.tsv"
-    r"|_region_\d+\.dx|_region_\d+_local\.dx|_display_regions\.json|_region_annotations\.json)$")
+    r"|_region_\d+\.dx|_region_\d+_local\.dx|_display_regions\.json|_region_annotations\.json)$"
+)
 
 
 def _tokens(outputs) -> list:
@@ -370,8 +410,14 @@ def _tokens(outputs) -> list:
     return tokens
 
 
-def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False,
-                    skip: Iterable[str] = (), default_analyses: Iterable[str] | None = None) -> OutputPlan:
+def resolve_outputs(
+    command: str,
+    outputs=None,
+    *,
+    all_outputs: bool = False,
+    skip: Iterable[str] = (),
+    default_analyses: Iterable[str] | None = None,
+) -> OutputPlan:
     """Resolve an output selection into an :class:`OutputPlan`.
 
     Parameters
@@ -419,8 +465,19 @@ def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False,
     if tokens and all_outputs:
         raise OutputSelectionError("choose one of --outputs and --all")
     if "legacy" in tokens:
-        raise OutputSelectionError("the CREVICE 0.2 file set ('legacy', --legacy-outputs) was removed in 0.4; "
-                                   "use --all (Python: outputs='all') or list the outputs you need")
+        raise OutputSelectionError(
+            "the CREVICE 0.2 file set ('legacy', --legacy-outputs) was removed in 0.4; "
+            "use --all (Python: outputs='all') or list the outputs you need"
+        )
+    if "tunnels" in tokens:
+        raise OutputSelectionError(
+            "the tunnel search ('tunnels') was removed in CREVICE 0.5; find routes to bulk solvent with crevice paths"
+        )
+    if "cavities" in tokens:
+        raise OutputSelectionError(
+            "the separate grid cavity search of crevice report ('cavities') was removed in "
+            "CREVICE 0.5; run crevice cavities (or report --analyze --analysis cavities)"
+        )
     defaults = tuple(policy.default_analyses if default_analyses is None else default_analyses)
     if all_outputs:
         formats, analyses, mode = set(policy.formats), set(policy.analyses), "all"
@@ -428,13 +485,18 @@ def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False,
         known = set(FORMATS) | set(ALIASES) | set(ANALYSES) | set(META)
         unknown = [t for t in tokens if t not in known]
         if unknown:
-            raise OutputSelectionError(f"unknown --outputs value(s): {', '.join(unknown)}; choose from "
-                                       + ", ".join([*FORMATS, *ALIASES, *ANALYSES, *META]))
+            raise OutputSelectionError(
+                f"unknown --outputs value(s): {', '.join(unknown)}; choose from "
+                + ", ".join([*FORMATS, *ALIASES, *ANALYSES, *META])
+            )
         expanded = []
         for token in tokens:
             expanded += list(ALIASES.get(token, (token,)))
-        unsupported = [t for t in expanded if t not in META and t != "data"
-                       and t not in policy.formats and t not in policy.analyses]
+        unsupported = [
+            t
+            for t in expanded
+            if t not in META and t != "data" and t not in policy.formats and t not in policy.analyses
+        ]
         if unsupported:
             raise OutputSelectionError(f"crevice {command} does not write: {', '.join(unsupported)}")
         kinds = [t for t in expanded if t in FORMATS]
@@ -452,7 +514,7 @@ def resolve_outputs(command: str, outputs=None, *, all_outputs: bool = False,
     if formats & (set(VIEWERS) | {"viewer-html"}):
         formats.add("scenes")
     if "hydration" in analyses and "interactions" in policy.analyses:
-        analyses.add("interactions")   # the hydration analysis includes the typed interactions
+        analyses.add("interactions")  # the hydration analysis includes the typed interactions
     analyses = {a for a in analyses if a in policy.analyses and a not in skip}
     return OutputPlan(command, mode, frozenset(formats), frozenset(analyses), tuple(tokens), skip)
 
@@ -670,6 +732,7 @@ def output_option(command: str):
     callable
         Decorator for writers with a keyword-only ``outputs`` parameter.
     """
+
     def decorate(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -678,5 +741,7 @@ def output_option(command: str):
                 return func(*args, **kwargs)
             with outputs_for(command, outputs):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorate

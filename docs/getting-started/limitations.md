@@ -49,13 +49,10 @@ its own "Interpreting results" note with the details for that tool.
   number, and report them
   ([how](../CAVITY_OBSTACLES.md#checking-numerical-sensitivity)).
 - **Automatic probe choices are rules.** The enclosure probe of `profile`
-  (`--enclosure-radius auto`) and the route probe of `paths`
-  (`--probe-radius auto`) are chosen by a stated rule over a fixed ladder of
-  probes from 0.5 to 3.0 Å. For `profile`, the same channel must appear at two
-  or more probes, channels are grouped by a parallel axis (|cos| ≥ 0.99), the
-  same end types, a minimum radius within 0.05 Å or 2 % and at least 60 %
-  axial overlap, and the smallest probe of the channel found at the most
-  probes is used. For `paths`, route sets with widths within 0.05 Å or 2 % are
+  (`--enclosure-radius auto`) is the smallest probe of a fixed ladder
+  (0.30–3.00 Å) at which each slice's lumen is enclosed; the route probe of
+  `paths` (`--probe-radius auto`) is chosen over a ladder from 0.5 to 3.0 Å.
+  For `paths`, route sets with widths within 0.05 Å or 2 % are
   grouped, and the smallest probe of the set found at the most probes is
   used, so narrow side routes seen only at small probes are left out (they
   stay listed in `*_path_probes.csv`). The thresholds are practical choices,
@@ -63,18 +60,10 @@ its own "Interpreting results" note with the details for that tool.
   the probe. See [Choosing the enclosure probe](../tools/profile.md#choosing-the-enclosure-probe)
   and [Choosing the probe automatically](../tools/paths.md#choosing-the-probe-automatically).
   The cast probe is never chosen automatically, because there the probe *is*
-  the measurement. In the [benchmarks](../methods/benchmarks.md), changing
-  the grouping tolerances changed nothing and no variant moved a resolved
-  minimum radius by more than 0.01 Å, but *whether* a channel resolves
-  depends on the support rule: requiring the channel at three or four probes
-  instead of two left 4 or 7 of 9 channels unresolved. If a channel you
-  expect is reported as unresolved, try a fixed `--enclosure-radius`.
-  When two channels are found at the same number of probes, the one at the
-  smaller probe is used. This can pick a short capped part of a pore over the
-  whole channel: for aquaporin-1 (1J4N) with `simple.rad` the reported
-  profile misses the narrowest point, which a fixed `--enclosure-radius 0.75`
-  recovers (see the [benchmarks](../methods/benchmarks.md)). Check the
-  resolved axial range, and fix the probe when it is shorter than expected.
+  the measurement. If a channel you expect is reported as unresolved, check
+  the axis and seed, and whether an end is capped (`--lateral-exits`).
+  Check the resolved axial range: a profile ends where its lumen opens
+  sideways wider than the largest probe (3 Å), or at the protein's edge.
 
 ## What the input can and cannot show
 
@@ -113,11 +102,13 @@ its own "Interpreting results" note with the details for that tool.
   estimate: the lumen treated as a tube of bulk electrolyte. It ignores
   ion–wall interactions, selectivity, dehydration and surface charge, and it
   is not a measured conductance or a prediction of function. On gramicidin A
-  the uncorrected value is 10–40 times the measured single-channel
-  conductance, and HOLE's empirically corrected value 2–7 times
-  ([details](../methods/fingerprint.md#conductance-estimate)). Across four
+  with the resistivity of 1 M salt, the uncorrected value is 10–40 times the
+  10–30 pS measured in 1 M salt, and HOLE's empirically corrected value 2–7
+  times ([details](../methods/fingerprint.md#conductance-estimate)); with the
+  resistivity of the buffer of a 10 pS measurement in 150 mM NaCl it is 3.3
+  times. Across four
   open channels with published single-channel conductances (gramicidin A,
-  OmpF, GLIC, open MscS) the estimate was 1.5–17.6 times the measured value,
+  OmpF, GLIC, open MscS) the estimate was 1.06–12.7 times the measured value,
   and it cannot be computed for K⁺ channels whose filter is narrower than the
   smallest probe ([benchmarks](../methods/benchmarks.md)). Use it to compare
   pores with each other, not to predict a conductance.

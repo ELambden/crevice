@@ -94,13 +94,34 @@ the manifest records each value with its source. Python:
 Every command accepts `-q/--quiet` and `--debug`, before or after the command
 name.
 
+- Analyses print a few status lines on standard error that say what they are
+  doing and what they found, for example:
+
+  ```text
+  $ crevice profile kcsa_pore.pdb --axis z --origin 155.33,155.33,-43.614 --section-spacing 0.25 --radii bondi -o k.json
+  crevice: read kcsa_pore.pdb: 3060 atoms in 0.0 s
+  crevice: initialising the enclosure probe for kcsa_pore.pdb (per-plane probe, 0.30-3.00 A, section grid 0.25 A)
+  crevice: pore radius found in 0.8 s: minimum 0.747 A at s = +5.0 A (no lower than 0.747 A between samples); mean 2.423 A over 81 samples, s = -36.9 to +22.9 A; per-plane enclosure probes 0.30-3.00 A
+  crevice: profile: finished in 0.8 s
+  ```
+
+  (`kcsa_pore.pdb` is the KcsA tetramer of PDB 1K4C, protein atoms only.)
+
+  A profile reports its sampled minimum and, in brackets, the exact minimum
+  along the path between samples. A `trajectory` reports the mean of the
+  frame minima with its blocking standard error, and the effective sample
+  size, when the frames allow an estimate (see
+  [Uncertainty](../../methods/uncertainty.md)); otherwise it says why it gives
+  no uncertainty. Status lines are also written when standard error goes to a
+  file, so batch logs keep them. `fetch` and `view` print none.
 - Long runs (the frames of `trajectory`, `trajectory --cavities`,
-  `trajectory --region` and `trajectory --water --trajectory`, and the automatic
-  enclosure-probe ladder) show progress on standard error while it is a
-  terminal. Nothing is printed when standard error is redirected to a file or
-  a pipe, or with `--quiet`; set `CREVICE_PROGRESS=1` to log plain progress
-  lines (every 10%) to a file, or `CREVICE_PROGRESS=0` to silence progress
-  everywhere. Progress never changes standard output or any output file.
+  `trajectory --region` and `trajectory --water --trajectory`) also show a
+  progress bar on standard error while it is a terminal. The bar is not drawn when standard error is redirected to a
+  file or a pipe; set `CREVICE_PROGRESS=1` to log plain progress lines (every
+  10%) instead.
+- `--quiet` turns off the status lines and the progress bar;
+  `CREVICE_PROGRESS=0` does the same everywhere. Neither ever changes standard
+  output or any output file.
 - An expected failure (a missing file, an unknown accession, a failed
   download, a channel that cannot be resolved) is reported as one
   `crevice: error: ...` line, followed for common cases by a

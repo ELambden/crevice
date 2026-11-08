@@ -36,47 +36,40 @@ option is named, and no setting was tuned to match a comparator.
   pyKVFinder and POVME on T4 lysozyme L99A (1L83), FABP4 (2NNQ) and the GLUT1
   central cavity (4PYP), and the GLUT1 example trajectory's region volume
   with MDpocket.
-* **Automatic probe.** The automatic enclosure-probe rule is rerun with
-  its grouping tolerances, minimum support and probe ladder changed one at a
-  time.
 
 ## Results in brief
 
-* **Profiles.** Where CREVICE resolves a channel, its radii agree with HOLE's
-  to 0.002–0.009 Å RMSD and the minimum radii to within 0.005 Å (8 of 11
-  channels with `simple.rad`; the compared range is the part CREVICE
-  resolves, which for aquaporin-1 is a short capped fragment that misses the
-  narrowest point, see the README). Channels whose narrowest point is smaller than
-  about 0.5 Å (the smallest automatic enclosure probe), such as potassium
-  channel selectivity filters and the closed KcsA gate, are not resolved;
-  HOLE still reports a plane-wise radius there. With default options only 3
-  of 11 channels resolve; capped channels need `--lateral-exits`, and
-  CREVICE's resolved range then stops at the cap, so a constriction beyond
-  it (for example in the MscS cytoplasmic domain) is not in the profile.
-* **Conductance.** The geometric estimate is 1.5 to 17.6 times the measured
-  conductance on the four comparable channels CREVICE resolves (HOLE's own
-  estimate: 0.2 to 12 times), and it fails for potassium channels. Treat it as
-  an order-of-magnitude descriptor, not a prediction.
+* **Profiles.** CREVICE resolves 10 of 11 channels with `simple.rad` (5 with
+  default options; capped channels need `--lateral-exits`), covering 32–100 %
+  of each protein's axial extent, including the KcsA (0.62 Å) and TWIK-1
+  (0.51 Å) selectivity filters. Where both programs follow the same lumen the
+  radii agree to 0.002–0.005 Å RMSD and the minimum radii to within 0.004 Å.
+  HOLE's minimum within the protein lies inside CREVICE's range for 7 of the
+  10; the other three are in domains outside the transmembrane pore (the nAChR
+  extracellular domain and the MscS cytoplasmic cage, beyond a capped end).
+  Planes with two clearance maxima explain the larger differences (OmpF
+  vestibules, one aquaporin-1 plane). The MthK pore domain is occluded in the
+  curated structure and is not resolved.
+* **Conductance.** The geometric estimate is 1.06 to 12.7 times the measured
+  conductance on the four comparable open channels (HOLE's own estimate: 0.22
+  to 12.1 times), close to HOLE's where CREVICE covers the pore, and it fails
+  for potassium channels. Treat it as an order-of-magnitude descriptor, not a
+  prediction.
 * **Tunnels.** The main tunnel of each enzyme is found by both programs in
   the same direction, with bottleneck radii within 0.03–0.11 Å. Narrower
   secondary tunnels that CAVER reports appear in CREVICE's list of routes left
   out by the automatic probe, or as routes with `--probe-radius 0.9`.
 * **Volumes.** Swept-probe volumes (CREVICE `cast`, pyKVFinder at the same
-  probe) agree within 3 % for the enclosed T4 lysozyme cavity and within
-  20–25 % for larger, partly open pockets; tools that count probe centres or
+  probe) agree within 3 % for the enclosed T4 lysozyme cavity and differ by
+  19–24 % (CREVICE smaller) for larger, partly open pockets; tools that count probe centres or
   distance-cutoff points report several times smaller volumes by definition.
-* **Automatic probe.** On the 9 channels resolved with the default rule,
-  changing the minimum-radius tolerance changes nothing, and changing the
-  axial-overlap fraction (0.4 or 0.8) changes the chosen probe for 2 channels
-  without changing the minimum radius by more than 0.01 Å. The rule is
-  sensitive to its support requirement: most channels resolve at only two or
-  three ladder probes, so requiring 3 or 4 probes or cutting the ladder at
-  2.0 Å leaves 3–7 of the 9 unresolved. No variant
-  changed a reported minimum radius by more than 0.01 Å
-  (`benchmarks/results/probe_sensitivity/`).
-* **Run time.** On single structures, HOLE is 40–400 times faster than a
-  profile with the automatic probe, which costs 3.5–8 times a fixed-probe
-  profile. On a 1000-frame GLUT1 membrane simulation, the region volume took
+* **Run time.** On single structures (one process per run, one core, with the
+  optional numba kernels, on an idle machine) a profile took 0.6 s for
+  gramicidin, 1.3 s for the nicotinic receptor pore domain 1OED and 2.7 s for TWIK-1 with its
+  lateral-exit and lateral-branch search, against 0.06–0.13 s for HOLE; about 0.3 s of each
+  CREVICE run is start-up (`benchmarks/README.md`, "Timing"). Larger channels
+  (KcsA, OmpF, GLIC) take 1–3 s. Without numba the same profiles take 1–31 s.
+  On a 1000-frame GLUT1 membrane simulation, the region volume took
   1665 s on one core at the definition's 0.2 Å grid and 370 s at 0.7 Å;
   MDpocket took 9326 s for the same frames. In those 0.4.0 runs CREVICE's
   peak memory grew with the frame count, to about 7.5 GB at 1000 frames,

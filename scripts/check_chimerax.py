@@ -17,7 +17,7 @@ Writes ``chimerax_native.png``, ``native_inspection.json``,
 exits with status 1 unless the checks pass.
 """
 from pathlib import Path
-import argparse,json,subprocess,tempfile,shutil
+import argparse,json,os,signal,subprocess,tempfile,shutil
 from workspace_paths import local_chimerax
 
 
@@ -82,12 +82,17 @@ except Exception as error:
         use_xvfb=args.xvfb if args.xvfb is not None else shutil.which('xvfb-run') is not None
         if use_xvfb:command=['xvfb-run','-a','-s','-screen 0 1280x1024x24',*command]
         else:command.insert(1,'--offscreen')
+        # Own process group: on a timeout the whole group (xvfb-run, Xvfb and ChimeraX) is killed,
+        # not only the direct child, so no ChimeraX is left running.
+        group=os.name=='posix'
+        process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True,start_new_session=group)
         try:
-            done=subprocess.run(command,capture_output=True,text=True,timeout=args.timeout)
-            log=done.stdout+done.stderr;code=done.returncode
-        except subprocess.TimeoutExpired as error:
-            def text(x):return x.decode(errors='replace') if isinstance(x,bytes) else (x or '')
-            log=text(error.stdout)+text(error.stderr);code=-1
+            stdout,stderr=process.communicate(timeout=args.timeout);code=process.returncode
+        except subprocess.TimeoutExpired:
+            if group:os.killpg(process.pid,signal.SIGKILL)
+            else:process.kill()
+            stdout,stderr=process.communicate();code=-1
+        log=(stdout or '')+(stderr or '')
     (out/'chimerax.log').write_text(log, encoding="utf-8", newline="\n")
     path=out/'native_inspection.json';result=json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {'native_execution_passed':False}
     ok=code==0 and result['native_execution_passed'] and (out/'chimerax_native.png').is_file()

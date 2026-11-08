@@ -17,16 +17,25 @@ that touches no atom (HOLE "sampled" rows; CREVICE per-sample ``radius`` with
 
 CREVICE attempts
 ----------------
-CREVICE is run with its automatic enclosure probe and otherwise default
-options except a 0.25 Å section grid. If the default does not resolve a
-channel, two documented variants are tried in order, and every attempt is
-recorded: ``--lateral-exits`` (capped ends may leave sideways) and then also
-``--search-radius 12`` (transverse search half-width 12 Å instead of 6 Å, for
-pores wider than the default window). The first resolved attempt is used; a
-second, dense pass re-runs it with the chosen probe and ~0.2 Å axial steps
-(the profile an explicit probe gives is exactly the automatic one). If the
-dense pass fails, the automatic pass (81+ samples, steps <= 0.75 Å) is compared
-and the failure is recorded (``compared_profile``, ``crevice_dense_error``).
+CREVICE is run with its automatic enclosure probe (``--enclosure-radius
+auto``, a probe per slice) and otherwise default options except a 0.25 Å
+section grid. If the default does not resolve a channel, two documented
+variants are tried in order, and every attempt is recorded: ``--lateral-exits``
+(capped ends may leave sideways) and then also ``--search-radius 12``
+(transverse search half-width 12 Å instead of 6 Å, for pores wider than the
+default window). The first resolved attempt is used; a second, dense pass
+re-runs it with ~0.2 Å axial steps. If the dense pass fails, the automatic
+pass (81+ samples, steps <= 0.75 Å) is compared and the failure is recorded
+(``compared_profile``, ``crevice_dense_error``).
+
+Coverage
+--------
+Agreement over a short resolved fragment says little, so each entry also
+reports how much of the protein the profile covers:
+``crevice_coverage_of_atom_extent`` (the resolved axial range as a fraction of
+the atoms' axial extent), HOLE's minimum within that extent
+(``hole_min_radius_in_protein_A``, its ``s``) and whether it lies inside
+CREVICE's resolved range (``hole_min_in_protein_inside_crevice_range``).
 
 Comparison
 ----------
@@ -194,6 +203,7 @@ def run_crevice(pdb, rad, origin, axis, base: Path) -> dict:
             continue
         sel = data["metadata"].get("enclosure_probe_selection", {})
         att.update(status="resolved", chosen_probe_A=sel.get("chosen_A"), selection_reason=sel.get("reason"),
+                   probe_mode=sel.get("mode"), probe_range_A=data["metadata"].get("enclosure_probe_range_A"),
                    path_type=data["metadata"].get("path_type", "through_channel"), min_radius_A=data["min_radius"])
         record["attempts"].append(att)
         # Dense pass with the chosen probe, ~0.2 Å steps.
@@ -208,7 +218,7 @@ def run_crevice(pdb, rad, origin, axis, base: Path) -> dict:
 
 
 # ----------------------------------------------------------------------------- comparison
-def compare(crev: dict, hole: dict, origin, axis) -> tuple[dict, list[dict]]:
+def compare(crev: dict, hole: dict, origin, axis, atom_extent=None) -> tuple[dict, list[dict]]:
     u = np.asarray(axis, float) / np.linalg.norm(axis)
     p0 = np.asarray(origin, float)
     pts = crev["points"]
@@ -238,6 +248,15 @@ def compare(crev: dict, hole: dict, origin, axis) -> tuple[dict, list[dict]]:
         "hole_min_s_in_range_A": float(hs[in_range][np.argmin(hr[in_range])]) if in_range.any() else None,
         "hole_min_radius_global_A": float(hr.min()), "hole_min_s_global_A": float(hs[np.argmin(hr)]),
     }
+    if atom_extent is not None:
+        a0, a1 = atom_extent
+        inside = (hs >= a0) & (hs <= a1)
+        k = int(np.argmin(np.where(inside, hr, np.inf)))
+        metrics.update({
+            "atom_extent_A": [float(a0), float(a1)],
+            "crevice_coverage_of_atom_extent": float((min(hi, a1) - max(lo, a0)) / (a1 - a0)),
+            "hole_min_radius_in_protein_A": float(hr[k]), "hole_min_s_in_protein_A": float(hs[k]),
+            "hole_min_in_protein_inside_crevice_range": bool(lo <= hs[k] <= hi)})
     rows = [{"s_A": float(s), "crevice_radius_A": float(r), "hole_radius_interp_A": float(h),
              "diff_A": float(x), "in_interior_window": bool(w)} for s, r, h, x, w in zip(cs, cr, h_at, diff, window)]
     return metrics, rows
@@ -265,7 +284,7 @@ def main(argv=None) -> int:
         axis_rec = json.loads((cur / "axis.json").read_text())
         u, p0 = axis_rec["axis_unit"], axis_rec["origin"]
         pdb = cur / "curated.pdb"
-        h = run_hole(hole, pdb, rad, p0, u, cur / f"hole_{tag}")
+        h = run_hole(hole, pdb, rad, p0, u, cur / f"hole_{args.radius_set}")
         c = run_crevice(pdb, rad, p0, u, cur / f"crevice_{tag}")
         rec = {"id": acc, "pdb_id": row["pdb_id"], "name": row["name"], "state": row["state"],
                "curation": row["curation"], "atoms": axis_rec["atoms_kept"], "radius_set": f"HOLE {tag}.rad (both tools)",
@@ -289,8 +308,11 @@ def main(argv=None) -> int:
             if c["dense"] is None:
                 rec["crevice_dense_error"] = last_error(cur / f"crevice_{tag}" / c["used"] / "commands.log")
             if compared is not None:
-                metrics, prof = compare(compared, h, p0, u)
+                metrics, prof = compare(compared, h, p0, u, axis_rec.get("axial_extent_of_atoms_A"))
                 rec.update({k: v for k, v in metrics.items() if not isinstance(v, list)})
+                rec["crevice_probe_mode"] = att.get("probe_mode")
+                if att.get("probe_range_A"):
+                    rec["crevice_probe_range_A"] = "{:.2f}-{:.2f}".format(*att["probe_range_A"])
                 rec["crevice_s_min_A"], rec["crevice_s_max_A"] = metrics["crevice_s_range_A"]
                 write_csv(args.results / "channels" / f"{acc}_profiles_{tag}.csv", prof,
                           comment=f"{acc}: CREVICE samples ({rec['compared_profile']} pass, enclosure probe {att['chosen_probe_A']} A, "

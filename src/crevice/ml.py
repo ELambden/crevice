@@ -74,8 +74,7 @@ def profile_features(
                 "hydrophobic_fraction": _property_fraction(contacts, "hydrophobic", total),
                 "polar_fraction": _property_fraction(contacts, "polar", total),
                 "charged_fraction": (
-                    _property_fraction(contacts, "positive", total)
-                    + _property_fraction(contacts, "negative", total)
+                    _property_fraction(contacts, "positive", total) + _property_fraction(contacts, "negative", total)
                 ),
                 "bottleneck_contact_count": float(sum("bottleneck" in contact.role for contact in contacts)),
                 "mean_residue_influence": sum(contact.influence_score for contact in contacts) / total,
@@ -177,9 +176,7 @@ def cluster_profiles(
             if not members:
                 new_centers.append(centers[center_index])
                 continue
-            new_centers.append(
-                [sum(row[col] for row in members) / len(members) for col in range(len(keys))]
-            )
+            new_centers.append([sum(row[col] for row in members) / len(members) for col in range(len(keys))])
         centers = new_centers
         if not changed:
             break
@@ -206,8 +203,7 @@ def residue_importance(contacts: Sequence[ResidueContact]) -> list[dict[str, obj
     """
 
     return [
-        contact.to_dict()
-        for contact in sorted(contacts, key=lambda item: (-item.influence_score, item.min_distance))
+        contact.to_dict() for contact in sorted(contacts, key=lambda item: (-item.influence_score, item.min_distance))
     ]
 
 
@@ -230,15 +226,9 @@ def _normalize_columns(matrix: Sequence[Sequence[float]]) -> list[list[float]]:
         return []
     cols = len(matrix[0])
     means = [sum(row[col] for row in matrix) / len(matrix) for col in range(cols)]
-    variances = [
-        sum((row[col] - means[col]) ** 2 for row in matrix) / len(matrix)
-        for col in range(cols)
-    ]
+    variances = [sum((row[col] - means[col]) ** 2 for row in matrix) / len(matrix) for col in range(cols)]
     scales = [math.sqrt(value) or 1.0 for value in variances]
-    return [
-        [(row[col] - means[col]) / scales[col] for col in range(cols)]
-        for row in matrix
-    ]
+    return [[(row[col] - means[col]) / scales[col] for col in range(cols)] for row in matrix]
 
 
 def _euclidean(left: Sequence[float], right: Sequence[float]) -> float:
@@ -344,10 +334,7 @@ def reduce_dimensions(
         projected = _pca_or_fallback(matrix, components)
     else:
         raise ValueError("method must be identity or pca in the dependency-free core")
-    return [
-        {f"dim_{index + 1}": value for index, value in enumerate(row)}
-        for row in projected
-    ]
+    return [{f"dim_{index + 1}": value for index, value in enumerate(row)} for row in projected]
 
 
 def cluster_conformations(
@@ -510,4 +497,3 @@ def _pca_or_fallback(matrix: Sequence[Sequence[float]], components: int) -> list
     for row in rows:
         row.extend([0.0] * max(0, components - len(row)))
     return [row[:components] for row in rows]
-

@@ -19,13 +19,23 @@ crevice trajectory --topology .crevice/pdb/1GRM.pdb --selection all --inspect .c
 ```
 
 ```text
+topology	.crevice/pdb/1GRM.pdb
+trajectory	.crevice/pdb/1GRM.pdb
+selection	all
 total_atom_count	272
 selected_atom_count	272
 selected_residue_count	32
 frame_count	5
 time_step_ps	1.0
+total_time_ps	4.0
 box_dimensions	None
+has_elements	True
+has_chain_ids	True
+segment_ids	['A', 'B']
 ```
+
+(MDAnalysis also warns on standard error that the reader has no time step and
+sets it to 1 ps.)
 
 `--inspect` reports what would be read without analysing anything. `--selection`
 is an MDAnalysis selection; `all` keeps every atom. `protein` gives the same
@@ -43,39 +53,41 @@ crevice trajectory .crevice/pdb/1GRM.pdb --topology .crevice/pdb/1GRM.pdb --sele
 
 ```text
 read 5 of 5 frames, 272 atoms per frame
-enclosure_radius=0.750 (auto, chosen once on the reference frame and fixed for every frame: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
-enclosure probe per frame: pinned=3 fallback=1 unresolved=1 (fallback on); fallback probes by source frame: {'4': 0.8}
+enclosure_radius=per-plane (auto, found again in every frame): resolved=5 unresolved=0
 trajectory frames=5 analyses=profile,features,network output=1GRM_nmr.json
 ```
 
-The water analysis is off by default (since 0.3) and this ensemble has no
-explicit water. The typed residue interactions, on by default, need a periodic
-box, which an NMR ensemble does not have: the command prints
+and on standard error, among the status lines,
+
+```text
+crevice: pore radius over 5 frames found in 2.3 s: minimum radius 1.217 A (mean of 5 resolved frame minima, range 1.139-1.337 A; no uncertainty: too few frames)
+```
+
+The water analysis is off by default and this ensemble has no explicit water.
+The typed residue interactions, on by default, need a periodic box, which an
+NMR ensemble does not have: the command prints
 `crevice: note: interactions not completed (...)`, records the reason under
 `metadata.interaction_files` in `1GRM_nmr.json` and completes everything else.
 `--skip-interactions` leaves them out.
 
 Every frame is aligned on matching CA atoms to the first frame, whose profile
-also fixes the axis and the enclosure probe (0.75 Å, chosen once and pinned
-for every frame). A frame where the pinned probe resolves no channel falls back
-to the automatic probe choice on that frame. `1GRM_nmr_frames.csv` has one row
-per frame:
+fixes the axis and the seed. The enclosure probe is chosen again, slice by
+slice, in every frame (`metadata.enclosure_probe` in `1GRM_nmr.json`: mode
+`adaptive`, with the per-frame counts). `1GRM_nmr_frames.csv` has one row per
+frame; `enclosure_radius_A` is the largest slice probe of that frame and
+`enclosure_probe_source` is `per_plane`:
 
-| Frame | Profile | Probe (Å) | Minimum radius (Å) | Mean radius (Å) |
+| Frame | Profile | Largest slice probe (Å) | Minimum radius (Å) | Mean radius (Å) |
 |---:|---|---:|---:|---:|
-| 0 | resolved | 0.75 (pinned) | 1.337 | 1.571 |
-| 1 | unresolved | | | |
-| 2 | resolved | 0.75 (pinned) | 1.222 | 1.478 |
-| 3 | resolved | 0.75 (pinned) | 1.138 | 1.489 |
-| 4 | resolved | 0.8 (fallback) | 1.214 | 1.581 |
+| 0 | resolved | 1.4 | 1.337 | 1.582 |
+| 1 | resolved | 1.6 | 1.171 | 1.545 |
+| 2 | resolved | 1.4 | 1.222 | 1.503 |
+| 3 | resolved | 1.4 | 1.139 | 1.506 |
+| 4 | resolved | 1.4 | 1.215 | 1.595 |
 
-Model 4 did not resolve with the pinned 0.75 Å probe and was resolved by the
-per-frame fallback at 0.8 Å (`enclosure_probe_source` = `fallback`); its radii
-were measured with a different probe from the other frames, which is why the
-probe is recorded per frame. In model 1 neither the pinned probe nor the
-fallback resolved a connected channel with two open ends; the reason is
-recorded in the `profile_reason` column. That frame is **missing**, not zero,
-and everything below is conditional on the four resolved frames.
+All five models resolve a channel. A frame that did not would be recorded with
+its reason in the `profile_reason` column, and it would be **missing**, not
+zero: every summary would then be conditional on the resolved frames.
 `1GRM_nmr_profiles.csv` holds every sample of every resolved frame.
 
 ```{figure} images/1grm_nmr_profiles.png
@@ -86,10 +98,10 @@ and everything below is conditional on the four resolved frames.
 pore radius (Å, dark teal line) of the resolved frames at each aligned axial
 coordinate (Å), and the 10–90% frame range (teal band; `--quantiles`), which
 describes fluctuations, not uncertainty. No confidence band for the mean is
-drawn: with four frames the block bootstrap has too few independent blocks
+drawn: with five frames the block bootstrap has too few independent blocks
 (status `insufficient_independent_blocks` in `1GRM_nmr_distribution.json`), so
 the interval is withheld rather than reported. Lower panel: fraction of all
-frames whose profile covers each coordinate (0.8 = 4 of 5).
+frames whose profile covers each coordinate (1.0 everywhere here).
 ```
 
 `1GRM_nmr_distribution.csv` tabulates the same curves per coordinate
@@ -108,7 +120,7 @@ from crevice import load_trajectory, analyze_trajectory, profile_distribution
 
 trajectory = load_trajectory(".crevice/pdb/1GRM.pdb", ".crevice/pdb/1GRM.pdb", selection="all")  # topology, frames
 result = analyze_trajectory(trajectory, analyses=("profile",))
-print([frame.profile is not None for frame in result.frames])      # [True, False, True, True, True]
+print([frame.profile is not None for frame in result.frames])      # [True, True, True, True, True]
 distribution = profile_distribution(result, quantiles=(0.1, 0.9))
 ```
 
@@ -118,7 +130,8 @@ For an MD run, the cavity- and region-based commands follow the same pattern:
 [`trajectory --cavities`](../tools/cavity-trajectory.md) tracks a cavity defined by
 a measured reference map (`*_volume.dx` from `cavities --cast` or `report`) through every
 frame, and [`trajectory --water`](../tools/hydration.md) and the
-[`region-*`](../tools/regions.md) commands add explicit-water analyses. The
+[named-region workflow](../tools/regions.md) (`crevice region`,
+`trajectory --region`) add explicit-water analyses. The
 command shape (with placeholder file names) is
 
 ```bash
@@ -133,8 +146,8 @@ NMR ensemble does not have, so they are not run on this page.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The profile values and the figure come from a CREVICE 0.4.0 run, and the
-Python block gave the same pattern of resolved frames. NMR models aren't a time series, so this is a
+The profile values and the figure come from one run of the commands above,
+and the Python block gave the same pattern of resolved frames. NMR models aren't a time series, so this is a
 demonstration of the workflow on public coordinates, not a statement about
 gramicidin dynamics.
 :::

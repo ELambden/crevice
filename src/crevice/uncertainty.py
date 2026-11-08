@@ -21,6 +21,7 @@ Assumptions
     length captures the serial dependence. Neither is tested here; the
     result records ``stationarity_validated=False``.
 """
+
 from __future__ import annotations
 import math
 
@@ -57,26 +58,28 @@ def statistical_inefficiency(values):
     1.0
     """
     import numpy as np
-    x=np.asarray(values,dtype=float)
-    if x.ndim!=1 or len(x)<2 or not np.isfinite(x).all():
+
+    x = np.asarray(values, dtype=float)
+    if x.ndim != 1 or len(x) < 2 or not np.isfinite(x).all():
         raise ValueError('Autocorrelation requires a finite one-dimensional series')
-    x=x-x.mean(); n=len(x)
-    if np.dot(x,x)<=np.finfo(float).eps*n:
+    x = x - x.mean()
+    n = len(x)
+    if np.dot(x, x) <= np.finfo(float).eps * n:
         return 1.0
-    size=1 << (2*n-1).bit_length()
-    f=np.fft.rfft(x,n=size)
-    ac=np.fft.irfft(f*f.conj(),n=size)[:n]
-    rho=ac/ac[0]
-    total=0.0
-    for k in range(1,n//2,2):
-        pair=float(rho[k]+rho[k+1])
-        if pair<=0:break
-        total+=pair
-    return min(float(n),max(1.0,1+2*total))
+    size = 1 << (2 * n - 1).bit_length()
+    f = np.fft.rfft(x, n=size)
+    ac = np.fft.irfft(f * f.conj(), n=size)[:n]
+    rho = ac / ac[0]
+    total = 0.0
+    for k in range(1, n // 2, 2):
+        pair = float(rho[k] + rho[k + 1])
+        if pair <= 0:
+            break
+        total += pair
+    return min(float(n), max(1.0, 1 + 2 * total))
 
 
-def block_mean_confidence(matrix, *, confidence=.95, block_length=None,
-                          replicates=2000, seed=20260911, min_blocks=8):
+def block_mean_confidence(matrix, *, confidence=0.95, block_length=None, replicates=2000, seed=20260911, min_blocks=8):
     """Pointwise percentile-t and simultaneous max-t bands for the mean.
 
     Only columns observed in every input frame receive intervals. Full rows are
@@ -140,88 +143,135 @@ def block_mean_confidence(matrix, *, confidence=.95, block_length=None,
         ``block_length``.
     """
     import numpy as np
-    x=np.asarray(matrix,dtype=float)
-    if x.ndim!=2 or x.shape[0]<1 or x.shape[1]<1 or np.isinf(x).any():
+
+    x = np.asarray(matrix, dtype=float)
+    if x.ndim != 2 or x.shape[0] < 1 or x.shape[1] < 1 or np.isinf(x).any():
         raise ValueError('matrix must be a nonempty frames-by-observables array without infinities')
-    if not math.isfinite(confidence) or not 0<confidence<1:
+    if not math.isfinite(confidence) or not 0 < confidence < 1:
         raise ValueError('confidence must lie strictly between 0 and 1')
-    if isinstance(replicates,bool) or int(replicates)!=replicates or replicates<200:
+    if isinstance(replicates, bool) or int(replicates) != replicates or replicates < 200:
         raise ValueError('replicates must be an integer >=200')
-    if isinstance(min_blocks,bool) or int(min_blocks)!=min_blocks or min_blocks<2:
+    if isinstance(min_blocks, bool) or int(min_blocks) != min_blocks or min_blocks < 2:
         raise ValueError('min_blocks must be an integer >=2')
-    n,m=x.shape
-    if block_length is not None and (isinstance(block_length,bool) or int(block_length)!=block_length or not 1<=block_length<=n):
+    n, m = x.shape
+    if block_length is not None and (
+        isinstance(block_length, bool) or int(block_length) != block_length or not 1 <= block_length <= n
+    ):
         raise ValueError('block_length must be an integer between 1 and the frame count')
-    eligible=np.isfinite(x).all(axis=0)
-    g=np.full(m,np.nan)
-    if n>=2:
-        for j in np.flatnonzero(eligible):g[j]=statistical_inefficiency(x[:,j])
-    length=int(block_length) if block_length is not None else max(int(math.ceil(n**(1/3))),int(math.ceil(5*np.nanmax(g))) if np.isfinite(g).any() else 1)
-    result={'method':'joint_studentized_batch_bootstrap','confidence':confidence,
-            'replicates':int(replicates),'seed':seed,'block_length_frames':length,
-            'block_length_source':'user' if block_length is not None else 'max(ceil(N**(1/3)),ceil(5*max(statistical_inefficiency)))',
-            'approximate_blocks':n//length,'minimum_blocks':min_blocks,
-            'frame_count':n,'complete_coverage_columns':int(eligible.sum()),
-            'statistical_inefficiency':[float(v) if np.isfinite(v) else None for v in g],
-            'effective_frames':[float(n/v) if np.isfinite(v) else None for v in g],
-            'pointwise_lower':[None]*m,'pointwise_upper':[None]*m,
-            'simultaneous_lower':[None]*m,'simultaneous_upper':[None]*m,
-            'assumptions':'stationary representative trajectory; chosen block length captures serial dependence',
-            'systematic_errors_included':False,'stationarity_validated':False,
-            'coverage_rule':'intervals require every original frame at a coordinate'}
-    if n<20 or n//length<min_blocks:
-        result['status']='insufficient_independent_blocks';return result
+    eligible = np.isfinite(x).all(axis=0)
+    g = np.full(m, np.nan)
+    if n >= 2:
+        for j in np.flatnonzero(eligible):
+            g[j] = statistical_inefficiency(x[:, j])
+    length = (
+        int(block_length)
+        if block_length is not None
+        else max(int(math.ceil(n ** (1 / 3))), int(math.ceil(5 * np.nanmax(g))) if np.isfinite(g).any() else 1)
+    )
+    result = {
+        'method': 'joint_studentized_batch_bootstrap',
+        'confidence': confidence,
+        'replicates': int(replicates),
+        'seed': seed,
+        'block_length_frames': length,
+        'block_length_source': 'user'
+        if block_length is not None
+        else 'max(ceil(N**(1/3)),ceil(5*max(statistical_inefficiency)))',
+        'approximate_blocks': n // length,
+        'minimum_blocks': min_blocks,
+        'frame_count': n,
+        'complete_coverage_columns': int(eligible.sum()),
+        'statistical_inefficiency': [float(v) if np.isfinite(v) else None for v in g],
+        'effective_frames': [float(n / v) if np.isfinite(v) else None for v in g],
+        'pointwise_lower': [None] * m,
+        'pointwise_upper': [None] * m,
+        'simultaneous_lower': [None] * m,
+        'simultaneous_upper': [None] * m,
+        'assumptions': 'stationary representative trajectory; chosen block length captures serial dependence',
+        'systematic_errors_included': False,
+        'stationarity_validated': False,
+        'coverage_rule': 'intervals require every original frame at a coordinate',
+    }
+    if n < 20 or n // length < min_blocks:
+        result['status'] = 'insufficient_independent_blocks'
+        return result
     if not eligible.any():
-        result['status']='no_complete_coverage';return result
-    y=x[:,eligible];mean=y.mean(axis=0)
-    batches=np.array_split(y,n//length)
-    means=np.asarray([batch.mean(axis=0) for batch in batches]);k=len(means)
-    center=means.mean(axis=0);se=means.std(axis=0,ddof=1)/np.sqrt(k)
+        result['status'] = 'no_complete_coverage'
+        return result
+    y = x[:, eligible]
+    mean = y.mean(axis=0)
+    batches = np.array_split(y, n // length)
+    means = np.asarray([batch.mean(axis=0) for batch in batches])
+    k = len(means)
+    center = means.mean(axis=0)
+    se = means.std(axis=0, ddof=1) / np.sqrt(k)
     # Guard against residual positive dependence between adjacent batch means.
-    batch_g=np.asarray([statistical_inefficiency(means[:,j]) for j in range(means.shape[1])])
-    effective_batches=k/batch_g
-    admissible=effective_batches>=min_blocks
-    result['residual_batch_inefficiency']=batch_g.tolist()
-    result['effective_batch_count']=effective_batches.tolist()
+    batch_g = np.asarray([statistical_inefficiency(means[:, j]) for j in range(means.shape[1])])
+    effective_batches = k / batch_g
+    admissible = effective_batches >= min_blocks
+    result['residual_batch_inefficiency'] = batch_g.tolist()
+    result['effective_batch_count'] = effective_batches.tolist()
     if not admissible.any():
-        result['status']='insufficient_effective_batches';return result
-    variable=se>np.finfo(float).eps*np.maximum(1,np.abs(mean))
-    rng=np.random.default_rng(seed);student=np.zeros((int(replicates),y.shape[1]))
-    degenerate=np.zeros(y.shape[1],dtype=int)
-    for first in range(0,int(replicates),16):
-        count=min(16,int(replicates)-first)
-        sampled=means[rng.integers(0,k,size=(count,k))]
-        boot_mean=sampled.mean(axis=1);boot_se=sampled.std(axis=1,ddof=1)/np.sqrt(k)
-        valid=boot_se>np.finfo(float).eps*np.maximum(1,np.abs(mean))
-        degenerate+=np.sum(~valid & variable,axis=0)
-        student[first:first+count]=np.divide(boot_mean-center,boot_se,out=np.zeros_like(boot_mean),where=valid & variable)
-    alpha=(1-confidence)/2
-    if np.any(degenerate>alpha*replicates):
-        result['status']='insufficient_batch_variation';return result
-    lo,hi=np.quantile(student,[alpha,1-alpha],axis=0)
+        result['status'] = 'insufficient_effective_batches'
+        return result
+    variable = se > np.finfo(float).eps * np.maximum(1, np.abs(mean))
+    rng = np.random.default_rng(seed)
+    student = np.zeros((int(replicates), y.shape[1]))
+    degenerate = np.zeros(y.shape[1], dtype=int)
+    for first in range(0, int(replicates), 16):
+        count = min(16, int(replicates) - first)
+        sampled = means[rng.integers(0, k, size=(count, k))]
+        boot_mean = sampled.mean(axis=1)
+        boot_se = sampled.std(axis=1, ddof=1) / np.sqrt(k)
+        valid = boot_se > np.finfo(float).eps * np.maximum(1, np.abs(mean))
+        degenerate += np.sum(~valid & variable, axis=0)
+        student[first : first + count] = np.divide(
+            boot_mean - center, boot_se, out=np.zeros_like(boot_mean), where=valid & variable
+        )
+    alpha = (1 - confidence) / 2
+    if np.any(degenerate > alpha * replicates):
+        result['status'] = 'insufficient_batch_variation'
+        return result
+    lo, hi = np.quantile(student, [alpha, 1 - alpha], axis=0)
     from scipy.stats import t
-    floor=t.ppf(1-alpha,np.maximum(effective_batches-1,1))
-    lo=np.minimum(lo,-floor);hi=np.maximum(hi,floor)
-    se=se*np.sqrt(batch_g)
-    lower,upper=mean-hi*se,mean-lo*se
-    critical=float(np.quantile(np.max(np.abs(student[:,variable]),axis=1),confidence)) if variable.any() else 0.
-    for target,values in [('pointwise_lower',lower),('pointwise_upper',upper),
-                          ('simultaneous_lower',mean-critical*se),('simultaneous_upper',mean+critical*se)]:
-        for j,value,valid in zip(np.flatnonzero(eligible),values,admissible):
-            if valid:result[target][int(j)]=float(value)
-    family_size=max(1,int(np.sum(variable & admissible)))
-    critical=max(critical,float(t.ppf(1-(1-confidence)/(2*family_size),np.maximum(effective_batches[admissible]-1,1)).max()))
+
+    floor = t.ppf(1 - alpha, np.maximum(effective_batches - 1, 1))
+    lo = np.minimum(lo, -floor)
+    hi = np.maximum(hi, floor)
+    se = se * np.sqrt(batch_g)
+    lower, upper = mean - hi * se, mean - lo * se
+    critical = float(np.quantile(np.max(np.abs(student[:, variable]), axis=1), confidence)) if variable.any() else 0.0
+    for target, values in [
+        ('pointwise_lower', lower),
+        ('pointwise_upper', upper),
+        ('simultaneous_lower', mean - critical * se),
+        ('simultaneous_upper', mean + critical * se),
+    ]:
+        for j, value, valid in zip(np.flatnonzero(eligible), values, admissible):
+            if valid:
+                result[target][int(j)] = float(value)
+    family_size = max(1, int(np.sum(variable & admissible)))
+    critical = max(
+        critical,
+        float(t.ppf(1 - (1 - confidence) / (2 * family_size), np.maximum(effective_batches[admissible] - 1, 1)).max()),
+    )
     # Reapply the critical-value floor to the simultaneous band too.
-    for key,values in [('simultaneous_lower',mean-critical*se),('simultaneous_upper',mean+critical*se)]:
-        for j,value,valid in zip(np.flatnonzero(eligible),values,admissible):
-            if valid:result[key][int(j)]=float(value)
-    result['batch_lengths_frames']=[len(batch) for batch in batches]
-    result['batch_count']=k
-    result['standard_error_method']='batch-mean standard error, inflated for residual positive batch autocorrelation; Student-t pointwise floor and conservative Bonferroni-t simultaneous floor'
-    result.update(status='estimated',simultaneous_family_size=int(admissible.sum()),
-                  estimated_column_indices=np.flatnonzero(eligible)[admissible].tolist(),
-                  simultaneous_critical_value=critical,
-                  half_mean_difference=(y[n//2:].mean(axis=0)-y[:n//2].mean(axis=0)).tolist())
+    for key, values in [('simultaneous_lower', mean - critical * se), ('simultaneous_upper', mean + critical * se)]:
+        for j, value, valid in zip(np.flatnonzero(eligible), values, admissible):
+            if valid:
+                result[key][int(j)] = float(value)
+    result['batch_lengths_frames'] = [len(batch) for batch in batches]
+    result['batch_count'] = k
+    result['standard_error_method'] = (
+        'batch-mean standard error, inflated for residual positive batch autocorrelation; Student-t pointwise floor and conservative Bonferroni-t simultaneous floor'
+    )
+    result.update(
+        status='estimated',
+        simultaneous_family_size=int(admissible.sum()),
+        estimated_column_indices=np.flatnonzero(eligible)[admissible].tolist(),
+        simultaneous_critical_value=critical,
+        half_mean_difference=(y[n // 2 :].mean(axis=0) - y[: n // 2].mean(axis=0)).tolist(),
+    )
     return result
 
 
@@ -235,23 +285,28 @@ SAMPLING_METHODS = {
         "N / tau_int with the integrated autocorrelation time tau_int(M) = 1 + 2 * sum_{t=1..M} rho(t) "
         "(FFT autocorrelation) and Sokal's automatic window: the smallest M with M >= 5 * tau_int(M) "
         "(A. D. Sokal, 'Monte Carlo methods in statistical mechanics: foundations and new algorithms', "
-        "Cargese lecture notes 1996, publ. 1997; same estimator as emcee.autocorr.integrated_time)"),
+        "Cargese lecture notes 1996, publ. 1997; same estimator as emcee.autocorr.integrated_time)"
+    ),
     "blocking": (
         "Flyvbjerg-Petersen blocking (H. Flyvbjerg and H. G. Petersen, J. Chem. Phys. 91, 461 (1989)): "
         "repeated pairwise averaging; the level is chosen automatically with the lag-one test of "
         "M. Jonsson, Phys. Rev. E 98, 043304 (2018), as in the author's reference implementation "
         "(github.com/computative/block, python/tictoc.py: first level k with M_k < chi2_0.99(k+1)); "
-        "an odd trailing frame is dropped at each level instead of truncating to a power of two"),
+        "an odd trailing frame is dropped at each level instead of truncating to a power of two, and the lag-one "
+        "autocovariance of each level is taken about that level's mean"
+    ),
     "block_bootstrap": (
         "moving-block bootstrap of the mean (H. R. Kuensch, Ann. Statist. 17, 1217 (1989)): ceil(N/L) "
         "overlapping blocks of L frames drawn with replacement; percentile interval and bootstrap SD; "
-        "L = ceil(5 * tau_int) unless given, and at least 8 blocks (N/L >= 8) are required"),
+        "L = ceil(5 * tau_int) unless given, and at least 8 blocks (N/L >= 8) are required"
+    ),
 }
 
 
 def _autocorrelation(x):
     """Normalised autocorrelation of a centred series by zero-padded FFT."""
     import numpy as np
+
     n = len(x)
     size = 1 << (2 * n - 1).bit_length()
     f = np.fft.rfft(x, n=size)
@@ -261,6 +316,7 @@ def _autocorrelation(x):
 
 def _finite_series(values):
     import numpy as np
+
     x = np.asarray(values, dtype=float)
     if x.ndim != 1 or len(x) < 2 or not np.isfinite(x).all():
         raise ValueError("A finite one-dimensional series of at least two values is required")
@@ -303,6 +359,7 @@ def integrated_autocorrelation_time(values, *, window_constant=5.0):
     1.0
     """
     import numpy as np
+
     x = _finite_series(values)
     n = len(x)
     x = x - x.mean()
@@ -313,8 +370,12 @@ def integrated_autocorrelation_time(values, *, window_constant=5.0):
     passed = lags >= window_constant * tau
     window = int(np.argmax(passed)) if passed.any() else n - 1
     value = float(min(n, max(1.0, tau[window])))
-    return {"tau_int_frames": value, "window_frames": window, "window_converged": bool(passed.any()),
-            "effective_sample_size": n / value}
+    return {
+        "tau_int_frames": value,
+        "window_frames": window,
+        "window_converged": bool(passed.any()),
+        "effective_sample_size": n / value,
+    }
 
 
 def blocking_standard_error(values):
@@ -325,7 +386,11 @@ def blocking_standard_error(values):
     autocovariance test of Jonsson (2018) as in his reference implementation:
     ``M_k = sum_{j>=k} n_j (gamma_j / s_j)**2`` and the first level with
     ``M_k < chi2.ppf(0.99, k + 1)``. The standard error is ``sqrt(s_k / n_k)``
-    with the population variance ``s_k`` of the ``n_k`` block means.
+    with the population variance ``s_k`` of the ``n_k`` block means. An odd
+    trailing frame is dropped at each level (the reference code truncates the
+    series to a power of two instead), and ``gamma_k`` is taken about the mean
+    of the level's blocks, so that for ``2**d`` frames the result is the
+    reference code's.
 
     Parameters
     ----------
@@ -354,12 +419,18 @@ def blocking_standard_error(values):
     """
     import numpy as np
     from scipy.stats import chi2
+
     x = _finite_series(values)
     mu = x.mean()
     variances, gammas, sizes = [], [], []
     while len(x) >= 2:
         n = len(x)
-        gammas.append(float(np.sum((x[:-1] - mu) * (x[1:] - mu)) / n))
+        # Lag-one autocovariance about the mean of this level's blocks. With 2**d frames
+        # every level averages to the overall mean, as in the reference code; after an
+        # odd trailing frame has been dropped it does not, and deviations from the overall
+        # mean would inflate the few-block levels of the test statistic.
+        level_mean = x.mean()
+        gammas.append(float(np.sum((x[:-1] - level_mean) * (x[1:] - level_mean)) / n))
         variances.append(float(x.var()))
         sizes.append(n)
         if n % 2:
@@ -377,8 +448,13 @@ def blocking_standard_error(values):
         if statistic[k] < chi2.ppf(0.99, k + 1):
             level = k
             break
-    return {"standard_error": float(np.sqrt(s[level] / n_k[level])), "block_size_frames": int(2 ** level),
-            "level": int(level), "levels": int(levels), "converged": bool(level < levels - 1)}
+    return {
+        "standard_error": float(np.sqrt(s[level] / n_k[level])),
+        "block_size_frames": int(2**level),
+        "level": int(level),
+        "levels": int(levels),
+        "converged": bool(level < levels - 1),
+    }
 
 
 def moving_block_bootstrap(values, *, block_length, confidence=0.95, replicates=2000, seed=20261020):
@@ -415,6 +491,7 @@ def moving_block_bootstrap(values, *, block_length, confidence=0.95, replicates=
     (10, 0.0)
     """
     import numpy as np
+
     x = _finite_series(values)
     n = len(x)
     length = int(block_length)
@@ -432,21 +509,27 @@ def moving_block_bootstrap(values, *, block_length, confidence=0.95, replicates=
         means[first:stop] = block_means[rng.integers(0, len(block_means), size=(stop - first, count))].mean(axis=1)
     alpha = (1 - confidence) / 2
     lower, upper = np.quantile(means, [alpha, 1 - alpha])
-    return {"standard_error": float(means.std(ddof=1)), "lower": float(lower), "upper": float(upper),
-            "block_length_frames": length, "block_count": count, "replicates": int(replicates)}
+    return {
+        "standard_error": float(means.std(ddof=1)),
+        "lower": float(lower),
+        "upper": float(upper),
+        "block_length_frames": length,
+        "block_count": count,
+        "replicates": int(replicates),
+    }
 
 
-#: Fields of :func:`sampling_uncertainty` repeated as columns by the summary tables.
-SAMPLING_FIELDS = (
-    "status", "effective_sample_size", "integrated_autocorrelation_time_frames", "autocorrelation_window_frames",
-    "blocking_standard_error", "blocking_block_size_frames", "block_bootstrap_status",
-    "block_bootstrap_lower", "block_bootstrap_upper", "block_bootstrap_standard_error",
-    "block_bootstrap_block_length_frames",
-)
-
-
-def sampling_uncertainty(values, *, confidence=0.95, replicates=2000, seed=20261020, block_length=None,
-                         regular=True, min_frames=20, min_blocks=8):
+def sampling_uncertainty(
+    values,
+    *,
+    confidence=0.95,
+    replicates=2000,
+    seed=20261020,
+    block_length=None,
+    regular=True,
+    min_frames=20,
+    min_blocks=8,
+):
     """Effective sample size, blocking standard error and block-bootstrap interval of a frame series.
 
     Additive companion of the batch-bootstrap ``confidence_interval``
@@ -509,18 +592,32 @@ def sampling_uncertainty(values, *, confidence=0.95, replicates=2000, seed=20261
     ('estimated', 'estimated', True)
     """
     import numpy as np
+
     x = np.asarray(values, dtype=float)
     n = int(len(x))
-    result = {"status": "estimated", "frame_count": n, "effective_sample_size": None,
-              "integrated_autocorrelation_time_frames": None, "autocorrelation_window_frames": None,
-              "autocorrelation_window_converged": None, "blocking_standard_error": None,
-              "blocking_block_size_frames": None, "blocking_converged": None,
-              "block_bootstrap_status": None, "block_bootstrap_lower": None, "block_bootstrap_upper": None,
-              "block_bootstrap_standard_error": None, "block_bootstrap_block_length_frames": None,
-              "block_bootstrap_block_length_source": None, "block_bootstrap_block_count": None,
-              "confidence": confidence or None, "replicates": int(replicates), "seed": seed,
-              "methods": SAMPLING_METHODS,
-              "assumptions": "stationary representative trajectory; frames evenly spaced in time"}
+    result = {
+        "status": "estimated",
+        "frame_count": n,
+        "effective_sample_size": None,
+        "integrated_autocorrelation_time_frames": None,
+        "autocorrelation_window_frames": None,
+        "autocorrelation_window_converged": None,
+        "blocking_standard_error": None,
+        "blocking_block_size_frames": None,
+        "blocking_converged": None,
+        "block_bootstrap_status": None,
+        "block_bootstrap_lower": None,
+        "block_bootstrap_upper": None,
+        "block_bootstrap_standard_error": None,
+        "block_bootstrap_block_length_frames": None,
+        "block_bootstrap_block_length_source": None,
+        "block_bootstrap_block_count": None,
+        "confidence": confidence or None,
+        "replicates": int(replicates),
+        "seed": seed,
+        "methods": SAMPLING_METHODS,
+        "assumptions": "stationary representative trajectory; frames evenly spaced in time",
+    }
     if x.ndim != 1 or n == 0 or np.isinf(x).any():
         raise ValueError("values must be a one-dimensional series without infinities")
     if not np.isfinite(x).all():
@@ -538,13 +635,15 @@ def sampling_uncertainty(values, *, confidence=0.95, replicates=2000, seed=20261
         return result
     tau = integrated_autocorrelation_time(x)
     blocking = blocking_standard_error(x)
-    result.update(effective_sample_size=tau["effective_sample_size"],
-                  integrated_autocorrelation_time_frames=tau["tau_int_frames"],
-                  autocorrelation_window_frames=tau["window_frames"],
-                  autocorrelation_window_converged=tau["window_converged"],
-                  blocking_standard_error=blocking["standard_error"],
-                  blocking_block_size_frames=blocking["block_size_frames"],
-                  blocking_converged=blocking["converged"])
+    result.update(
+        effective_sample_size=tau["effective_sample_size"],
+        integrated_autocorrelation_time_frames=tau["tau_int_frames"],
+        autocorrelation_window_frames=tau["window_frames"],
+        autocorrelation_window_converged=tau["window_converged"],
+        blocking_standard_error=blocking["standard_error"],
+        blocking_block_size_frames=blocking["block_size_frames"],
+        blocking_converged=blocking["converged"],
+    )
     if not confidence:
         result["block_bootstrap_status"] = "not_requested"
         return result
@@ -557,9 +656,13 @@ def sampling_uncertainty(values, *, confidence=0.95, replicates=2000, seed=20261
         result["block_bootstrap_status"] = "insufficient_blocks"
         return result
     boot = moving_block_bootstrap(x, block_length=length, confidence=confidence, replicates=replicates, seed=seed)
-    result.update(block_bootstrap_status="estimated", block_bootstrap_lower=boot["lower"],
-                  block_bootstrap_upper=boot["upper"], block_bootstrap_standard_error=boot["standard_error"],
-                  block_bootstrap_block_count=boot["block_count"])
+    result.update(
+        block_bootstrap_status="estimated",
+        block_bootstrap_lower=boot["lower"],
+        block_bootstrap_upper=boot["upper"],
+        block_bootstrap_standard_error=boot["standard_error"],
+        block_bootstrap_block_count=boot["block_count"],
+    )
     return result
 
 
@@ -569,7 +672,7 @@ def trajectory_frame_statistics(analysis, *, confidence=0.95, block_length=None,
     Every per-frame quantity of the analyses that were run (the numeric
     columns of ``*_frames.csv``: ``min_radius_A``, ``mean_radius_A``,
     ``max_radius_A`` and ``bottleneck_axis_position_A`` for profiles;
-    ``residue_contact_count``; ``cavity_count``; ``tunnel_count``;
+    ``residue_contact_count``; ``cavity_count``;
     ``network_node_count`` and ``network_edge_count``) is described with
     :func:`crevice.cavity_trajectory.describe_series`: frame quantiles, the
     batch-bootstrap ``confidence_interval`` and the ``sampling_uncertainty``
@@ -602,6 +705,7 @@ def trajectory_frame_statistics(analysis, *, confidence=0.95, block_length=None,
     """
     import numpy as np
     from .cavity_trajectory import describe_series
+
     frames = list(analysis.frames)
     n = len(frames)
     times = [f.time for f in frames]
@@ -615,27 +719,41 @@ def trajectory_frame_statistics(analysis, *, confidence=0.95, block_length=None,
     analyses = set(analysis.analyses)
     wanted = {}
     if "profile" in analyses:
-        wanted.update(min_radius_A=lambda f: f.profile.min_radius if f.profile else None,
-                      mean_radius_A=lambda f: f.profile.mean_radius if f.profile else None,
-                      max_radius_A=lambda f: f.profile.max_radius if f.profile else None,
-                      bottleneck_axis_position_A=lambda f: f.profile.bottleneck.t if f.profile else None)
+        wanted.update(
+            min_radius_A=lambda f: f.profile.min_radius if f.profile else None,
+            mean_radius_A=lambda f: f.profile.mean_radius if f.profile else None,
+            max_radius_A=lambda f: f.profile.max_radius if f.profile else None,
+            bottleneck_axis_position_A=lambda f: f.profile.bottleneck.t if f.profile else None,
+        )
     if "residues" in analyses:
         wanted["residue_contact_count"] = lambda f: len(f.residue_contacts)
     if "cavities" in analyses:
         wanted["cavity_count"] = lambda f: len(f.cavities)
-    if "tunnels" in analyses:
-        wanted["tunnel_count"] = lambda f: len(f.tunnels)
     if "network" in analyses:
-        wanted["network_node_count"] = lambda f: len(f.network.nodes) if f.network else (f.metadata or {}).get("network_node_count")
-        wanted["network_edge_count"] = lambda f: len(f.network.edges) if f.network else (f.metadata or {}).get("network_edge_count")
-    options = dict(confidence=confidence or 0.95, block_length=block_length, replicates=replicates, seed=seed,
-                   regular=regular and bool(confidence))
+        wanted["network_node_count"] = lambda f: (
+            len(f.network.nodes) if f.network else (f.metadata or {}).get("network_node_count")
+        )
+        wanted["network_edge_count"] = lambda f: (
+            len(f.network.edges) if f.network else (f.metadata or {}).get("network_edge_count")
+        )
+    options = dict(
+        confidence=confidence or 0.95,
+        block_length=block_length,
+        replicates=replicates,
+        seed=seed,
+        regular=regular and bool(confidence),
+    )
     quantities = {name: describe_series(series(get), **options) for name, get in wanted.items()}
-    return {"quantities": quantities, "frame_count": n,
-            "time_ps": [known[0], known[-1]] if known else None, "regular_sampling": regular,
-            "analyses": sorted(analyses), "confidence": confidence or None,
-            "definition": "statistics over analysed frames in time order; missing values are frames without the "
-                          "quantity (for example an unresolved profile)",
-            "methods": SAMPLING_METHODS,
-            "limitations": "sampling uncertainty of the mean for a stationary trajectory only; not force-field, "
-                           "model or geometric-definition error (see --sensitivity for definitions)"}
+    return {
+        "quantities": quantities,
+        "frame_count": n,
+        "time_ps": [known[0], known[-1]] if known else None,
+        "regular_sampling": regular,
+        "analyses": sorted(analyses),
+        "confidence": confidence or None,
+        "definition": "statistics over analysed frames in time order; missing values are frames without the "
+        "quantity (for example an unresolved profile)",
+        "methods": SAMPLING_METHODS,
+        "limitations": "sampling uncertainty of the mean for a stationary trajectory only; not force-field, "
+        "model or geometric-definition error (see --sensitivity for definitions)",
+    }

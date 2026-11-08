@@ -33,8 +33,10 @@ structure as a prediction:
 "bfactor_meaning": "pLDDT per-residue confidence (0-100), not a crystallographic B-factor; treat low-confidence regions with caution"
 ```
 
-`crevice profile AF-P02920-F1` finds no channel with two open ends in this
-model, so the cast is the measurement to use here.
+`crevice profile AF-P02920-F1` resolves no channel in this model (exit
+status 2: "Ambiguous channel axis: multiple directions have comparable
+connected spans; supply an explicit axis and origin"), so the cast is the
+measurement to use here.
 
 :::{admonition} Interpreting the results
 :class: crevice-interpret

@@ -15,7 +15,7 @@ for it: run `crevice view` afterwards, or add `--outputs default,viewer-html`
 ## Quick start
 
 ```bash
-crevice report 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
+crevice report 3UKM --assembly 1 --exclude-hetero --lateral-exits \
     --out-dir 3UKM_bundle --prefix 3UKM
 crevice view 3UKM_bundle --open
 ```
@@ -32,11 +32,12 @@ The HTML file needs nothing beyond CREVICE; showing a view inside Jupyter also
 needs py3Dmol, which the `view` extra installs.
 
 ```{figure} ../examples/images/3ukm_interactive_view.png
-:alt: Interactive view of 3UKM in a web browser, with the yellow entry, teal lumen and two rust-coloured exits inside a grey cartoon, and a column of layer checkboxes
+:alt: Interactive view of 3UKM in a web browser, with the teal lumen and its wide upper vestibule and two rust-coloured exits inside a grey cartoon, and a column of layer checkboxes
 :width: 90%
 
-`crevice view 3UKM_bundle` in Firefox: ENTRY (yellow), LUMEN (teal) and the two
-side EXITs (rust) inside the protein cartoon.
+`crevice view 3UKM_bundle` in a browser (headless Chromium): the LUMEN (teal,
+with the wide upper vestibule) and the two side EXITs through the portals
+(rust) inside the protein cartoon.
 ```
 
 ## How it works

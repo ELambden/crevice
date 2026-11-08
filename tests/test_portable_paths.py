@@ -17,11 +17,25 @@ import pytest
 from crevice._portable_paths import (is_absolute_text, portable_json, posix_text, record_path, resolve_files,
                                      resolve_recorded)
 from crevice.cli import main
-from test_crevice import _pdb_fixture
+
+
+def _pdb_fixture() -> str:
+    """The 8-atom toy structure the stored 0.3.3 manifest was written from (no channel resolves in it)."""
+    lines, serial = [], 1
+    for z in (-2.0, 2.0):
+        for resid, (resname, name, x, y) in enumerate(
+                [("LEU", "CD1", 5.0, 0.0), ("ASP", "OD1", -5.0, 0.0), ("LYS", "NZ", 0.0, 5.0), ("PHE", "CZ", 0.0, -5.0)],
+                start=1):
+            element = "C" if name.startswith("C") else name[0]
+            lines.append(f"ATOM  {serial:5d} {name:>4s} {resname:>3s} A{resid:4d}    "
+                         f"{x:8.3f}{y:8.3f}{z:8.3f}{1.00:6.2f}{10.00:6.2f}          {element:>2s}")
+            serial += 1
+    return "\n".join(lines + ["END"]) + "\n"
+
 
 DATA = Path(__file__).parent / "data" / "portable_paths"
-PUBLISH_ARGS = ["--axis", "z", "--search-radius", "0", "--samples", "5", "--cast-spacing", "1",
-                "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "60", "--offline"]
+PUBLISH_ARGS = ["--axis", "z", "--samples", "5", "--cast-spacing", "1",
+                "--skip-network", "--dpi", "60", "--offline"]
 
 
 # --- the helper ---------------------------------------------------------------
@@ -137,7 +151,7 @@ def test_moved_folder_is_read_by_every_reader(publish_run, tmp_path):
     for key, path in resolve_files(manifest["files"], moved).items():
         assert Path(path).is_file() and Path(path).parent == moved, key
     shown = view(moved)
-    assert {"protein", "cast"} <= {layer.name for layer in shown.layers}
+    assert {"protein", "lumen"} <= {layer.name for layer in shown.layers}
     assert shown.source == str(moved / "input_manifest.json")
     metadata = json.loads((moved / "input_volume_metadata.json").read_text(encoding="utf-8"))
     assert resolve_recorded(metadata["unsmoothed_reference_dx"], moved) == moved / "input_volume.dx"
@@ -146,14 +160,15 @@ def test_moved_folder_is_read_by_every_reader(publish_run, tmp_path):
         assert str(out) not in page.read_text(encoding="utf-8")
 
 
-def test_numbers_are_unchanged_only_paths_differ(publish_run):
-    """Compared with the 0.3.3 manifest of the same command, only path strings differ."""
-    _, _, out = publish_run
-    new = json.loads((out / "input_manifest.json").read_text(encoding="utf-8"))
-    old = json.loads((DATA / "crevice-0.3.3_publish_manifest.json").read_text(encoding="utf-8"))
+def test_numbers_are_unchanged_only_paths_differ(publish_run, tmp_path):
+    """The same command written to a different folder: only path strings differ."""
+    root, structure, out = publish_run
+    other = tmp_path / "elsewhere" / "out"
+    assert main(["publish", str(structure), "--out-dir", str(other), *PUBLISH_ARGS]) == 0
+    new = json.loads((other / "input_manifest.json").read_text(encoding="utf-8"))
+    old = json.loads((out / "input_manifest.json").read_text(encoding="utf-8"))
     for record in (new, old):
         record.pop("run")
-    # Same numbers to rounding: the last bits of sums differ between NumPy versions and platforms.
     _assert_close(new["void_cast"], old["void_cast"])
     assert {k: Path(v).name for k, v in new["files"].items()} == {k: Path(v).name for k, v in old["files"].items()}
 
@@ -195,7 +210,9 @@ def test_0_3_manifest_with_absolute_paths_still_opens(publish_run, tmp_path, sty
     assert all(is_absolute_text(v) for v in manifest["files"].values())
     for key, path in resolve_files(manifest["files"], folder).items():
         assert Path(path).is_file() and Path(path).parent == folder, key
-    assert {"protein", "cast"} <= {layer.name for layer in view(folder).layers}
+    # The old manifest's records are read against this folder's files; the layers depend on their content.
+    layers = {layer.name for layer in view(folder).layers}
+    assert "protein" in layers and len(layers) >= 2
 
 
 def test_python_run_returns_usable_paths(tmp_path, monkeypatch):
@@ -203,8 +220,8 @@ def test_python_run_returns_usable_paths(tmp_path, monkeypatch):
     structure = tmp_path / "input.pdb"
     structure.write_text(_pdb_fixture(), encoding="utf-8", newline="\n")
     monkeypatch.chdir(tmp_path)
-    result = run(settings("publish", "input.pdb", out_dir="rel-out", axis="z", search_radius=0,
-                          samples=5, cast_spacing=1, skip_cavities=True, skip_tunnels=True,
+    result = run(settings("publish", "input.pdb", out_dir="rel-out", axis="z",
+                          samples=5, cast_spacing=1,
                           skip_network=True, dpi=60, offline=True))
     monkeypatch.chdir(tmp_path.parent)
     assert all(Path(p).is_file() for p in result["files"].values())

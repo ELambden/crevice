@@ -20,6 +20,7 @@ its trailing components and then by file name.
 The functions take a ``windows`` flag (default: the running platform) so that
 Windows behaviour can be exercised on any system with Windows-style text.
 """
+
 from __future__ import annotations
 
 import ntpath
@@ -27,8 +28,15 @@ import os
 import posixpath
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
-__all__ = ["posix_text", "record_path", "portable_json", "dumps_record", "resolve_recorded", "resolve_files",
-           "is_absolute_text"]
+__all__ = [
+    "posix_text",
+    "record_path",
+    "portable_json",
+    "dumps_record",
+    "resolve_recorded",
+    "resolve_files",
+    "is_absolute_text",
+]
 
 _ON_WINDOWS = os.name == "nt"
 #: Values recorded as typed (only separators become ``/`` on Windows): the
@@ -84,7 +92,7 @@ def _inside(path, base, module):
     """``path`` relative to ``base`` (lexically) or None when it is not inside ``base``."""
     try:
         relative = module.relpath(path, base)
-    except ValueError:                      # Windows: another drive
+    except ValueError:  # Windows: another drive
         return None
     if relative == module.pardir or relative.startswith(module.pardir + module.sep) or module.isabs(relative):
         return None
@@ -117,7 +125,7 @@ def record_path(path, base, windows=None) -> str:
     absolute = module.normpath(module.abspath(text) if native else text)
     base_abs = module.normpath(module.abspath(base_text) if native else base_text)
     relative = _inside(absolute, base_abs, module)
-    if relative is None and native:         # one side may be written through a symbolic link
+    if relative is None and native:  # one side may be written through a symbolic link
         relative = _inside(os.path.realpath(absolute), os.path.realpath(base_abs), module)
     if relative is not None:
         return relative.replace("\\", "/") if module is ntpath else relative
@@ -134,12 +142,16 @@ def _portable_text(text, base, base_text, windows):
         for sep in {module.sep, "/"}:
             prefix = base_text.rstrip("/\\") + sep
             if text.startswith(prefix) and len(text) > len(prefix):
-                return posix_text(text[len(prefix):], windows)
-    if (native and (os.sep in text or "/" in text or "." in text) and os.path.exists(text)
-            and not os.path.exists(os.path.join(base_text, text))):    # already relative to base: keep
+                return posix_text(text[len(prefix) :], windows)
+    if (
+        native
+        and (os.sep in text or "/" in text or "." in text)
+        and os.path.exists(text)
+        and not os.path.exists(os.path.join(base_text, text))
+    ):  # already relative to base: keep
         recorded = record_path(text, base, windows)
         if recorded != ".":
-            return recorded     # inside: relative to base; outside: absolute (a relative text means base-relative)
+            return recorded  # inside: relative to base; outside: absolute (a relative text means base-relative)
     return text
 
 
@@ -190,8 +202,10 @@ def portable_json(value, base, windows=None, verbatim_keys=VERBATIM_KEYS):
         if isinstance(item, os.PathLike):
             return _portable_text(os.fspath(item), base, base_text, windows)
         if isinstance(item, dict):
-            return {key: (verbatim(inner) if key in verbatim_keys or f"{name}.{key}" in verbatim_keys
-                          else walk(inner, key)) for key, inner in item.items()}
+            return {
+                key: (verbatim(inner) if key in verbatim_keys or f"{name}.{key}" in verbatim_keys else walk(inner, key))
+                for key, inner in item.items()
+            }
         if isinstance(item, (list, tuple)):
             return [walk(inner, name) for inner in item]
         return item
@@ -225,21 +239,23 @@ def resolve_recorded(text, base, must_exist=False):
         return None
     text, base = os.fspath(text), Path(base)
     windows_style = "\\" in text or PureWindowsPath(text).drive
-    parts = [p for p in (PureWindowsPath(text) if windows_style else PurePosixPath(text)).parts
-             if p not in ("/", "\\") and not p.endswith((":", ":\\", ":/")) and not p.startswith("\\\\")]
+    parts = [
+        p
+        for p in (PureWindowsPath(text) if windows_style else PurePosixPath(text)).parts
+        if p not in ("/", "\\") and not p.endswith((":", ":\\", ":/")) and not p.startswith("\\\\")
+    ]
     if is_absolute_text(text):
         primary = Path(text)
         parts = [p for p in parts if p not in ("..", ".")]
         candidates = [primary] + [base.joinpath(*parts[i:]) for i in range(len(parts))]
     else:
         primary = base.joinpath(*parts) if parts else base
-        candidates = [primary] + [base.joinpath(*parts[i:]) for i in range(1, len(parts))
-                                  if ".." not in parts[i:]]
+        candidates = [primary] + [base.joinpath(*parts[i:]) for i in range(1, len(parts)) if ".." not in parts[i:]]
     for candidate in candidates:
         try:
             if candidate.exists():
                 return candidate
-        except OSError:                     # e.g. a Windows drive path on POSIX
+        except OSError:  # e.g. a Windows drive path on POSIX
             continue
     return None if must_exist else primary
 
@@ -261,6 +277,7 @@ def dumps_record(value, target, **kwargs) -> str:
     str
     """
     import json
+
     return json.dumps(portable_json(value, os.path.dirname(os.fspath(target)) or "."), **kwargs)
 
 
@@ -282,5 +299,7 @@ def resolve_files(files, base):
     """
     if not isinstance(files, dict):
         return files
-    return {key: str(resolve_recorded(value, base)) if isinstance(value, str) and value else value
-            for key, value in files.items()}
+    return {
+        key: str(resolve_recorded(value, base)) if isinstance(value, str) and value else value
+        for key, value in files.items()
+    }

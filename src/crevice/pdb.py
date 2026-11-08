@@ -168,13 +168,16 @@ class StructureSource:
     def to_dict(self) -> dict:
         """Return a JSON-friendly dictionary, with the download record nested under ``download``."""
         return {
-            "path": str(self.path), "spec": self.spec, "kind": self.kind,
+            "path": str(self.path),
+            "spec": self.spec,
+            "kind": self.kind,
             "accession": self.accession,
             "download": self.record.to_dict() if self.record is not None else None,
         }
 
 
 # --- accessions -------------------------------------------------------------
+
 
 def is_accession(text: str) -> bool:
     """Return ``True`` when the text is a syntactically valid PDB accession.
@@ -186,8 +189,7 @@ def is_accession(text: str) -> bool:
     """
 
     candidate = str(text).strip()
-    return bool(ACCESSION_PATTERN.match(candidate)
-                or EXTENDED_ACCESSION_PATTERN.match(candidate.lower()))
+    return bool(ACCESSION_PATTERN.match(candidate) or EXTENDED_ACCESSION_PATTERN.match(candidate.lower()))
 
 
 def normalize_accession(text: str) -> str:
@@ -293,6 +295,7 @@ def _normalize_assembly(assembly) -> int | None:
 
 
 # --- locations --------------------------------------------------------------
+
 
 def remote_filename(accession: str, fmt: str, assembly: int | None = None) -> str:
     """The filename RCSB serves for this entry, unit and format.
@@ -420,6 +423,7 @@ def provenance_path(path: str | Path) -> Path:
 
 # --- fetching ---------------------------------------------------------------
 
+
 def fetch_structure(
     accession: str,
     cache_dir: str | Path,
@@ -488,8 +492,9 @@ def fetch_structure(
     if is_alphafold_id(accession):
         if assembly is not None:
             raise ValueError("AlphaFold DB models have no biological assemblies; omit assembly")
-        return fetch_alphafold_model(accession, cache_dir, fmt=fmt, overwrite=overwrite,
-                                     timeout=timeout, max_bytes=max_bytes)
+        return fetch_alphafold_model(
+            accession, cache_dir, fmt=fmt, overwrite=overwrite, timeout=timeout, max_bytes=max_bytes
+        )
     accession = normalize_accession(accession)
     fmt = normalize_format(fmt)
     assembly = _normalize_assembly(assembly)
@@ -507,10 +512,16 @@ def fetch_structure(
     verified, note = check_identity(text, accession, fmt, url, strict=assembly is None)
     _atomic_write(destination, payload)
     record = DownloadRecord(
-        pdb_id=accession, path=destination, url=url,
-        sha256=hashlib.sha256(payload).hexdigest(), byte_count=len(payload),
-        retrieved_utc=_utc_now(), content_format=fmt,
-        identity_verified=verified, identity_note=note, source="download",
+        pdb_id=accession,
+        path=destination,
+        url=url,
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        retrieved_utc=_utc_now(),
+        content_format=fmt,
+        identity_verified=verified,
+        identity_note=note,
+        source="download",
         assembly=assembly,
     )
     write_provenance(record)
@@ -580,20 +591,28 @@ def resolve_structure(
         if assembly is not None:
             raise ValueError("AlphaFold DB models have no biological assemblies; omit --assembly")
         af_fmt = normalize_format(model.fmt or fmt)
-        cached = (Path(cache_dir) / model.filename(model.version, af_fmt) if model.version
-                  else _cached_alphafold(cache_dir, model, af_fmt))
+        cached = (
+            Path(cache_dir) / model.filename(model.version, af_fmt)
+            if model.version
+            else _cached_alphafold(cache_dir, model, af_fmt)
+        )
         if cached is not None and cached.exists() and not overwrite:
-            return StructureSource(path=cached, spec=text, kind="cached_accession",
-                                   accession=cached.stem, record=_cached_alphafold_record(model, cached, af_fmt))
+            return StructureSource(
+                path=cached,
+                spec=text,
+                kind="cached_accession",
+                accession=cached.stem,
+                record=_cached_alphafold_record(model, cached, af_fmt),
+            )
         if offline:
             raise RuntimeError(
                 f"{model.entry} is not in the cache at {Path(cache_dir)} and downloads are "
                 "disabled; drop --offline or fetch it first"
             )
-        record = fetch_alphafold_model(text, cache_dir, fmt=af_fmt, overwrite=overwrite,
-                                       timeout=timeout, max_bytes=max_bytes)
-        return StructureSource(path=record.path, spec=text, kind="downloaded",
-                               accession=record.pdb_id, record=record)
+        record = fetch_alphafold_model(
+            text, cache_dir, fmt=af_fmt, overwrite=overwrite, timeout=timeout, max_bytes=max_bytes
+        )
+        return StructureSource(path=record.path, spec=text, kind="downloaded", accession=record.pdb_id, record=record)
     if not is_accession(text):
         raise ValueError(
             f"{text!r} is neither an existing file nor a PDB accession (such as 1GRM) or "
@@ -603,22 +622,25 @@ def resolve_structure(
     cached = cached_structure_path(cache_dir, accession, fmt=fmt, assembly=assembly)
     if cached.exists() and not overwrite:
         return StructureSource(
-            path=cached, spec=text, kind="cached_accession", accession=accession,
-            record=cached_record(accession, cached, normalize_format(fmt),
-                                 assembly=_normalize_assembly(assembly)),
+            path=cached,
+            spec=text,
+            kind="cached_accession",
+            accession=accession,
+            record=cached_record(accession, cached, normalize_format(fmt), assembly=_normalize_assembly(assembly)),
         )
     if offline:
         raise RuntimeError(
             f"{accession} is not in the cache at {Path(cache_dir)} and downloads are "
             "disabled; drop --offline or fetch it first"
         )
-    record = fetch_structure(accession, cache_dir, fmt=fmt, assembly=assembly,
-                             overwrite=overwrite, timeout=timeout, max_bytes=max_bytes)
-    return StructureSource(path=record.path, spec=text, kind="downloaded",
-                           accession=accession, record=record)
+    record = fetch_structure(
+        accession, cache_dir, fmt=fmt, assembly=assembly, overwrite=overwrite, timeout=timeout, max_bytes=max_bytes
+    )
+    return StructureSource(path=record.path, spec=text, kind="downloaded", accession=accession, record=record)
 
 
 # --- AlphaFold DB -----------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class AlphaFoldId:
@@ -692,8 +714,7 @@ def parse_alphafold_id(text: str) -> AlphaFoldId | None:
     if not match or not UNIPROT_PATTERN.match(match.group(1)):
         return None
     uniprot, fragment, version, suffix = match.groups()
-    return AlphaFoldId(uniprot, int(fragment), int(version) if version else None,
-                       suffix.lower() if suffix else None)
+    return AlphaFoldId(uniprot, int(fragment), int(version) if version else None, suffix.lower() if suffix else None)
 
 
 def is_alphafold_id(text: str) -> bool:
@@ -865,10 +886,16 @@ def fetch_alphafold_model(
     verified, note = check_alphafold_identity(text, model, fmt)
     _atomic_write(destination, payload)
     record = DownloadRecord(
-        pdb_id=destination.stem, path=destination, url=url,
-        sha256=hashlib.sha256(payload).hexdigest(), byte_count=len(payload),
-        retrieved_utc=_utc_now(), content_format=fmt,
-        identity_verified=verified, identity_note=note, source="download",
+        pdb_id=destination.stem,
+        path=destination,
+        url=url,
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        retrieved_utc=_utc_now(),
+        content_format=fmt,
+        identity_verified=verified,
+        identity_note=note,
+        source="download",
     )
     write_provenance(record)
     return record
@@ -886,14 +913,21 @@ def _cached_alphafold_record(model: AlphaFoldId, destination: Path, fmt: str) ->
         verified, note = False, str(exc)
     mtime = datetime.fromtimestamp(destination.stat().st_mtime, timezone.utc)
     return DownloadRecord(
-        pdb_id=destination.stem, path=destination, url="",
-        sha256=hashlib.sha256(payload).hexdigest(), byte_count=len(payload),
-        retrieved_utc=mtime.strftime("%Y-%m-%dT%H:%M:%SZ"), content_format=fmt,
-        identity_verified=verified, identity_note=note, source="existing_cache",
+        pdb_id=destination.stem,
+        path=destination,
+        url="",
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        retrieved_utc=mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        content_format=fmt,
+        identity_verified=verified,
+        identity_note=note,
+        source="existing_cache",
     )
 
 
 # --- transport --------------------------------------------------------------
+
 
 def _download(url: str, accession: str, *, timeout: float, max_bytes: int) -> bytes:
     """Stream a URL in chunks, enforcing ``max_bytes``; wrap network errors in ``RuntimeError``."""
@@ -907,10 +941,7 @@ def _download(url: str, accession: str, *, timeout: float, max_bytes: int) -> by
                     break
                 total += len(chunk)
                 if total > max_bytes:
-                    raise RuntimeError(
-                        f"{url} exceeds the {max_bytes} byte limit; "
-                        "raise max_bytes to accept it"
-                    )
+                    raise RuntimeError(f"{url} exceeds the {max_bytes} byte limit; raise max_bytes to accept it")
                 chunks.append(chunk)
     except (URLError, OSError) as exc:
         raise RuntimeError(download_error_message(accession, url, exc)) from exc
@@ -941,17 +972,25 @@ def download_error_message(what: str, url: str, exc: BaseException) -> str:
     if isinstance(exc, HTTPError):
         if exc.code == 404:
             if alphafold:
-                advice = ("AlphaFold DB has no such model; check the UniProt accession and fragment "
-                          "(for example AF-P02920-F1)")
+                advice = (
+                    "AlphaFold DB has no such model; check the UniProt accession and fragment "
+                    "(for example AF-P02920-F1)"
+                )
             else:
-                advice = ("RCSB has no such file; check the identifier, and that the entry offers this "
-                          "--format (large structures have no PDB-format file) and --assembly")
+                advice = (
+                    "RCSB has no such file; check the identifier, and that the entry offers this "
+                    "--format (large structures have no PDB-format file) and --assembly"
+                )
             return f"Could not fetch {what} from {url}: HTTP 404 Not Found. {advice}"
-        return (f"Could not fetch {what} from {url}: HTTP {exc.code} {exc.reason}. The server refused or "
-                "failed the request; try again later, or pass a local structure file")
+        return (
+            f"Could not fetch {what} from {url}: HTTP {exc.code} {exc.reason}. The server refused or "
+            "failed the request; try again later, or pass a local structure file"
+        )
     reason = exc.reason if isinstance(exc, URLError) else exc
-    return (f"Could not fetch {what} from {url}: {reason}. Check the network connection; when offline, pass "
-            "a local structure file, or use --offline with a copy already in --cache-dir")
+    return (
+        f"Could not fetch {what} from {url}: {reason}. Check the network connection; when offline, pass "
+        "a local structure file, or use --offline with a copy already in --cache-dir"
+    )
 
 
 def validate_payload(payload: bytes, fmt: str, accession: str, url: str) -> str:
@@ -1088,9 +1127,8 @@ def payload_accession(text: str, fmt: str) -> tuple[str | None, str]:
 
 # --- cache provenance -------------------------------------------------------
 
-def cached_record(
-    accession: str, destination: Path, fmt: str, *, assembly: int | None = None
-) -> DownloadRecord:
+
+def cached_record(accession: str, destination: Path, fmt: str, *, assembly: int | None = None) -> DownloadRecord:
     """Describe a cache entry that this call did not download.
 
     Returns the recorded provenance if a sidecar exists. Otherwise the file is
@@ -1123,10 +1161,16 @@ def cached_record(
     verified, note = check_identity(text, accession, fmt, str(destination), strict=False)
     mtime = datetime.fromtimestamp(destination.stat().st_mtime, timezone.utc)
     return DownloadRecord(
-        pdb_id=normalize_accession(accession), path=destination, url="",
-        sha256=hashlib.sha256(payload).hexdigest(), byte_count=len(payload),
-        retrieved_utc=mtime.strftime("%Y-%m-%dT%H:%M:%SZ"), content_format=fmt,
-        identity_verified=verified, identity_note=note, source="existing_cache",
+        pdb_id=normalize_accession(accession),
+        path=destination,
+        url="",
+        sha256=hashlib.sha256(payload).hexdigest(),
+        byte_count=len(payload),
+        retrieved_utc=mtime.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        content_format=fmt,
+        identity_verified=verified,
+        identity_note=note,
+        source="existing_cache",
         assembly=assembly,
     )
 
@@ -1151,6 +1195,7 @@ def read_provenance(path: str | Path) -> DownloadRecord | None:
     data = json.loads(sidecar.read_text(encoding="utf-8"))
     # 0.4 records the file relative to the sidecar; 0.3 recorded an absolute path.
     from ._portable_paths import resolve_recorded
+
     return DownloadRecord(**{**data, "path": resolve_recorded(data["path"], sidecar.parent)})
 
 
@@ -1164,7 +1209,9 @@ def write_provenance(record: DownloadRecord) -> None:
         indented, overwriting any existing sidecar).
     """
     sidecar = provenance_path(record.path)
-    sidecar.write_text(dumps_record(record.to_dict(), sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+    sidecar.write_text(
+        dumps_record(record.to_dict(), sidecar, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
 
 
 def verify_cached_structure(path: str | Path) -> DownloadRecord:
@@ -1192,14 +1239,12 @@ def verify_cached_structure(path: str | Path) -> DownloadRecord:
         raise RuntimeError(f"{structure} has no recorded provenance to verify against")
     digest = hashlib.sha256(structure.read_bytes()).hexdigest()
     if digest != record.sha256:
-        raise RuntimeError(
-            f"{structure} does not match its recorded SHA-256 "
-            f"({digest}, recorded {record.sha256})"
-        )
+        raise RuntimeError(f"{structure} does not match its recorded SHA-256 ({digest}, recorded {record.sha256})")
     return record
 
 
 # --- helpers ----------------------------------------------------------------
+
 
 def _atomic_write(destination: Path, payload: bytes) -> None:
     """Replace the destination only once the whole payload is on disk."""

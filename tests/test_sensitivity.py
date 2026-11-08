@@ -10,6 +10,7 @@ from crevice.sensitivity import (SENSITIVITY_COLUMNS, ladder_neighbours, run_sen
 
 def test_variants_follow_the_ladder_and_skip_the_baseline_grid():
     assert ladder_neighbours(0.8) == (0.75, 0.9)
+    assert ladder_neighbours(0.3) == (0.35,)
     assert ladder_neighbours(3.0)[-1] < 3.0
     assert standard_variants(grid=0.25) == [("grid_spacing_A", 0.5)]
     assert standard_variants(margin=0.5) == [("margin_A", 1.5)]  # no negative margin

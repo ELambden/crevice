@@ -56,6 +56,9 @@ crevice trajectory --topology glut1_excerpt.gro --selection 'protein and not nam
 ```
 
 ```text
+topology	glut1_excerpt.gro
+trajectory	glut1_excerpt.xtc
+selection	protein and not name H*
 total_atom_count	123650
 selected_atom_count	3814
 selected_residue_count	492
@@ -94,16 +97,18 @@ crevice trajectory --region glut1_site_candidate_region.json \
 
 ```text
 radii=default (definition_set_used, table ac428b65f578)
-cavity trajectory frames=21 statistics=glut1-run/glut1_site_candidate_cavity_statistics.json
+cavity trajectory frames=21 statistics=.../glut1-excerpt/glut1-run/glut1_site_candidate_cavity_statistics.json
 ```
+
+(the statistics path is printed in full; it is shortened here.)
 
 Each frame is aligned to the first one on the protein Cα atoms, the empty
 space inside the fixed reference region is measured, and, with
 `--water-membership`, every water oxygen inside that frame's measured space is
 counted as a member. The output directory holds the cavity-trajectory tables and
 key figures and, because `--water-membership` turns the water analysis on,
-the hydration tables and the PyMOL, VMD and ChimeraX scenes (84 files in our
-0.3.0 run; `--all` adds the remaining figures). Two tables answer the main
+the hydration tables and the PyMOL, VMD and ChimeraX scenes (84 files; `--all`
+adds the remaining figures). Two tables answer the main
 questions.
 
 `glut1_site_candidate_cavity_frames.csv` has one row per frame with the

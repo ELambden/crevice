@@ -3,7 +3,7 @@
 The contacts themselves are computed by
 :func:`crevice.analysis.annotate_residues` (re-exported here with
 :func:`crevice.analysis.nearest_residues`), which measures the gap between
-each residue's atom surfaces and a sampled region (a profile, tunnel or
+each residue's atom surfaces and a sampled region (a profile, path or
 cast). This module turns the resulting :class:`~crevice.models.ResidueContact` records into
 tables and label lists. The command-line equivalent is ``crevice residues``.
 
@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from typing import Sequence
 
-from .analysis import annotate_residues, nearest_residues
+# Re-exported: ``crevice.residues`` is the documented home of these functions.
+from .analysis import annotate_residues, nearest_residues  # noqa: F401
 from .models import ResidueContact
 from .radii import RadiusSet, radii_option
 

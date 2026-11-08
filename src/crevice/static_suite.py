@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import shutil
 import time
 from pathlib import Path
@@ -11,7 +10,6 @@ from ._portable_paths import dumps_record
 from typing import Sequence
 
 from .analysis import annotate_residues, detect_cavities, pore_profile
-from .tunnels import find_tunnels
 from .voids import validate_void_cast, void_cast
 from .benchmarks import DEFAULT_BENCHMARK_IDS, benchmark_path, fetch_benchmark_structure, get_benchmark_system
 from .figures import (
@@ -28,16 +26,11 @@ from .io import (
     write_cavities_pdb,
     write_profile_csv,
     write_profile_json,
-    write_profile_pdb,
     write_residue_contacts_csv,
-    write_tunnels_json,
-    write_tunnels_pdb,
     write_void_cast_json,
     write_void_cast_pdb,
     write_cavities_csv,
     write_network_csv,
-    write_tunnel_points_csv,
-    write_tunnels_csv,
     write_void_cast_csv,
 )
 from .networks import build_cavity_network, network_metrics
@@ -61,14 +54,12 @@ def run_static_benchmark_suite(
     probe_radii: Sequence[float] = (0.0, 1.0, 1.4),
     residue_label_every: int = 5,
     cavity_spacing: float = 3.0,
-    tunnel_spacing: float = 4.0,
     cast_spacing: float = 1.5,
     cast_min_radius: float = 0.4,
     cast_max_components: int = 4,
     cast_max_grid_points: int = 120_000,
     max_grid_points: int = 60_000,
     include_cavities: bool = True,
-    include_tunnels: bool = True,
     include_network: bool = True,
     dpi: int = 200,
     annotate: bool | None = None,
@@ -79,7 +70,7 @@ def run_static_benchmark_suite(
 
     For each configured benchmark entry, the structure is loaded (optionally
     fetched), profiled at each probe radius, and its residue contacts, void
-    cast, PyMOL scene, cavities, tunnels and network are written with figures.
+    cast, PyMOL scene, cavities and network are written with figures.
     Per-system failures are recorded rather than raised. The benchmark axes are
     assumed, not curated: outputs describe geometry at the stated parameters
     and are not validated biological results.
@@ -112,15 +103,15 @@ def run_static_benchmark_suite(
         failing the system.
     residue_label_every : int, default 5
         Landmark spacing in the residue-landmark profile figure.
-    cavity_spacing, tunnel_spacing, cast_spacing : float
-        Grid spacings (Å): 3.0, 4.0 and 1.5 by default.
+    cavity_spacing, cast_spacing : float
+        Grid spacings (Å): 3.0 and 1.5 by default.
     cast_min_radius : float, default 0.4
         Minimum clearance of cast samples (Å).
     cast_max_components : int, default 4
         Maximum cast components.
     cast_max_grid_points, max_grid_points : int
-        Grid allocation guards for the cast and for cavity/tunnel searches.
-    include_cavities, include_tunnels, include_network : bool, default True
+        Grid allocation guards for the cast and for the cavity search.
+    include_cavities, include_network : bool, default True
         Optional analyses.
     dpi : int, default 200
         Figure resolution. The default suits screens; use 400 or more for print.
@@ -158,7 +149,7 @@ def run_static_benchmark_suite(
     -------
     static_benchmark_summary.csv : table
         One row per system. Columns carry units (``profile_min_radius_A``,
-        ``void_cast_total_volume_A3``, ``top_tunnel_length_A``, ...); ``error``
+        ``void_cast_total_volume_A3``, ``top_cavity_volume_A3``, ...); ``error``
         holds the failure message of a system that did not complete.
     static_benchmark_summary.json : JSON
         Kept as the machine-readable suite record: parameters, per-system
@@ -180,8 +171,8 @@ def run_static_benchmark_suite(
         :func:`crevice.io.write_residue_contacts_csv`.
     <ID>/<ID>_void_cast.csv, <ID>/<ID>_void_cast.json, <ID>/<ID>_pore_cast.pdb : cast
         Per-region table, full cast record, dummy atoms.
-    <ID>/<ID>_cavities.{csv,json,pdb}, <ID>/<ID>_tunnels.{csv,json,pdb}, <ID>/<ID>_tunnel_points.csv : tables
-        Cavity and tunnel tables (see :mod:`crevice.io`), JSON records and PDB dummy atoms.
+    <ID>/<ID>_cavities.{csv,json,pdb} : tables
+        Cavity table (see :mod:`crevice.io`), JSON record and PDB dummy atoms.
     <ID>/<ID>_network_nodes.csv, <ID>/<ID>_network_edges.csv, <ID>/<ID>_network.json : network
         Node and edge tables and the network record with metrics.
     <ID>/... : figures and scenes
@@ -192,7 +183,6 @@ def run_static_benchmark_suite(
         :func:`~crevice.figures.plot_network_summary` and
         :func:`~crevice.figures.plot_network_chord`, the volume viewer scenes and
         a PyMOL scene (:func:`~crevice.figures.write_publication_pymol_script`).
-        No tunnel summary figure is written; tunnel data are in the CSV/PDB files.
 
     Colours and representation
     --------------------------
@@ -208,11 +198,16 @@ def run_static_benchmark_suite(
         structure_path = benchmark_path(cache_dir, system.pdb_id, extension=extension)
         if not structure_path.exists():
             if not fetch:
-                summaries.append(_error_row(
-                    system.pdb_id, system.expected_geometry, structure_path,
-                    f"missing structure: no {extension} file at {structure_path}; "
-                    f"rerun with --fetch, or --format to match the cache",
-                    system.curation_status))
+                summaries.append(
+                    _error_row(
+                        system.pdb_id,
+                        system.expected_geometry,
+                        structure_path,
+                        f"missing structure: no {extension} file at {structure_path}; "
+                        f"rerun with --fetch, or --format to match the cache",
+                        system.curation_status,
+                    )
+                )
                 continue
             structure_path = fetch_benchmark_structure(system.pdb_id, cache_dir, extension=extension)
         try:
@@ -228,26 +223,33 @@ def run_static_benchmark_suite(
                 probe_radii=probe_radii,
                 residue_label_every=residue_label_every,
                 cavity_spacing=cavity_spacing,
-                tunnel_spacing=tunnel_spacing,
                 cast_spacing=cast_spacing,
                 cast_min_radius=cast_min_radius,
                 cast_max_components=cast_max_components,
                 cast_max_grid_points=cast_max_grid_points,
                 max_grid_points=max_grid_points,
                 include_cavities=include_cavities,
-                include_tunnels=include_tunnels,
                 include_network=include_network,
                 dpi=dpi,
                 enclosure_radius=enclosure_radius,
             )
         except (OSError, ValueError, RuntimeError) as exc:
-            row = _error_row(system.pdb_id, system.expected_geometry, structure_path,
-                             f"{type(exc).__name__}: {exc}", system.curation_status)
+            row = _error_row(
+                system.pdb_id,
+                system.expected_geometry,
+                structure_path,
+                f"{type(exc).__name__}: {exc}",
+                system.curation_status,
+            )
             selection = getattr(exc, "probe_selection", None)
             if selection is not None:
-                row["enclosure_probe"] = {"mode": "auto", "chosen_A": None, "reason": selection["reason"],
-                                          "selection": selection}
-                row["enclosure_probe_mode"] = "auto"
+                row["enclosure_probe"] = {
+                    "mode": "adaptive",
+                    "chosen_A": None,
+                    "reason": selection["reason"],
+                    "selection": selection,
+                }
+                row["enclosure_probe_mode"] = "adaptive"
             summaries.append(row)
             continue
         summaries.append(summary)
@@ -264,14 +266,12 @@ def run_static_benchmark_suite(
             "refinement_steps": refinement_steps,
             "probe_radii": list(probe_radii),
             "cavity_spacing": cavity_spacing,
-            "tunnel_spacing": tunnel_spacing,
             "cast_spacing": cast_spacing,
             "cast_min_radius": cast_min_radius,
             "cast_max_components": cast_max_components,
             "cast_max_grid_points": cast_max_grid_points,
             "max_grid_points": max_grid_points,
             "include_cavities": include_cavities,
-            "include_tunnels": include_tunnels,
             "include_network": include_network,
             "dpi": dpi,
             "enclosure_radius": "auto" if enclosure_radius is None else enclosure_radius,
@@ -296,14 +296,12 @@ def _run_system(
     probe_radii: Sequence[float],
     residue_label_every: int,
     cavity_spacing: float,
-    tunnel_spacing: float,
     cast_spacing: float,
     cast_min_radius: float,
     cast_max_components: int,
     cast_max_grid_points: int,
     max_grid_points: int,
     include_cavities: bool,
-    include_tunnels: bool,
     include_network: bool,
     dpi: int,
     enclosure_radius: float | None = None,
@@ -392,14 +390,15 @@ def _run_system(
     )
     if cast.components:
         from .volume_export import write_volume_viewer_bundle
-        manifest.update(write_volume_viewer_bundle(cast, structure_path=structure_copy,
-                        output_dir=output_dir, prefix=prefix))
+
+        manifest.update(
+            write_volume_viewer_bundle(cast, structure_path=structure_copy, output_dir=output_dir, prefix=prefix)
+        )
         if profile.method == "axial-connected":
             legacy = output_dir / f"{prefix}_pore_spheres.pml"
             shutil.copyfile(manifest["pore_cast_pml"], legacy)
             manifest["pore_spheres_pml"] = str(legacy)
             shutil.copyfile(manifest["volume_pml"], manifest["pore_cast_pml"])
-
 
     sensitivity_rows = _profile_sensitivity(
         frame,
@@ -448,26 +447,6 @@ def _run_system(
         write_cavities_pdb(cavities, manifest["cavities_pdb"])
         plot_cavity_summary(cavities, manifest["cavity_summary_png"], dpi=dpi)
 
-    tunnels = ()
-    if include_tunnels:
-        started = time.perf_counter()
-        tunnels = find_tunnels(
-            frame,
-            spacing=tunnel_spacing,
-            min_radius=1.0,
-            max_tunnels=3,
-            max_grid_points=max_grid_points,
-        )
-        timings["tunnel_seconds"] = time.perf_counter() - started
-        manifest["tunnels_json"] = str(output_dir / f"{prefix}_tunnels.json")
-        manifest["tunnels_csv"] = str(output_dir / f"{prefix}_tunnels.csv")
-        manifest["tunnel_points_csv"] = str(output_dir / f"{prefix}_tunnel_points.csv")
-        manifest["tunnels_pdb"] = str(output_dir / f"{prefix}_tunnels.pdb")
-        write_tunnels_json(tunnels, manifest["tunnels_json"])
-        write_tunnels_csv(tunnels, manifest["tunnels_csv"])
-        write_tunnel_points_csv(tunnels, manifest["tunnel_points_csv"])
-        write_tunnels_pdb(tunnels, manifest["tunnels_pdb"])
-
     validation = _validate_manifest(manifest)
     summary = {
         "pdb_id": pdb_id,
@@ -485,8 +464,9 @@ def _run_system(
         "enclosure_radius": enclosure_probe["chosen_A"],
         "enclosure_probe_mode": enclosure_probe["mode"],
         "enclosure_probe": enclosure_probe,
-        "profile_sensitivity_unresolved_probe_radii": [row["probe_radius_A"] for row in sensitivity_rows
-                                                       if row["status"] != "resolved"],
+        "profile_sensitivity_unresolved_probe_radii": [
+            row["probe_radius_A"] for row in sensitivity_rows if row["status"] != "resolved"
+        ],
         "residue_contact_count": len(contacts),
         "void_cast_mode": cast.mode,
         "void_cast_component_count": cast.component_count,
@@ -504,9 +484,6 @@ def _run_system(
         "cavity_count": len(cavities),
         "top_cavity_volume": cavities[0].volume if cavities else 0.0,
         "top_cavity_radius": cavities[0].radius if cavities else 0.0,
-        "tunnel_count": len(tunnels),
-        "top_tunnel_bottleneck_radius": tunnels[0].bottleneck_radius if tunnels else 0.0,
-        "top_tunnel_length": tunnels[0].length if tunnels else 0.0,
         "timings": timings,
         "output_validation": validation,
     }
@@ -515,7 +492,6 @@ def _run_system(
     manifest["manifest_json"] = str(manifest_path)
     _write_json(summary, output_dir / f"{prefix}_system_summary.json")
     return summary, manifest_path
-
 
 
 def _cast_mode_for_expected(expected_geometry: str) -> str:
@@ -530,16 +506,20 @@ def _pdb_resi_for_min_radius(points: Sequence) -> int | None:
         return None
     return min(enumerate(points, start=1), key=lambda item: item[1].radius)[0]
 
+
 def _enclosure_probe_record(profile, enclosure_radius: float | None) -> dict[str, object]:
     """Which enclosure probe a suite profile used and why (``mode``, ``chosen_A``, ``reason``)."""
-    if profile.method != "axial-connected":
-        return {"mode": "not_used", "chosen_A": None,
-                "reason": "search_radius=0 fixed-axis scan does not use an enclosure probe"}
-    if enclosure_radius is not None:
+    if enclosure_radius is not None and not isinstance(enclosure_radius, str):
         return {"mode": "explicit", "chosen_A": enclosure_radius, "reason": "enclosure_radius given explicitly"}
+    # Per-plane probes: no single probe; sensitivity rows rerun the per-plane choice.
     selection = profile.metadata["enclosure_probe_selection"]
-    return {"mode": "auto", "chosen_A": selection["chosen_A"], "reason": selection["reason"],
-            "selection": selection}
+    return {
+        "mode": "adaptive",
+        "chosen_A": None,
+        "reason": selection["reason"],
+        "probe_range_A": selection["probe_range_A"],
+        "selection": selection,
+    }
 
 
 def _profile_sensitivity(
@@ -551,15 +531,17 @@ def _profile_sensitivity(
     refinement_steps: int,
     enclosure_radius: float | None = 0.8,
 ) -> list[dict[str, object]]:
-    """One row per measurement probe, all at the same (explicit) enclosure probe.
+    """One row per measurement probe, all at the same enclosure probe.
 
-    ``enclosure_radius`` is ``None`` only for ``search_radius=0`` scans, which
-    do not use it.
+    ``enclosure_radius`` is the system's probe; ``None`` reruns the per-plane
+    (automatic) choice for each row. Rows record the largest
+    per-plane probe in that case.
 
     A probe that does not pass the channel gives an ``unresolved`` row with
     the resolver's reason instead of an exception.
     """
     from .sections import ChannelResolutionError
+
     rows = []
     for probe_radius in probe_radii:
         started = time.perf_counter()
@@ -574,14 +556,22 @@ def _profile_sensitivity(
                 enclosure_radius=enclosure_radius,
             )
         except ChannelResolutionError as exc:
-            rows.append({"probe_radius_A": probe_radius, "enclosure_radius_A": enclosure_radius,
-                         "status": "unresolved", "reason": str(exc).split(". ")[0],
-                         "seconds": time.perf_counter() - started})
+            rows.append(
+                {
+                    "probe_radius_A": probe_radius,
+                    "enclosure_radius_A": enclosure_radius,
+                    "status": "unresolved",
+                    "reason": str(exc).split(". ")[0],
+                    "seconds": time.perf_counter() - started,
+                }
+            )
             continue
         rows.append(
             {
                 "probe_radius_A": probe_radius,
-                "enclosure_radius_A": enclosure_radius,
+                "enclosure_radius_A": (
+                    enclosure_radius if enclosure_radius is not None else profile.metadata.get("enclosure_radius_A")
+                ),
                 "status": "resolved",
                 "reason": "",
                 "min_radius_A": profile.min_radius,
@@ -626,8 +616,9 @@ def _validate_manifest(manifest: dict[str, str]) -> dict[str, object]:
     }
 
 
-def _error_row(pdb_id: str, expected_geometry: str, path: Path, error: str,
-               curation_status: str = "uncurated") -> dict[str, object]:
+def _error_row(
+    pdb_id: str, expected_geometry: str, path: Path, error: str, curation_status: str = "uncurated"
+) -> dict[str, object]:
     return {
         "pdb_id": pdb_id,
         "expected_geometry": expected_geometry,
@@ -640,30 +631,46 @@ def _error_row(pdb_id: str, expected_geometry: str, path: Path, error: str,
 
 # Summary-row key -> CSV column (the unit is part of the column name: _A = Å, _A3 = Å³).
 SUMMARY_COLUMNS = {
-    "pdb_id": "pdb_id", "expected_geometry": "expected_geometry", "curation_status": "curation_status",
-    "status": "status", "atom_count": "atom_count", "residue_count": "residue_count",
-    "profile_min_radius": "profile_min_radius_A", "profile_mean_radius": "profile_mean_radius_A",
-    "profile_max_radius": "profile_max_radius_A", "profile_bottleneck_index": "profile_bottleneck_index",
-    "profile_bottleneck_t": "profile_bottleneck_t_A", "profile_bottleneck_residue": "profile_bottleneck_residue",
-    "enclosure_radius": "enclosure_radius_A", "enclosure_probe_mode": "enclosure_probe_mode",
-    "residue_contact_count": "residue_contact_count", "void_cast_mode": "void_cast_mode",
-    "void_cast_component_count": "void_cast_component_count", "void_cast_point_count": "void_cast_point_count",
-    "void_cast_total_volume": "void_cast_total_volume_A3", "void_cast_min_clearance": "void_cast_min_clearance_A",
-    "void_cast_mean_clearance": "void_cast_mean_clearance_A", "void_cast_max_clearance": "void_cast_max_clearance_A",
-    "network_node_count": "network_node_count", "network_edge_count": "network_edge_count",
-    "network_density": "network_density", "cavity_count": "cavity_count",
-    "top_cavity_volume": "top_cavity_volume_A3", "top_cavity_radius": "top_cavity_radius_A",
-    "tunnel_count": "tunnel_count", "top_tunnel_bottleneck_radius": "top_tunnel_bottleneck_radius_A",
-    "top_tunnel_length": "top_tunnel_length_A", "total_seconds": "total_seconds", "error": "error",
+    "pdb_id": "pdb_id",
+    "expected_geometry": "expected_geometry",
+    "curation_status": "curation_status",
+    "status": "status",
+    "atom_count": "atom_count",
+    "residue_count": "residue_count",
+    "profile_min_radius": "profile_min_radius_A",
+    "profile_mean_radius": "profile_mean_radius_A",
+    "profile_max_radius": "profile_max_radius_A",
+    "profile_bottleneck_index": "profile_bottleneck_index",
+    "profile_bottleneck_t": "profile_bottleneck_t_A",
+    "profile_bottleneck_residue": "profile_bottleneck_residue",
+    "enclosure_radius": "enclosure_radius_A",
+    "enclosure_probe_mode": "enclosure_probe_mode",
+    "residue_contact_count": "residue_contact_count",
+    "void_cast_mode": "void_cast_mode",
+    "void_cast_component_count": "void_cast_component_count",
+    "void_cast_point_count": "void_cast_point_count",
+    "void_cast_total_volume": "void_cast_total_volume_A3",
+    "void_cast_min_clearance": "void_cast_min_clearance_A",
+    "void_cast_mean_clearance": "void_cast_mean_clearance_A",
+    "void_cast_max_clearance": "void_cast_max_clearance_A",
+    "network_node_count": "network_node_count",
+    "network_edge_count": "network_edge_count",
+    "network_density": "network_density",
+    "cavity_count": "cavity_count",
+    "top_cavity_volume": "top_cavity_volume_A3",
+    "top_cavity_radius": "top_cavity_radius_A",
+    "total_seconds": "total_seconds",
+    "error": "error",
 }
 
 
 def _write_summary_csv(rows: Sequence[dict[str, object]], path: str | Path) -> None:
     """One row per system; column names carry units (see ``SUMMARY_COLUMNS``); ``error`` holds a failure message."""
     from ._portable_paths import portable_json
+
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    rows = portable_json(list(rows), output.parent)    # paths relative to the CSV's directory, "/" separators
+    rows = portable_json(list(rows), output.parent)  # paths relative to the CSV's directory, "/" separators
     with output.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(SUMMARY_COLUMNS.values()))
         writer.writeheader()

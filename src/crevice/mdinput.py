@@ -32,8 +32,14 @@ from __future__ import annotations
 import sys
 from contextlib import contextmanager
 
-__all__ = ["is_md_object", "resolve_md_input", "md_source_label", "md_input_paths", "preserve_frame",
-           "accepts_md_objects"]
+__all__ = [
+    "is_md_object",
+    "resolve_md_input",
+    "md_source_label",
+    "md_input_paths",
+    "preserve_frame",
+    "accepts_md_objects",
+]
 
 
 def _mda():
@@ -96,6 +102,7 @@ def atomgroup_selection(group) -> str:
         If the group is empty.
     """
     import numpy as np
+
     indices = np.unique(np.asarray(group.indices, dtype=int))
     if not len(indices):
         raise ValueError("The AtomGroup is empty")
@@ -133,8 +140,10 @@ def resolve_md_input(topology, trajectory=None, selection="protein"):
     if not is_md_object(topology):
         return topology, trajectory, selection
     if trajectory is not None:
-        raise ValueError("Pass either an MDAnalysis Universe/AtomGroup or topology/trajectory paths, not both; "
-                         "load the trajectory into the Universe instead")
+        raise ValueError(
+            "Pass either an MDAnalysis Universe/AtomGroup or topology/trajectory paths, not both; "
+            "load the trajectory into the Universe instead"
+        )
     if is_atomgroup(topology):
         return topology.universe, None, atomgroup_selection(topology)
     return topology, None, selection

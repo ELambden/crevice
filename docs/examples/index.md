@@ -12,7 +12,7 @@ downloaded from the RCSB PDB or AlphaFold DB the first time you run a command.
 
 **[1GRM: pore radius profile and channel cast](1grm-profile-cast.md)**
 
-Measure the gramicidin A channel, then write a bundle with its 3D cast, cavities, tunnels and network. *About 1 min.*
+Measure the gramicidin A channel, then write a bundle with its 3D cast and residue network. *About 1 min.*
 :::
 
 :::{container} crevice-card crevice-exit
@@ -20,7 +20,7 @@ Measure the gramicidin A channel, then write a bundle with its 3D cast, cavities
 
 **[3UKM: a capped channel with side exits](3ukm-lateral-exits.md)**
 
-Follow the TWIK-1 pore out through its two side portals. *About 10 min.*
+Follow the TWIK-1 pore out through its side portals, with the default and a fixed enclosure probe. *A few minutes.*
 :::
 
 :::{container} crevice-card
@@ -28,7 +28,7 @@ Follow the TWIK-1 pore out through its two side portals. *About 10 min.*
 
 **[1OED: a wide pore with gaps in its wall](1oed-pore-domain.md)**
 
-See how the automatic enclosure probe copes with a leaky pore domain. *About 2 min.*
+See how the per-slice enclosure probe copes with a leaky pore domain. *About 2 min.*
 :::
 
 :::{container} crevice-card crevice-violet
@@ -96,8 +96,7 @@ Trace the widest routes from the sugar site to the solvent on either side, and f
 ::::
 
 Every command and Python block was run and the numbers were copied from that
-run; the commands whose output files changed in 0.3 were re-run with 0.3.0.
-Viewer images were rendered in the viewer named in the caption. The pages aren't executed when the documentation is
+run. Viewer images were rendered in the viewer named in the caption. The pages aren't executed when the documentation is
 built, so your numbers may differ slightly with a newer version or different
 settings, and that's part of the lesson: the settings are part of the result.
 Times are rough guides, for one CPU core of a desktop computer.

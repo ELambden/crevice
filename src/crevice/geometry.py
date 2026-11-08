@@ -371,8 +371,7 @@ def principal_axes(atoms: Iterable[Atom]) -> tuple[Coord, Coord, Coord]:
     atoms = tuple(atoms)
     origin = centroid(a.coord for a in atoms)
     coords = [sub(a.coord, origin) for a in atoms]
-    matrix = [[sum(p[i] * p[j] for p in coords) / len(coords)
-               for j in range(3)] for i in range(3)]
+    matrix = [[sum(p[i] * p[j] for p in coords) / len(coords) for j in range(3)] for i in range(3)]
     vectors = [[float(i == j) for j in range(3)] for i in range(3)]
     for _ in range(50):
         p, q = max(((0, 1), (0, 2), (1, 2)), key=lambda ij: abs(matrix[ij[0]][ij[1]]))
@@ -381,16 +380,16 @@ def principal_axes(atoms: Iterable[Atom]) -> tuple[Coord, Coord, Coord]:
         angle = 0.5 * math.atan2(2 * matrix[p][q], matrix[q][q] - matrix[p][p])
         c, s = math.cos(angle), math.sin(angle)
         app, aqq, apq = matrix[p][p], matrix[q][q], matrix[p][q]
-        matrix[p][p] = c*c*app - 2*s*c*apq + s*s*aqq
-        matrix[q][q] = s*s*app + 2*s*c*apq + c*c*aqq
+        matrix[p][p] = c * c * app - 2 * s * c * apq + s * s * aqq
+        matrix[q][q] = s * s * app + 2 * s * c * apq + c * c * aqq
         matrix[p][q] = matrix[q][p] = 0.0
         for k in range(3):
             if k not in (p, q):
                 akp, akq = matrix[k][p], matrix[k][q]
-                matrix[k][p] = matrix[p][k] = c*akp - s*akq
-                matrix[k][q] = matrix[q][k] = s*akp + c*akq
+                matrix[k][p] = matrix[p][k] = c * akp - s * akq
+                matrix[k][q] = matrix[q][k] = s * akp + c * akq
             vkp, vkq = vectors[k][p], vectors[k][q]
-            vectors[k][p], vectors[k][q] = c*vkp - s*vkq, s*vkp + c*vkq
+            vectors[k][p], vectors[k][q] = c * vkp - s * vkq, s * vkp + c * vkq
     result = []
     for j in sorted(range(3), key=lambda j: -matrix[j][j]):
         direction = normalize(tuple(vectors[i][j] for i in range(3)))
@@ -458,17 +457,3 @@ def parse_coord(text: str) -> Coord:
     if len(parts) != 3:
         raise ValueError("Expected a coordinate formatted as x,y,z")
     return (float(parts[0]), float(parts[1]), float(parts[2]))
-
-
-def padded_box(min_corner: Coord, max_corner: Coord, padding: float) -> tuple[Coord, Coord]:
-    """Enlarge an axis-aligned box by ``padding`` on every side.
-
-    Returns
-    -------
-    tuple of Coord
-        ``(min_corner - padding, max_corner + padding)`` component-wise.
-    """
-    return (
-        (min_corner[0] - padding, min_corner[1] - padding, min_corner[2] - padding),
-        (max_corner[0] + padding, max_corner[1] + padding, max_corner[2] + padding),
-    )

@@ -31,21 +31,24 @@ crevice fetch 1GRM --format pdb --cache-dir "$cache" | tee -a "$log"
 run 1grm profile 1GRM --cache-dir "$cache" --axis auto -o 1GRM_profile.json \
     --png 1GRM_profile.png --annotated-png 1GRM_profile_residues.png --dpi 150
 run 1grm report 1GRM --cache-dir "$cache" --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
-    --outputs default,figures,cavities,tunnels,network
+    --outputs default,figures,network
 run 1grm view 1GRM_bundle -o 1GRM_view.html
 
 # 3UKM: a capped channel with lateral exits
 run 3ukm profile 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
     -o 3UKM_profile.json --png 3UKM_profile.png --dpi 150
+run 3ukm profile 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
+    -o 3UKM_profile_0.55.json --png 3UKM_profile_0.55.png --dpi 150
 run 3ukm report 3UKM --assembly 1 --cache-dir "$cache" --exclude-hetero --lateral-exits \
-    --enclosure-radius 0.55 --out-dir 3UKM_bundle --prefix 3UKM --dpi 150
+    --out-dir 3UKM_bundle --prefix 3UKM --dpi 150
 run 3ukm view 3UKM_bundle -o 3UKM_view.html
 
-# 1OED: a wide pore with gaps in its wall
+# 1OED: a wide pore with gaps in its wall (a fixed 0.5 A probe resolves no channel: exit status 2)
 run 1oed profile 1OED --cache-dir "$cache" -o 1OED_profile.json --png 1OED_profile.png --dpi 150
 run 1oed profile 1OED --cache-dir "$cache" --enclosure-radius 2.2 -o 1OED_profile_2.2.json
-run 1oed residues 1OED --cache-dir "$cache" --enclosure-radius 2.2 -o 1OED_residues.csv \
-    --png 1OED_residues.png --dpi 150
+run 1oed profile 1OED --cache-dir "$cache" --enclosure-radius 1.0 -o 1OED_profile_1.0.json
+run 1oed profile 1OED --cache-dir "$cache" --section-spacing 0.25 --search-radius 10 -o 1OED_profile_fine.json
+run 1oed residues 1OED --cache-dir "$cache" -o 1OED_residues.csv --png 1OED_residues.png --dpi 150
 
 # 4PYP: interior cavity cast and its boundary residues (the profile is expected to fail)
 run 4pyp profile 4PYP --cache-dir "$cache" -o 4PYP_profile.json || echo "[4pyp] profile unresolved, as expected" | tee -a "$log"

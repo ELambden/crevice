@@ -9,7 +9,7 @@
 Evaluation**
 
 CREVICE is a Python package and command-line tool for measuring pores,
-channels, tunnels and cavities in protein structures and molecular dynamics
+channels, cavities and routes to bulk solvent in protein structures and molecular dynamics
 (MD) trajectories, and for describing the residues and water that surround
 them. It combines ideas from HOLE, HOLLOW, CAVER and 3V in one workflow and
 writes numerical tables, figures and matching PyMOL, VMD and ChimeraX scenes.
@@ -20,8 +20,8 @@ With CREVICE you can:
   checks and an automatically proposed or user-supplied axis;
 - fill **pockets, cavities and channels** with atom-clear probe spheres and
   export the measured binary map and a smoothed display surface;
-- search for **enclosed cavities** and **widest-path tunnels** on clearance
-  grids;
+- search for **enclosed cavities** on a clearance grid and trace **curved,
+  branched routes** from a site to bulk solvent;
 - identify the **residues that form a measured boundary**, their nonlocal
   contact partners and residue interaction networks;
 - follow a cavity through an **MD trajectory**: aligned per-frame volumes,
@@ -46,6 +46,7 @@ automatically. Optional extras add libraries used by specific features:
 
 | Extra | Adds | Used for | Without it |
 | --- | --- | --- | --- |
+| `fast` | numba | compiled kernels for channel profiles (several times faster, identical results) | the same results from NumPy code |
 | `structures` | Gemmi | entity-aware mmCIF reading | built-in mmCIF parser |
 | `hydration` | MDTraj | DSSP secondary structure in hydration reports | DSSP reported as unavailable |
 | `networks` | NetworkX | weighted residue paths (`crevice.connectivity`) | those functions raise an error naming the extra |
@@ -72,7 +73,7 @@ crevice profile 1GRM --axis auto -o 1GRM_profile.json --png 1GRM_profile_radius.
 crevice cavities --cast 4PYP --out-dir 4PYP_cast
 
 # One structure: profile, cast, lining residues, typed residue interactions,
-# key figures and PyMOL/VMD/ChimeraX scenes (--all adds cavities, tunnels,
+# key figures and PyMOL/VMD/ChimeraX scenes (--all adds the
 # network, hydration, every figure and an HTML view; --dry-run shows the plan)
 crevice report 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
@@ -100,7 +101,7 @@ are called separately.
 | Command | Question it answers |
 | --- | --- |
 | `profile` | How wide is a through-channel along its axis? (`--fingerprint`: lining chemistry, water and a geometric conductance estimate along it) |
-| `cavities` | Are there enclosed grid voids? (`--cast`: what 3D space does a pocket, cavity or channel occupy? `--tunnels`: which widest grid paths lead from a point to the outside?) |
+| `cavities` | Are there enclosed grid voids? (`--cast`: what 3D space does a pocket, cavity or channel occupy?) |
 | `paths` | Which curved or branched widest routes lead from a seed, residues or region to bulk? |
 | `residues` | Which residues line a sampled profile? (`--network`: which residues touch each other and the channel? `--evidence`: which residues form a measured cavity boundary, and which residues contact them? `--features`: descriptors) |
 | `report` | A complete static-structure bundle in one run (`--analyze`: selected analyses; `--suite`, `--benchmark`: batch runs) |
@@ -109,7 +110,7 @@ are called separately.
 | `fetch`, `view` | Downloads and example datasets; an interactive 3D HTML view |
 
 Run `crevice <command> --help` for every option (`crevice cavities --cast --help` for one mode). The
-CREVICE 0.3 command names (`cavities --cast`, `report`, `trajectory --cavities` ...) still work as deprecated aliases;
+CREVICE 0.3 command names (`cast`, `publish`, `cavity-trajectory` ...) still work as deprecated aliases;
 see [Upgrading to 0.4](docs/getting-started/upgrading-0.4.md).
 
 A trajectory example (GRO/XTC or any format MDAnalysis reads):
@@ -131,7 +132,7 @@ Workflow commands write a directory with a `*_manifest.json` that lists every
 file, the input provenance and the parser that ran. Typical outputs are:
 
 - CSV tables for every dataset you would analyse (profiles, cast regions,
-  residues, cavities, tunnels, networks, per-frame trajectory and hydration
+  residues, cavities, paths, networks, per-frame trajectory and hydration
   series, statistics), with units in the column names (`radius_A`,
   `volume_A3`, `time_ps`); JSON only for manifests, provenance, full
   structured records read by other commands and viewer scene definitions;
@@ -143,7 +144,9 @@ file, the input provenance and the parser that ran. Typical outputs are:
   `--dpi 400` for print), clean by default (`--annotate` adds titles and labels);
 - PyMOL (`.pml`), VMD (`.vmd`/`.tcl`) and ChimeraX (`.cxc`) scenes that share
   one viewer PDB, with `crevice_render` / `*_render.cxc` for high-resolution
-  images. Keep the whole output directory together. No HTML is written.
+  images. Keep the whole output directory together. HTML is written only
+  when you ask for an interactive view (`report --all`, `paths --html` or
+  `crevice view`).
 
 Unresolved, unavailable and zero are kept distinct: a method that cannot give
 a defensible answer records its status and reason instead of a number.

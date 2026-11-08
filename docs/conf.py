@@ -149,7 +149,7 @@ napoleon_type_aliases = {
 # descriptions, so they are exempt from nitpicky reference checking.
 nitpick_ignore_regex = [
     (r"py:(class|obj)", r"(JSON|HTML|DX|PNG|BILD|VMD|ChimeraX|ChimeraX script|PyMOL|PyMOL script|image|figures?|tables?|"
-                        r"arrays|grids|scenes?|scene data|structures?|network|tunnels|cavities|connectivity|profile|"
+                        r"arrays|grids|scenes?|scene data|structures?|network|cavities|connectivity|profile|"
                         r"density|interactions|trajectory tables|volume scene|display|regions|data|text|CSV|NPZ|PDB|"
                         r"script|bundle|evidence table|member waters|snapshots|per frame|definition|review)"),
     (r"py:(class|obj)", r"(shape .*|\(.*|.*\)|\d.*|[a-z]|n[a-z]|three .*|float32|int32|int64|int8|bool_)"),

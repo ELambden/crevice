@@ -1,0 +1,5 @@
+# Replicate coverage of the current intervals at a 10 ps saving interval. Synthetic.
+model,saved_interval_ps,frames,replicates,exact_current_pA,mean_current_over_exact,sd_current_over_exact,mean_net_charge_dispersion_index,poisson_95_coverage_before,block_bootstrap_95_coverage_before,dispersion_95_coverage_after
+drift,10.0000,10000,40,2400.2646,0.9941,0.0082,0.1882,1.0000,0.9250,1.0000
+gated_drift_dwell_T/100,10.0000,10000,40,1200.1323,1.0130,0.1069,6.8733,0.5250,0.8750,0.9500
+gated_drift_dwell_T/20,10.0000,10000,40,1200.1323,1.0732,0.1740,25.1290,0.2500,0.9750,0.9750

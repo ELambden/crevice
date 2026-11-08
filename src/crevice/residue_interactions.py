@@ -17,6 +17,7 @@ the hydration workflow. Outputs are the ``PREFIX_interactions.json``,
 ``PREFIX_interaction_*`` and ``PREFIX_residue_conformation*`` files of
 :func:`crevice.interaction_analysis.write_interaction_bundle`.
 """
+
 from __future__ import annotations
 
 import json
@@ -26,8 +27,10 @@ from .mdinput import accepts_md_objects as _accepts_md_objects
 #: Interaction kinds that involve water; reported only with the hydration analysis.
 WATER_EDGE_KINDS = frozenset({"water_bridge_hbond"})
 
-WATER_TERMS_NOTE = ("not measured: water bridges and residue-water hydrogen bonds belong to the hydration "
-                    "analysis (--outputs hydration or --all)")
+WATER_TERMS_NOTE = (
+    "not measured: water bridges and residue-water hydrogen bonds belong to the hydration "
+    "analysis (--outputs hydration or --all)"
+)
 
 
 def residue_part(result: dict) -> dict:
@@ -46,6 +49,7 @@ def residue_part(result: dict) -> dict:
         ``water_terms``.
     """
     import numpy as np
+
     out = dict(result)
     out["edges"] = {key: value for key, value in result["edges"].items() if key[0] not in WATER_EDGE_KINDS}
     out["hydrogen_bonded_water_count"] = np.full(np.shape(result["hydrogen_bonded_water_count"]), np.nan)
@@ -87,33 +91,44 @@ def static_residue_interactions(frame, *, source_path=None, volume_path=None, re
     import numpy as np
     from .hydration import WATER_RESNAMES
     from .interaction_analysis import InteractionAnalysis, chemical_topology_from_frame
+
     box = None
     if volume_path and residue_ids is None:
         from .residue_evidence import boundary_residue_evidence, read_binary_dx
+
         grid, origin, deltas = read_binary_dx(volume_path)
         evidence = boundary_residue_evidence(frame, grid, origin, deltas)
         residue_ids = [r['residue'] for r in evidence['residues'] if r['role'] != 'other']
     if source_path and Path(source_path).suffix.lower() == '.gro':
         from .parser import load_structure_report
         from .trajectory import _open_universe
+
         full, _ = load_structure_report(source_path, model_index=frame.model_index, md_selection='all')
         universe = _open_universe(source_path)
         universe.trajectory[frame.model_index]
         box = universe.dimensions
         frame = full
-    known = {a.residue_key.label for a in frame.atoms
-             if a.element.upper() not in {'H', 'D'} and a.resname.upper() not in WATER_RESNAMES and not a.hetero}
+    known = {
+        a.residue_key.label
+        for a in frame.atoms
+        if a.element.upper() not in {'H', 'D'} and a.resname.upper() not in WATER_RESNAMES and not a.hetero
+    }
     if residue_ids is None:
         focus = known
     else:
         missing = set(residue_ids) - {a.residue_key.label for a in frame.atoms}
         if missing:
-            raise ValueError('Interaction focus residue identities are not present in the structure: ' + str(sorted(missing)))
+            raise ValueError(
+                'Interaction focus residue identities are not present in the structure: ' + str(sorted(missing))
+            )
         focus = set(residue_ids) & known
     if not focus:
         return None
-    waters = [i for i, a in enumerate(frame.atoms) if a.resname.upper() in WATER_RESNAMES and a.element.upper() == 'O'
-              and (a.occupancy is None or a.occupancy > 0)]
+    waters = [
+        i
+        for i, a in enumerate(frame.atoms)
+        if a.resname.upper() in WATER_RESNAMES and a.element.upper() == 'O' and (a.occupancy is None or a.occupancy > 0)
+    ]
     chemistry = chemical_topology_from_frame(frame, waters, box=box)
     analysis = InteractionAnalysis(chemistry, focus, 1)
     analysis.add(np.asarray([a.coord for a in frame.atoms]), box=box)
@@ -121,9 +136,21 @@ def static_residue_interactions(frame, *, source_path=None, volume_path=None, re
 
 
 @_accepts_md_objects()
-def trajectory_residue_interactions(topology, trajectory=None, *, residue_ids=None, context_json=None,
-                                    selection='protein and not name H*', water_selection=None, start=0, stop=None,
-                                    stride=1, max_frames=500, pbc='check', progress_callback=None):
+def trajectory_residue_interactions(
+    topology,
+    trajectory=None,
+    *,
+    residue_ids=None,
+    context_json=None,
+    selection='protein and not name H*',
+    water_selection=None,
+    start=0,
+    stop=None,
+    stride=1,
+    max_frames=500,
+    pbc='check',
+    progress_callback=None,
+):
     """Typed residue–residue interactions over an MD trajectory (no files written).
 
     Frames, focus and chemistry follow
@@ -166,6 +193,7 @@ def trajectory_residue_interactions(topology, trajectory=None, *, residue_ids=No
     from .hydration import DEFAULT_WATER_SELECTION
     from .interaction_analysis import InteractionAnalysis, chemical_topology_from_universe
     from .trajectory import _element_names, _open_universe, load_trajectory_report
+
     if context_json is not None:
         path = Path(context_json).resolve(strict=True)
         context = json.loads(path.read_text(encoding="utf-8"))
@@ -179,9 +207,12 @@ def trajectory_residue_interactions(topology, trajectory=None, *, residue_ids=No
         stride = chosen[1] - chosen[0] if len(chosen) > 1 else 1
         selection = reader['selection']
         if residue_ids is None:
-            residue_ids = [r['residue'] for r in context['residues'] if r['lining_frames'] or r['nonlining_partner_frames']]
-    protein, _ = load_trajectory_report(topology, trajectory, selection=selection, start=start, stop=stop,
-                                        stride=stride, max_frames=max_frames, pbc=pbc)
+            residue_ids = [
+                r['residue'] for r in context['residues'] if r['lining_frames'] or r['nonlining_partner_frames']
+            ]
+    protein, _ = load_trajectory_report(
+        topology, trajectory, selection=selection, start=start, stop=stop, stride=stride, max_frames=max_frames, pbc=pbc
+    )
     times = np.asarray(protein.times(), dtype=float)
     first = protein.frames[0]
     known = {a.residue_key.label for a in first.atoms}
@@ -212,8 +243,9 @@ def trajectory_residue_interactions(topology, trajectory=None, *, residue_ids=No
     return residue_part(analysis.result()), times
 
 
-def write_residue_interactions(result, output_dir, prefix, *, times=None, confidence=.95, block_length=None,
-                               replicates=2000, seed=20260914) -> dict:
+def write_residue_interactions(
+    result, output_dir, prefix, *, times=None, confidence=0.95, block_length=None, replicates=2000, seed=20260914
+) -> dict:
     """Write the residue-interaction files of :func:`static_residue_interactions` or :func:`trajectory_residue_interactions`.
 
     Parameters
@@ -243,13 +275,33 @@ def write_residue_interactions(result, output_dir, prefix, *, times=None, confid
         :func:`crevice.interaction_analysis.write_interaction_bundle`).
     """
     from .interaction_analysis import write_interaction_bundle
+
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     if result is None:
         path = root / (prefix + '_interactions.json')
-        path.write_text(json.dumps({'status': 'unavailable_no_identified_residues', 'edges': [], 'residues': [],
-                                    'interpretation': 'No residue focus was available; not evidence of absent interactions'},
-                                   indent=2) + '\n', encoding="utf-8", newline="\n")
+        path.write_text(
+            json.dumps(
+                {
+                    'status': 'unavailable_no_identified_residues',
+                    'edges': [],
+                    'residues': [],
+                    'interpretation': 'No residue focus was available; not evidence of absent interactions',
+                },
+                indent=2,
+            )
+            + '\n',
+            encoding="utf-8",
+            newline="\n",
+        )
         return {'interaction_json': str(path)}
-    return write_interaction_bundle(result, root, prefix, times=times, confidence=confidence,
-                                    block_length=block_length, replicates=replicates, seed=seed)
+    return write_interaction_bundle(
+        result,
+        root,
+        prefix,
+        times=times,
+        confidence=confidence,
+        block_length=block_length,
+        replicates=replicates,
+        seed=seed,
+    )

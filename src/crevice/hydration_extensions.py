@@ -11,7 +11,6 @@ add two extra analyses to their results:
 This module holds their default settings and attaches them to a static
 result.
 """
-from pathlib import Path
 
 
 def defaults(options=None):
@@ -39,9 +38,15 @@ def defaults(options=None):
     >>> settings["density_spacing"], settings["skip_views"]
     (0.5, True)
     """
-    result = {'density_spacing':.5,'density_smoothing':.5,'density_level':.05,
-              'density_max_points':8_000_000,'skip_density':False,'skip_interactions':False,
-              'skip_views':False}
+    result = {
+        'density_spacing': 0.5,
+        'density_smoothing': 0.5,
+        'density_level': 0.05,
+        'density_max_points': 8_000_000,
+        'skip_density': False,
+        'skip_interactions': False,
+        'skip_views': False,
+    }
     result.update(options or {})
     return result
 
@@ -67,11 +72,15 @@ def reference_points(frame, focus, volume_path=None):
         ``"fixed_reference_residue_neighbourhood"``.
     """
     import numpy as np
+
     if volume_path:
         from .residue_evidence import read_binary_dx
-        grid,origin,deltas = read_binary_dx(volume_path)
+
+        grid, origin, deltas = read_binary_dx(volume_path)
         return np.argwhere(grid) @ deltas + origin, 'fixed_measured_cavity_neighbourhood'
-    return np.asarray([a.coord for a in frame.atoms if a.residue_key.label in set(focus)]), 'fixed_reference_residue_neighbourhood'
+    return np.asarray(
+        [a.coord for a in frame.atoms if a.residue_key.label in set(focus)]
+    ), 'fixed_reference_residue_neighbourhood'
 
 
 def attach_static_extensions(analysis, frame, *, box=None, volume_path=None, options=None):
@@ -105,26 +114,45 @@ def attach_static_extensions(analysis, frame, *, box=None, volume_path=None, opt
     from .models import StructureFrame
     from .hydration import WATER_RESNAMES
     from .water_density import WaterDensity
-    from .interaction_analysis import chemical_topology_from_frame,InteractionAnalysis
+    from .interaction_analysis import chemical_topology_from_frame, InteractionAnalysis
+
     settings = defaults(options)
-    protein_indices = [i for i,a in enumerate(frame.atoms) if not a.hetero and a.element.upper() not in {'H','D'}]
-    protein = StructureFrame(tuple(frame.atoms[i] for i in protein_indices),frame.source,frame.model_index,frame.frame_index)
-    waters = [i for i,a in enumerate(frame.atoms) if a.resname.upper() in WATER_RESNAMES and a.element.upper()=='O' and (a.occupancy is None or a.occupancy>0)]
+    protein_indices = [i for i, a in enumerate(frame.atoms) if not a.hetero and a.element.upper() not in {'H', 'D'}]
+    protein = StructureFrame(
+        tuple(frame.atoms[i] for i in protein_indices), frame.source, frame.model_index, frame.frame_index
+    )
+    waters = [
+        i
+        for i, a in enumerate(frame.atoms)
+        if a.resname.upper() in WATER_RESNAMES and a.element.upper() == 'O' and (a.occupancy is None or a.occupancy > 0)
+    ]
     xyz = np.asarray([a.coord for a in frame.atoms])
     if not settings['skip_density']:
-        points,definition = reference_points(protein,analysis['residue_ids'],volume_path)
-        density = WaterDensity(points,margin=2. if volume_path else analysis['settings']['contact_cutoff_A'],
-                     spacing=settings['density_spacing'],smoothing=settings['density_smoothing'],
-                     max_points=settings['density_max_points'],definition=definition)
-        density.add(xyz[waters],box=box)
+        points, definition = reference_points(protein, analysis['residue_ids'], volume_path)
+        density = WaterDensity(
+            points,
+            margin=2.0 if volume_path else analysis['settings']['contact_cutoff_A'],
+            spacing=settings['density_spacing'],
+            smoothing=settings['density_smoothing'],
+            max_points=settings['density_max_points'],
+            definition=definition,
+        )
+        density.add(xyz[waters], box=box)
         analysis['water_density'] = density.result(len(waters))
     if not settings['skip_interactions']:
-        chemistry = chemical_topology_from_frame(frame,waters,box=box)
-        interactions = InteractionAnalysis(chemistry,analysis['residue_ids'],1)
-        interactions.add(xyz,box=box)
+        chemistry = chemical_topology_from_frame(frame, waters, box=box)
+        interactions = InteractionAnalysis(chemistry, analysis['residue_ids'], 1)
+        interactions.add(xyz, box=box)
         analysis['interactions'] = interactions.result()
-    analysis.update(reference_frame=protein,reference_atom_indices=np.asarray(protein_indices),
-                    reference_full_coordinates=xyz,reference_rotation=np.eye(3),reference_box=box,
-                    snapshot_frames=[protein],snapshot_times_ps=[None],analysis_options=settings,
-                    reference_volume_path=str(volume_path) if volume_path else None)
+    analysis.update(
+        reference_frame=protein,
+        reference_atom_indices=np.asarray(protein_indices),
+        reference_full_coordinates=xyz,
+        reference_rotation=np.eye(3),
+        reference_box=box,
+        snapshot_frames=[protein],
+        snapshot_times_ps=[None],
+        analysis_options=settings,
+        reference_volume_path=str(volume_path) if volume_path else None,
+    )
     return analysis

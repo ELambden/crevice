@@ -212,7 +212,7 @@ The atom-selection flags differ between commands:
 |---|---|---|
 | structure commands with GRO input | `--md-selection` (default `protein`) | MDAnalysis selection applied when reading a GRO file |
 | `profile`, `residues`, `residues --network`, `residues --features`, `report`, `report --analyze` | `--exclude-hetero` | drop HETATM records (kept by default) |
-| `cavities`, `cavities --tunnels` (standalone) | `--include-hetero` | keep HETATM records (dropped by default; `report --analyze` keeps them) |
+| `cavities` (standalone) | `--include-hetero` | keep HETATM records (dropped by default; `report --analyze` keeps them) |
 | most structure commands | `--include-hydrogen` | keep H atoms (dropped by default) |
 | `cavities --cast` | `--selection protein\|all` | `protein`: polymer heavy atoms; `all`: also ligands and waters |
 | `trajectory`, `trajectory --cavities`, `trajectory --water`, `region init` | `--selection` | MDAnalysis selection string (for example `protein and not name H*`) |

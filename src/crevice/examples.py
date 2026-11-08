@@ -13,6 +13,7 @@ environment variable. For offline use, ``source_dir`` (or
 ``CREVICE_EXAMPLE_SOURCE_DIR``) names a local directory holding the same
 files, which are then copied and verified instead of downloaded.
 """
+
 from __future__ import annotations
 
 import gzip
@@ -257,21 +258,29 @@ def _retrieve_error_message(name: str, source: str, exc: OSError, local: bool) -
     """One-line explanation of a failed example-asset copy or download."""
     if local:
         if isinstance(exc, FileNotFoundError):
-            return (f"Example file {name} is not in the source directory ({source} does not exist); "
-                    "put the release assets there or drop --source-dir to download them")
+            return (
+                f"Example file {name} is not in the source directory ({source} does not exist); "
+                "put the release assets there or drop --source-dir to download them"
+            )
         return f"Could not copy example file {name} from {source}: {exc}"
     if isinstance(exc, urllib.error.HTTPError):
         if exc.code == 404:
             tag = _release_tag(source)
             where = f"the GitHub release {tag}" if tag else "the base URL"
-            return (f"Example file {name} was not found at {source} (HTTP 404). The asset is probably not "
-                    f"attached to {where}; check --base-url (or ${BASE_URL_ENV}), or download the assets "
-                    "yourself and pass --source-dir DIR")
-        return (f"Could not download example file {name} from {source}: HTTP {exc.code} {exc.reason}; "
-                "try again later or pass --source-dir DIR with a local copy")
+            return (
+                f"Example file {name} was not found at {source} (HTTP 404). The asset is probably not "
+                f"attached to {where}; check --base-url (or ${BASE_URL_ENV}), or download the assets "
+                "yourself and pass --source-dir DIR"
+            )
+        return (
+            f"Could not download example file {name} from {source}: HTTP {exc.code} {exc.reason}; "
+            "try again later or pass --source-dir DIR with a local copy"
+        )
     reason = exc.reason if isinstance(exc, urllib.error.URLError) else exc
-    return (f"Could not download example file {name} from {source}: {reason}. Check the network "
-            "connection; when offline, pass --source-dir DIR with a local copy of the assets")
+    return (
+        f"Could not download example file {name} from {source}: {reason}. Check the network "
+        "connection; when offline, pass --source-dir DIR with a local copy of the assets"
+    )
 
 
 def fetch_example(
@@ -348,7 +357,9 @@ def fetch_example(
             actual = sha256_file(target)
             if actual != item.sha256:
                 target.unlink()
-                raise ValueError(f"SHA-256 mismatch for {item.name} from {source}: expected {item.sha256}, got {actual}")
+                raise ValueError(
+                    f"SHA-256 mismatch for {item.name} from {source}: expected {item.sha256}, got {actual}"
+                )
         result.paths[item.name] = target
         if item.unpacked_name:
             unpacked = directory / item.unpacked_name
@@ -360,8 +371,10 @@ def fetch_example(
                         shutil.copyfileobj(src, out)
                     actual = sha256_file(temporary)
                     if actual != item.unpacked_sha256:
-                        raise ValueError(f"SHA-256 mismatch for decompressed {item.unpacked_name}: "
-                                         f"expected {item.unpacked_sha256}, got {actual}")
+                        raise ValueError(
+                            f"SHA-256 mismatch for decompressed {item.unpacked_name}: "
+                            f"expected {item.unpacked_sha256}, got {actual}"
+                        )
                     os.replace(temporary, unpacked)
                     result.downloaded.append(item.unpacked_name)
                 finally:

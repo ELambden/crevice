@@ -3,10 +3,9 @@
 [PDB 1OED](https://www.rcsb.org/structure/1OED) is the transmembrane pore
 domain of a nicotinic acetylcholine receptor: five helices around a central
 pore, determined without the rest of the receptor. Between neighbouring helices
-there are openings about 1.5 Å wide. A small enclosure probe passes through
-them, so the lumen is not laterally enclosed and no channel resolves; this
-example shows how the automatic enclosure probe deals with that. It takes about
-two minutes.
+there are openings wide enough for a small enclosure probe to pass, so a
+single small probe sees the lumen leak sideways. This example shows how the
+per-slice enclosure probe deals with that. It takes about two minutes.
 
 ```bash
 crevice fetch 1OED --cache-dir .crevice/pdb
@@ -14,52 +13,72 @@ crevice profile 1OED -o 1OED_profile.json --png 1OED_profile.png --dpi 150
 ```
 
 ```text
-profile points=81 min_radius=3.264 mean_radius=3.826 bottleneck_index=23
-enclosure_radius=2.200 (auto: smallest probe of channel group 2, which resolved at 4 of 21 probes tried)
+profile points=81 min_radius=3.264 mean_radius=4.282 bottleneck_index=24
+enclosure_radius=per-plane 0.30-3.00 (auto: per-plane enclosure probe, 0.30-3.00 A over 81 samples)
 ```
 
-Of the 21 ladder probes (0.5–3.0 Å), six resolved a channel, in two groups.
-At 1.0 and 2.0 Å the channel ended at about t = +2 Å (group 1); at 2.2, 2.4,
-2.7 and 3.0 Å the probe closed the gaps between helices and the channel ran
-between both mouths (group 2). Group 2 resolved at the most probes, so its
-smallest probe, 2.2 Å, was used. The full record of every probe tried,
-with its status and reason, is in `metadata.enclosure_probe_selection` of
-`1OED_profile.json`. Passing that probe explicitly gives the identical profile
-in a few seconds, which is how to rerun or vary it:
-
-```bash
-crevice profile 1OED --enclosure-radius 2.2 -o 1OED_profile_2.2.json
-```
-
-```text
-profile points=81 min_radius=3.264 mean_radius=3.826 bottleneck_index=23
-```
-
-(every sample radius is identical to the automatic run.)
+Each slice chose the smallest probe at which its lumen is enclosed (see
+[Choosing the enclosure probe](../tools/profile.md#choosing-the-enclosure-probe)).
+In 25 of the 81 slices the wall is tight and the smallest probe, 0.30 Å,
+already encloses the lumen. Where there are gaps between the helices the slice
+needs a larger probe: up to 1.6 Å within 15 Å of the centre, and up to
+3.0 Å towards the two ends, where the pore widens to more than 5 Å. The channel
+ends at the first slice on each side whose lumen is not enclosed by any probe
+smaller than its own clearance (t = −23.5 and +22.7 Å). Each slice's probe is
+in `metadata.enclosure_probes_A` of `1OED_profile.json`.
 
 ```{figure} images/1oed_profile.png
 :alt: Pore radius of 1OED against the axial coordinate
 :width: 85%
 
 `1OED_profile.png`: pore radius (Å) against the axial coordinate (Å) over
-31.3 Å between the two mouths (light grey outside them). The narrowest sample,
-3.264 Å, is at t = −9.8 Å (nearest residue D:SER248; red dashed line and
-dot). The enclosure probe only decides which gaps count as wall; the
-plotted radius is still the distance to the nearest atom surface.
+46.2 Å between the two mouths (light grey outside them). The narrowest sample,
+3.264 Å, is at t = −9.7 Å (nearest residue A:SER248; red dashed line and
+dot). The enclosure probes only decide which gaps count as wall and where the
+channel ends; the plotted radius is still the distance to the nearest atom
+surface.
 ```
 
-Residues lining the profile, with the same probe:
+## One probe for the whole pore
+
+A number fixes the probe in every slice instead. Too small a probe and the
+lumen leaks at once: with `--enclosure-radius 0.5` even the starting slice is
+not enclosed, and no channel is resolved (exit status 2). A probe that closes
+the gaps but still fits the lumen gives a profile with the same minimum, over
+a shorter stretch:
 
 ```bash
-crevice residues 1OED --enclosure-radius 2.2 -o 1OED_residues.csv --png 1OED_residues.png --dpi 150
+crevice profile 1OED --enclosure-radius 2.2 -o 1OED_profile_2.2.json
 ```
 
 ```text
-residues contacts=112 output=1OED_residues.csv
+profile points=81 min_radius=3.265 mean_radius=4.063 bottleneck_index=25
+```
+
+| Enclosure probe | Extent (Å) | Minimum radius (Å) | Mean radius (Å) |
+|---|---|---:|---:|
+| per slice (default) | −23.5 to +22.7 | 3.264 | 4.282 |
+| fixed 2.2 Å | −22.5 to +18.6 | 3.265 | 4.063 |
+| fixed 1.0 Å | −20.1 to +3.9 | 3.266 | 3.751 |
+| fixed 0.5 Å | not resolved | | |
+
+With a fixed probe the channel ends where the pore opens wider than the probe
+can enclose (2.2 Å) or where a gap in the wall is wider than the probe
+(1.0 Å). The minimum is the same in every resolved run, because it lies in the
+part of the pore that all of them follow.
+
+## Residues lining the pore
+
+```bash
+crevice residues 1OED -o 1OED_residues.csv --png 1OED_residues.png --dpi 150
+```
+
+```text
+residues contacts=125 output=1OED_residues.csv
 residue,min_distance_A,mean_distance_A,atom_count,point_count,role,properties,influence_score
-D:SER248,0.0,1.8756,6,50,bottleneck,polar;small,5.5898
-C:LEU265,0.0,2.3207,8,49,bottleneck,hydrophobic,5.5868
-A:LEU251,0.0,2.4513,8,48,bottleneck,hydrophobic,5.5838
+C:SER258,0.0,2.0014,6,34,bottleneck,polar;small,5.5333
+D:THR244,0.0,2.1844,7,34,bottleneck,polar,5.5333
+D:SER248,0.0,1.8985,6,34,bottleneck,polar;small,5.5333
 ```
 
 (values rounded here.) `min_distance_A` is the gap between the residue's atom
@@ -69,17 +88,18 @@ importance.
 
 ## Settings matter
 
-The chosen probe depends on the other settings, because they decide which
-gaps are resolved. With 0.25 Å section grids and a 10 Å search radius (finer
-and wider than the defaults used above) the automatic rule chooses 1.6 Å and
-the narrowest radius is again 3.26 Å. Report the probe and the grid settings with any
-1OED number, and compare settings before interpreting small differences.
+The section grid and the search square decide which gaps are resolved. With
+0.25 Å section grids and a 10 Å search radius (finer and wider than the
+defaults used above; `--section-spacing 0.25 --search-radius 10`) the channel
+has the same extent and a minimum of 3.265 Å (mean 4.277 Å). Report the
+probe and the grid settings with any 1OED number, and compare settings before
+interpreting small differences.
 
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The values come from a CREVICE 0.4.0 run on the downloaded entry, including
-the 0.25 Å grid result. The pore axis was
+The values come from one run of the commands above on the downloaded entry,
+including the 0.25 Å grid result. The pore axis was
 found automatically. An isolated pore domain lacks the rest of the receptor and
 its membrane, so read these radii as a measurement of this model with these
 settings.

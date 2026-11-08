@@ -66,8 +66,12 @@ ml = ["scikit-learn>=1.3"]
 # HTML viewer (`crevice view`, CreviceView.save_html) needs no extra: it inlines
 # the vendored 3Dmol.js build in src/crevice/_viewer_assets.
 view = ["py3Dmol>=2.0"]
+# Compiled kernels for the channel profile (crevice._kernels); several times faster.
+# Without it the same results come from the NumPy code.
+fast = ["numba>=0.61"]
 # Every optional scientific library used somewhere in CREVICE.
 science = [
+  "numba>=0.61",
   "gemmi>=0.7,<0.8",
   "networkx>=3.2",
   "mdtraj>=1.10",
@@ -107,3 +111,14 @@ path = "src/crevice/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/crevice"]
+
+[tool.ruff]
+# Formatting and pyflakes checks for the package (`ruff format src/crevice`, `ruff check src/crevice`).
+line-length = 120
+src = ["src"]
+
+[tool.ruff.format]
+quote-style = "preserve"
+
+[tool.ruff.lint]
+select = ["F"]

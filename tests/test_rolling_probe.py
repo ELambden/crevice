@@ -163,7 +163,7 @@ def test_publication_auto_falls_back_without_inventing_a_profile(pocket,tmp_path
     with pytest.warns(RuntimeWarning,match='No unique through-channel'):
         files=write_static_publication_bundle(frame, enclosure_radius=0.8,structure_path=source,output_dir=tmp_path/'published',
             cast_spacing=.5,cast_max_grid_points=500000,cast_min_component_volume=30,
-            include_hetero=False,include_cavities=False,include_tunnels=False,include_network=False,dpi=80)
+            include_hetero=False,include_network=False,dpi=80)
     manifest=json.loads(Path(files['manifest_json']).read_text(encoding="utf-8"))
     assert manifest['single_channel_unresolved_reason']
     assert manifest['void_cast']['mode']=='rolling'

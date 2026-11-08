@@ -6,7 +6,7 @@ Nine commands (:data:`COMMAND_LAYOUT`), several with modes that each run one
 analysis with its own options and defaults:
 
 * ``fetch`` (``--example NAME``), ``profile`` (``--fingerprint``),
-  ``cavities`` (``--cast``, ``--tunnels``), ``paths``, ``residues``
+  ``cavities`` (``--cast``), ``paths``, ``residues``
   (``--network``, ``--evidence``, ``--features``), ``report`` (the publication
   bundle; ``--analyze``, ``--suite``, ``--benchmark``), ``trajectory``
   (``--cavities``, ``--region DEFINITION``, ``--water``, ``--track``),
@@ -44,7 +44,6 @@ from pathlib import Path
 from ._portable_paths import dumps_record
 
 from .analysis import annotate_residues, detect_cavities, pore_profile
-from .tunnels import find_tunnels
 from .benchmarks import (
     DEFAULT_BENCHMARK_IDS,
     benchmark_path,
@@ -69,8 +68,6 @@ from .io import (
     write_connectivity_csv,
     write_features_csv,
     write_network_csv,
-    write_tunnel_points_csv,
-    write_tunnels_csv,
     write_cavities_json,
     write_cavities_pdb,
     write_network_json,
@@ -80,8 +77,6 @@ from .io import (
     write_trajectory_json,
     write_residue_contacts_csv,
     write_residue_contacts_json,
-    write_tunnels_json,
-    write_tunnels_pdb,
 )
 from .ml import profile_features
 from .networks import build_cavity_network, build_residue_network, network_metrics
@@ -91,7 +86,7 @@ from .static_suite import run_static_benchmark_suite
 from .trajectory import analyze_trajectory, load_static_frames
 from .trajectory import DEFAULT_MAX_FRAMES, inspect_trajectory, load_trajectory_report
 from .ensemble import profile_distribution, write_profile_distribution_csv
-from .connectivity import persistent_network, lining_connectivity, plot_lining_connectivity
+from .connectivity import lining_connectivity, plot_lining_connectivity
 
 
 # --------------------------------------------------------------------------------------------
@@ -139,20 +134,29 @@ class Mode:
 COMMAND_LAYOUT: dict[str, tuple[Mode, ...]] = {
     "fetch": (
         Mode("fetch", summary="Download structures from RCSB by accession, or AlphaFold DB models by AF- identifier"),
-        Mode("fetch-example", "--example", True,
-             "Download an example dataset by name into a local cache, verifying SHA-256 hashes"),
+        Mode(
+            "fetch-example",
+            "--example",
+            True,
+            "Download an example dataset by name into a local cache, verifying SHA-256 hashes",
+        ),
     ),
     "profile": (
         Mode("profile", summary="Measure the radius profile of a channel that runs through the protein"),
-        Mode("fingerprint", "--fingerprint",
-             summary="Pore fingerprint along the channel: radius, lining hydrophobicity and chemistry, "
-                     "ENTRY/LUMEN/EXIT segments, water along the path (MD) and a geometric conductance estimate"),
+        Mode(
+            "fingerprint",
+            "--fingerprint",
+            summary="Pore fingerprint along the channel: radius, lining hydrophobicity and chemistry, "
+            "ENTRY/LUMEN/EXIT segments, water along the path (MD) and a geometric conductance estimate",
+        ),
     ),
     "cavities": (
         Mode("cavities", summary="Find buried cavities on a clearance grid"),
-        Mode("cast", "--cast", summary="Fill protein-interior voids with a 3D rolling probe, including open pockets "
-                                        "and multiple regions"),
-        Mode("tunnels", "--tunnels", summary="Find the widest access tunnels from a start point to the outside"),
+        Mode(
+            "cast",
+            "--cast",
+            summary="Fill protein-interior voids with a 3D rolling probe, including open pockets and multiple regions",
+        ),
     ),
     "paths": (
         Mode("paths", summary="Curved, branched widest routes from a seed or region to bulk solvent (pathway tree)"),
@@ -160,8 +164,9 @@ COMMAND_LAYOUT: dict[str, tuple[Mode, ...]] = {
     "residues": (
         Mode("residues", summary="Annotate channel-lining residues"),
         Mode("network", "--network", summary="Build residue and channel/cavity interaction networks"),
-        Mode("residue-evidence", "--evidence",
-             summary="Explain a measured cast boundary and nonlocal residue partners"),
+        Mode(
+            "residue-evidence", "--evidence", summary="Explain a measured cast boundary and nonlocal residue partners"
+        ),
         Mode("features", "--features", summary="Export profile and residue feature JSON"),
     ),
     "report": (
@@ -171,43 +176,63 @@ COMMAND_LAYOUT: dict[str, tuple[Mode, ...]] = {
         Mode("benchmark", "--benchmark", summary="Run static checks on configured CREVICE PDB benchmarks"),
     ),
     "trajectory": (
-        Mode("trajectory", summary="Channel profiles (and optional residue analyses) over a sequence of frames: "
-                                   "structure files or an MD trajectory (--topology)"),
-        Mode("track-cavities", "--track", summary="Track cavity components across trajectory frames: identities, "
-                                                  "births, deaths, splits and merges"),
-        Mode("cavity-trajectory", "--cavities",
-             summary="Track measured cavities in every aligned trajectory frame; volumes, changing residue "
-                     "evidence and sectional width statistics"),
-        Mode("hydration", "--water", summary="Observed residue water contacts, geometric SASA and sampled "
-                                             "trajectory hydration (one structure without --trajectory)"),
-        Mode("region-trajectory", "--region", True,
-             summary="Run geometry and hydration using a prepared, versioned region definition"),
+        Mode(
+            "trajectory",
+            summary="Channel profiles (and optional residue analyses) over a sequence of frames: "
+            "structure files or an MD trajectory (--topology)",
+        ),
+        Mode(
+            "track-cavities",
+            "--track",
+            summary="Track cavity components across trajectory frames: identities, births, deaths, splits and merges",
+        ),
+        Mode(
+            "cavity-trajectory",
+            "--cavities",
+            summary="Track measured cavities in every aligned trajectory frame; volumes, changing residue "
+            "evidence and sectional width statistics",
+        ),
+        Mode(
+            "hydration",
+            "--water",
+            summary="Observed residue water contacts, geometric SASA and sampled "
+            "trajectory hydration (one structure without --trajectory)",
+        ),
+        Mode(
+            "region-trajectory",
+            "--region",
+            True,
+            summary="Run geometry and hydration using a prepared, versioned region definition",
+        ),
     ),
     "region": (
-        Mode("region-init", "init", summary="Create a candidate region definition with hashed inputs and explicit "
-                                            "landmarks"),
-        Mode("region-prepare", "prepare", summary="Validate a named region, bind its reference frame and write "
-                                                  "native review overlays"),
+        Mode(
+            "region-init",
+            "init",
+            summary="Create a candidate region definition with hashed inputs and explicit landmarks",
+        ),
+        Mode(
+            "region-prepare",
+            "prepare",
+            summary="Validate a named region, bind its reference frame and write native review overlays",
+        ),
         Mode("region-compare", "compare", summary="Compare separate named regions on identical trajectory frames"),
     ),
-    "view": (
-        Mode("view", summary="Write a self-contained interactive 3D HTML viewer of an output directory"),
-    ),
+    "view": (Mode("view", summary="Write a self-contained interactive 3D HTML viewer of an output directory"),),
 }
 
 #: One-line summaries of the public commands for ``crevice --help``.
 COMMAND_SUMMARIES = {
     "fetch": "Download structures (RCSB, AlphaFold DB); --example NAME: a CREVICE example dataset",
     "profile": "Radius profile of a channel through the protein; --fingerprint: the pore fingerprint",
-    "cavities": "Buried cavities on a clearance grid; --cast: 3D rolling-probe cast of pockets and voids; "
-                "--tunnels: access tunnels",
+    "cavities": "Buried cavities on a clearance grid; --cast: 3D rolling-probe cast of pockets and voids",
     "paths": "Curved, branched widest routes from a seed or region to bulk solvent (pathway tree)",
     "residues": "Channel-lining residues; --network: contact networks; --evidence: boundary residues of a "
-                "measured volume; --features: feature export",
+    "measured volume; --features: feature export",
     "report": "Publication-ready bundle of one structure; --analyze: selected analyses; --suite, --benchmark: "
-              "benchmark systems",
+    "benchmark systems",
     "trajectory": "Frame series and MD trajectories: channel profiles; --cavities, --region DEF, --water, --track: "
-                  "cavity, named-region, hydration and cavity-tracking analyses",
+    "cavity, named-region, hydration and cavity-tracking analyses",
     "region": "Named-region workflow: init, prepare, compare",
     "view": "Self-contained interactive 3D HTML view of an output directory",
 }
@@ -239,6 +264,21 @@ def command_form(analysis: str) -> str:
     command, mode = _mode_index()[analysis]
     return f"crevice {command}" + (f" {mode.flag}" if mode.flag else "")
 
+
+#: Modes removed after 0.4, mapping ``(command, flag)`` to the error that names the replacement (a flag of
+#: ``None`` is a 0.3 command name). Typing one is an error, not a silently different analysis.
+REMOVED_MODES = {
+    ("cavities", "--tunnels"): "crevice cavities --tunnels (grid tunnel search) was removed in CREVICE 0.5; use "
+    "crevice paths, which finds curved, branched routes from a seed or region to bulk "
+    "solvent (crevice 0.4.1 still has the old search)",
+    ("tunnels", None): "crevice tunnels (grid tunnel search) was removed in CREVICE 0.5; use crevice paths, which "
+    "finds curved, branched routes from a seed or region to bulk solvent (crevice 0.4.1 still "
+    "has the old search)",
+}
+
+
+#: Commands without the "started"/"finished" status lines (downloads and viewers).
+QUIET_COMMANDS = frozenset({"fetch", "fetch-example", "view"})
 
 #: Analysis (0.3 command) names that are deprecated as command names in 0.4.
 DEPRECATED_COMMANDS = tuple(name for name in _mode_index() if name not in COMMAND_LAYOUT)
@@ -275,6 +315,9 @@ def canonical_command(name: str) -> str:
     words = str(name).split()
     if words and words[0] == "crevice":
         words = words[1:]
+    removed = REMOVED_MODES.get((words[0], words[1] if len(words) > 1 else None)) if words else None
+    if removed:
+        raise ValueError(removed)
     index = _mode_index()
     if len(words) == 1 and words[0] in index:
         return words[0]
@@ -312,8 +355,10 @@ class Invocation:
 
     def deprecation_note(self) -> str:
         """One-line note printed to standard error for a deprecated command name."""
-        return (f"crevice: note: 'crevice {self.analysis}' is deprecated; use '{command_form(self.analysis)}' "
-                "(same options and outputs; the 0.3 names are removed in 1.0)")
+        return (
+            f"crevice: note: 'crevice {self.analysis}' is deprecated; use '{command_form(self.analysis)}' "
+            "(same options and outputs; the 0.3 names are removed in 1.0)"
+        )
 
 
 def translate_argv(argv: list[str], parser: argparse.ArgumentParser | None = None) -> Invocation:
@@ -354,7 +399,13 @@ def translate_argv(argv: list[str], parser: argparse.ArgumentParser | None = Non
     if position is None:
         return Invocation(argv, None)
     command = argv[position]
-    head, tail = argv[:position], argv[position + 1:]
+    head, tail = argv[:position], argv[position + 1 :]
+    end = tail.index("--") if "--" in tail else len(tail)
+    for (removed_command, flag), message in REMOVED_MODES.items():
+        if command == removed_command and (
+            flag is None or any(t == flag or t.startswith(flag + "=") for t in tail[:end])
+        ):
+            (parser or build_parser()).error(message)
     if command not in COMMAND_LAYOUT:
         if command in _mode_index():
             return Invocation(argv, command, deprecated=command in DEPRECATED_COMMANDS)
@@ -365,7 +416,6 @@ def translate_argv(argv: list[str], parser: argparse.ArgumentParser | None = Non
         if tail and tail[0] in actions:
             return Invocation([*head, actions[tail[0]].analysis, *tail[1:]], actions[tail[0]].analysis)
         return Invocation(argv, None)
-    end = tail.index("--") if "--" in tail else len(tail)
 
     def found(flag: str) -> list[int]:
         return [i for i, token in enumerate(tail[:end]) if token == flag or token.startswith(flag + "=")]
@@ -390,8 +440,10 @@ def translate_argv(argv: list[str], parser: argparse.ArgumentParser | None = Non
         if mode is chosen or not mode.flag or mode.flag in options:
             continue
         if found(mode.flag):
-            parser.error(f"crevice {command}: {chosen.flag or 'the default mode'} and {mode.flag} select different "
-                         f"analyses; choose one")
+            parser.error(
+                f"crevice {command}: {chosen.flag or 'the default mode'} and {mode.flag} select different "
+                f"analyses; choose one"
+            )
     rest = [token for i, token in enumerate(tail) if i not in remove]
     return Invocation([*head, chosen.analysis, *([value] if value is not None else []), *rest], chosen.analysis)
 
@@ -422,9 +474,12 @@ def _mode_description(analysis: str) -> str:
             if other.takes_value:
                 label += " " + ("NAME" if other.analysis == "fetch-example" else "DEFINITION")
             lines.append(f"  {label}{'  (this mode)' if other is mode else ''}: {other.summary}")
-        intro = ("Actions (each has its own options; 'crevice region ACTION --help'):" if command == "region" else
-                 f"Modes of 'crevice {command}' (each mode has its own options and defaults; "
-                 f"'{form if mode.flag else f'crevice {command} --MODE'} --help'):")
+        intro = (
+            "Actions (each has its own options; 'crevice region ACTION --help'):"
+            if command == "region"
+            else f"Modes of 'crevice {command}' (each mode has its own options and defaults; "
+            f"'{form if mode.flag else f'crevice {command} --MODE'} --help'):"
+        )
         text.append("\n" + intro + "\n" + "\n".join(lines))
     return " ".join(text[:2]) + "".join(text[2:])
 
@@ -439,12 +494,19 @@ def _apply_layout(parser: argparse.ArgumentParser) -> None:
         child.formatter_class = argparse.RawDescriptionHelpFormatter
     # crevice report = publish (the default mode); crevice region = its actions only.
     sub._name_parser_map["report"] = sub.choices["publish"]
-    region = sub.add_parser("region", prog=f"{parser.prog} region", formatter_class=argparse.RawDescriptionHelpFormatter,
-                            description=COMMAND_SUMMARIES["region"] + ".\n\n" + "\n".join(
-                                f"  {m.flag:8s} {m.summary} (CREVICE 0.3: crevice {m.analysis})"
-                                for m in COMMAND_LAYOUT["region"]))
-    region.add_argument("action", choices=[m.flag for m in COMMAND_LAYOUT["region"]],
-                        help="Workflow step; 'crevice region ACTION --help' lists its options")
+    region = sub.add_parser(
+        "region",
+        prog=f"{parser.prog} region",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=COMMAND_SUMMARIES["region"]
+        + ".\n\n"
+        + "\n".join(f"  {m.flag:8s} {m.summary} (CREVICE 0.3: crevice {m.analysis})" for m in COMMAND_LAYOUT["region"]),
+    )
+    region.add_argument(
+        "action",
+        choices=[m.flag for m in COMMAND_LAYOUT["region"]],
+        help="Workflow step; 'crevice region ACTION --help' lists its options",
+    )
     region.add_argument("arguments", nargs=argparse.REMAINDER, help="Arguments of the action")
     region.set_defaults(func=_cmd_region_front)
     helps = []
@@ -454,7 +516,7 @@ def _apply_layout(parser: argparse.ArgumentParser) -> None:
     sub.metavar = "{" + ",".join(COMMAND_LAYOUT) + "}"
 
 
-def _cmd_region_front(args: argparse.Namespace) -> None:   # reached only for an unknown action
+def _cmd_region_front(args: argparse.Namespace) -> None:  # reached only for an unknown action
     raise ValueError("crevice region: choose an action: init, prepare or compare")
 
 
@@ -493,142 +555,418 @@ def build_parser() -> argparse.ArgumentParser:
     _add_global_args(parser, default=False)
     subparsers = parser.add_subparsers(dest="command", required=True, parser_class=argparse.ArgumentParser)
 
-    region_init = subparsers.add_parser("region-init", help="Create a candidate region definition with hashed inputs and explicit landmarks")
-    region_init.add_argument("topology", help="MD topology (or a static structure) of the system, hashed into the definition")
-    region_init.add_argument("--trajectory", help="MD trajectory of the system, hashed into the definition (required later by 'trajectory --region')")
-    region_init.add_argument("--region-id", required=True, help="Short region identifier (a simple file stem); used as the output prefix of 'trajectory --region'")
+    region_init = subparsers.add_parser(
+        "region-init", help="Create a candidate region definition with hashed inputs and explicit landmarks"
+    )
+    region_init.add_argument(
+        "topology", help="MD topology (or a static structure) of the system, hashed into the definition"
+    )
+    region_init.add_argument(
+        "--trajectory",
+        help="MD trajectory of the system, hashed into the definition (required later by 'trajectory --region')",
+    )
+    region_init.add_argument(
+        "--region-id",
+        required=True,
+        help="Short region identifier (a simple file stem); used as the output prefix of 'trajectory --region'",
+    )
     region_init.add_argument("--landmarks-json", help="List of full residue IDs, anchor atom names and evidence")
-    region_init.add_argument("--reference-volume-dx", help="Existing reference in source frame 0; otherwise propose around local landmarks")
-    region_init.add_argument("--output", required=True, help="New definition JSON path; an existing file is refused (use a new versioned name)")
-    region_init.add_argument("--selection", default="protein and not name H*", help="MDAnalysis selection of the analysed protein atoms")
-    region_init.add_argument("--obstacle-selection", default="protein and not name H*", help="MDAnalysis selection of every atom that bounds the region (must include the analysed protein heavy atoms)")
-    region_init.add_argument("--spacing", type=float, default=.5, help="Region grid spacing in Å")
-    region_init.add_argument("--probe-radius", type=float, default=1.4, help="Probe radius in Å that defines the probe-swept region volume")
-    region_init.add_argument("--radius", type=float, default=6., help="Without --reference-volume-dx: radius in Å of the landmark sphere in which the reference region is proposed")
+    region_init.add_argument(
+        "--reference-volume-dx", help="Existing reference in source frame 0; otherwise propose around local landmarks"
+    )
+    region_init.add_argument(
+        "--output",
+        required=True,
+        help="New definition JSON path; an existing file is refused (use a new versioned name)",
+    )
+    region_init.add_argument(
+        "--selection", default="protein and not name H*", help="MDAnalysis selection of the analysed protein atoms"
+    )
+    region_init.add_argument(
+        "--obstacle-selection",
+        default="protein and not name H*",
+        help="MDAnalysis selection of every atom that bounds the region (must include the analysed protein heavy atoms)",
+    )
+    region_init.add_argument("--spacing", type=float, default=0.5, help="Region grid spacing in Å")
+    region_init.add_argument(
+        "--probe-radius", type=float, default=1.4, help="Probe radius in Å that defines the probe-swept region volume"
+    )
+    region_init.add_argument(
+        "--radius",
+        type=float,
+        default=6.0,
+        help="Without --reference-volume-dx: radius in Å of the landmark sphere in which the reference region is proposed",
+    )
     region_init.set_defaults(func=_cmd_region_init)
-    region_prepare = subparsers.add_parser("region-prepare", help="Validate a named region, bind its reference frame and write native review overlays")
+    region_prepare = subparsers.add_parser(
+        "region-prepare", help="Validate a named region, bind its reference frame and write native review overlays"
+    )
     region_prepare.add_argument("definition", help="Region definition JSON from 'region init' (edited and reviewed)")
-    region_prepare.add_argument("--out-dir", required=True, help="Output directory for the prepared definition, reference map and review overlays")
+    region_prepare.add_argument(
+        "--out-dir",
+        required=True,
+        help="Output directory for the prepared definition, reference map and review overlays",
+    )
     region_prepare.set_defaults(func=_cmd_region_prepare)
-    region_compare = subparsers.add_parser("region-compare", help="Compare separate named regions on identical trajectory frames")
-    region_compare.add_argument("left_statistics", help="The <region-id>_cavity_statistics.json of the first 'trajectory --region' run")
-    region_compare.add_argument("right_statistics", help="The <region-id>_cavity_statistics.json of the second 'trajectory --region' run (same trajectory and frames)")
-    region_compare.add_argument("--left-definition", help="Prepared definition required for legacy observations lacking region provenance")
+    region_compare = subparsers.add_parser(
+        "region-compare", help="Compare separate named regions on identical trajectory frames"
+    )
+    region_compare.add_argument(
+        "left_statistics", help="The <region-id>_cavity_statistics.json of the first 'trajectory --region' run"
+    )
+    region_compare.add_argument(
+        "right_statistics",
+        help="The <region-id>_cavity_statistics.json of the second 'trajectory --region' run (same trajectory and frames)",
+    )
+    region_compare.add_argument(
+        "--left-definition", help="Prepared definition required for legacy observations lacking region provenance"
+    )
     region_compare.add_argument("--right-definition", help="As --left-definition, for the right run")
-    region_compare.add_argument("--left-input-provenance", help="Historical input SHA256 record required when binding legacy observations")
+    region_compare.add_argument(
+        "--left-input-provenance", help="Historical input SHA256 record required when binding legacy observations"
+    )
     region_compare.add_argument("--right-input-provenance", help="As --left-input-provenance, for the right run")
     region_compare.add_argument("--out-dir", required=True, help="New or empty output directory")
     region_compare.set_defaults(func=_cmd_region_compare)
-    region_md = subparsers.add_parser("region-trajectory", help="Run geometry and hydration using a prepared, versioned region definition")
+    region_md = subparsers.add_parser(
+        "region-trajectory", help="Run geometry and hydration using a prepared, versioned region definition"
+    )
     region_md.add_argument("definition", help="Prepared region definition JSON from 'region prepare'")
     region_md.add_argument("--out-dir", required=True, help="Output directory")
-    region_md.add_argument("--workers", type=int, default=None, help="Worker processes for the per-frame geometry (default: automatic, min(4, available CPUs, frames), reduced if available memory is short); results do not depend on it")
-    region_md.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this")
+    region_md.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Worker processes for the per-frame geometry (default: automatic, min(4, available CPUs, frames), reduced if available memory is short); results do not depend on it",
+    )
+    region_md.add_argument(
+        "--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this"
+    )
     region_md.add_argument("--stop", type=int, help="Stop before this trajectory frame (default: all frames)")
-    region_md.add_argument("--confidence", type=float, default=.95, help="Nominal level of the approximate mean intervals; 0 gives descriptive statistics only")
-    region_md.add_argument("--block-length", type=int, help="Bootstrap block length in frames; default chosen from the autocorrelation")
-    region_md.add_argument("--bootstrap-replicates", type=int, default=2000, help="Block-bootstrap replicates of the mean intervals")
+    region_md.add_argument(
+        "--confidence",
+        type=float,
+        default=0.95,
+        help="Nominal level of the approximate mean intervals; 0 gives descriptive statistics only",
+    )
+    region_md.add_argument(
+        "--block-length", type=int, help="Bootstrap block length in frames; default chosen from the autocorrelation"
+    )
+    region_md.add_argument(
+        "--bootstrap-replicates", type=int, default=2000, help="Block-bootstrap replicates of the mean intervals"
+    )
     region_md.add_argument("--bootstrap-seed", type=int, default=20260913, help="Random seed of the block bootstrap")
-    region_md.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    region_md.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     region_md.set_defaults(func=_cmd_region_trajectory)
 
-    hydration = subparsers.add_parser("hydration", help="Observed residue water contacts, geometric SASA and sampled trajectory hydration")
+    hydration = subparsers.add_parser(
+        "hydration", help="Observed residue water contacts, geometric SASA and sampled trajectory hydration"
+    )
     _add_structure_arg(hydration)
     hydration.add_argument("--trajectory", help="Optional MD trajectory; structure becomes its topology")
-    hydration.add_argument("--cavity-results", help="Existing cavity trajectory statistics JSON, to reuse its residue focus and aligned geometry")
-    hydration.add_argument("--volume-dx", help="Static measured cavity DX to select boundary residues and nonlocal partners")
+    hydration.add_argument(
+        "--cavity-results",
+        help="Existing cavity trajectory statistics JSON, to reuse its residue focus and aligned geometry",
+    )
+    hydration.add_argument(
+        "--volume-dx", help="Static measured cavity DX to select boundary residues and nonlocal partners"
+    )
     hydration.add_argument("--residues-json", help="Optional list of full residue IDs")
     hydration.add_argument("--out-dir", required=True, help="Output directory")
     hydration.add_argument("--prefix", default="crevice", help="Output file-name prefix (a simple file stem)")
-    hydration.add_argument("--selection", default="protein and not name H*", help="MDAnalysis selection of the analysed protein atoms (trajectory input)")
+    hydration.add_argument(
+        "--selection",
+        default="protein and not name H*",
+        help="MDAnalysis selection of the analysed protein atoms (trajectory input)",
+    )
     hydration.add_argument("--water-selection", help="MDAnalysis selection of water residues (one oxygen per residue)")
     hydration.add_argument("--start", type=int, default=0, help="First trajectory frame to read")
     hydration.add_argument("--stop", type=int, help="Stop before this trajectory frame (default: all frames)")
     hydration.add_argument("--stride", type=int, default=1, help="Read every Nth trajectory frame")
-    hydration.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this")
-    hydration.add_argument("--pbc", choices=["check","none"], default="check", help="check: minimum-image water distances in the periodic cell (cell dimensions required); none: no periodic imaging")
-    hydration.add_argument("--confidence", type=float, default=.95, help="Mean confidence level; zero requests descriptive statistics only")
-    hydration.add_argument("--block-length", type=int, help="Bootstrap block length in frames; default chosen from the autocorrelation")
-    hydration.add_argument("--bootstrap-replicates", type=int, default=2000, help="Block-bootstrap replicates of the mean intervals (at least 200)")
+    hydration.add_argument(
+        "--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this"
+    )
+    hydration.add_argument(
+        "--pbc",
+        choices=["check", "none"],
+        default="check",
+        help="check: minimum-image water distances in the periodic cell (cell dimensions required); none: no periodic imaging",
+    )
+    hydration.add_argument(
+        "--confidence",
+        type=float,
+        default=0.95,
+        help="Mean confidence level; zero requests descriptive statistics only",
+    )
+    hydration.add_argument(
+        "--block-length", type=int, help="Bootstrap block length in frames; default chosen from the autocorrelation"
+    )
+    hydration.add_argument(
+        "--bootstrap-replicates",
+        type=int,
+        default=2000,
+        help="Block-bootstrap replicates of the mean intervals (at least 200)",
+    )
     hydration.add_argument("--bootstrap-seed", type=int, default=20260914, help="Random seed of the block bootstrap")
-    hydration.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    hydration.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     hydration.set_defaults(func=_cmd_hydration)
 
-    cavity_md = subparsers.add_parser("cavity-trajectory", help="Track measured cavities in every aligned trajectory frame; volumes, changing residue evidence and sectional width statistics")
+    cavity_md = subparsers.add_parser(
+        "cavity-trajectory",
+        help="Track measured cavities in every aligned trajectory frame; volumes, changing residue evidence and sectional width statistics",
+    )
     cavity_md.add_argument("topology", help="MD topology (.gro, .pdb, .psf, .tpr)")
     cavity_md.add_argument("trajectory", help="MD trajectory (.xtc, .dcd, ...)")
-    cavity_md.add_argument("--reference-volume-dx", required=True, help="Measured binary cavity map in the first trajectory frame's coordinates")
+    cavity_md.add_argument(
+        "--reference-volume-dx",
+        required=True,
+        help="Measured binary cavity map in the first trajectory frame's coordinates",
+    )
     cavity_md.add_argument("--out-dir", required=True, help="Output directory")
     cavity_md.add_argument("--prefix", default="crevice", help="Output file-name prefix (a simple file stem)")
-    cavity_md.add_argument("--selection", default="protein and not name H*", help="MDAnalysis selection of the analysed protein atoms")
-    cavity_md.add_argument("--obstacle-selection", help="Independent MDAnalysis physical-obstacle selection; must retain analysed protein heavy atoms. Reference-region mode only; default protein-only geometry")
-    cavity_md.add_argument("--grid-phase", type=parse_coord, default=(0.,0.,0.), help="Lattice phase fractions x,y,z in [0,1) for numerical sensitivity")
-    cavity_md.add_argument("--pbc", choices=['check','none','unwrap'], default='check', help="check: screen for split molecules and use cell dimensions; none: no periodic handling; unwrap: make the selection whole (refused with --water-membership)")
-    cavity_md.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this")
+    cavity_md.add_argument(
+        "--selection", default="protein and not name H*", help="MDAnalysis selection of the analysed protein atoms"
+    )
+    cavity_md.add_argument(
+        "--obstacle-selection",
+        help="Independent MDAnalysis physical-obstacle selection; must retain analysed protein heavy atoms. Reference-region mode only; default protein-only geometry",
+    )
+    cavity_md.add_argument(
+        "--grid-phase",
+        type=parse_coord,
+        default=(0.0, 0.0, 0.0),
+        help="Lattice phase fractions x,y,z in [0,1) for numerical sensitivity",
+    )
+    cavity_md.add_argument(
+        "--pbc",
+        choices=['check', 'none', 'unwrap'],
+        default='check',
+        help="check: screen for split molecules and use cell dimensions; none: no periodic handling; unwrap: make the selection whole (refused with --water-membership)",
+    )
+    cavity_md.add_argument(
+        "--max-frames", type=int, default=DEFAULT_MAX_FRAMES, help="Refuse to load more frames than this"
+    )
     cavity_md.add_argument("--stop", type=int, help="Stop before this trajectory frame (default: all frames)")
-    cavity_md.add_argument("--workers", type=int, default=None, help="Worker processes for the per-frame geometry (default: automatic, min(4, available CPUs, frames), reduced if available memory is short); results do not depend on it")
-    cavity_md.add_argument("--max-grid-points", type=int, default=2_000_000, help="Explicit per-frame grid allocation guard; no automatic coarsening")
-    cavity_md.add_argument("--spacing", type=float, help="Fixed lattice spacing in Å; default the reference map's own spacing")
-    cavity_md.add_argument("--axis", type=parse_coord, help="Fixed analysis direction x,y,z in the reference frame; default measured-map third direction")
-    cavity_md.add_argument("--profile-padding", type=float, default=4., help="Extra axial range in Å beyond the reference cavity covered by the section profile")
-    cavity_md.add_argument("--geometry-mode",choices=["rolling","reference-region"],default="rolling",help="Global component matching or explicitly bounded reference-neighborhood volume")
-    cavity_md.add_argument("--region-margin",type=float,default=2.,help="Reference-neighborhood growth distance in Å; reference-region mode only")
-    cavity_md.add_argument("--probe-radius", type=float, default=.8, help="Probe radius in Å of the per-frame cavity measurement")
-    cavity_md.add_argument("--outer-radius", type=float, default=6., help="Rolling mode: outer envelope probe radius in Å")
-    cavity_md.add_argument("--cavity-selection", choices=['dominant','all'], default='dominant', help="Rolling mode: dominant interior cores, or all fixed-probe voids")
-    cavity_md.add_argument("--enclosure-fraction", type=float, default=.9, help="Rolling mode: burial threshold (fraction of 26 lattice rays)")
-    cavity_md.add_argument("--min-component-volume", type=float, default=1., help="Rolling mode: smallest component kept, in Å³")
-    cavity_md.add_argument("--minimum-overlap", type=float, default=.1, help="Rolling mode: smallest accepted overlap score with the reference, in (0, 1]")
-    cavity_md.add_argument("--ambiguity-ratio", type=float, default=.8, help="Rolling mode: a match is ambiguous (unresolved) when the second-best score is at least this fraction of the best")
-    cavity_md.add_argument("--lining-distance", type=float, default=1.5, help="Largest atom-surface gap in Å at which a boundary face is assigned to a residue")
-    cavity_md.add_argument("--contact-cutoff", type=float, default=4.5, help="Residue contact cutoff in Å (heavy-atom centres)")
-    cavity_md.add_argument("--alignment-residues-json", help="JSON list of full residue IDs defining the rigid fit; default all matching protein atoms")
-    cavity_md.add_argument("--confidence", type=float, default=.95, help="Nominal level of the approximate mean intervals; 0 gives descriptive statistics only")
-    cavity_md.add_argument("--block-length", type=int, help="Bootstrap block length in frames; default chosen from the autocorrelation")
-    cavity_md.add_argument("--bootstrap-replicates", type=int, default=2000, help="Block-bootstrap replicates of the mean intervals")
+    cavity_md.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Worker processes for the per-frame geometry (default: automatic, min(4, available CPUs, frames), reduced if available memory is short); results do not depend on it",
+    )
+    cavity_md.add_argument(
+        "--max-grid-points",
+        type=int,
+        default=2_000_000,
+        help="Explicit per-frame grid allocation guard; no automatic coarsening",
+    )
+    cavity_md.add_argument(
+        "--spacing", type=float, help="Fixed lattice spacing in Å; default the reference map's own spacing"
+    )
+    cavity_md.add_argument(
+        "--axis",
+        type=parse_coord,
+        help="Fixed analysis direction x,y,z in the reference frame; default measured-map third direction",
+    )
+    cavity_md.add_argument(
+        "--profile-padding",
+        type=float,
+        default=4.0,
+        help="Extra axial range in Å beyond the reference cavity covered by the section profile",
+    )
+    cavity_md.add_argument(
+        "--geometry-mode",
+        choices=["rolling", "reference-region"],
+        default="rolling",
+        help="Global component matching or explicitly bounded reference-neighborhood volume",
+    )
+    cavity_md.add_argument(
+        "--region-margin",
+        type=float,
+        default=2.0,
+        help="Reference-neighborhood growth distance in Å; reference-region mode only",
+    )
+    cavity_md.add_argument(
+        "--probe-radius", type=float, default=0.8, help="Probe radius in Å of the per-frame cavity measurement"
+    )
+    cavity_md.add_argument(
+        "--outer-radius", type=float, default=6.0, help="Rolling mode: outer envelope probe radius in Å"
+    )
+    cavity_md.add_argument(
+        "--cavity-selection",
+        choices=['dominant', 'all'],
+        default='dominant',
+        help="Rolling mode: dominant interior cores, or all fixed-probe voids",
+    )
+    cavity_md.add_argument(
+        "--enclosure-fraction",
+        type=float,
+        default=0.9,
+        help="Rolling mode: burial threshold (fraction of 26 lattice rays)",
+    )
+    cavity_md.add_argument(
+        "--min-component-volume", type=float, default=1.0, help="Rolling mode: smallest component kept, in Å³"
+    )
+    cavity_md.add_argument(
+        "--minimum-overlap",
+        type=float,
+        default=0.1,
+        help="Rolling mode: smallest accepted overlap score with the reference, in (0, 1]",
+    )
+    cavity_md.add_argument(
+        "--ambiguity-ratio",
+        type=float,
+        default=0.8,
+        help="Rolling mode: a match is ambiguous (unresolved) when the second-best score is at least this fraction of the best",
+    )
+    cavity_md.add_argument(
+        "--lining-distance",
+        type=float,
+        default=1.5,
+        help="Largest atom-surface gap in Å at which a boundary face is assigned to a residue",
+    )
+    cavity_md.add_argument(
+        "--contact-cutoff", type=float, default=4.5, help="Residue contact cutoff in Å (heavy-atom centres)"
+    )
+    cavity_md.add_argument(
+        "--alignment-residues-json",
+        help="JSON list of full residue IDs defining the rigid fit; default all matching protein atoms",
+    )
+    cavity_md.add_argument(
+        "--confidence",
+        type=float,
+        default=0.95,
+        help="Nominal level of the approximate mean intervals; 0 gives descriptive statistics only",
+    )
+    cavity_md.add_argument(
+        "--block-length", type=int, help="Bootstrap block length in frames; default chosen from the autocorrelation"
+    )
+    cavity_md.add_argument(
+        "--bootstrap-replicates", type=int, default=2000, help="Block-bootstrap replicates of the mean intervals"
+    )
     cavity_md.add_argument("--bootstrap-seed", type=int, default=20260913, help="Random seed of the block bootstrap")
-    cavity_md.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    cavity_md.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     cavity_md.set_defaults(func=_cmd_cavity_trajectory)
 
-    cast = subparsers.add_parser("cast", help="Fill protein-interior voids with a 3D rolling probe, including open pockets and multiple regions")
+    cast = subparsers.add_parser(
+        "cast", help="Fill protein-interior voids with a 3D rolling probe, including open pockets and multiple regions"
+    )
     _add_structure_arg(cast)
     cast.add_argument("--out-dir", required=True, help="Output directory for the cast bundle")
     cast.add_argument("--prefix", help="Output file-name prefix; defaults to the structure file stem")
-    cast.add_argument("--spacing", type=float, default=.5, help="Requested grid spacing in Å; never silently coarsened")
-    cast.add_argument("--probe-radius", type=float, default=.8,
-                      help="Inner rolling probe radius in Å (fixed default 0.8, no 'auto'). Unlike the profile's "
-                           "--enclosure-radius, which only decides which wall gaps count as closed while the radii "
-                           "come from atom-surface clearance, this probe defines the cast itself: its centres and "
-                           "swept spheres set the reported volume and connectivity, so it is a measurement setting, "
-                           "not chosen automatically")
-    cast.add_argument("--seed", type=parse_coord, help="Interior cavity seed x,y,z in Å; retain only its probe-connected interior")
-    cast.add_argument("--seed-tolerance", type=float, default=.75, help="Maximum atom-clear seed-to-grid snap distance in Å")
-    cast.add_argument("--outer-radius", type=float, default=6., help="Outer envelope probe radius in Å")
-    cast.add_argument("--enclosure-fraction", type=float, default=.9, help="Burial threshold (fraction of 26 lattice rays). Dominant selection: qualifies cavity cores and the sphere fill can extend beyond them; --cavity-selection all: hard crop of probe centres")
-    cast.add_argument("--min-depth", type=float, default=0., help="Additional depth inside the outer envelope in Å")
-    cast.add_argument("--min-component-volume", type=float, default=50., help="Minimum sampled region volume in Å³")
-    cast.add_argument("--max-cavities", "--max-components", dest="max_components", type=int, default=1,
-                      help="Maximum qualifying cavity regions (default 1); increasing it never forces extra results")
-    cast.add_argument("--cavity-selection", choices=['dominant','all'], default='dominant',
-                      help="Dominant: substantial interior cores. All: legacy fixed-probe void enumeration")
-    cast.add_argument("--core-fraction", type=float, default=.08, help="Minimum core volume relative to the strongest core (dominant mode)")
+    cast.add_argument(
+        "--spacing", type=float, default=0.5, help="Requested grid spacing in Å; never silently coarsened"
+    )
+    cast.add_argument(
+        "--probe-radius",
+        type=float,
+        default=0.8,
+        help="Inner rolling probe radius in Å (fixed default 0.8, no 'auto'). Unlike the profile's "
+        "--enclosure-radius, which only decides which wall gaps count as closed while the radii "
+        "come from atom-surface clearance, this probe defines the cast itself: its centres and "
+        "swept spheres set the reported volume and connectivity, so it is a measurement setting, "
+        "not chosen automatically",
+    )
+    cast.add_argument(
+        "--seed", type=parse_coord, help="Interior cavity seed x,y,z in Å; retain only its probe-connected interior"
+    )
+    cast.add_argument(
+        "--seed-tolerance", type=float, default=0.75, help="Maximum atom-clear seed-to-grid snap distance in Å"
+    )
+    cast.add_argument("--outer-radius", type=float, default=6.0, help="Outer envelope probe radius in Å")
+    cast.add_argument(
+        "--enclosure-fraction",
+        type=float,
+        default=0.9,
+        help="Burial threshold (fraction of 26 lattice rays). Dominant selection: qualifies cavity cores and the sphere fill can extend beyond them; --cavity-selection all: hard crop of probe centres",
+    )
+    cast.add_argument("--min-depth", type=float, default=0.0, help="Additional depth inside the outer envelope in Å")
+    cast.add_argument("--min-component-volume", type=float, default=50.0, help="Minimum sampled region volume in Å³")
+    cast.add_argument(
+        "--max-cavities",
+        "--max-components",
+        dest="max_components",
+        type=int,
+        default=1,
+        help="Maximum qualifying cavity regions (default 1); increasing it never forces extra results",
+    )
+    cast.add_argument(
+        "--cavity-selection",
+        choices=['dominant', 'all'],
+        default='dominant',
+        help="Dominant: substantial interior cores. All: legacy fixed-probe void enumeration",
+    )
+    cast.add_argument(
+        "--core-fraction",
+        type=float,
+        default=0.08,
+        help="Minimum core volume relative to the strongest core (dominant mode)",
+    )
     _add_smoothing_args(cast)
-    cast.add_argument("--max-grid-points", type=int, default=16_000_000, help="Largest allowed grid; a larger request is an error (no automatic coarsening)")
-    cast.add_argument("--selection", choices=['protein','all'], default='protein', help="Protein: non-HETATM heavy atoms. All: retain bound species/solvent as obstacles")
-    cast.add_argument("--dpi", type=int, default=200, help="Resolution (dots per inch) of the hydration/analysis figures written with the cast (default 200; use 400 or more for print). The cast itself has no Matplotlib figure; use the viewer scenes")
+    cast.add_argument(
+        "--max-grid-points",
+        type=int,
+        default=16_000_000,
+        help="Largest allowed grid; a larger request is an error (no automatic coarsening)",
+    )
+    cast.add_argument(
+        "--selection",
+        choices=['protein', 'all'],
+        default='protein',
+        help="Protein: non-HETATM heavy atoms. All: retain bound species/solvent as obstacles",
+    )
+    cast.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="Resolution (dots per inch) of the hydration/analysis figures written with the cast (default 200; use 400 or more for print). The cast itself has no Matplotlib figure; use the viewer scenes",
+    )
     cast.set_defaults(func=_cmd_cast)
 
-    profile = subparsers.add_parser("profile", help="Measure the radius profile of a channel that runs through the protein")
+    profile = subparsers.add_parser(
+        "profile", help="Measure the radius profile of a channel that runs through the protein"
+    )
     _add_structure_arg(profile)
     _add_profile_args(profile)
-    profile.add_argument("-o", "--output", required=True,
-                         help="Output JSON path; the per-sample table is also written as <stem>.csv beside it")
+    profile.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output JSON path; the per-sample table is also written as <stem>.csv beside it",
+    )
     profile.add_argument("--csv", help="Per-sample CSV path instead of the default <stem>.csv beside the JSON")
     profile.add_argument("--pdb", help="Optional profile-trace dummy-atom PDB output")
     profile.add_argument("--png", help="Optional pore-radius profile PNG output")
-    profile.add_argument("--annotated-png", help="Optional pore-radius PNG with a lane of nearest-residue landmarks (residue names are drawn with --annotate)")
-    profile.add_argument("--residue-label-every", type=int, default=5, help="Landmark spacing in profile points for the residue-landmark radius figure")
-    profile.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    profile.add_argument(
+        "--annotated-png",
+        help="Optional pore-radius PNG with a lane of nearest-residue landmarks (residue names are drawn with --annotate)",
+    )
+    profile.add_argument(
+        "--residue-label-every",
+        type=int,
+        default=5,
+        help="Landmark spacing in profile points for the residue-landmark radius figure",
+    )
+    profile.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     profile.add_argument("--pymol", help="Optional publication-ready PyMOL script path; requires --pdb")
     profile.add_argument("--pymol-png", help="Optional PyMOL-rendered PNG path written into the .pml script")
     profile.set_defaults(func=_cmd_profile)
@@ -639,17 +977,31 @@ def build_parser() -> argparse.ArgumentParser:
     residues.add_argument("-o", "--output", required=True, help="Output CSV path")
     residues.add_argument("--json", help="Optional residue JSON output")
     residues.add_argument("--png", help="Optional residue influence PNG output")
-    residues.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    residues.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     residues.add_argument("--cutoff", type=float, default=4.5, help="Residue surface-distance cutoff")
     residues.set_defaults(func=_cmd_residues)
 
     cavities = subparsers.add_parser("cavities", help="Find buried cavities on a clearance grid")
     _add_structure_arg(cavities)
-    cavities.add_argument("-o", "--output", required=True,
-                          help="Output JSON path; the cavity table is also written as <stem>.csv beside it")
+    cavities.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output JSON path; the cavity table is also written as <stem>.csv beside it",
+    )
     cavities.add_argument("--pdb", help="Optional dummy-atom PDB output")
     cavities.add_argument("--png", help="Optional cavity summary PNG output")
-    cavities.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    cavities.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     cavities.add_argument("--spacing", type=float, default=2.0, help="Grid spacing in Å")
     cavities.add_argument("--min-radius", type=float, default=1.4, help="Minimum void clearance radius in Å")
     cavities.add_argument("--max-cavities", type=int, default=10, help="Maximum cavities to report")
@@ -657,121 +1009,240 @@ def build_parser() -> argparse.ArgumentParser:
     cavities.add_argument("--include-hetero", action="store_true", help="Include HETATM records")
     cavities.set_defaults(func=_cmd_cavities)
 
-    tunnels = subparsers.add_parser("tunnels", help="Find the widest access tunnels from a start point to the outside")
-    _add_structure_arg(tunnels)
-    tunnels.add_argument("-o", "--output", required=True,
-                         help="Output JSON path; tunnel and path-node tables are also written as <stem>.csv and <stem>_points.csv")
-    tunnels.add_argument("--pdb", help="Optional dummy-atom PDB output")
-    tunnels.add_argument("--start", help="Start coordinate formatted as x,y,z in Å; defaults to structure centroid")
-    tunnels.add_argument("--spacing", type=float, default=2.0, help="Grid spacing in Å")
-    tunnels.add_argument("--min-radius", type=float, default=0.8, help="Minimum traversable clearance radius in Å")
-    tunnels.add_argument("--max-tunnels", type=int, default=3, help="Maximum tunnels to report")
-    tunnels.add_argument("--include-hydrogen", action="store_true", help="Include hydrogen atoms")
-    tunnels.add_argument("--include-hetero", action="store_true", help="Include HETATM records")
-    tunnels.set_defaults(func=_cmd_tunnels)
-
     network = subparsers.add_parser("network", help="Build residue and channel/cavity interaction networks")
     _add_structure_arg(network)
     _add_profile_args(network)
-    network.add_argument("-o", "--output", required=True,
-                         help="Output network JSON path; node and edge tables are also written as <stem>_nodes.csv and <stem>_edges.csv")
+    network.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output network JSON path; node and edge tables are also written as <stem>_nodes.csv and <stem>_edges.csv",
+    )
     network.add_argument("--cutoff", type=float, default=4.5, help="Residue/residue and region/residue cutoff in Å")
-    network.add_argument("--contact-metric",choices=["center","surface"],default="center",help="Atom-center distance by default; surface retains the legacy van der Waals gap. The networks inside report and report --analyze use the surface gap with heteroatoms excluded")
+    network.add_argument(
+        "--contact-metric",
+        choices=["center", "surface"],
+        default="center",
+        help="Residue-contact distance: heavy-atom centres (default, as everywhere in CREVICE) or the van der Waals surface gap",
+    )
     network.add_argument("--region", choices=["none", "profile"], default="profile", help="Add a region pseudo-node")
     network.add_argument("--png", help="Optional network summary PNG output")
     network.add_argument("--chord-png", help="Optional chord-style network PNG output")
-    network.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    network.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     network.set_defaults(func=_cmd_network)
     network.add_argument("--residue-groups", help="JSON mapping full residue IDs to helix/strand names")
-    network.add_argument("--connectivity-json", help="Paths and group contact record; the tables are also written as <stem>.csv and <stem>_groups.csv")
+    network.add_argument(
+        "--connectivity-json",
+        help="Paths and group contact record; the tables are also written as <stem>.csv and <stem>_groups.csv",
+    )
     network.add_argument("--connectivity-png", help="Group-colored graph-distance plot")
-    network.add_argument("--remove-residue", action="append", default=[], help="Residue ID for graph removal sensitivity")
+    network.add_argument(
+        "--remove-residue", action="append", default=[], help="Residue ID for graph removal sensitivity"
+    )
 
-    evidence=subparsers.add_parser("residue-evidence",help="Explain a measured cast boundary and nonlocal residue partners")
+    evidence = subparsers.add_parser(
+        "residue-evidence", help="Explain a measured cast boundary and nonlocal residue partners"
+    )
     _add_structure_arg(evidence)
-    evidence.add_argument("--volume-dx",required=True,help="Measured binary volume DX in the protein coordinate frame")
-    evidence.add_argument("--out-dir",required=True, help="Output directory")
-    evidence.add_argument("--prefix",default="crevice", help="Output file-name prefix (a simple file stem)")
-    evidence.add_argument("--lining-distance",type=float,default=1.5, help="Largest atom-surface gap in Å at which a boundary face is assigned to a residue")
-    evidence.add_argument("--contact-cutoff",type=float,default=4.5, help="Residue contact cutoff in Å (heavy-atom centres) for nonlocal partners")
-    evidence.add_argument("--residue-groups",help="JSON mapping full residue IDs to helix/strand groups")
-    evidence.add_argument("--scene",help="Optional matching volume PML for a cartoon-color evidence overlay")
-    evidence.add_argument("--stick-residues",default="top:12",metavar="all|top:N|IDS|@FILE",
-                          help="Residues shown as opaque sticks in the PyMOL/VMD/ChimeraX overlays: 'top:N' per role "
-                               "(default top:12), 'all' boundary residues and nonlocal partners, or comma-separated "
-                               "residue IDs / @file of IDs (each must be a boundary residue or nonlocal partner). "
-                               "The ranked bar chart and tables are unchanged")
-    evidence.add_argument("--dpi",type=int,default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    evidence.add_argument(
+        "--volume-dx", required=True, help="Measured binary volume DX in the protein coordinate frame"
+    )
+    evidence.add_argument("--out-dir", required=True, help="Output directory")
+    evidence.add_argument("--prefix", default="crevice", help="Output file-name prefix (a simple file stem)")
+    evidence.add_argument(
+        "--lining-distance",
+        type=float,
+        default=1.5,
+        help="Largest atom-surface gap in Å at which a boundary face is assigned to a residue",
+    )
+    evidence.add_argument(
+        "--contact-cutoff",
+        type=float,
+        default=4.5,
+        help="Residue contact cutoff in Å (heavy-atom centres) for nonlocal partners",
+    )
+    evidence.add_argument("--residue-groups", help="JSON mapping full residue IDs to helix/strand groups")
+    evidence.add_argument("--scene", help="Optional matching volume PML for a cartoon-color evidence overlay")
+    evidence.add_argument(
+        "--stick-residues",
+        default="top:12",
+        metavar="all|top:N|IDS|@FILE",
+        help="Residues shown as opaque sticks in the PyMOL/VMD/ChimeraX overlays: 'top:N' per role "
+        "(default top:12), 'all' boundary residues and nonlocal partners, or comma-separated "
+        "residue IDs / @file of IDs (each must be a boundary residue or nonlocal partner). "
+        "The ranked bar chart and tables are unchanged",
+    )
+    evidence.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     evidence.set_defaults(func=_cmd_residue_evidence)
 
     features = subparsers.add_parser("features", help="Export profile and residue feature JSON")
     _add_structure_arg(features)
     _add_profile_args(features)
-    features.add_argument("-o", "--output", required=True,
-                          help="Output JSON path; the features are also written as <stem>.csv (feature, value, unit)")
+    features.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output JSON path; the features are also written as <stem>.csv (feature, value, unit)",
+    )
     features.add_argument("--cutoff", type=float, default=4.5, help="Residue surface-distance cutoff in Å")
     features.set_defaults(func=_cmd_features)
 
     trajectory = subparsers.add_parser("trajectory", help="Analyze a sequence of static structure frames")
     trajectory.add_argument("structures", nargs="+", help="Input PDB/mmCIF files, one per frame")
-    trajectory.add_argument("-o", "--output", help="Output trajectory-analysis JSON path (required unless --inspect); "
-                            "per-frame summaries and profiles are also written as <stem>_frames.csv and <stem>_profiles.csv")
+    trajectory.add_argument(
+        "-o",
+        "--output",
+        help="Output trajectory-analysis JSON path (required unless --inspect); "
+        "per-frame summaries and profiles are also written as <stem>_frames.csv and <stem>_profiles.csv",
+    )
     trajectory.add_argument(
         "--analysis",
         action="append",
-        choices=["profile", "residues", "cavities", "tunnels", "network", "features"],
+        choices=["profile", "residues", "cavities", "network", "features"],
         help="Analysis to run; may be repeated. Defaults to profile and features.",
     )
     trajectory.add_argument("--stride", type=int, default=1, help="Analyze every Nth input frame")
     trajectory.add_argument("--axis", default="auto", help="Channel axis: auto, x, y, z, or vector")
     trajectory.add_argument("--origin", type=parse_coord, help="Reference channel seed x,y,z")
     trajectory.add_argument("--section-spacing", type=float, default=0.5, help="Transverse channel grid spacing in Å")
-    trajectory.add_argument("--enclosure-radius", type=_enclosure_radius_arg, default=None, metavar="{auto,Å}",
-                            help="Probe radius (Å) for channel enclosure, fixed for every frame. 'auto' (default) "
-                                 "chooses it once on the first (reference) frame with the profile rule (smallest "
-                                 "probe of the most persistent channel, 0.5-3.0 Å) and then uses that value for every "
-                                 "frame; the choice and reason are recorded in the output JSON "
-                                 "(metadata.enclosure_probe) and printed. A number runs that probe for every frame")
-    trajectory.add_argument("--probe-fallback", action=argparse.BooleanOptionalAction, default=None,
-                            help="Per-frame fallback: if the pinned enclosure probe does not resolve a frame, retry "
-                                 "that frame with the automatic choice made on it (same axis and origin). Default: "
-                                 "on with --enclosure-radius auto, off with an explicit probe (kept strict); "
-                                 "--probe-fallback enables it for an explicit probe, --no-probe-fallback disables "
-                                 "it. Each frame's source (pinned/fallback/none) is in <stem>_frames.csv "
-                                 "(enclosure_probe_source) and the JSON; fallbacks are counted and printed")
-    trajectory.add_argument("--samples", type=int, default=81, help="Minimum number of profile samples; connected profiles add points to keep axial steps ≤ 0.75 Å")
-    trajectory.add_argument("--search-radius", type=float, default=6.0, help="Transverse search half-width (Å); 0 requests an unvalidated fixed-axis scan")
+    trajectory.add_argument(
+        "--enclosure-radius",
+        type=_enclosure_radius_arg,
+        default=None,
+        metavar="{auto,Å}",
+        help="Probe radius (Å) for channel enclosure. 'auto' (default): every frame uses the "
+        "per-plane probe of 'crevice profile' (the axis and seed of the first frame are kept). "
+        "A number runs that probe in every plane of every frame",
+    )
+    trajectory.add_argument(
+        "--samples",
+        type=int,
+        default=81,
+        help="Minimum number of profile samples; connected profiles add points to keep axial steps ≤ 0.75 Å",
+    )
+    trajectory.add_argument(
+        "--search-radius",
+        type=float,
+        default=6.0,
+        help="Base transverse search half-width (Å); planes with a wide lumen use a square twice or four times as wide",
+    )
     trajectory.add_argument("--png", help="Axial mean, frame fluctuations and approximate confidence band")
-    trajectory.add_argument("--topology", help="MD topology (.gro, .pdb, .psf, .tpr); pass one trajectory file as structures")
-    trajectory.add_argument("--selection", default="protein",
-                            help="MDAnalysis atom selection applied when reading a trajectory")
+    trajectory.add_argument(
+        "--topology", help="MD topology (.gro, .pdb, .psf, .tpr); pass one trajectory file as structures"
+    )
+    trajectory.add_argument(
+        "--selection", default="protein", help="MDAnalysis atom selection applied when reading a trajectory"
+    )
     trajectory.add_argument("--start", type=int, default=0, help="First trajectory frame to read")
     trajectory.add_argument("--stop", type=int, help="Stop before this trajectory frame")
-    trajectory.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES,
-                            help="Refuse to load more frames than this; 0 disables the guard")
-    trajectory.add_argument("--inspect", action="store_true",
-                            help="Report frame and selection counts without loading or analyzing")
+    trajectory.add_argument(
+        "--max-frames",
+        type=int,
+        default=DEFAULT_MAX_FRAMES,
+        help="Refuse to load more frames than this; 0 disables the guard",
+    )
+    trajectory.add_argument(
+        "--inspect", action="store_true", help="Report frame and selection counts without loading or analyzing"
+    )
     trajectory.add_argument("--report-json", help="Optional path for the reader provenance report")
-    trajectory.add_argument("--align",action=argparse.BooleanOptionalAction,default=True,help="Fit matching CA atoms to the first frame (default); --no-align disables fitting")
-    trajectory.add_argument("--alignment-residue",action="append",help="Full residue ID in a stable alignment scaffold; repeat to select multiple residues")
-    trajectory.add_argument("--alignment-residues-json",help="JSON list of full residue IDs for a preselected alignment scaffold")
-    trajectory.add_argument("--pbc",choices=["check","none","unwrap"],default="check",help="Screen split bonds before fitting; unwrap requires one reliably bonded fragment")
-    trajectory.add_argument("--profile-errors",choices=["record","raise"],default="record",help="Retain unresolved profile status by default")
-    trajectory.add_argument("--confidence",type=float,default=.95,help="Approximate mean confidence level; 0 disables confidence estimation")
-    trajectory.add_argument("--block-length",type=int,help="Target contiguous batch length in analyzed frames; default uses autocorrelation")
-    trajectory.add_argument("--bootstrap-replicates",type=int,default=2000, help="Block-bootstrap replicates of the mean intervals")
-    trajectory.add_argument("--bootstrap-seed",type=int,default=20260911, help="Random seed of the block bootstrap")
-    trajectory.add_argument("--profile-quantity",choices=["radius","diameter"],default="radius", help="Plot radius or diameter (Å) in the --png figure")
-    trajectory.add_argument("--contact-metric",choices=["center","surface"],default="center",help="Residue-contact distance: heavy-atom centres (default) or van der Waals surface gap; the Python analyze_trajectory default is the surface gap")
-    trajectory.add_argument("--contact-cutoff",type=float,default=4.5, help="Residue contact cutoff in Å for --network-json")
-    trajectory.add_argument("--lining-evidence",help="Reference 'residues --evidence' JSON; residue identities must match the trajectory")
-    trajectory.add_argument("--view", choices=["distribution", "timeseries"], default="distribution", help="--png figure: distribution (mean, frame quantile band and mean interval against position) or timeseries (each frame's minimum, mean and maximum against time)")
-    trajectory.add_argument("--quantiles", type=float, nargs=2, default=(0.1, 0.9), help="Lower and upper frame quantiles of the fluctuation band")
-    trajectory.add_argument("--distribution-csv", help="Coordinate-wise radius statistics (Å) and frame counts; the interval record is also written as <stem>.json")
-    trajectory.add_argument("--network-json", help="Persistent physical contacts and descriptive aligned residue motion (also writes CSV/PNG)")
+    trajectory.add_argument(
+        "--align",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fit matching CA atoms to the first frame (default); --no-align disables fitting",
+    )
+    trajectory.add_argument(
+        "--alignment-residue",
+        action="append",
+        help="Full residue ID in a stable alignment scaffold; repeat to select multiple residues",
+    )
+    trajectory.add_argument(
+        "--alignment-residues-json", help="JSON list of full residue IDs for a preselected alignment scaffold"
+    )
+    trajectory.add_argument(
+        "--pbc",
+        choices=["check", "none", "unwrap"],
+        default="check",
+        help="Screen split bonds before fitting; unwrap requires one reliably bonded fragment",
+    )
+    trajectory.add_argument(
+        "--profile-errors",
+        choices=["record", "raise"],
+        default="record",
+        help="Retain unresolved profile status by default",
+    )
+    trajectory.add_argument(
+        "--confidence",
+        type=float,
+        default=0.95,
+        help="Approximate mean confidence level; 0 disables confidence estimation",
+    )
+    trajectory.add_argument(
+        "--block-length",
+        type=int,
+        help="Target contiguous batch length in analyzed frames; default uses autocorrelation",
+    )
+    trajectory.add_argument(
+        "--bootstrap-replicates", type=int, default=2000, help="Block-bootstrap replicates of the mean intervals"
+    )
+    trajectory.add_argument("--bootstrap-seed", type=int, default=20260911, help="Random seed of the block bootstrap")
+    trajectory.add_argument(
+        "--profile-quantity",
+        choices=["radius", "diameter"],
+        default="radius",
+        help="Plot radius or diameter (Å) in the --png figure",
+    )
+    trajectory.add_argument(
+        "--contact-metric",
+        choices=["center", "surface"],
+        default="center",
+        help="Residue-contact distance: heavy-atom centres (default, as everywhere in CREVICE) or the van der Waals surface gap",
+    )
+    trajectory.add_argument(
+        "--contact-cutoff", type=float, default=4.5, help="Residue contact cutoff in Å for --network-json"
+    )
+    trajectory.add_argument(
+        "--lining-evidence", help="Reference 'residues --evidence' JSON; residue identities must match the trajectory"
+    )
+    trajectory.add_argument(
+        "--view",
+        choices=["distribution", "timeseries"],
+        default="distribution",
+        help="--png figure: distribution (mean, frame quantile band and mean interval against position) or timeseries (each frame's minimum, mean and maximum against time)",
+    )
+    trajectory.add_argument(
+        "--quantiles",
+        type=float,
+        nargs=2,
+        default=(0.1, 0.9),
+        help="Lower and upper frame quantiles of the fluctuation band",
+    )
+    trajectory.add_argument(
+        "--distribution-csv",
+        help="Coordinate-wise radius statistics (Å) and frame counts; the interval record is also written as <stem>.json",
+    )
+    trajectory.add_argument(
+        "--network-json",
+        help="Persistent physical contacts and descriptive aligned residue motion (also writes CSV/PNG)",
+    )
     trajectory.add_argument("--occupancy", type=float, default=0.75, help="Minimum contact occupancy")
     trajectory.add_argument("--residue-groups", help="JSON mapping residue IDs to helix/strand names")
-    trajectory.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    trajectory.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     _add_permeation_arguments(trajectory)
     trajectory.set_defaults(func=_cmd_trajectory)
 
@@ -780,83 +1251,193 @@ def build_parser() -> argparse.ArgumentParser:
     _add_profile_args(publish)
     publish.add_argument("--out-dir", required=True, help="Directory for the publication-ready output bundle")
     publish.add_argument("--prefix", help="Output filename prefix; defaults to the structure stem")
-    publish.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
-    publish.add_argument("--residue-label-every", type=int, default=5, help="Landmark spacing in profile points for the residue-landmark radius figure")
-    publish.add_argument("--cast-mode", choices=["auto", "channel", "cavity", "all", "rolling"], default="auto", help="Void-cast component selection mode for PyMOL pore/cavity fill")
-    publish.add_argument("--cast-outer-radius", type=float, default=6., help="Outer envelope probe for rolling cast mode")
-    publish.add_argument("--cast-enclosure-fraction", type=float, default=.9, help="Rolling cast: burial threshold (fraction of 26 lattice rays)")
-    publish.add_argument("--cast-extension", type=float, default=2.0,
-                         help="Display-only cast continuation beyond each mouth (Å); excluded from measured volume")
+    publish.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
+    publish.add_argument(
+        "--residue-label-every",
+        type=int,
+        default=5,
+        help="Landmark spacing in profile points for the residue-landmark radius figure",
+    )
+    publish.add_argument(
+        "--cast-mode",
+        choices=["auto", "channel", "cavity", "all", "rolling"],
+        default="auto",
+        help="Void-cast component selection mode for PyMOL pore/cavity fill",
+    )
+    publish.add_argument(
+        "--cast-outer-radius", type=float, default=6.0, help="Outer envelope probe for rolling cast mode"
+    )
+    publish.add_argument(
+        "--cast-enclosure-fraction",
+        type=float,
+        default=0.9,
+        help="Rolling cast: burial threshold (fraction of 26 lattice rays)",
+    )
+    publish.add_argument(
+        "--cast-extension",
+        type=float,
+        default=2.0,
+        help="Display-only cast continuation beyond each mouth (Å); excluded from measured volume",
+    )
     publish.add_argument("--cast-spacing", type=float, default=0.5, help="Void-cast grid spacing in Å")
-    publish.add_argument("--cast-min-radius", type=float, default=0.0, help="Minimum atom-surface clearance in Å for void-cast points")
-    publish.add_argument("--cast-max-cavities", "--cast-max-components", dest="cast_max_components", type=int, default=1,
-                         help="Maximum qualifying cast regions (default 1)")
-    publish.add_argument("--cast-selection", choices=['dominant','all'], default='dominant', help="Selection for rolling casts and automatic rolling fallback")
-    publish.add_argument("--cast-core-fraction", type=float, default=.08, help="Rolling cast (dominant selection): minimum core volume relative to the strongest core")
+    publish.add_argument(
+        "--cast-min-radius", type=float, default=0.0, help="Minimum atom-surface clearance in Å for void-cast points"
+    )
+    publish.add_argument(
+        "--cast-max-cavities",
+        "--cast-max-components",
+        dest="cast_max_components",
+        type=int,
+        default=1,
+        help="Maximum qualifying cast regions (default 1)",
+    )
+    publish.add_argument(
+        "--cast-selection",
+        choices=['dominant', 'all'],
+        default='dominant',
+        help="Selection for rolling casts and automatic rolling fallback",
+    )
+    publish.add_argument(
+        "--cast-core-fraction",
+        type=float,
+        default=0.08,
+        help="Rolling cast (dominant selection): minimum core volume relative to the strongest core",
+    )
     _add_smoothing_args(publish)
-    publish.add_argument("--cast-max-grid-points", type=int, default=16000000, help="Maximum grid points for void-cast analysis")
-    publish.add_argument("--focus", type=float, nargs=3, action="append", help="Focus coordinate x y z in Å; repeat for branches")
+    publish.add_argument(
+        "--cast-max-grid-points", type=int, default=16000000, help="Maximum grid points for void-cast analysis"
+    )
+    publish.add_argument(
+        "--focus", type=float, nargs=3, action="append", help="Focus coordinate x y z in Å; repeat for branches"
+    )
     publish.add_argument("--focus-radius", type=float, default=8.0, help="Radius in Å around each --focus point")
-    publish.add_argument("--min-component-volume", type=float, default=0.0, help="Inclusive minimum final component volume in Å³ after cropping")
-    publish.add_argument("--max-component-volume", type=float, help="Inclusive maximum final component volume in Å³ after cropping")
+    publish.add_argument(
+        "--min-component-volume",
+        type=float,
+        default=0.0,
+        help="Inclusive minimum final component volume in Å³ after cropping",
+    )
+    publish.add_argument(
+        "--max-component-volume", type=float, help="Inclusive maximum final component volume in Å³ after cropping"
+    )
     publish.add_argument("--residue-groups", help="JSON mapping residue IDs to helix/strand names")
-    publish.add_argument("--skip-cavities", action="store_true", help="Do not run cavity detection for the bundle")
-    publish.add_argument("--skip-tunnels", action="store_true", help="Do not run tunnel detection for the bundle")
-    publish.add_argument("--skip-network", action="store_true", help="Do not build the residue/channel network for the bundle")
-    publish.add_argument("--entry-end", choices=["auto", "start", "end"], default="auto",
-                         help="Which channel end is labelled ENTRY for the cast segments (ENTRY, LUMEN, EXIT). auto: "
-                              "if exactly one end is capped with lateral exits, those legs are EXITs and the open end "
-                              "is the ENTRY; otherwise the axis start. Geometric labels, not a transport direction")
-    publish.add_argument("--lining-cutoff", type=float, default=3.3,
-                         help="Lining residues: atom centre within this distance (Å) of a segment's measured grid "
-                              "nodes (default 3.3, a hydrogen-bond distance); written per segment to "
-                              "PREFIX_lining_residues.csv and as hidden viewer selections")
-    publish.add_argument("--fingerprint", action="store_true",
-                         help="Also write the pore fingerprint (PREFIX_fingerprint.csv/.json/.png: radius, lining "
-                              "hydrophobicity, chemistry and a geometric conductance estimate along the path; see "
-                              "crevice profile --fingerprint) for a resolved channel")
+    publish.add_argument(
+        "--skip-network", action="store_true", help="Do not build the residue/channel network for the bundle"
+    )
+    publish.add_argument(
+        "--entry-end",
+        choices=["auto", "start", "end"],
+        default="auto",
+        help="Which channel end is labelled ENTRY for the cast segments (ENTRY, LUMEN, EXIT). auto: "
+        "if exactly one end is capped with lateral exits, those legs are EXITs and the open end "
+        "is the ENTRY; otherwise the axis start. Geometric labels, not a transport direction",
+    )
+    publish.add_argument(
+        "--lining-cutoff",
+        type=float,
+        default=3.3,
+        help="Lining residues: atom centre within this distance (Å) of a segment's measured grid "
+        "nodes (default 3.3, a hydrogen-bond distance); written per segment to "
+        "PREFIX_lining_residues.csv and as hidden viewer selections",
+    )
+    publish.add_argument(
+        "--fingerprint",
+        action="store_true",
+        help="Also write the pore fingerprint (PREFIX_fingerprint.csv/.json/.png: radius, lining "
+        "hydrophobicity, chemistry and a geometric conductance estimate along the path; see "
+        "crevice profile --fingerprint) for a resolved channel",
+    )
     publish.set_defaults(func=_cmd_publish)
 
     fingerprint = subparsers.add_parser(
-        "fingerprint", help="Pore fingerprint along a channel: radius, lining hydrophobicity and chemistry, "
-                            "ENTRY/LUMEN/EXIT segments, water along the path (MD) and a geometric conductance estimate")
+        "fingerprint",
+        help="Pore fingerprint along a channel: radius, lining hydrophobicity and chemistry, "
+        "ENTRY/LUMEN/EXIT segments, water along the path (MD) and a geometric conductance estimate",
+    )
     _add_structure_arg(fingerprint)
     _add_profile_args(fingerprint)
     fingerprint.add_argument("--out-dir", required=True, help="Output directory")
     fingerprint.add_argument("--prefix", help="Output filename prefix; defaults to the structure stem")
-    fingerprint.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200)")
-    fingerprint.add_argument("--entry-end", choices=["auto", "start", "end"], default="auto",
-                             help="Which channel end is labelled ENTRY (as report); geometric labels, not a transport direction")
-    fingerprint.add_argument("--hydrophobicity-bandwidth", type=float, default=3.0,
-                             help="Gaussian kernel standard deviation (Å) along the path for the lining hydrophobicity "
-                                  "(Wimley-White octanol scale) profile (default 3.0)")
-    fingerprint.add_argument("--lining-shell", type=float, default=1.4,
-                             help="An atom lines a path sample when its vdW surface is within this distance (Å) of the "
-                                  "sample's free sphere (default 1.4, one water-probe radius)")
-    fingerprint.add_argument("--electrolyte", choices=["kcl-150mm", "nacl-150mm", "kcl-1m", "nacl-1m"], default="kcl-150mm",
-                             help="Bulk electrolyte whose resistivity enters the conductance estimate (default kcl-150mm, "
-                                  "0.532 Ohm m at 25 °C)")
-    fingerprint.add_argument("--resistivity", type=float,
-                             help="Explicit bulk resistivity (Ohm m); overrides --electrolyte")
-    fingerprint.add_argument("--trajectory", help="MD trajectory (.xtc, .dcd ...); the structure argument is then its "
-                                                 "topology (.gro, .pdb, .psf, .tpr)")
-    fingerprint.add_argument("--selection", default="protein",
-                             help="With --trajectory: MDAnalysis selection of the protein atoms (the geometry)")
-    fingerprint.add_argument("--water-selection",
-                             help="With --trajectory: MDAnalysis water selection (default: common water residue names)")
-    fingerprint.add_argument("--no-water", action="store_true", help="With --trajectory: do not count water along the path")
+    fingerprint.add_argument(
+        "--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200)"
+    )
+    fingerprint.add_argument(
+        "--entry-end",
+        choices=["auto", "start", "end"],
+        default="auto",
+        help="Which channel end is labelled ENTRY (as report); geometric labels, not a transport direction",
+    )
+    fingerprint.add_argument(
+        "--hydrophobicity-bandwidth",
+        type=float,
+        default=3.0,
+        help="Gaussian kernel standard deviation (Å) along the path for the lining hydrophobicity "
+        "(Wimley-White octanol scale) profile (default 3.0)",
+    )
+    fingerprint.add_argument(
+        "--lining-shell",
+        type=float,
+        default=1.4,
+        help="An atom lines a path sample when its vdW surface is within this distance (Å) of the "
+        "sample's free sphere (default 1.4, one water-probe radius)",
+    )
+    fingerprint.add_argument(
+        "--electrolyte",
+        choices=["kcl-150mm", "nacl-150mm", "kcl-1m", "nacl-1m"],
+        default="kcl-150mm",
+        help="Bulk electrolyte whose resistivity enters the conductance estimate (default kcl-150mm, "
+        "0.532 Ohm m at 25 °C)",
+    )
+    fingerprint.add_argument(
+        "--resistivity", type=float, help="Explicit bulk resistivity (Ohm m); overrides --electrolyte"
+    )
+    fingerprint.add_argument(
+        "--trajectory",
+        help="MD trajectory (.xtc, .dcd ...); the structure argument is then its topology (.gro, .pdb, .psf, .tpr)",
+    )
+    fingerprint.add_argument(
+        "--selection",
+        default="protein",
+        help="With --trajectory: MDAnalysis selection of the protein atoms (the geometry)",
+    )
+    fingerprint.add_argument(
+        "--water-selection", help="With --trajectory: MDAnalysis water selection (default: common water residue names)"
+    )
+    fingerprint.add_argument(
+        "--no-water", action="store_true", help="With --trajectory: do not count water along the path"
+    )
     fingerprint.add_argument("--start", type=int, default=0, help="With --trajectory: first frame to read")
     fingerprint.add_argument("--stop", type=int, help="With --trajectory: stop before this frame")
     fingerprint.add_argument("--stride", type=int, default=1, help="With --trajectory: read every Nth frame")
-    fingerprint.add_argument("--max-frames", type=int, default=DEFAULT_MAX_FRAMES,
-                             help="With --trajectory: refuse to load more frames than this; 0 disables the guard")
-    fingerprint.add_argument("--pbc", choices=["check", "none"], default="check",
-                             help="With --trajectory: periodic handling (check: use cell dimensions and minimum imaging)")
-    fingerprint.add_argument("--quantiles", type=float, nargs=2, default=(0.1, 0.9),
-                             help="With --trajectory: lower and upper frame quantiles of the radius band")
+    fingerprint.add_argument(
+        "--max-frames",
+        type=int,
+        default=DEFAULT_MAX_FRAMES,
+        help="With --trajectory: refuse to load more frames than this; 0 disables the guard",
+    )
+    fingerprint.add_argument(
+        "--pbc",
+        choices=["check", "none"],
+        default="check",
+        help="With --trajectory: periodic handling (check: use cell dimensions and minimum imaging)",
+    )
+    fingerprint.add_argument(
+        "--quantiles",
+        type=float,
+        nargs=2,
+        default=(0.1, 0.9),
+        help="With --trajectory: lower and upper frame quantiles of the radius band",
+    )
     fingerprint.set_defaults(func=_cmd_fingerprint)
 
-    fetch = subparsers.add_parser("fetch", help="Fetch structures from RCSB by accession, or AlphaFold DB models by AF- identifier")
+    fetch = subparsers.add_parser(
+        "fetch", help="Fetch structures from RCSB by accession, or AlphaFold DB models by AF- identifier"
+    )
     fetch.add_argument(
         "pdb_ids",
         nargs="*",
@@ -871,39 +1452,80 @@ def build_parser() -> argparse.ArgumentParser:
     fetch.add_argument("--json", help="Optional path for the download provenance records")
     fetch.set_defaults(func=_cmd_fetch)
 
-    fetch_example = subparsers.add_parser("fetch-example", help="Download an example dataset by name into a local cache, verifying SHA-256 hashes")
+    fetch_example = subparsers.add_parser(
+        "fetch-example", help="Download an example dataset by name into a local cache, verifying SHA-256 hashes"
+    )
     fetch_example.add_argument("name", nargs="?", help="Dataset name, e.g. glut1-excerpt (see --list)")
-    fetch_example.add_argument("--cache-dir", help="Cache root; files go in CACHE_DIR/NAME (default: $CREVICE_EXAMPLE_CACHE_DIR or ~/.cache/crevice/examples)")
-    fetch_example.add_argument("--base-url", help="URL prefix of the assets (default: $CREVICE_EXAMPLE_BASE_URL or the v0.1.1 GitHub Release)")
-    fetch_example.add_argument("--source-dir", help="Local directory holding the asset files, for offline use (default: $CREVICE_EXAMPLE_SOURCE_DIR)")
-    fetch_example.add_argument("--overwrite", action="store_true", help="Fetch every file again even if a verified copy is cached")
+    fetch_example.add_argument(
+        "--cache-dir",
+        help="Cache root; files go in CACHE_DIR/NAME (default: $CREVICE_EXAMPLE_CACHE_DIR or ~/.cache/crevice/examples)",
+    )
+    fetch_example.add_argument(
+        "--base-url", help="URL prefix of the assets (default: $CREVICE_EXAMPLE_BASE_URL or the v0.1.1 GitHub Release)"
+    )
+    fetch_example.add_argument(
+        "--source-dir",
+        help="Local directory holding the asset files, for offline use (default: $CREVICE_EXAMPLE_SOURCE_DIR)",
+    )
+    fetch_example.add_argument(
+        "--overwrite", action="store_true", help="Fetch every file again even if a verified copy is cached"
+    )
     fetch_example.add_argument("--timeout", type=float, default=60.0, help="Network timeout in seconds per file")
-    fetch_example.add_argument("--list", action="store_true", help="List the available datasets and their files without downloading")
+    fetch_example.add_argument(
+        "--list", action="store_true", help="List the available datasets and their files without downloading"
+    )
     fetch_example.set_defaults(func=_cmd_fetch_example)
 
-    view = subparsers.add_parser("view", help="Write a self-contained interactive 3D HTML viewer of an output directory")
-    view.add_argument("outdir", help="Output directory (or its manifest/scene JSON) of report, cavities --cast, trajectory --region, "
-                                     "trajectory --cavities or trajectory --water")
+    view = subparsers.add_parser(
+        "view", help="Write a self-contained interactive 3D HTML viewer of an output directory"
+    )
+    view.add_argument(
+        "outdir",
+        help="Output directory (or its manifest/scene JSON) of report, cavities --cast, trajectory --region, "
+        "trajectory --cavities or trajectory --water",
+    )
     view.add_argument("-o", "--output", help="HTML file to write (default: OUTDIR/PREFIX_view.html)")
     view.add_argument("--open", action="store_true", help="Open the written file in the default web browser")
-    view.add_argument("--kind", choices=["auto", "cast", "region"], default="auto",
-                      help="Which output to show: the cast/report scene or the hydration (region) scene; auto prefers the cast")
-    view.add_argument("--snapshot", type=int, default=0,
-                      help="Hydration outputs: index of the saved snapshot to show with its member waters (default 0, the first)")
-    view.add_argument("--show", action="append", default=[], metavar="LAYER",
-                      help="Show a layer that is hidden by default, e.g. lining_lumen, lining, centre_line (repeatable)")
-    view.add_argument("--hide", action="append", default=[], metavar="LAYER",
-                      help="Hide a layer that is shown by default, e.g. protein, entry (repeatable)")
-    view.add_argument("--cdn", action="store_true",
-                      help="Load 3Dmol.js from the jsDelivr CDN instead of inlining it (smaller file; needs network to open)")
+    view.add_argument(
+        "--kind",
+        choices=["auto", "cast", "region"],
+        default="auto",
+        help="Which output to show: the cast/report scene or the hydration (region) scene; auto prefers the cast",
+    )
+    view.add_argument(
+        "--snapshot",
+        type=int,
+        default=0,
+        help="Hydration outputs: index of the saved snapshot to show with its member waters (default 0, the first)",
+    )
+    view.add_argument(
+        "--show",
+        action="append",
+        default=[],
+        metavar="LAYER",
+        help="Show a layer that is hidden by default, e.g. lining_lumen, lining, centre_line (repeatable)",
+    )
+    view.add_argument(
+        "--hide",
+        action="append",
+        default=[],
+        metavar="LAYER",
+        help="Hide a layer that is shown by default, e.g. protein, entry (repeatable)",
+    )
+    view.add_argument(
+        "--cdn",
+        action="store_true",
+        help="Load 3Dmol.js from the jsDelivr CDN instead of inlining it (smaller file; needs network to open)",
+    )
     view.set_defaults(func=_cmd_view)
 
     analyze = subparsers.add_parser("analyze", help="Run selected analyses on one structure")
     _add_structure_arg(analyze)
     _add_profile_args(analyze)
     analyze.add_argument(
-        "--analysis", action="append",
-        choices=["profile", "residues", "cavities", "tunnels", "network", "features"],
+        "--analysis",
+        action="append",
+        choices=["profile", "residues", "cavities", "network", "features"],
         help="Analysis to run; may be repeated. Defaults to profile and residues.",
     )
     analyze.add_argument("--out-dir", required=True, help="Directory for analysis outputs")
@@ -912,98 +1534,227 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--cavity-spacing", type=float, default=2.0, help="Cavity grid spacing in Å")
     analyze.add_argument("--cavity-min-radius", type=float, default=1.4, help="Minimum cavity clearance radius in Å")
     analyze.add_argument("--max-cavities", type=int, default=10, help="Maximum cavities to report")
-    analyze.add_argument("--cavity-max-grid-points", type=int, default=75_000,
-                         help="Grid-point cap for cavity detection; the requested spacing is "
-                              "coarsened to stay under it, so raise this to honour a fine spacing")
-    analyze.add_argument("--tunnel-spacing", type=float, default=2.0, help="Tunnel grid spacing in Å")
-    analyze.add_argument("--tunnel-min-radius", type=float, default=0.8, help="Minimum traversable clearance in Å")
-    analyze.add_argument("--max-tunnels", type=int, default=3, help="Maximum tunnels to report")
-    analyze.add_argument("--tunnel-max-grid-points", type=int, default=120_000,
-                         help="Grid-point cap for tunnel search; see --cavity-max-grid-points")
-    analyze.add_argument("--start", help="Tunnel start coordinate as x,y,z; defaults to the centroid")
-    analyze.add_argument("--png", action="store_true", help="Also write figures for the profile, residue, cavity and network analyses (tunnel data are tables only)")
-    analyze.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    analyze.add_argument(
+        "--cavity-max-grid-points",
+        type=int,
+        default=75_000,
+        help="Grid-point cap for cavity detection; the requested spacing is "
+        "coarsened to stay under it, so raise this to honour a fine spacing",
+    )
+    analyze.add_argument(
+        "--png", action="store_true", help="Also write figures for the profile, residue, cavity and network analyses"
+    )
+    analyze.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     analyze.set_defaults(func=_cmd_analyze)
 
     benchmark = subparsers.add_parser("benchmark", help="Run static checks on configured CREVICE PDB benchmarks")
-    benchmark.add_argument("pdb_ids", nargs="*", help=f"PDB IDs to check; defaults to {', '.join(DEFAULT_BENCHMARK_IDS)}")
+    benchmark.add_argument(
+        "pdb_ids", nargs="*", help=f"PDB IDs to check; defaults to {', '.join(DEFAULT_BENCHMARK_IDS)}"
+    )
     benchmark.add_argument("--cache-dir", default=".crevice/pdb", help="Local structure cache directory")
     benchmark.add_argument("--format", choices=["pdb", "cif", "mmcif"], default="cif", help="Structure format")
     benchmark.add_argument("--fetch", action="store_true", help="Download missing structures before checking")
     benchmark.add_argument("--output", help="Optional JSON summary path; the rows are also written as <stem>.csv")
     benchmark.add_argument("--samples", type=int, default=41, help="Profile samples for benchmark summaries")
-    benchmark.add_argument("--search-radius", type=float, default=3.0, help="Transverse search half-width (Å) of each benchmark profile")
-    benchmark.add_argument("--enclosure-radius", type=_enclosure_radius_arg, default=None, metavar="{auto,Å}",
-                           help="Enclosure probe (Å) of each profile. 'auto' (default) chooses it per system with the "
-                                "profile rule (smallest probe of the most persistent channel, 0.5-3.0 Å) and records "
-                                "it (enclosure_radius_A, enclosure_probe_mode, enclosure_probe_reason); a number "
-                                "runs that probe (0.8 reproduces the summaries recorded before auto became the default)")
+    benchmark.add_argument(
+        "--search-radius", type=float, default=3.0, help="Transverse search half-width (Å) of each benchmark profile"
+    )
+    benchmark.add_argument(
+        "--enclosure-radius",
+        type=_enclosure_radius_arg,
+        default=None,
+        metavar="{auto,Å}",
+        help="Enclosure probe (Å) of each profile. 'auto' (default) chooses it per system with the "
+        "profile rule (smallest probe of the most persistent channel, 0.5-3.0 Å) and records "
+        "it (enclosure_radius_A, enclosure_probe_mode, enclosure_probe_reason); a number "
+        "runs that probe (0.8 reproduces the summaries recorded before auto became the default)",
+    )
     benchmark.set_defaults(func=_cmd_benchmark)
 
-    static_suite = subparsers.add_parser("static-suite", help="Run publication-output static analyses across benchmark systems")
-    static_suite.add_argument("pdb_ids", nargs="*", help=f"PDB IDs to analyze; defaults to {', '.join(DEFAULT_BENCHMARK_IDS)}")
+    static_suite = subparsers.add_parser(
+        "static-suite", help="Run publication-output static analyses across benchmark systems"
+    )
+    static_suite.add_argument(
+        "pdb_ids", nargs="*", help=f"PDB IDs to analyze; defaults to {', '.join(DEFAULT_BENCHMARK_IDS)}"
+    )
     static_suite.add_argument("--cache-dir", default=".crevice/pdb", help="Local structure cache directory")
-    static_suite.add_argument("--out-dir", default="results/static-benchmark-suite", help="Output directory for suite results")
+    static_suite.add_argument(
+        "--out-dir", default="results/static-benchmark-suite", help="Output directory for suite results"
+    )
     static_suite.add_argument("--format", choices=["pdb", "cif", "mmcif"], default="cif", help="Structure format")
     static_suite.add_argument("--fetch", action="store_true", help="Download missing structures before analyzing")
     static_suite.add_argument("--samples", type=int, default=61, help="Profile samples for static analyses")
-    static_suite.add_argument("--search-radius", type=float, default=3.0, help="Transverse search half-width (Å) of each channel profile")
-    static_suite.add_argument("--refinement-steps", type=int, default=4,
-                              help="Profile slice-centre refinement: 0 keeps grid-point centres; N>0 converges "
-                                   "to 0.0001 Å with at least N step halvings")
-    static_suite.add_argument("--probe-radius", action="append", type=float,
-                              help="Measurement probe radius (Å) for the sensitivity rows; may be repeated (default "
-                                   "0, 1.0 and 1.4). Rows keep the system's enclosure probe; a probe that does not "
-                                   "pass the channel is recorded as an unresolved row")
-    static_suite.add_argument("--enclosure-radius", type=_enclosure_radius_arg, default=None, metavar="{auto,Å}",
-                              help="Enclosure probe (Å) of each system's channel profile. 'auto' (default) chooses it "
-                                   "per system with the profile rule (smallest probe of the most persistent channel, "
-                                   "0.5-3.0 Å), uses it for that system's sensitivity rows and records it in the "
-                                   "summaries (enclosure_radius_A, enclosure_probe_mode); a number runs that probe "
-                                   "(0.8 reproduces the suite outputs recorded before auto became the default)")
+    static_suite.add_argument(
+        "--search-radius", type=float, default=3.0, help="Transverse search half-width (Å) of each channel profile"
+    )
+    static_suite.add_argument(
+        "--refinement-steps",
+        type=int,
+        default=4,
+        help="Profile slice-centre refinement: 0 keeps grid-point centres; N>0 converges "
+        "to 0.0001 Å with at least N step halvings",
+    )
+    static_suite.add_argument(
+        "--probe-radius",
+        action="append",
+        type=float,
+        help="Measurement probe radius (Å) for the sensitivity rows; may be repeated (default "
+        "0, 1.0 and 1.4). Rows keep the system's enclosure probe; a probe that does not "
+        "pass the channel is recorded as an unresolved row",
+    )
+    static_suite.add_argument(
+        "--enclosure-radius",
+        type=_enclosure_radius_arg,
+        default=None,
+        metavar="{auto,Å}",
+        help="Enclosure probe (Å) of each system's channel profile. 'auto' (default) chooses it "
+        "per system with the profile rule (smallest probe of the most persistent channel, "
+        "0.5-3.0 Å), uses it for that system's sensitivity rows and records it in the "
+        "summaries (enclosure_radius_A, enclosure_probe_mode); a number runs that probe "
+        "(0.8 reproduces the suite outputs recorded before auto became the default)",
+    )
     static_suite.add_argument("--cavity-spacing", type=float, default=3.0, help="Cavity grid spacing in Å")
-    static_suite.add_argument("--tunnel-spacing", type=float, default=4.0, help="Tunnel grid spacing in Å")
     static_suite.add_argument("--cast-spacing", type=float, default=1.5, help="Void-cast grid spacing in Å")
-    static_suite.add_argument("--cast-min-radius", type=float, default=0.4, help="Minimum atom-surface clearance in Å for void-cast points")
-    static_suite.add_argument("--cast-max-components", type=int, default=4, help="Maximum final connected components exported in each pore cast")
-    static_suite.add_argument("--cast-max-grid-points", type=int, default=120000, help="Maximum grid points for void-cast analysis")
-    static_suite.add_argument("--max-grid-points", type=int, default=60000, help="Maximum grid points for cavity/tunnel analyses")
-    static_suite.add_argument("--residue-label-every", type=int, default=5, help="Landmark spacing in profile points for the residue-landmark radius figure")
-    static_suite.add_argument("--dpi", type=int, default=200, help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    static_suite.add_argument(
+        "--cast-min-radius", type=float, default=0.4, help="Minimum atom-surface clearance in Å for void-cast points"
+    )
+    static_suite.add_argument(
+        "--cast-max-components",
+        type=int,
+        default=4,
+        help="Maximum final connected components exported in each pore cast",
+    )
+    static_suite.add_argument(
+        "--cast-max-grid-points", type=int, default=120000, help="Maximum grid points for void-cast analysis"
+    )
+    static_suite.add_argument(
+        "--max-grid-points", type=int, default=60000, help="Maximum grid points for cavity analyses"
+    )
+    static_suite.add_argument(
+        "--residue-label-every",
+        type=int,
+        default=5,
+        help="Landmark spacing in profile points for the residue-landmark radius figure",
+    )
+    static_suite.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     static_suite.add_argument("--skip-cavities", action="store_true", help="Skip cavity detection")
-    static_suite.add_argument("--skip-tunnels", action="store_true", help="Skip tunnel detection")
     static_suite.add_argument("--skip-network", action="store_true", help="Skip residue-network analysis")
     static_suite.set_defaults(func=_cmd_static_suite)
     for command in [hydration, cavity_md, region_md, evidence, cast, publish, analyze, trajectory]:
-        if command is not hydration:command.add_argument("--skip-hydration", action="store_true", help="Do not run the water-contact/SASA analysis (off by default since 0.3 except with --water-membership; kept so --all --skip-hydration works)")
-        if command in (cavity_md, region_md):command.add_argument("--water-membership", action="store_true", help="Also count aligned water oxygens inside each frame's measured region, paired with the fixed-reference count")
-        command.add_argument("--hydration-cutoff", type=float, default=3.5, help="Water oxygen–protein heavy-atom contact distance in Å")
+        if command is not hydration:
+            command.add_argument(
+                "--skip-hydration",
+                action="store_true",
+                help="Do not run the water-contact/SASA analysis (off by default since 0.3 except with --water-membership; kept so --all --skip-hydration works)",
+            )
+        if command in (cavity_md, region_md):
+            command.add_argument(
+                "--water-membership",
+                action="store_true",
+                help="Also count aligned water oxygens inside each frame's measured region, paired with the fixed-reference count",
+            )
+        command.add_argument(
+            "--hydration-cutoff", type=float, default=3.5, help="Water oxygen–protein heavy-atom contact distance in Å"
+        )
         command.add_argument("--hydration-probe", type=float, default=1.4, help="Geometric SASA probe radius in Å")
-        command.add_argument("--hydration-sasa-points", type=int, default=256, help="Equal-area quadrature points per atom for SASA")
-        command.add_argument('--water-density-spacing', type=float, default=.5, help='Aligned water-density bin size in Å')
-        command.add_argument('--water-density-smoothing', type=float, default=.5, help='Display-only Gaussian sigma in Å; zero keeps raw density')
-        command.add_argument('--water-density-level', type=float, default=.05, help='Fixed display isovalue in water oxygens per Å³')
-        command.add_argument('--skip-water-density', action='store_true', help="Skip the aligned water-oxygen density maps")
-        command.add_argument('--skip-interactions', action='store_true', help='Skip typed chemical interactions and residue conformation measurements')
-        command.add_argument('--skip-analysis-views', action='store_true', help='Keep numerical analyses but omit the unified molecular scenes, evidence table and overview figures')
-    for command in [region_prepare, region_compare, region_md, hydration, cavity_md, cast, profile, residues, cavities,
-                    network, evidence, trajectory, publish, analyze, static_suite, fingerprint]:
+        command.add_argument(
+            "--hydration-sasa-points", type=int, default=256, help="Equal-area quadrature points per atom for SASA"
+        )
+        command.add_argument(
+            '--water-density-spacing', type=float, default=0.5, help='Aligned water-density bin size in Å'
+        )
+        command.add_argument(
+            '--water-density-smoothing',
+            type=float,
+            default=0.5,
+            help='Display-only Gaussian sigma in Å; zero keeps raw density',
+        )
+        command.add_argument(
+            '--water-density-level', type=float, default=0.05, help='Fixed display isovalue in water oxygens per Å³'
+        )
+        command.add_argument(
+            '--skip-water-density', action='store_true', help="Skip the aligned water-oxygen density maps"
+        )
+        command.add_argument(
+            '--skip-interactions',
+            action='store_true',
+            help='Skip typed chemical interactions and residue conformation measurements',
+        )
+        command.add_argument(
+            '--skip-analysis-views',
+            action='store_true',
+            help='Keep numerical analyses but omit the unified molecular scenes, evidence table and overview figures',
+        )
+    for command in [
+        region_prepare,
+        region_compare,
+        region_md,
+        hydration,
+        cavity_md,
+        cast,
+        profile,
+        residues,
+        cavities,
+        network,
+        evidence,
+        trajectory,
+        publish,
+        analyze,
+        static_suite,
+        fingerprint,
+    ]:
         _add_annotate_arg(command)
     for command in [cast, profile, trajectory, publish, analyze, static_suite]:
         _add_display_guide_args(command)
-    for command in [region_prepare, region_md, hydration, cavity_md, cast, profile, residues, cavities, tunnels,
-                    network, evidence, features, trajectory, publish, analyze, benchmark, static_suite, fingerprint]:
+    for command in [
+        region_prepare,
+        region_md,
+        hydration,
+        cavity_md,
+        cast,
+        profile,
+        residues,
+        cavities,
+        network,
+        evidence,
+        features,
+        trajectory,
+        publish,
+        analyze,
+        benchmark,
+        static_suite,
+        fingerprint,
+    ]:
         _add_radii_arg(command)
     for command in [region_prepare, region_md, hydration, region_compare]:
         command.add_argument(
-            "--allow-radii-mismatch", action="store_true",
+            "--allow-radii-mismatch",
+            action="store_true",
             help="Proceed even though the radius set differs from the one recorded in the region definition "
-                 "or earlier results (the mismatch is recorded). Without it a mismatch is an error")
+            "or earlier results (the mismatch is recorded). Without it a mismatch is an error",
+        )
     # Output policy (crevice.outputs) of the bundle commands; kept as one block so
     # new commands are added here.
-    for name, command in [("publish", publish), ("cast", cast), ("analyze", analyze), ("residue-evidence", evidence),
-                          ("hydration", hydration), ("cavity-trajectory", cavity_md), ("region-trajectory", region_md),
-                          ("trajectory", trajectory)]:
+    for name, command in [
+        ("publish", publish),
+        ("cast", cast),
+        ("analyze", analyze),
+        ("residue-evidence", evidence),
+        ("hydration", hydration),
+        ("cavity-trajectory", cavity_md),
+        ("region-trajectory", region_md),
+        ("trajectory", trajectory),
+    ]:
         _add_output_policy_args(command, name)
     # --sensitivity (0.4) on the current commands; see _add_sensitivity_arguments.
     for command in [profile, cast, publish]:
@@ -1013,6 +1764,7 @@ def build_parser() -> argparse.ArgumentParser:
     # Opt-in pathway and tracking commands live in their own modules.
     from .paths import add_paths_command
     from .tracking import add_tracking_command
+
     for command in [add_paths_command(subparsers), add_tracking_command(subparsers)]:
         _add_annotate_arg(command)
         _add_radii_arg(command)
@@ -1036,11 +1788,13 @@ def _outputs_arg(command: str):
         except OutputSelectionError as error:
             raise argparse.ArgumentTypeError(str(error)) from None
         return value
+
     return parse
 
 
 def _outputs_help(command: str) -> str:
     from .outputs import ANALYSES, COMMANDS, DESCRIPTIONS, FORMATS
+
     policy = COMMANDS[command]
     names = [f for f in FORMATS if f in policy.formats] + ["viewers"] + [a for a in ANALYSES if a in policy.analyses]
     lines = [f"{command_form(command)} --outputs values (comma-separated):"]
@@ -1054,66 +1808,88 @@ def _add_output_policy_args(parser: argparse.ArgumentParser, command: str) -> No
     """``--outputs``, ``--all`` and ``--dry-run`` (see :mod:`crevice.outputs`)."""
     group = parser.add_argument_group("outputs (what is analysed and written)")
     group.add_argument(
-        "--outputs", metavar="LIST", type=_outputs_arg(command),
+        "--outputs",
+        metavar="LIST",
+        type=_outputs_arg(command),
         help="Comma-separated outputs instead of the command's defaults. File kinds: key-figures, figures, pymol, "
-             "vmd, chimerax, viewers (all three), scenes, viewer-html, structures, extra-views; optional analyses: "
-             "hydration, interactions, cavities, tunnels, network, fingerprint; 'default' adds the defaults, "
-             "'none' = data only. Listing file kinds replaces the default kinds and listing analyses replaces the "
-             "default analyses; data and the manifest are always written. '--outputs help' lists the values and "
-             "defaults of this command")
-    group.add_argument("--all", dest="all_outputs", action="store_true",
-                       help="Every file kind and optional analysis of the command (all three viewers, every figure, "
-                            "the interactive HTML view). Allocation and frame guards still apply; an output whose "
-                            "prerequisite is missing is skipped and recorded in the manifest")
-    group.add_argument("--dry-run", action="store_true",
-                       help="Validate the settings, print the output plan and exit without reading inputs or writing files")
+        "vmd, chimerax, viewers (all three), scenes, viewer-html, structures, extra-views; optional analyses: "
+        "hydration, interactions, network, fingerprint; 'default' adds the defaults, "
+        "'none' = data only. Listing file kinds replaces the default kinds and listing analyses replaces the "
+        "default analyses; data and the manifest are always written. '--outputs help' lists the values and "
+        "defaults of this command",
+    )
+    group.add_argument(
+        "--all",
+        dest="all_outputs",
+        action="store_true",
+        help="Every file kind and optional analysis of the command (all three viewers, every figure, "
+        "the interactive HTML view). Allocation and frame guards still apply; an output whose "
+        "prerequisite is missing is skipped and recorded in the manifest",
+    )
+    group.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate the settings, print the output plan and exit without reading inputs or writing files",
+    )
 
 
 def _add_config_args(parser: argparse.ArgumentParser) -> None:
     """``--config`` and ``--print-config`` (see :mod:`crevice.config`)."""
     group = parser.add_argument_group("settings file")
-    group.add_argument("--config", metavar="FILE",
-                       help="Read option values from a JSON settings file (as written by --print-config); "
-                            "command-line flags override it")
-    group.add_argument("--print-config", action="store_true",
-                       help="Print the effective settings as JSON and exit without running")
+    group.add_argument(
+        "--config",
+        metavar="FILE",
+        help="Read option values from a JSON settings file (as written by --print-config); "
+        "command-line flags override it",
+    )
+    group.add_argument(
+        "--print-config", action="store_true", help="Print the effective settings as JSON and exit without running"
+    )
 
 
 def _add_radii_arg(parser: argparse.ArgumentParser) -> None:
     """The atomic radius set used by every geometric measurement of the command."""
     parser.add_argument(
-        "--radii", metavar="{default,bondi,hole,charmm_like,PATH}",
+        "--radii",
+        metavar="{default,bondi,hole,charmm_like,PATH}",
         help="Atomic radius set for every clearance, cast, contact and SASA radius. default (when omitted): "
-             "the standard element table (crevice.radii.VDW_RADII: Bondi 1964, Mantina 2009) with CHARMM36 "
-             "Rmin/2 radii for recognised monatomic ion residues (SOD, CLA, POT, NA, ZN...); bondi: the "
-             "element table for every atom, ions included; hole: HOLE 2.3.1 simple.rad (AMBER united-atom "
-             "radii, matched by atom name); charmm_like: larger C/N/O/S approximation plus the ion radii. "
-             "PATH: a .json, .csv or HOLE .rad radius file. The set used is always recorded (name, source, "
-             "file SHA-256, overrides, ion radii, table hash) in the output manifests/metadata as 'radii'. "
-             "trajectory --region and trajectory --water --cavity-results use the set recorded in the region "
-             "definition or earlier results when this is omitted")
+        "the standard element table (crevice.radii.VDW_RADII: Bondi 1964, Mantina 2009) with CHARMM36 "
+        "Rmin/2 radii for recognised monatomic ion residues (SOD, CLA, POT, NA, ZN...); bondi: the "
+        "element table for every atom, ions included; hole: HOLE 2.3.1 simple.rad (AMBER united-atom "
+        "radii, matched by atom name); charmm_like: larger C/N/O/S approximation plus the ion radii. "
+        "PATH: a .json, .csv or HOLE .rad radius file. The set used is always recorded (name, source, "
+        "file SHA-256, overrides, ion radii, table hash) in the output manifests/metadata as 'radii'. "
+        "trajectory --region and trajectory --water --cavity-results use the set recorded in the region "
+        "definition or earlier results when this is omitted",
+    )
 
 
 def _add_display_guide_args(parser: argparse.ArgumentParser) -> None:
     """Opt-in display guides: channel-mouth guides and exit-leg centre lines."""
     parser.add_argument(
-        "--mouth-guides", action="store_true",
+        "--mouth-guides",
+        action="store_true",
         help="Draw channel-mouth guides: orange rings in the PyMOL/VMD/ChimeraX scenes and orange mouth "
-             "brackets/lines on profile plots. Off by default; mouth positions are always recorded in the "
-             "profile JSON, scene JSON and manifests")
+        "brackets/lines on profile plots. Off by default; mouth positions are always recorded in the "
+        "profile JSON, scene JSON and manifests",
+    )
     parser.add_argument(
-        "--exit-centre-lines", action="store_true",
+        "--exit-centre-lines",
+        action="store_true",
         help="With --lateral-exits: also draw each lateral exit leg as a thin blue centre-line tube in the "
-             "viewer scenes. Off by default; the legs are drawn as cast surfaces")
+        "viewer scenes. Off by default; the legs are drawn as cast surfaces",
+    )
 
 
 def _add_annotate_arg(parser: argparse.ArgumentParser) -> None:
     """The single opt-in for explanatory text in figures and viewer scenes."""
     parser.add_argument(
-        "--annotate", action="store_true",
+        "--annotate",
+        action="store_true",
         help="Draw explanatory text in figures and viewer scenes: titles, captions, value call-outs, "
-             "residue/landmark labels, viewer legends and 2D labels. Off by default (clean figures); "
-             "the text is always recorded in PNG metadata and scene JSON")
+        "residue/landmark labels, viewer legends and 2D labels. Off by default (clean figures); "
+        "the text is always recorded in PNG metadata and scene JSON",
+    )
 
 
 DEBUG_ENV = "CREVICE_DEBUG"
@@ -1123,11 +1899,20 @@ DEBUG_ENV = "CREVICE_DEBUG"
 def _add_global_args(parser: argparse.ArgumentParser, *, default) -> None:
     """``--quiet`` and ``--debug``, accepted before or after the command name."""
     group = parser.add_argument_group("output control")
-    group.add_argument("-q", "--quiet", action="store_true", default=default,
-                       help="Do not show progress on standard error (progress is shown only on a terminal; "
-                            "set CREVICE_PROGRESS=1 to log it to a file, 0 to silence it)")
-    group.add_argument("--debug", action="store_true", default=default,
-                       help=f"On an error, print the full Python traceback (also ${DEBUG_ENV}=1)")
+    group.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        default=default,
+        help="Do not show progress on standard error (progress is shown only on a terminal; "
+        "set CREVICE_PROGRESS=1 to log it to a file, 0 to silence it)",
+    )
+    group.add_argument(
+        "--debug",
+        action="store_true",
+        default=default,
+        help=f"On an error, print the full Python traceback (also ${DEBUG_ENV}=1)",
+    )
 
 
 #: Printed after an error when no through-channel could be resolved.
@@ -1142,6 +1927,7 @@ UNRESOLVED_CHANNEL_HINT = (
 def _error_hint(exc: BaseException) -> str | None:
     """A next step for a common, expected error, or None."""
     from .sections import ChannelResolutionError
+
     if isinstance(exc, ChannelResolutionError):
         return UNRESOLVED_CHANNEL_HINT
     if isinstance(exc, FileNotFoundError):
@@ -1226,18 +2012,29 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(translated)
     try:
         from .config import RunSettings, setting_sources
-        settings = RunSettings.from_namespace(args, sources=setting_sources(args.command, translated, config_values),
-                                              config_file=config_file)
+
+        settings = RunSettings.from_namespace(
+            args, sources=setting_sources(args.command, translated, config_values), config_file=config_file
+        )
         if getattr(args, "print_config", False):
             print(json.dumps(settings.to_dict(), indent=2, ensure_ascii=False))
             return 0
         settings.validate()
-        if hasattr(args,'hydration_cutoff') and not getattr(args,'skip_hydration',False) and not getattr(args,'inspect',False):
-            if not math.isfinite(args.hydration_cutoff) or args.hydration_cutoff<=0:raise ValueError('hydration cutoff must be finite and positive')
-            if not math.isfinite(args.hydration_probe) or args.hydration_probe<=0:raise ValueError('hydration SASA probe must be finite and positive')
-            if args.hydration_sasa_points<32:raise ValueError('hydration SASA requires at least 32 points per atom')
-            if not all(math.isfinite(v) and v>0 for v in [args.water_density_spacing,args.water_density_level]):raise ValueError('Water density spacing and level must be finite and positive')
-            if not math.isfinite(args.water_density_smoothing) or args.water_density_smoothing<0:raise ValueError('Water density smoothing must be finite and nonnegative')
+        if (
+            hasattr(args, 'hydration_cutoff')
+            and not getattr(args, 'skip_hydration', False)
+            and not getattr(args, 'inspect', False)
+        ):
+            if not math.isfinite(args.hydration_cutoff) or args.hydration_cutoff <= 0:
+                raise ValueError('hydration cutoff must be finite and positive')
+            if not math.isfinite(args.hydration_probe) or args.hydration_probe <= 0:
+                raise ValueError('hydration SASA probe must be finite and positive')
+            if args.hydration_sasa_points < 32:
+                raise ValueError('hydration SASA requires at least 32 points per atom')
+            if not all(math.isfinite(v) and v > 0 for v in [args.water_density_spacing, args.water_density_level]):
+                raise ValueError('Water density spacing and level must be finite and positive')
+            if not math.isfinite(args.water_density_smoothing) or args.water_density_smoothing < 0:
+                raise ValueError('Water density smoothing must be finite and nonnegative')
         execute(args, settings=settings, argv=argv)
     except KeyboardInterrupt:
         print("\ncrevice: interrupted", file=sys.stderr)
@@ -1245,6 +2042,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         if getattr(args, "debug", False) or os.environ.get(DEBUG_ENV, "").strip() not in {"", "0"}:
             import traceback
+
             traceback.print_exc()
         print(f"crevice: error: {_error_text(exc)}", file=sys.stderr)
         hint = _error_hint(exc)
@@ -1283,6 +2081,7 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
     from .presentation import display_guides, figure_annotations
     from .progress import progress_reporting
     from .radii import use_radii
+
     if settings is None:
         settings = RunSettings.from_namespace(args)
     plan = _output_plan(args)
@@ -1290,6 +2089,7 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
     if plan is not None:
         # The plan follows the progress rules (a terminal, or CREVICE_PROGRESS=1); --dry-run always shows it.
         from .progress import progress_mode
+
         with progress_reporting(not quiet):
             shown = getattr(args, "dry_run", False) or progress_mode() is not None
         if shown:
@@ -1300,11 +2100,26 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
     args._run_manifest = None
     args._run_source = None
     # One radius set for the whole command, including trajectory worker processes.
-    with figure_annotations(getattr(args, "annotate", False)), use_radii(getattr(args, "radii", None)), \
-            display_guides(mouth_guides=getattr(args, "mouth_guides", False),
-                           exit_centre_lines=getattr(args, "exit_centre_lines", False)), \
-            progress_reporting(not quiet), use_outputs(plan) as log:
+    with (
+        figure_annotations(getattr(args, "annotate", False)),
+        use_radii(getattr(args, "radii", None)),
+        display_guides(
+            mouth_guides=getattr(args, "mouth_guides", False),
+            exit_centre_lines=getattr(args, "exit_centre_lines", False),
+        ),
+        progress_reporting(not quiet),
+        use_outputs(plan) as log,
+    ):
+        from .progress import Stopwatch, status
+
+        clock = Stopwatch()
+        analysis = getattr(args, "command", None)
+        # Analyses say when they start and finish; utilities (fetch, view, listings) stay quiet.
+        announce = analysis in _mode_index() and analysis not in QUIET_COMMANDS and not getattr(args, "list", False)
+        label = command_form(analysis).removeprefix("crevice ") if announce else ""
         args.func(args)
+        if announce:
+            status(f"{label}: finished in {clock}")
         if plan is not None and plan.writes("viewer-html") and args._run_manifest:
             _write_view_html(Path(args._run_manifest), plan)
     result = {"manifest": args._run_manifest, "files": {}, "plan": plan.to_dict() if plan else None}
@@ -1316,6 +2131,7 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
             result["plan"] = data["run"]["outputs"]
         path.write_text(dumps_record(data, path, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
         from ._portable_paths import resolve_files
+
         result["files"] = resolve_files(data.get("files", {}), path.parent.resolve())
     return result
 
@@ -1323,36 +2139,50 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
 def _write_view_html(manifest: Path, plan) -> None:
     """Write ``PREFIX_view.html`` (the interactive viewer) next to ``manifest``; record failures."""
     from .outputs import note
+
     try:
         from .viewer import view
+
         scene = view(manifest.parent, kind="auto")
         stem = manifest.name
-        for ending in ("_hydration_manifest.json", "_cavity_manifest.json", "_evidence_manifest.json", "_manifest.json"):
+        for ending in (
+            "_hydration_manifest.json",
+            "_cavity_manifest.json",
+            "_evidence_manifest.json",
+            "_manifest.json",
+        ):
             if stem.endswith(ending):
-                stem = stem[:-len(ending)]
+                stem = stem[: -len(ending)]
                 break
         target = manifest.parent / f"{stem}_view.html"
         scene.save_html(target)
-    except Exception as exc:   # an optional output; never fails the measurement run
+    except Exception as exc:  # an optional output; never fails the measurement run
         note("viewer-html", f"not written: {_error_text(exc)}")
         return
     data = json.loads(manifest.read_text(encoding="utf-8"))
     if isinstance(data.get("files"), dict):
         data["files"]["view_html"] = str(target)
-        manifest.write_text(dumps_record(data, manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+        manifest.write_text(
+            dumps_record(data, manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+        )
 
 
 def _output_plan(args: argparse.Namespace):
     """The output plan of a bundle command (``None`` for commands without a policy)."""
     from dataclasses import replace
     from .outputs import COMMANDS, resolve_outputs
+
     if args.command not in COMMANDS or getattr(args, "inspect", False):
         return None
-    skip = [name for name in ("hydration", "interactions", "cavities", "tunnels", "network")
-            if getattr(args, f"skip_{name}", False)]
+    skip = [name for name in ("hydration", "interactions", "network") if getattr(args, f"skip_{name}", False)]
     defaults = ("hydration",) if getattr(args, "water_membership", False) else None
-    plan = resolve_outputs(args.command, getattr(args, "outputs", None), all_outputs=getattr(args, "all_outputs", False),
-                           skip=skip, default_analyses=defaults)
+    plan = resolve_outputs(
+        args.command,
+        getattr(args, "outputs", None),
+        all_outputs=getattr(args, "all_outputs", False),
+        skip=skip,
+        default_analyses=defaults,
+    )
     if getattr(args, "fingerprint", False) and args.command == "publish":
         plan = replace(plan, analyses=plan.analyses | {"fingerprint"})
     return plan
@@ -1367,7 +2197,7 @@ def _apply_config_file(parser: argparse.ArgumentParser, argv: list[str]):
     command = next((token for token in argv if token in subparsers.choices), None)
     if command is None:
         return None, {}
-    tail = argv[argv.index(command) + 1:]
+    tail = argv[argv.index(command) + 1 :]
     path = None
     for index, token in enumerate(tail):
         if token == "--config" and index + 1 < len(tail):
@@ -1377,6 +2207,7 @@ def _apply_config_file(parser: argparse.ArgumentParser, argv: list[str]):
     if path is None:
         return None, {}
     from .config import command_actions, flatten_settings, load_settings_file
+
     values = flatten_settings(load_settings_file(path), command)
     actions = command_actions(command)
     # Positional inputs always come from the command line.
@@ -1384,13 +2215,14 @@ def _apply_config_file(parser: argparse.ArgumentParser, argv: list[str]):
     subparser = subparsers.choices[command]
     for action in subparser._actions:
         if action.dest in options and action.required and options[action.dest] is not None:
-            action.required = False   # supplied by the settings file
+            action.required = False  # supplied by the settings file
     subparser.set_defaults(**options)
     return path, options
 
 
 def _display_width(text: str) -> float:
     from .volume_export import validate_display_width
+
     try:
         return validate_display_width(text)
     except ValueError as error:
@@ -1400,54 +2232,77 @@ def _display_width(text: str) -> float:
 def _add_smoothing_args(parser: argparse.ArgumentParser) -> None:
     """Display-surface smoothing options; measurements are never smoothed."""
     from .volume_export import DEFAULT_SMOOTH_A
+
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--smooth", type=_display_width, metavar="X",
-                       help=f"Display-surface smoothing length X in Å (default {DEFAULT_SMOOTH_A:g}; 0 shows the raw voxel "
-                            "boundary). Gaussian twicing G*(2B-G*B), sigma X, on a 2x supersampled display grid, clamped so every measured sample "
-                            "keeps its inside/outside state and the surface moves only within boundary grid cells. "
-                            "Measured grids, volumes and profiles are unchanged. See docs/SURFACE_SMOOTHING.md")
-    group.add_argument("--surface-smoothing", type=_display_width, metavar="W",
-                       help="Legacy display interpolation width in Å on the measured grid (sample-clamped Gaussian; "
-                            "0 gives the raw voxel boundary). Cannot be combined with --smooth")
+    group.add_argument(
+        "--smooth",
+        type=_display_width,
+        metavar="X",
+        help=f"Display-surface smoothing length X in Å (default {DEFAULT_SMOOTH_A:g}; 0 shows the raw voxel "
+        "boundary). Gaussian twicing G*(2B-G*B), sigma X, on a 2x supersampled display grid, clamped so every measured sample "
+        "keeps its inside/outside state and the surface moves only within boundary grid cells. "
+        "Measured grids, volumes and profiles are unchanged. See docs/SURFACE_SMOOTHING.md",
+    )
+    group.add_argument(
+        "--surface-smoothing",
+        type=_display_width,
+        metavar="W",
+        help="Legacy display interpolation width in Å on the measured grid (sample-clamped Gaussian; "
+        "0 gives the raw voxel boundary). Cannot be combined with --smooth",
+    )
 
 
 def _add_structure_arg(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "structure",
         help="Local PDB/mmCIF file, an RCSB accession such as 1GRM, or an AlphaFold DB ID such as AF-P02920-F1. "
-             "An existing path always wins over an accession of the same name.",
+        "An existing path always wins over an accession of the same name.",
     )
     _add_input_args(parser)
 
 
 def _add_input_args(parser: argparse.ArgumentParser) -> None:
     group = parser.add_argument_group("structure input")
-    group.add_argument("--cache-dir", default=".crevice/pdb",
-                       help="Where fetched structures are cached")
-    group.add_argument("--format", dest="input_format", choices=["pdb", "cif", "mmcif"],
-                       default="cif", help="Format to fetch when given an accession")
-    group.add_argument("--assembly", type=int,
-                       help="Fetch this biological assembly instead of the deposited unit")
-    group.add_argument("--offline", action="store_true",
-                       help="Never download; use the cache or fail")
-    group.add_argument("--refetch", action="store_true",
-                       help="Re-download even when the structure is already cached")
-    group.add_argument("--timeout", type=float, default=30.0,
-                       help="Network timeout in seconds")
-    group.add_argument("--model", type=int, default=0,
-                       help="Model index for multi-model structures")
-    group.add_argument("--parser", choices=list(PARSERS), default="auto",
-                       help="mmCIF parser; auto prefers the validated gemmi loader. gemmi decides polymer "
-                            "membership from entity types and drops zero-occupancy atoms; builtin (also used "
-                            "for every PDB file) uses peptide bonds and keeps them")
-    group.add_argument("--hetero-polymer", choices=list(HETERO_POLYMER_CHOICES), default="include",
-                       help="include (default): residues deposited as HETATM but part of a polymer chain "
-                            "(D-amino acids, selenomethionine, other modified residues) count as protein. "
-                            "exclude: every HETATM record is a heteroatom (the CREVICE 0.3 behaviour for PDB files)")
-    group.add_argument("--md-selection", default="protein",
-                       help="MDAnalysis selection for local GRO files (default protein removes solvent, ions and lipids)")
-    group.add_argument("--chain-ids", choices=["label", "auth"], default="label",
-                       help="mmCIF chain-ID namespace (label_asym_id or auth_asym_id), for either parser")
+    group.add_argument("--cache-dir", default=".crevice/pdb", help="Where fetched structures are cached")
+    group.add_argument(
+        "--format",
+        dest="input_format",
+        choices=["pdb", "cif", "mmcif"],
+        default="cif",
+        help="Format to fetch when given an accession",
+    )
+    group.add_argument("--assembly", type=int, help="Fetch this biological assembly instead of the deposited unit")
+    group.add_argument("--offline", action="store_true", help="Never download; use the cache or fail")
+    group.add_argument("--refetch", action="store_true", help="Re-download even when the structure is already cached")
+    group.add_argument("--timeout", type=float, default=30.0, help="Network timeout in seconds")
+    group.add_argument("--model", type=int, default=0, help="Model index for multi-model structures")
+    group.add_argument(
+        "--parser",
+        choices=list(PARSERS),
+        default="auto",
+        help="mmCIF parser; auto prefers the validated gemmi loader. gemmi decides polymer "
+        "membership from entity types and drops zero-occupancy atoms; builtin (also used "
+        "for every PDB file) uses peptide bonds and keeps them",
+    )
+    group.add_argument(
+        "--hetero-polymer",
+        choices=list(HETERO_POLYMER_CHOICES),
+        default="include",
+        help="include (default): residues deposited as HETATM but part of a polymer chain "
+        "(D-amino acids, selenomethionine, other modified residues) count as protein. "
+        "exclude: every HETATM record is a heteroatom (the CREVICE 0.3 behaviour for PDB files)",
+    )
+    group.add_argument(
+        "--md-selection",
+        default="protein",
+        help="MDAnalysis selection for local GRO files (default protein removes solvent, ions and lipids)",
+    )
+    group.add_argument(
+        "--chain-ids",
+        choices=["label", "auth"],
+        default="label",
+        help="mmCIF chain-ID namespace (label_asym_id or auth_asym_id), for either parser",
+    )
 
 
 def _resolve_input(args: argparse.Namespace, spec: str | None = None):
@@ -1455,31 +2310,46 @@ def _resolve_input(args: argparse.Namespace, spec: str | None = None):
 
     return resolve_structure(
         spec if spec is not None else args.structure,
-        cache_dir=args.cache_dir, fmt=args.input_format, assembly=args.assembly,
-        offline=args.offline, overwrite=args.refetch, timeout=args.timeout,
+        cache_dir=args.cache_dir,
+        fmt=args.input_format,
+        assembly=args.assembly,
+        offline=args.offline,
+        overwrite=args.refetch,
+        timeout=args.timeout,
     )
 
 
 def _load_input(args: argparse.Namespace, spec: str | None = None):
     """Resolve and load a structure, returning the frame and both reports."""
 
+    from .progress import Stopwatch, status
+
     source = _resolve_input(args, spec)
+    clock = Stopwatch()
     frame, report = load_structure_report(
-        source.path, model_index=args.model, parser=args.parser, chain_ids=args.chain_ids,
-        md_selection=args.md_selection, hetero_polymer=getattr(args, "hetero_polymer", "include"),
+        source.path,
+        model_index=args.model,
+        parser=args.parser,
+        chain_ids=args.chain_ids,
+        md_selection=args.md_selection,
+        hetero_polymer=getattr(args, "hetero_polymer", "include"),
     )
+    status(f"read {Path(source.path).name}: {len(frame.atoms)} atoms in {clock}")
     if source.kind == "downloaded":
         print(f"fetched {source.accession} -> {source.path}")
     included = report.get("polymer_hetatm_residues") or {}
     if report.get("parser") == "builtin" and included:
         names = ", ".join(f"{name} x{count}" for name, count in included.items())
-        print(f"crevice: note: HETATM residues bonded into polymer chains are treated as protein ({names}); "
-              f"--hetero-polymer exclude treats them as heteroatoms", file=sys.stderr)
+        print(
+            f"crevice: note: HETATM residues bonded into polymer chains are treated as protein ({names}); "
+            f"--hetero-polymer exclude treats them as heteroatoms",
+            file=sys.stderr,
+        )
     return frame, source, report
 
 
-def _enclosure_radius_arg(value: str) -> float | None:
-    """``--enclosure-radius``: ``auto`` (None, automatic choice) or a radius in Å."""
+def _enclosure_radius_arg(value: str) -> float | str | None:
+    """``--enclosure-radius``: ``auto`` (None, per-plane probe) or a radius in Å."""
     if value.strip().lower() == "auto":
         return None
     try:
@@ -1495,30 +2365,59 @@ def _add_profile_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--axis", default="auto", help="Channel direction: auto, x, y, z, or x,y,z vector")
     parser.add_argument("--origin", type=parse_coord, help="Seed inside the intended channel, x,y,z (Å)")
     parser.add_argument("--section-spacing", type=float, default=0.5, help="Transverse channel grid spacing (Å)")
-    parser.add_argument("--enclosure-radius", type=_enclosure_radius_arg, default=None, metavar="{auto,Å}",
-                        help="Probe radius (Å) that decides lateral enclosure and connectivity, separate from the "
-                             "measured radius. 'auto' (default) tries 0.5-3.0 Å and uses the smallest probe of "
-                             "the channel that resolves at the most probes (recorded in the metadata); a number "
-                             "runs that probe only")
-    parser.add_argument("--lateral-exits", action="store_true",
-                        help="Accept a capped end (blocked straight axial exit) if a lateral exit to bulk exists; "
-                             "every distinct exit leg is reported separately (see docs: profile, capped channels)")
-    parser.add_argument("--exit-bulk-radius", type=float, default=6.0,
-                        help="Rolling probe radius (Å) that defines bulk solvent: the outer boundary of the lateral "
-                             "exit legs (--lateral-exits) and, in publish, of every ENTRY/EXIT cast segment. Not a width "
-                             "limit: inside the boundary a segment fills all probe-accessible space. Exit legs whose exit "
-                             "points are more than twice this apart are reported as distinct")
-    parser.add_argument("--exit-spacing", type=float, default=0.5,
-                        help="With --lateral-exits: lattice spacing (Å) of the exit-path search")
-    parser.add_argument("--samples", type=int, default=81,
-                        help="Minimum number of profile samples; connected profiles add points to keep axial "
-                             "steps ≤ 0.75 Å")
-    parser.add_argument("--padding", type=float, default=0.0, help="Axis padding (Å); only with --search-radius 0")
-    parser.add_argument("--search-radius", type=float, default=6.0, help="Transverse search half-width (Å); 0 requests an unvalidated fixed-axis scan")
-    parser.add_argument("--refinement-steps", type=int, default=4,
-                        help="Slice-centre refinement: 0 keeps grid-point centres; N>0 converges to 0.0001 Å "
-                             "with at least N step halvings")
-    parser.add_argument("--probe-radius", type=float, default=0.0, help="Probe radius (Å) subtracted from each measured radius")
+    parser.add_argument(
+        "--enclosure-radius",
+        type=_enclosure_radius_arg,
+        default=None,
+        metavar="{auto,Å}",
+        help="Probe radius (Å) that decides lateral enclosure and connectivity, separate from the "
+        "measured radius. 'auto' (default): each plane uses the smallest probe (0.3-3.0 Å) at "
+        "which its lumen is enclosed, so narrow filters and leaky wide regions both resolve "
+        "(per-sample probes recorded in the metadata). A number runs that probe in every plane",
+    )
+    parser.add_argument(
+        "--lateral-exits",
+        action="store_true",
+        help="Accept a capped end (blocked straight axial exit) if a lateral exit to bulk exists; "
+        "every distinct exit leg is reported separately (see docs: profile, capped channels)",
+    )
+    parser.add_argument(
+        "--exit-bulk-radius",
+        type=float,
+        default=6.0,
+        help="Rolling probe radius (Å) that defines bulk solvent: the outer boundary of the lateral "
+        "exit legs (--lateral-exits) and, in publish, of every ENTRY/EXIT cast segment. Not a width "
+        "limit: inside the boundary a segment fills all probe-accessible space. Exit legs whose exit "
+        "points are more than twice this apart are reported as distinct",
+    )
+    parser.add_argument(
+        "--exit-spacing",
+        type=float,
+        default=0.5,
+        help="With --lateral-exits: lattice spacing (Å) of the exit-path search",
+    )
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=81,
+        help="Minimum number of profile samples; connected profiles add points to keep axial steps ≤ 0.75 Å",
+    )
+    parser.add_argument(
+        "--search-radius",
+        type=float,
+        default=6.0,
+        help="Base transverse search half-width (Å); planes with a wide lumen use a square twice or four times as wide",
+    )
+    parser.add_argument(
+        "--refinement-steps",
+        type=int,
+        default=4,
+        help="Slice-centre refinement: 0 keeps grid-point centres; N>0 converges to 0.0001 Å "
+        "with at least N step halvings",
+    )
+    parser.add_argument(
+        "--probe-radius", type=float, default=0.0, help="Probe radius (Å) subtracted from each measured radius"
+    )
     parser.add_argument("--include-hydrogen", action="store_true", help="Include hydrogen atoms")
     parser.add_argument("--exclude-hetero", action="store_true", help="Exclude HETATM records")
 
@@ -1528,8 +2427,55 @@ def _profile_axis(value):
 
 
 def _profile_from_args(args: argparse.Namespace):
-    frame, _source, _report = _load_input(args)
-    return frame, pore_profile(
+    from .progress import Stopwatch, status
+
+    frame, source, _report = _load_input(args)
+    name = Path(source.path).name
+    status(
+        f"initialising the enclosure probe for {name} ({_probe_description(args.enclosure_radius)}, "
+        f"section grid {args.section_spacing:g} A)"
+        if args.search_radius > 0
+        else f"scanning a fixed axis of {name} (search radius 0: no enclosure probe)"
+    )
+    clock = Stopwatch()
+    try:
+        profile = _run_profile(args, frame)
+    except Exception:
+        status(f"no channel resolved in {name} after {clock}")
+        raise
+    status(_profile_found_message(profile, clock))
+    return frame, profile
+
+
+def _probe_description(value) -> str:
+    """How the enclosure probe is chosen, for a status line."""
+    if value is None:
+        from .adaptive_channel import ADAPTIVE_ENCLOSURE_LADDER as ladder
+
+        return f"per-plane probe, {ladder[0]:.2f}-{ladder[-1]:.2f} A"
+    return f"fixed probe {float(value):.2f} A"
+
+
+def _profile_found_message(profile, clock) -> str:
+    """``pore radius found in Z s: minimum X A ...`` for a resolved profile."""
+    md = profile.metadata
+    low, high = profile.points[0].t, profile.points[-1].t
+    text = f"pore radius found in {clock}: minimum {profile.min_radius:.3f} A at s = {profile.bottleneck.t:+.1f} A"
+    if "continuous_bottleneck_radius_A" in md:
+        text += f" (no lower than {max(0.0, md['continuous_bottleneck_radius_A']):.3f} A between samples)"
+    text += f"; mean {profile.mean_radius:.3f} A over {len(profile.points)} samples, s = {low:+.1f} to {high:+.1f} A"
+    if md.get("enclosure_probe_range_A"):
+        a, b = md["enclosure_probe_range_A"]
+        text += f"; per-plane enclosure probes {a:.2f}-{b:.2f} A"
+    elif md.get("enclosure_radius_A") is not None:
+        text += f"; enclosure probe {md['enclosure_radius_A']:.2f} A"
+    if md.get("path_type") == "capped_channel_lateral_exit":
+        text += "; capped end with a lateral exit"
+    return text
+
+
+def _run_profile(args: argparse.Namespace, frame):
+    return pore_profile(
         frame,
         axis=_profile_axis(args.axis),
         origin=args.origin,
@@ -1539,7 +2485,6 @@ def _profile_from_args(args: argparse.Namespace):
         exit_bulk_radius=args.exit_bulk_radius,
         exit_spacing=args.exit_spacing,
         samples=args.samples,
-        padding=args.padding,
         search_radius=args.search_radius,
         refinement_steps=args.refinement_steps,
         probe_radius=args.probe_radius,
@@ -1580,7 +2525,8 @@ def _cmd_profile(args: argparse.Namespace) -> None:
     )
     selection = profile.metadata.get("enclosure_probe_selection")
     if selection:
-        print(f"enclosure_radius={selection['chosen_A']:.3f} (auto: {selection['reason']})")
+        low, high = selection["probe_range_A"]
+        print(f"enclosure_radius=per-plane {low:.2f}-{high:.2f} (auto: {selection['reason']})")
     _run_sensitivity(args, "profile", frame=frame, profile=profile, csv_path=_sibling(args.output, "_sensitivity.csv"))
 
 
@@ -1624,33 +2570,12 @@ def _cmd_cavities(args: argparse.Namespace) -> None:
     print(f"cavities count={len(cavities)} output={args.output}")
 
 
-def _cmd_tunnels(args: argparse.Namespace) -> None:
-    frame, _source, _report = _load_input(args)
-    start = parse_coord(args.start) if args.start else None
-    tunnels = find_tunnels(
-        frame,
-        start=start,
-        spacing=args.spacing,
-        min_radius=args.min_radius,
-        max_tunnels=args.max_tunnels,
-        include_hydrogen=args.include_hydrogen,
-        include_hetero=args.include_hetero,
-    )
-    write_tunnels_json(tunnels, args.output)
-    _add_radii_provenance(args.output)
-    write_tunnels_csv(tunnels, _sibling(args.output, ".csv"))
-    write_tunnel_points_csv(tunnels, _sibling(args.output, "_points.csv"))
-    if args.pdb:
-        write_tunnels_pdb(tunnels, args.pdb)
-    print(f"tunnels count={len(tunnels)} output={args.output}")
-
-
 def _cmd_network(args: argparse.Namespace) -> None:
-    if args.region=="profile":
-        frame,profile=_profile_from_args(args)
+    if args.region == "profile":
+        frame, profile = _profile_from_args(args)
     else:
-        frame,_,_=_load_input(args)
-        profile=None
+        frame, _, _ = _load_input(args)
+        profile = None
     groups = json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
     contacts = annotate_residues(
         frame,
@@ -1680,18 +2605,24 @@ def _cmd_network(args: argparse.Namespace) -> None:
             include_hetero=not args.exclude_hetero,
         )
     from .radii import radii_fields
+
     data = {"network": network.to_dict(), "metrics": network_metrics(network), **radii_fields()}
     _write_json(data, args.output)
     write_network_csv(network, _sibling(args.output, "_nodes.csv"), _sibling(args.output, "_edges.csv"))
     if args.connectivity_json:
         report = lining_connectivity(network)
-        write_connectivity_csv(report, _sibling(args.connectivity_json, ".csv"),
-                               _sibling(args.connectivity_json, "_groups.csv"))
+        write_connectivity_csv(
+            report, _sibling(args.connectivity_json, ".csv"), _sibling(args.connectivity_json, "_groups.csv")
+        )
         if args.remove_residue:
             report["after_removal"] = lining_connectivity(network, removed_residues=args.remove_residue)
-            write_connectivity_csv(report["after_removal"], _sibling(args.connectivity_json, "_after_removal.csv"),
-                                   _sibling(args.connectivity_json, "_after_removal_groups.csv"))
+            write_connectivity_csv(
+                report["after_removal"],
+                _sibling(args.connectivity_json, "_after_removal.csv"),
+                _sibling(args.connectivity_json, "_after_removal_groups.csv"),
+            )
         from .radii import radii_fields
+
         _write_json({**report, **radii_fields()}, args.connectivity_json)
     if args.connectivity_png:
         plot_lining_connectivity(network, args.connectivity_png, dpi=args.dpi)
@@ -1717,6 +2648,7 @@ def _cmd_features(args: argparse.Namespace) -> None:
         "top_residues": [contact.to_dict() for contact in contacts[:25]],
     }
     from .radii import radii_fields
+
     data.update(radii_fields())
     _write_json(data, args.output)
     write_features_csv(data["features"], _sibling(args.output, ".csv"))
@@ -1736,6 +2668,7 @@ class _FrameProgress:
     def __call__(self, *_args) -> None:
         if self.bar is None:
             from .progress import ProgressBar
+
             self.bar = ProgressBar(self.total, self.label)
         self.bar.update()
         if self.bar.done >= self.total:
@@ -1758,10 +2691,12 @@ class _HydrationProgress(_FrameProgress):
 
 
 def _cmd_trajectory(args: argparse.Namespace) -> None:
-    if not 0<=args.confidence<1:
+    if not 0 <= args.confidence < 1:
         raise ValueError("--confidence must be in [0,1)")
     if not args.align and args.confidence and (args.png or args.distribution_csv):
-        raise ValueError("Confidence bands require --align; use --confidence 0 for explicitly unaligned descriptive outputs")
+        raise ValueError(
+            "Confidence bands require --align; use --confidence 0 for explicitly unaligned descriptive outputs"
+        )
     if args.topology and len(args.structures) != 1:
         raise ValueError("--topology requires exactly one trajectory file")
     if args.inspect:
@@ -1780,49 +2715,120 @@ def _cmd_trajectory(args: argparse.Namespace) -> None:
     reader_report = None
     if args.topology:
         trajectory, reader_report = load_trajectory_report(
-            args.topology, args.structures[0], selection=args.selection,
-            start=args.start, stop=args.stop, stride=args.stride,
-            max_frames=args.max_frames or None,pbc=args.pbc,
+            args.topology,
+            args.structures[0],
+            selection=args.selection,
+            start=args.start,
+            stop=args.stop,
+            stride=args.stride,
+            max_frames=args.max_frames or None,
+            pbc=args.pbc,
         )
-        print(f"read {reader_report['loaded_frame_count']} of "
-              f"{reader_report['available_frame_count']} frames, "
-              f"{reader_report['selected_atom_count']} atoms per frame")
+        print(
+            f"read {reader_report['loaded_frame_count']} of "
+            f"{reader_report['available_frame_count']} frames, "
+            f"{reader_report['selected_atom_count']} atoms per frame"
+        )
     else:
         trajectory = load_static_frames(args.structures)
     if args.report_json:
-        _write_json(reader_report or {"reader": "static-file-sequence",
-                                      "frames": [str(s) for s in args.structures]},
-                    args.report_json)
+        _write_json(
+            reader_report or {"reader": "static-file-sequence", "frames": [str(s) for s in args.structures]},
+            args.report_json,
+        )
     analyses = tuple(args.analysis) if args.analysis else ("profile", "features")
     if args.network_json:
         analyses = tuple(dict.fromkeys((*analyses, "network")))
     groups = json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
     if args.alignment_residue and args.alignment_residues_json:
         raise ValueError("Choose --alignment-residue or --alignment-residues-json")
-    alignment_residues=json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8")) if args.alignment_residues_json else args.alignment_residue
-    if alignment_residues is not None and (not isinstance(alignment_residues,list) or not all(isinstance(r,str) for r in alignment_residues)):
+    alignment_residues = (
+        json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8"))
+        if args.alignment_residues_json
+        else args.alignment_residue
+    )
+    if alignment_residues is not None and (
+        not isinstance(alignment_residues, list) or not all(isinstance(r, str) for r in alignment_residues)
+    ):
         raise ValueError("Alignment scaffold must be a JSON list of full residue IDs")
-    lining=json.loads(Path(args.lining_evidence).read_text(encoding="utf-8"))["lining_residues"] if args.lining_evidence else ()
+    lining = (
+        json.loads(Path(args.lining_evidence).read_text(encoding="utf-8"))["lining_residues"]
+        if args.lining_evidence
+        else ()
+    )
     stride = 1 if args.topology else args.stride
-    frame_progress = _FrameProgress(len(range(0, len(trajectory.frames), stride)), "trajectory frames")
+    from .progress import Stopwatch, status
+
+    total = len(range(0, len(trajectory.frames), stride))
+    frame_progress = _FrameProgress(total, "trajectory frames")
+    if "profile" in analyses or "features" in analyses or "residues" in analyses:
+        status(
+            f"initialising the enclosure probe on the first of {total} frames "
+            f"({_probe_description(args.enclosure_radius)}, section grid {args.section_spacing:g} A)"
+        )
+    else:
+        status(f"analysing {total} frames ({', '.join(analyses)})")
+    clock = Stopwatch()
     try:
-        result = _run_trajectory_analysis(args, trajectory, analyses, stride, alignment_residues, lining, groups,
-                                          frame_progress)
+        result = _run_trajectory_analysis(
+            args, trajectory, analyses, stride, alignment_residues, lining, groups, frame_progress
+        )
     finally:
         frame_progress.close()
+    status(_trajectory_found_message(result, clock))
     _report_trajectory(args, result, trajectory, lining, alignment_residues)
     _run_permeation(args, result)
+
+
+def _trajectory_found_message(result, clock) -> str:
+    """``pore radius over N frames in Z s: X +/- Y A`` (mean and blocking standard error of the frame minima)."""
+    import numpy as np
+    from .uncertainty import sampling_uncertainty
+
+    frames = result.frames
+    minima = [f.profile.min_radius if f.profile is not None else float("nan") for f in frames]
+    resolved = [m for m in minima if math.isfinite(m)]
+    if not any(f.profile is not None for f in frames) and not any(math.isfinite(m) for m in minima):
+        return f"{len(frames)} frames analysed in {clock}" + (
+            "; no pore profile resolved" if result.metadata.get("enclosure_probe") else ""
+        )
+    text = f"pore radius over {len(frames)} frames found in {clock}: "
+    if len(resolved) < len(frames):
+        text += f"{len(frames) - len(resolved)} frames unresolved; "
+    if not resolved:
+        return text + "no frame resolved"
+    mean = float(np.mean(resolved))
+    times = [f.time for f in frames]
+    regular = (
+        all(t is not None for t in times) and len(set(np.round(np.diff(times), 6))) <= 1 if len(times) > 1 else True
+    )
+    record = sampling_uncertainty(minima, confidence=None, regular=regular)
+    error = record.get("blocking_standard_error")
+    if error is not None and math.isfinite(error):
+        text += (
+            f"minimum radius {mean:.3f} +/- {error:.3f} A (mean of the frame minima +/- blocking standard "
+            f"error; effective sample size {record['effective_sample_size']:.0f} of {len(resolved)} frames)"
+        )
+    else:
+        reason = str(record.get("status", "unavailable")).replace("unavailable_", "").replace("_", " ")
+        text += (
+            f"minimum radius {mean:.3f} A (mean of {len(resolved)} resolved frame minima, range "
+            f"{min(resolved):.3f}-{max(resolved):.3f} A; no uncertainty: {reason})"
+        )
+    return text
 
 
 def _add_permeation_arguments(parser: argparse.ArgumentParser) -> None:
     """Add the ``--permeation`` options (:mod:`crevice.permeation_cli`) to a trajectory command."""
     from .permeation_cli import add_permeation_arguments
+
     add_permeation_arguments(parser)
 
 
 def _run_permeation_only(args: argparse.Namespace) -> bool:
     """Validate the permeation options; run ``--permeation-only`` and return True if it ran."""
     from .permeation_cli import run_permeation, validate_permeation_arguments, write_permeation_only_record
+
     validate_permeation_arguments(args)
     if not getattr(args, "permeation_only", False):
         return False
@@ -1834,6 +2840,7 @@ def _run_permeation_only(args: argparse.Namespace) -> bool:
 def _run_permeation(args: argparse.Namespace, result) -> None:
     """Run ``--permeation`` after the structural analysis and record it in the trajectory JSON."""
     from .permeation_cli import permeation_requested, run_permeation
+
     if not permeation_requested(args):
         return
     result.metadata["permeation"] = run_permeation(args, result)
@@ -1849,20 +2856,32 @@ def _run_trajectory_analysis(args, trajectory, analyses, stride, alignment_resid
     """
     import warnings
     from .trajectory import OriginClearanceWarning
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", OriginClearanceWarning)
         return analyze_trajectory(
             trajectory,
             analyses=analyses,
             stride=stride,
-            align=args.align,alignment_residues=alignment_residues,
-            on_profile_error=args.profile_errors,retain_networks=not bool(args.network_json),
-            lining_residues=lining,network_occupancy=args.occupancy,
-            network_kwargs={"residue_groups":groups,"distance_metric":args.contact_metric,"cutoff":args.contact_cutoff},
-            profile_kwargs={"axis": _profile_axis(args.axis), "origin": args.origin, "samples": args.samples,
-                            "search_radius": args.search_radius, "section_spacing": args.section_spacing,
-                            "enclosure_radius": args.enclosure_radius},
-            probe_fallback=args.probe_fallback,
+            align=args.align,
+            alignment_residues=alignment_residues,
+            on_profile_error=args.profile_errors,
+            retain_networks=not bool(args.network_json),
+            lining_residues=lining,
+            network_occupancy=args.occupancy,
+            network_kwargs={
+                "residue_groups": groups,
+                "distance_metric": args.contact_metric,
+                "cutoff": args.contact_cutoff,
+            },
+            profile_kwargs={
+                "axis": _profile_axis(args.axis),
+                "origin": args.origin,
+                "samples": args.samples,
+                "search_radius": args.search_radius,
+                "section_spacing": args.section_spacing,
+                "enclosure_radius": args.enclosure_radius,
+            },
             progress_callback=frame_progress,
         )
 
@@ -1872,111 +2891,228 @@ def _report_trajectory(args, result, trajectory, lining, alignment_residues) -> 
     probe = result.metadata.get("enclosure_probe")
     origin_clearance = result.metadata.get("origin_clearance")
     reference_origin = bool(origin_clearance and origin_clearance.get("reference_frame"))
-    if probe and probe.get("mode") == "auto":
-        if probe["chosen_A"] is None:
-            print(f"enclosure_radius=none (auto: no probe could be chosen on the reference frame, so no frame was "
-                  f"profiled: {probe['reason']})")
+    if probe and probe.get("mode") == "adaptive":
+        frames = probe.get("frames") or {}
+        if "reference_probe_range_A" not in probe:
+            print(
+                f"enclosure_radius=none (auto, per-plane probe: the reference frame did not resolve, so no frame "
+                f"was profiled: {probe['reason']})"
+            )
             if not reference_origin:
                 print(f"crevice: note: {UNRESOLVED_CHANNEL_HINT}", file=sys.stderr)
         else:
-            print(f"enclosure_radius={probe['chosen_A']:.3f} (auto, chosen once on the reference frame and fixed "
-                  f"for every frame: {probe['reason']})")
-    fallback = (probe or {}).get("fallback")
-    if fallback:
-        print(f"enclosure probe per frame: pinned={fallback['pinned_frames']} fallback={fallback['fallback_frames']} "
-              f"unresolved={fallback['unresolved_frames']} (fallback {'on' if fallback['enabled'] else 'off'})"
-              + (f"; fallback probes by source frame: {fallback['fallback_probes_A']}" if fallback['fallback_frames'] else ""))
+            print(
+                f"enclosure_radius=per-plane (auto, found again in every frame): resolved="
+                f"{frames.get('resolved_frames', 0)} unresolved={frames.get('unresolved_frames', 0)}"
+            )
+    elif probe and probe.get("mode") == "explicit":
+        frames = probe.get("frames") or {}
+        print(
+            f"enclosure_radius={probe['chosen_A']:.3f} (explicit, every frame): resolved="
+            f"{frames.get('resolved_frames', 0)} unresolved={frames.get('unresolved_frames', 0)}"
+        )
     if reference_origin:
-        print(f"crevice: warning: --origin has too little clearance for the enclosure probe on the reference frame "
-              f"(source frame {origin_clearance['frame_indices'][0]}), so no channel axis or probe could be fixed and "
-              f"none of the {len(result.frames)} frames was profiled (profile_status, profile_reason). An origin "
-              "nearer the channel's centre line avoids this", file=sys.stderr)
+        print(
+            f"crevice: warning: --origin has too little clearance for the enclosure probe on the reference frame "
+            f"(source frame {origin_clearance['frame_indices'][0]}), so no channel axis or probe could be fixed and "
+            f"none of the {len(result.frames)} frames was profiled (profile_status, profile_reason). An origin "
+            "nearer the channel's centre line avoids this",
+            file=sys.stderr,
+        )
     elif origin_clearance:
         indices = origin_clearance["frame_indices"]
         shown = ", ".join(str(i) for i in indices[:10]) + (", ..." if len(indices) > 10 else "")
-        print(f"crevice: warning: {origin_clearance['unresolved_frames']} of {len(result.frames)} frames are unresolved "
-              f"where --origin has too little clearance for the enclosure probe (source frames {shown}); they are "
-              "recorded as unresolved (profile_status, profile_reason) and the other frames are kept. An origin "
-              "nearer the channel's centre line avoids this", file=sys.stderr)
+        print(
+            f"crevice: warning: {origin_clearance['unresolved_frames']} of {len(result.frames)} frames are unresolved "
+            f"where --origin has too little clearance for the enclosure probe (source frames {shown}); they are "
+            "recorded as unresolved (profile_status, profile_reason) and the other frames are kept. An origin "
+            "nearer the channel's centre line avoids this",
+            file=sys.stderr,
+        )
     from .outputs import use_outputs
+
     # Explicit paths (-o, --png, --distribution-csv, --network-json) are always written as given.
     with use_outputs(None):
         write_trajectory_json(result, args.output)
         from .io import write_trajectory_csv
+
         write_trajectory_csv(result, _sibling(args.output, "_frames.csv"), _sibling(args.output, "_profiles.csv"))
         _write_trajectory_frame_statistics(args, result)
-        distribution=None
+        distribution = None
         if args.png or args.distribution_csv:
             if any(f.profile is not None for f in result.frames):
-                distribution=profile_distribution(result,quantiles=args.quantiles,confidence=args.confidence or None,
-                         block_length=args.block_length,bootstrap_replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
+                distribution = profile_distribution(
+                    result,
+                    quantiles=args.quantiles,
+                    confidence=args.confidence or None,
+                    block_length=args.block_length,
+                    bootstrap_replicates=args.bootstrap_replicates,
+                    seed=args.bootstrap_seed,
+                )
             else:
-                distribution={"status":"no_profiles","rows":[],"total_frame_count":len(result.frames),
-                              "confidence_interval":{"status":"unavailable_no_reference_profile"},
-                              "reason":result.metadata.get("reference_profile_reason")}
+                distribution = {
+                    "status": "no_profiles",
+                    "rows": [],
+                    "total_frame_count": len(result.frames),
+                    "confidence_interval": {"status": "unavailable_no_reference_profile"},
+                    "reason": result.metadata.get("reference_profile_reason"),
+                }
         if args.png:
-            plot_trajectory_profiles(result,args.png,dpi=args.dpi,view=args.view,quantiles=args.quantiles,
-                                     distribution=distribution,quantity=args.profile_quantity)
+            plot_trajectory_profiles(
+                result,
+                args.png,
+                dpi=args.dpi,
+                view=args.view,
+                quantiles=args.quantiles,
+                distribution=distribution,
+                quantity=args.profile_quantity,
+            )
         if args.distribution_csv:
-            write_profile_distribution_csv(distribution,args.distribution_csv)
+            write_profile_distribution_csv(distribution, args.distribution_csv)
             from .radii import radii_fields
-            _write_json({**distribution,**radii_fields()},str(Path(args.distribution_csv).with_suffix(".json")))
+
+            _write_json({**distribution, **radii_fields()}, str(Path(args.distribution_csv).with_suffix(".json")))
         if args.network_json:
             from .radii import radii_fields
-            _write_json({**result.metadata['residue_dynamics'],**radii_fields()},args.network_json)
+
+            _write_json({**result.metadata['residue_dynamics'], **radii_fields()}, args.network_json)
             from .residue_dynamics import write_dynamics_summary
-            write_dynamics_summary(result.metadata['residue_dynamics'],Path(args.network_json).with_suffix(''),dpi=args.dpi)
+
+            write_dynamics_summary(
+                result.metadata['residue_dynamics'], Path(args.network_json).with_suffix(''), dpi=args.dpi
+            )
     if _hydration_requested(args):
-        from .hydration_workflow import static_hydration_bundle,hydration_dependencies,analysis_options_from_args
-        missing_hydration=hydration_dependencies()
-        focus=sorted(set(lining)|{c.residue for f in result.frames for c in f.residue_contacts})
-        output=Path(args.output);hydration_files={}
-        hydration_times=[f.time for f in result.frames]
-        invalid_hydration_times=any(t is None or not math.isfinite(t) for t in hydration_times) or any(b<=a for a,b in zip(hydration_times,hydration_times[1:]) if a is not None and b is not None)
+        from .hydration_workflow import static_hydration_bundle, hydration_dependencies, analysis_options_from_args
+
+        missing_hydration = hydration_dependencies()
+        focus = sorted(set(lining) | {c.residue for f in result.frames for c in f.residue_contacts})
+        output = Path(args.output)
+        hydration_files = {}
+        hydration_times = [f.time for f in result.frames]
+        invalid_hydration_times = any(t is None or not math.isfinite(t) for t in hydration_times) or any(
+            b <= a for a, b in zip(hydration_times, hydration_times[1:]) if a is not None and b is not None
+        )
         if missing_hydration:
-            hydration_files={"status":"unavailable_missing_required_dependencies","missing":missing_hydration,"install":"reinstall CREVICE (pip install --force-reinstall crevice)"}
+            hydration_files = {
+                "status": "unavailable_missing_required_dependencies",
+                "missing": missing_hydration,
+                "install": "reinstall CREVICE (pip install --force-reinstall crevice)",
+            }
         elif args.topology and focus and invalid_hydration_times:
-            hydration_files={"status":"unavailable_invalid_timestamps","reason":"Hydration dynamics requires actual finite increasing frame times; other analyses are retained"}
+            hydration_files = {
+                "status": "unavailable_invalid_timestamps",
+                "reason": "Hydration dynamics requires actual finite increasing frame times; other analyses are retained",
+            }
         elif args.topology and focus:
             from .hydration_trajectory import analyze_hydration_trajectory
             from .hydration_export import write_hydration_bundle
-            hydrated=analyze_hydration_trajectory(args.topology,args.structures[0],residue_ids=focus,selection=args.selection,
-                start=args.start,stop=args.stop,stride=args.stride,max_frames=args.max_frames or None,pbc=args.pbc,alignment_residues=alignment_residues,align=args.align,
-                cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,analysis_options=analysis_options_from_args(args),
-                progress_callback=_HydrationProgress())
-            hydration_files=write_hydration_bundle(hydrated,output.parent,prefix=output.stem,dpi=args.dpi,confidence=args.confidence,block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
+
+            hydrated = analyze_hydration_trajectory(
+                args.topology,
+                args.structures[0],
+                residue_ids=focus,
+                selection=args.selection,
+                start=args.start,
+                stop=args.stop,
+                stride=args.stride,
+                max_frames=args.max_frames or None,
+                pbc=args.pbc,
+                alignment_residues=alignment_residues,
+                align=args.align,
+                cutoff=args.hydration_cutoff,
+                sasa_probe=args.hydration_probe,
+                sasa_samples=args.hydration_sasa_points,
+                analysis_options=analysis_options_from_args(args),
+                progress_callback=_HydrationProgress(),
+            )
+            hydration_files = write_hydration_bundle(
+                hydrated,
+                output.parent,
+                prefix=output.stem,
+                dpi=args.dpi,
+                confidence=args.confidence,
+                block_length=args.block_length,
+                replicates=args.bootstrap_replicates,
+                seed=args.bootstrap_seed,
+            )
         elif not args.topology:
-            for i,frame in enumerate(trajectory.frames[::args.stride]):
-                hydration_files[str(i)]=static_hydration_bundle(frame,output.parent/(output.stem+'_hydration_frames'),prefix=f'frame_{i:04d}',
-                    residue_ids=focus,cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,dpi=args.dpi,analysis_options=analysis_options_from_args(args))
+            for i, frame in enumerate(trajectory.frames[:: args.stride]):
+                hydration_files[str(i)] = static_hydration_bundle(
+                    frame,
+                    output.parent / (output.stem + '_hydration_frames'),
+                    prefix=f'frame_{i:04d}',
+                    residue_ids=focus,
+                    cutoff=args.hydration_cutoff,
+                    sasa_probe=args.hydration_probe,
+                    sasa_samples=args.hydration_sasa_points,
+                    dpi=args.dpi,
+                    analysis_options=analysis_options_from_args(args),
+                )
         else:
-            hydration_files={'status':'unavailable_no_identified_residues','reason':'Supply lining evidence or use the cavity-trajectory workflow'}
-        result.metadata['hydration_files']=hydration_files;write_trajectory_json(result,args.output)
+            hydration_files = {
+                'status': 'unavailable_no_identified_residues',
+                'reason': 'Supply lining evidence or use the cavity-trajectory workflow',
+            }
+        result.metadata['hydration_files'] = hydration_files
+        write_trajectory_json(result, args.output)
     elif _interactions_requested(args):
         # Typed residue-residue interactions without the water analyses (0.3 default).
-        from .residue_interactions import (static_residue_interactions, trajectory_residue_interactions,
-                                           write_residue_interactions)
-        focus=sorted(set(lining)|{c.residue for f in result.frames for c in f.residue_contacts})
-        output=Path(args.output);interaction_files={}
+        from .residue_interactions import (
+            static_residue_interactions,
+            trajectory_residue_interactions,
+            write_residue_interactions,
+        )
+
+        focus = sorted(set(lining) | {c.residue for f in result.frames for c in f.residue_contacts})
+        output = Path(args.output)
+        interaction_files = {}
         if args.topology and focus:
+
             def run_interactions():
-                found,times=trajectory_residue_interactions(args.topology,args.structures[0],residue_ids=focus,selection=args.selection,
-                    start=args.start,stop=args.stop,stride=args.stride,max_frames=args.max_frames or None,pbc=args.pbc,
-                    progress_callback=_HydrationProgress())
-                return write_residue_interactions(found,output.parent,output.stem,times=times,confidence=args.confidence,
-                    block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
-            interaction_files=_optional_analysis('interactions',run_interactions)
+                found, times = trajectory_residue_interactions(
+                    args.topology,
+                    args.structures[0],
+                    residue_ids=focus,
+                    selection=args.selection,
+                    start=args.start,
+                    stop=args.stop,
+                    stride=args.stride,
+                    max_frames=args.max_frames or None,
+                    pbc=args.pbc,
+                    progress_callback=_HydrationProgress(),
+                )
+                return write_residue_interactions(
+                    found,
+                    output.parent,
+                    output.stem,
+                    times=times,
+                    confidence=args.confidence,
+                    block_length=args.block_length,
+                    replicates=args.bootstrap_replicates,
+                    seed=args.bootstrap_seed,
+                )
+
+            interaction_files = _optional_analysis('interactions', run_interactions)
         elif not args.topology and focus:
+
             def run_frames():
-                found={}
-                for i,frame in enumerate(trajectory.frames[::args.stride]):
-                    found[str(i)]=write_residue_interactions(static_residue_interactions(frame,residue_ids=focus),
-                        output.parent/(output.stem+'_interaction_frames'),f'frame_{i:04d}')
+                found = {}
+                for i, frame in enumerate(trajectory.frames[:: args.stride]):
+                    found[str(i)] = write_residue_interactions(
+                        static_residue_interactions(frame, residue_ids=focus),
+                        output.parent / (output.stem + '_interaction_frames'),
+                        f'frame_{i:04d}',
+                    )
                 return found
-            interaction_files=_optional_analysis('interactions',run_frames)
+
+            interaction_files = _optional_analysis('interactions', run_frames)
         else:
-            interaction_files={'status':'unavailable_no_identified_residues','reason':'Supply lining evidence or use the cavity-trajectory workflow'}
-        result.metadata['interaction_files']=interaction_files;write_trajectory_json(result,args.output)
+            interaction_files = {
+                'status': 'unavailable_no_identified_residues',
+                'reason': 'Supply lining evidence or use the cavity-trajectory workflow',
+            }
+        result.metadata['interaction_files'] = interaction_files
+        write_trajectory_json(result, args.output)
     print(f"trajectory frames={len(result.frames)} analyses={','.join(result.analyses)} output={args.output}")
 
 
@@ -1990,8 +3126,14 @@ def _write_trajectory_frame_statistics(args, result) -> None:
     from .io import write_summary_statistics_csv
     from .radii import radii_fields
     from .uncertainty import trajectory_frame_statistics
-    stats = trajectory_frame_statistics(result, confidence=args.confidence, block_length=args.block_length,
-                                        replicates=args.bootstrap_replicates, seed=args.bootstrap_seed)
+
+    stats = trajectory_frame_statistics(
+        result,
+        confidence=args.confidence,
+        block_length=args.block_length,
+        replicates=args.bootstrap_replicates,
+        seed=args.bootstrap_seed,
+    )
     _write_json({**stats, **radii_fields()}, _sibling(args.output, "_frame_statistics.json"))
     write_summary_statistics_csv(stats, _sibling(args.output, "_frame_statistics.csv"))
 
@@ -1999,6 +3141,7 @@ def _write_trajectory_frame_statistics(args, result) -> None:
 def _hydration_requested(args: argparse.Namespace) -> bool:
     """Whether the run includes the hydration analysis (output plan, else ``--skip-hydration``)."""
     from .outputs import active_plan
+
     plan = active_plan()
     if plan is not None:
         return plan.runs("hydration")
@@ -2013,6 +3156,7 @@ def _optional_analysis(name: str, run):
     as a note and recorded in the manifest's ``run.outputs.notes``.
     """
     from .outputs import note
+
     try:
         return run()
     except ValueError as exc:
@@ -2025,6 +3169,7 @@ def _optional_analysis(name: str, run):
 def _interactions_requested(args: argparse.Namespace) -> bool:
     """Whether the run includes the typed residue interactions without hydration (output plan only)."""
     from .outputs import active_plan
+
     plan = active_plan()
     return plan is not None and plan.runs("interactions") and not plan.runs("hydration")
 
@@ -2032,27 +3177,52 @@ def _interactions_requested(args: argparse.Namespace) -> bool:
 def _add_sensitivity_arguments(parser: argparse.ArgumentParser, *, trajectory: bool = False) -> None:
     """``--sensitivity`` (0.4, opt-in): rerun headline numbers over margin, probe-ladder and grid variants."""
     parser.add_argument(
-        "--sensitivity", action="store_true",
+        "--sensitivity",
+        action="store_true",
         help="Also rerun the headline numbers with one definition changed at a time (margin +/-1 A where it "
-             "applies, the neighbouring probe-ladder radii, grid 0.25/0.5 A) and write PREFIX_sensitivity.csv/.json "
-             "with the spread. Off by default; costs roughly one extra run per variant (2-5 variants)"
-             + ("; trajectories rerun only --sensitivity-frames frames" if trajectory else ""))
+        "applies, the neighbouring probe-ladder radii, grid 0.25/0.5 A) and write PREFIX_sensitivity.csv/.json "
+        "with the spread. Off by default; costs roughly one extra run per variant (2-5 variants)"
+        + ("; trajectories rerun only --sensitivity-frames frames" if trajectory else ""),
+    )
     if trajectory:
-        parser.add_argument("--sensitivity-frames", type=int, default=10,
-                            help="Evenly spaced frames rerun per --sensitivity variant (default 10)")
+        parser.add_argument(
+            "--sensitivity-frames",
+            type=int,
+            default=10,
+            help="Evenly spaced frames rerun per --sensitivity variant (default 10)",
+        )
 
 
 def _sensitivity_profile_kwargs(args) -> dict:
-    return dict(axis=_profile_axis(args.axis), origin=args.origin, section_spacing=args.section_spacing,
-                enclosure_radius=args.enclosure_radius, lateral_exits=args.lateral_exits,
-                exit_bulk_radius=args.exit_bulk_radius, exit_spacing=args.exit_spacing, samples=args.samples,
-                search_radius=args.search_radius, refinement_steps=args.refinement_steps,
-                probe_radius=args.probe_radius, include_hydrogen=args.include_hydrogen,
-                include_hetero=not args.exclude_hetero)
+    return dict(
+        axis=_profile_axis(args.axis),
+        origin=args.origin,
+        section_spacing=args.section_spacing,
+        enclosure_radius=args.enclosure_radius,
+        lateral_exits=args.lateral_exits,
+        exit_bulk_radius=args.exit_bulk_radius,
+        exit_spacing=args.exit_spacing,
+        samples=args.samples,
+        search_radius=args.search_radius,
+        refinement_steps=args.refinement_steps,
+        probe_radius=args.probe_radius,
+        include_hydrogen=args.include_hydrogen,
+        include_hetero=not args.exclude_hetero,
+    )
 
 
-def _run_sensitivity(args, command: str, *, frame=None, profile=None, trajectory=None, reference=None,
-                     obstacles=None, csv_path=None, manifest_path=None) -> dict | None:
+def _run_sensitivity(
+    args,
+    command: str,
+    *,
+    frame=None,
+    profile=None,
+    trajectory=None,
+    reference=None,
+    obstacles=None,
+    csv_path=None,
+    manifest_path=None,
+) -> dict | None:
     """Run ``--sensitivity`` for ``command`` (see :mod:`crevice.sensitivity`) and write its table.
 
     ``profile``: enclosure-probe neighbours and section grid 0.25/0.5 A (min/mean radius).
@@ -2065,90 +3235,168 @@ def _run_sensitivity(args, command: str, *, frame=None, profile=None, trajectory
     if not getattr(args, "sensitivity", False):
         return None
     from .sensitivity import describe_spread, run_sensitivity, standard_variants, write_sensitivity
+
     note = ""
     if command == "profile":
-        options = dict(_sensitivity_profile_kwargs(args), padding=args.padding)
-        probe = profile.metadata.get("enclosure_radius_A")
+        options = dict(_sensitivity_profile_kwargs(args))
+        # A per-plane (automatic) profile has no single enclosure probe to vary: only the grid is varied.
+        probe = (
+            None if profile.metadata.get("enclosure_mode") == "adaptive" else profile.metadata.get("enclosure_radius_A")
+        )
         baseline = {"probe_radius_A": probe, "grid_spacing_A": args.section_spacing}
         variants = standard_variants(probe=probe, grid=args.section_spacing)
 
         def compute(overrides):
-            run = dict(options, enclosure_radius=overrides.get("probe_radius_A", probe),
-                       section_spacing=overrides.get("grid_spacing_A", args.section_spacing))
+            run = dict(
+                options,
+                enclosure_radius=overrides.get("probe_radius_A", probe),
+                section_spacing=overrides.get("grid_spacing_A", args.section_spacing),
+            )
             result = pore_profile(frame, **run)
             return {"min_radius_A": result.min_radius, "mean_radius_A": result.mean_radius}
     elif command == "cast":
         from .static_workflow import compute_rolling_cast
-        options = dict(outer_radius=args.outer_radius, enclosure_fraction=args.enclosure_fraction,
-                       min_depth=args.min_depth, min_component_volume=args.min_component_volume,
-                       max_components=args.max_components, selection_mode=args.cavity_selection,
-                       core_fraction=args.core_fraction, max_grid_points=args.max_grid_points,
-                       selection=args.selection, seed=args.seed, seed_tolerance=args.seed_tolerance)
+
+        options = dict(
+            outer_radius=args.outer_radius,
+            enclosure_fraction=args.enclosure_fraction,
+            min_depth=args.min_depth,
+            min_component_volume=args.min_component_volume,
+            max_components=args.max_components,
+            selection_mode=args.cavity_selection,
+            core_fraction=args.core_fraction,
+            max_grid_points=args.max_grid_points,
+            selection=args.selection,
+            seed=args.seed,
+            seed_tolerance=args.seed_tolerance,
+        )
         baseline = {"probe_radius_A": args.probe_radius, "grid_spacing_A": args.spacing}
         variants = standard_variants(probe=args.probe_radius, grid=args.spacing)
 
         def compute(overrides):
-            cast = compute_rolling_cast(frame, spacing=overrides.get("grid_spacing_A", args.spacing),
-                                        probe_radius=overrides.get("probe_radius_A", args.probe_radius), **options).cast
+            cast = compute_rolling_cast(
+                frame,
+                spacing=overrides.get("grid_spacing_A", args.spacing),
+                probe_radius=overrides.get("probe_radius_A", args.probe_radius),
+                **options,
+            ).cast
             return {"cast_volume_A3": cast.total_volume, "cast_region_count": len(cast.components)}
     elif command == "publish":
         from .static_workflow import compute_static_workflow
+
         options = {k: v for k, v in _sensitivity_profile_kwargs(args).items()}
-        options.update(cast_mode=args.cast_mode, cast_outer_radius=args.cast_outer_radius,
-                       cast_enclosure_fraction=args.cast_enclosure_fraction, cast_extension=args.cast_extension,
-                       cast_min_radius=args.cast_min_radius, cast_max_components=args.cast_max_components,
-                       cast_selection=args.cast_selection, cast_core_fraction=args.cast_core_fraction,
-                       cast_max_grid_points=args.cast_max_grid_points, cast_focus_points=args.focus,
-                       cast_focus_radius=args.focus_radius, cast_min_component_volume=args.min_component_volume,
-                       cast_max_component_volume=args.max_component_volume, entry_end=args.entry_end,
-                       lining_cutoff=args.lining_cutoff, include_cavities=False, include_tunnels=False,
-                       include_network=False)
+        options.update(
+            cast_mode=args.cast_mode,
+            cast_outer_radius=args.cast_outer_radius,
+            cast_enclosure_fraction=args.cast_enclosure_fraction,
+            cast_extension=args.cast_extension,
+            cast_min_radius=args.cast_min_radius,
+            cast_max_components=args.cast_max_components,
+            cast_selection=args.cast_selection,
+            cast_core_fraction=args.cast_core_fraction,
+            cast_max_grid_points=args.cast_max_grid_points,
+            cast_focus_points=args.focus,
+            cast_focus_radius=args.focus_radius,
+            cast_min_component_volume=args.min_component_volume,
+            cast_max_component_volume=args.max_component_volume,
+            entry_end=args.entry_end,
+            lining_cutoff=args.lining_cutoff,
+            include_network=False,
+        )
         probe = args.enclosure_radius
         recorded = json.loads(Path(manifest_path).read_text(encoding="utf-8")).get("files", {}).get("profile_json")
         if recorded and Path(recorded).is_file():
-            probe = (json.loads(Path(recorded).read_text(encoding="utf-8")).get("metadata") or {}).get("enclosure_radius_A", probe)
+            recorded_metadata = json.loads(Path(recorded).read_text(encoding="utf-8")).get("metadata") or {}
+            probe = (
+                None
+                if recorded_metadata.get("enclosure_mode") == "adaptive"
+                else recorded_metadata.get("enclosure_radius_A", probe)
+            )
         baseline = {"probe_radius_A": probe, "grid_spacing_A": args.cast_spacing}
         variants = standard_variants(probe=probe, grid=args.cast_spacing)
 
         def compute(overrides):
-            result = compute_static_workflow(frame, **dict(options, enclosure_radius=overrides.get("probe_radius_A", probe),
-                                                           cast_spacing=overrides.get("grid_spacing_A", args.cast_spacing)))
-            return {"min_radius_A": result.profile.min_radius if result.profile is not None else None,
-                    "cast_volume_A3": result.cast.total_volume if result.cast is not None else None}
+            result = compute_static_workflow(
+                frame,
+                **dict(
+                    options,
+                    enclosure_radius=overrides.get("probe_radius_A", probe),
+                    cast_spacing=overrides.get("grid_spacing_A", args.cast_spacing),
+                ),
+            )
+            return {
+                "min_radius_A": result.profile.min_radius if result.profile is not None else None,
+                "cast_volume_A3": result.cast.total_volume if result.cast is not None else None,
+            }
     elif command in ("cavity-trajectory", "region-trajectory"):
         from .cavity_trajectory import CavityReference, analyze_cavity_trajectory
         from .trajectory import Trajectory
         import numpy as np
+
         count = max(1, min(int(args.sensitivity_frames), len(trajectory.frames)))
         chosen = sorted(set(np.linspace(0, len(trajectory.frames) - 1, count).round().astype(int).tolist()))
         times = trajectory.times()
-        subset = Trajectory(tuple(trajectory.frames[i] for i in chosen), source=trajectory.source,
-                            frame_times=tuple(times[i] for i in chosen))
+        subset = Trajectory(
+            tuple(trajectory.frames[i] for i in chosen),
+            source=trajectory.source,
+            frame_times=tuple(times[i] for i in chosen),
+        )
         note = f"{len(chosen)} evenly spaced frames (positions {chosen}) of {len(trajectory.frames)}"
         reference_mode = args.geometry_mode == "reference-region"
-        baseline = {"margin_A": args.region_margin if reference_mode else None, "probe_radius_A": args.probe_radius,
-                    "grid_spacing_A": reference.spacing}
-        variants = standard_variants(margin=args.region_margin if reference_mode else None, probe=args.probe_radius,
-                                     grid=reference.spacing)
-        scaffold = json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8")) if args.alignment_residues_json else None
+        baseline = {
+            "margin_A": args.region_margin if reference_mode else None,
+            "probe_radius_A": args.probe_radius,
+            "grid_spacing_A": reference.spacing,
+        }
+        variants = standard_variants(
+            margin=args.region_margin if reference_mode else None, probe=args.probe_radius, grid=reference.spacing
+        )
+        scaffold = (
+            json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8"))
+            if args.alignment_residues_json
+            else None
+        )
 
         def compute(overrides):
             spacing = overrides.get("grid_spacing_A")
-            ref = reference if spacing is None else CavityReference.from_dx(
-                args.reference_volume_dx, spacing=spacing, axis=args.axis, profile_padding=args.profile_padding,
-                grid_phase=args.grid_phase)
-            geometry = dict(probe_radius=overrides.get("probe_radius_A", args.probe_radius), outer_radius=args.outer_radius,
-                            selection_mode=args.cavity_selection, enclosure_fraction=args.enclosure_fraction,
-                            min_component_volume=args.min_component_volume, max_grid_points=args.max_grid_points)
-            analysis = analyze_cavity_trajectory(subset, ref, geometry=geometry, alignment_residues=scaffold,
-                                                 minimum_overlap=args.minimum_overlap, ambiguity_ratio=args.ambiguity_ratio,
-                                                 lining_distance=args.lining_distance, contact_cutoff=args.contact_cutoff,
-                                                 workers=1, geometry_mode=args.geometry_mode,
-                                                 region_margin=overrides.get("margin_A", args.region_margin),
-                                                 obstacles=obstacles)
+            ref = (
+                reference
+                if spacing is None
+                else CavityReference.from_dx(
+                    args.reference_volume_dx,
+                    spacing=spacing,
+                    axis=args.axis,
+                    profile_padding=args.profile_padding,
+                    grid_phase=args.grid_phase,
+                )
+            )
+            geometry = dict(
+                probe_radius=overrides.get("probe_radius_A", args.probe_radius),
+                outer_radius=args.outer_radius,
+                selection_mode=args.cavity_selection,
+                enclosure_fraction=args.enclosure_fraction,
+                min_component_volume=args.min_component_volume,
+                max_grid_points=args.max_grid_points,
+            )
+            analysis = analyze_cavity_trajectory(
+                subset,
+                ref,
+                geometry=geometry,
+                alignment_residues=scaffold,
+                minimum_overlap=args.minimum_overlap,
+                ambiguity_ratio=args.ambiguity_ratio,
+                lining_distance=args.lining_distance,
+                contact_cutoff=args.contact_cutoff,
+                workers=1,
+                geometry_mode=args.geometry_mode,
+                region_margin=overrides.get("margin_A", args.region_margin),
+                obstacles=obstacles,
+            )
             volumes = [r["volume_A3"] for r in analysis["frames"] if r["volume_A3"] is not None]
-            return {"mean_volume_A3": float(np.mean(volumes)) if volumes else None,
-                    "resolved_frame_fraction": len(volumes) / len(analysis["frames"])}
+            return {
+                "mean_volume_A3": float(np.mean(volumes)) if volumes else None,
+                "resolved_frame_fraction": len(volumes) / len(analysis["frames"]),
+            }
     else:
         raise ValueError(f"--sensitivity is not available for {command}")
     result = run_sensitivity(compute, baseline, variants, command=command, note=note)
@@ -2170,6 +3418,7 @@ def _record_grid_resolution(manifest_path, spacing, clearances) -> dict:
     Nothing else in the run changes.
     """
     from .grid_guard import grid_resolution_check
+
     known = [(c, s) for c, s in clearances if c is not None]
     clearance, source = min(known) if known else (None, "; ".join(s for _, s in clearances) or "unknown")
     check = grid_resolution_check(spacing, clearance, clearance_source=source)
@@ -2185,30 +3434,55 @@ def _record_grid_resolution(manifest_path, spacing, clearances) -> dict:
 
 def _cmd_cast(args: argparse.Namespace) -> None:
     from .figures import write_rolling_probe_bundle
+
     frame, source, report = _load_input(args)
     prefix = args.prefix or source.path.stem
-    manifest = write_rolling_probe_bundle(frame, structure_path=source.path, output_dir=args.out_dir,
-        prefix=prefix, spacing=args.spacing, probe_radius=args.probe_radius, outer_radius=args.outer_radius,
-        enclosure_fraction=args.enclosure_fraction, min_depth=args.min_depth,
-        min_component_volume=args.min_component_volume, max_components=args.max_components,
-        max_grid_points=args.max_grid_points, selection=args.selection, dpi=args.dpi,
-        selection_mode=args.cavity_selection, core_fraction=args.core_fraction, surface_smoothing=args.surface_smoothing, smooth=args.smooth,
-        seed=args.seed, seed_tolerance=args.seed_tolerance)
-    path = Path(args.out_dir)/f'{prefix}_input_report.json'
+    manifest = write_rolling_probe_bundle(
+        frame,
+        structure_path=source.path,
+        output_dir=args.out_dir,
+        prefix=prefix,
+        spacing=args.spacing,
+        probe_radius=args.probe_radius,
+        outer_radius=args.outer_radius,
+        enclosure_fraction=args.enclosure_fraction,
+        min_depth=args.min_depth,
+        min_component_volume=args.min_component_volume,
+        max_components=args.max_components,
+        max_grid_points=args.max_grid_points,
+        selection=args.selection,
+        dpi=args.dpi,
+        selection_mode=args.cavity_selection,
+        core_fraction=args.core_fraction,
+        surface_smoothing=args.surface_smoothing,
+        smooth=args.smooth,
+        seed=args.seed,
+        seed_tolerance=args.seed_tolerance,
+    )
+    path = Path(args.out_dir) / f'{prefix}_input_report.json'
     _write_json({'source': source.to_dict(), 'intake': report}, path)
     saved = json.loads(Path(manifest['manifest_json']).read_text(encoding="utf-8"))
     saved['files']['input_report_json'] = str(path)
     _write_json(saved, manifest['manifest_json'])
     from .hydration_workflow import append_static_hydration
-    append_static_hydration(args,frame,source.path,manifest)
+
+    append_static_hydration(args, frame, source.path, manifest)
     args._run_manifest, args._run_source = manifest['manifest_json'], source.to_dict()
-    _record_grid_resolution(manifest['manifest_json'], args.spacing,
-                            [(None, "not measured (a cast reports no narrowest width)")])
-    _run_sensitivity(args, "cast", frame=frame, csv_path=Path(args.out_dir) / f"{prefix}_sensitivity.csv",
-                     manifest_path=manifest['manifest_json'])
+    _record_grid_resolution(
+        manifest['manifest_json'], args.spacing, [(None, "not measured (a cast reports no narrowest width)")]
+    )
+    _run_sensitivity(
+        args,
+        "cast",
+        frame=frame,
+        csv_path=Path(args.out_dir) / f"{prefix}_sensitivity.csv",
+        manifest_path=manifest['manifest_json'],
+    )
     cast = saved['void_cast']
     _warn_cast_selection(cast, saved.get('atom_selection') or {})
-    print(f"cast regions={cast['component_count']} volume_A3={cast['total_volume']:.3f} spacing_A={cast['spacing']} out_dir={args.out_dir}")
+    print(
+        f"cast regions={cast['component_count']} volume_A3={cast['total_volume']:.3f} spacing_A={cast['spacing']} out_dir={args.out_dir}"
+    )
 
 
 def _warn_cast_selection(cast, intake) -> None:
@@ -2225,9 +3499,12 @@ def _warn_cast_selection(cast, intake) -> None:
     linked = intake.get('polymer_hetero_residues_excluded') or {}
     if linked:
         names = ", ".join(f"{name} x{count}" for name, count in linked.items())
-        print(f"crevice: warning: hetero residues peptide-bonded into a chain were excluded as non-protein "
-              f"obstacles ({names}); the cast sees gaps in the wall where they are. Drop --hetero-polymer exclude "
-              f"or use --selection all to keep them", file=sys.stderr)
+        print(
+            f"crevice: warning: hetero residues peptide-bonded into a chain were excluded as non-protein "
+            f"obstacles ({names}); the cast sees gaps in the wall where they are. Drop --hetero-polymer exclude "
+            f"or use --selection all to keep them",
+            file=sys.stderr,
+        )
 
 
 def _cmd_publish(args: argparse.Namespace) -> None:
@@ -2252,8 +3529,6 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         include_hydrogen=args.include_hydrogen,
         include_hetero=not args.exclude_hetero,
         dpi=args.dpi,
-        include_cavities=None,   # the output plan decides (--outputs/--all, minus --skip-cavities)
-        include_tunnels=None,
         include_network=None,
         residue_label_every=args.residue_label_every,
         cast_mode=args.cast_mode,
@@ -2263,7 +3538,8 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         cast_spacing=args.cast_spacing,
         cast_min_radius=args.cast_min_radius,
         cast_max_components=args.cast_max_components,
-        cast_selection=args.cast_selection, cast_core_fraction=args.cast_core_fraction,
+        cast_selection=args.cast_selection,
+        cast_core_fraction=args.cast_core_fraction,
         surface_smoothing=args.surface_smoothing,
         smooth=args.smooth,
         cast_max_grid_points=args.cast_max_grid_points,
@@ -2271,7 +3547,9 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         cast_focus_radius=args.focus_radius,
         cast_min_component_volume=args.min_component_volume,
         cast_max_component_volume=args.max_component_volume,
-        residue_groups=json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None,
+        residue_groups=json.loads(Path(args.residue_groups).read_text(encoding="utf-8"))
+        if args.residue_groups
+        else None,
         entry_end=args.entry_end,
         lining_cutoff=args.lining_cutoff,
         fingerprint=args.fingerprint,
@@ -2282,17 +3560,32 @@ def _cmd_publish(args: argparse.Namespace) -> None:
     saved_manifest["files"]["input_report_json"] = str(input_report_path)
     _write_json(saved_manifest, manifest["manifest_json"])
     from .hydration_workflow import append_static_hydration
-    append_static_hydration(args,frame,source.path,manifest)
+
+    append_static_hydration(args, frame, source.path, manifest)
     args._run_manifest, args._run_source = manifest["manifest_json"], source.to_dict()
     _record_publish_grid_resolution(manifest, saved_manifest, args)
-    _run_sensitivity(args, "publish", frame=frame, csv_path=Path(args.out_dir) / f"{prefix}_sensitivity.csv",
-                     manifest_path=manifest["manifest_json"])
-    profile_status = "unresolved" if "profile_status_json" in manifest else "resolved" if "profile_json" in manifest else "not_assigned"
+    _run_sensitivity(
+        args,
+        "publish",
+        frame=frame,
+        csv_path=Path(args.out_dir) / f"{prefix}_sensitivity.csv",
+        manifest_path=manifest["manifest_json"],
+    )
+    profile_status = (
+        "unresolved"
+        if "profile_status_json" in manifest
+        else "resolved"
+        if "profile_json" in manifest
+        else "not_assigned"
+    )
     written = len({p for p in Path(args.out_dir).iterdir() if p.is_file()})
     print(f"publish files={written} out_dir={args.out_dir} profile={profile_status}")
     if profile_status == "unresolved":
-        print(f"crevice: note: the files describe the space without a channel profile ({Path(manifest['profile_status_json']).name} "
-              f"says why); {UNRESOLVED_CHANNEL_HINT}", file=sys.stderr)
+        print(
+            f"crevice: note: the files describe the space without a channel profile ({Path(manifest['profile_status_json']).name} "
+            f"says why); {UNRESOLVED_CHANNEL_HINT}",
+            file=sys.stderr,
+        )
 
 
 def _record_publish_grid_resolution(manifest, saved_manifest, args) -> None:
@@ -2310,32 +3603,59 @@ def _record_publish_grid_resolution(manifest, saved_manifest, args) -> None:
 
 def _cmd_fingerprint(args: argparse.Namespace) -> None:
     from .fingerprint import fingerprint_structure, fingerprint_trajectory, write_fingerprint_bundle
-    profile_kwargs = dict(axis=_profile_axis(args.axis), origin=args.origin, section_spacing=args.section_spacing,
-                          enclosure_radius=args.enclosure_radius, lateral_exits=args.lateral_exits,
-                          exit_bulk_radius=args.exit_bulk_radius, exit_spacing=args.exit_spacing, samples=args.samples,
-                          padding=args.padding, search_radius=args.search_radius,
-                          refinement_steps=args.refinement_steps, probe_radius=args.probe_radius,
-                          include_hydrogen=args.include_hydrogen, include_hetero=not args.exclude_hetero)
-    options = dict(entry_end=args.entry_end, bulk_radius=args.exit_bulk_radius,
-                   hydrophobicity_bandwidth=args.hydrophobicity_bandwidth, lining_shell=args.lining_shell,
-                   electrolyte=args.electrolyte, resistivity=args.resistivity)
+
+    profile_kwargs = dict(
+        axis=_profile_axis(args.axis),
+        origin=args.origin,
+        section_spacing=args.section_spacing,
+        enclosure_radius=args.enclosure_radius,
+        lateral_exits=args.lateral_exits,
+        exit_bulk_radius=args.exit_bulk_radius,
+        exit_spacing=args.exit_spacing,
+        samples=args.samples,
+        search_radius=args.search_radius,
+        refinement_steps=args.refinement_steps,
+        probe_radius=args.probe_radius,
+        include_hydrogen=args.include_hydrogen,
+        include_hetero=not args.exclude_hetero,
+    )
+    options = dict(
+        entry_end=args.entry_end,
+        bulk_radius=args.exit_bulk_radius,
+        hydrophobicity_bandwidth=args.hydrophobicity_bandwidth,
+        lining_shell=args.lining_shell,
+        electrolyte=args.electrolyte,
+        resistivity=args.resistivity,
+    )
     if args.trajectory:
         source = _resolve_input(args)
         prefix = args.prefix or source.path.stem
-        fp = fingerprint_trajectory(source.path, args.trajectory, selection=args.selection, start=args.start,
-                                    stop=args.stop, stride=args.stride, max_frames=args.max_frames or None,
-                                    pbc=args.pbc, water_selection=args.water_selection,
-                                    include_water=not args.no_water, quantiles=tuple(args.quantiles),
-                                    **options, **profile_kwargs)
+        fp = fingerprint_trajectory(
+            source.path,
+            args.trajectory,
+            selection=args.selection,
+            start=args.start,
+            stop=args.stop,
+            stride=args.stride,
+            max_frames=args.max_frames or None,
+            pbc=args.pbc,
+            water_selection=args.water_selection,
+            include_water=not args.no_water,
+            quantiles=tuple(args.quantiles),
+            **options,
+            **profile_kwargs,
+        )
     else:
         frame, source, _report = _load_input(args)
         prefix = args.prefix or source.path.stem
         _profile, _cast, fp = fingerprint_structure(frame, **options, **profile_kwargs)
     files = write_fingerprint_bundle(fp, args.out_dir, prefix, dpi=args.dpi)
     g = fp.conductance
-    line = (f"fingerprint samples={len(fp.samples)} lining_residues={len(fp.lining)} "
-            f"segments={','.join(s['segment'] for s in fp.segments)} g_macro_pS={g['g_macro_pS']:.3g} "
-            f"({g['electrolyte']}; geometric estimate)")
+    line = (
+        f"fingerprint samples={len(fp.samples)} lining_residues={len(fp.lining)} "
+        f"segments={','.join(s['segment'] for s in fp.segments)} g_macro_pS={g['g_macro_pS']:.3g} "
+        f"({g['electrolyte']}; geometric estimate)"
+    )
     if fp.frames:
         line += f" frames={len(fp.frames)} g_macro_median_pS={g['per_frame_g_macro_pS']['median']:.3g}"
     print(line)
@@ -2346,8 +3666,7 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
     if args.list:
         for system in benchmark_systems():
             print(
-                f"{system.pdb_id}\t{system.expected_geometry}\t{system.curation_status}\t"
-                f"{system.name}\t{system.notes}"
+                f"{system.pdb_id}\t{system.expected_geometry}\t{system.curation_status}\t{system.name}\t{system.notes}"
             )
         return
 
@@ -2372,14 +3691,21 @@ def _cmd_fetch(args: argparse.Namespace) -> None:
 
 def _cmd_fetch_example(args: argparse.Namespace) -> None:
     from .examples import fetch_example, list_examples
+
     if args.list or not args.name:
         for dataset in list_examples():
             print(f"{dataset.name}\t{dataset.description}\t{dataset.licence}")
             for item in dataset.files:
                 print(f"  {item.name}\t{item.size} bytes\t{item.description}")
         return
-    fetched = fetch_example(args.name, cache_dir=args.cache_dir, base_url=args.base_url, source_dir=args.source_dir,
-                            overwrite=args.overwrite, timeout=args.timeout)
+    fetched = fetch_example(
+        args.name,
+        cache_dir=args.cache_dir,
+        base_url=args.base_url,
+        source_dir=args.source_dir,
+        overwrite=args.overwrite,
+        timeout=args.timeout,
+    )
     for name, path in fetched.paths.items():
         state = "fetched" if name in fetched.downloaded else "cached"
         print(f"{path}\t{state}\tsha256 verified")
@@ -2388,6 +3714,7 @@ def _cmd_fetch_example(args: argparse.Namespace) -> None:
 
 def _cmd_view(args: argparse.Namespace) -> None:
     from .viewer import view
+
     scene = view(args.outdir, kind=args.kind, snapshot=args.snapshot)
     for name in args.show:
         scene.toggle(name, True)
@@ -2400,9 +3727,10 @@ def _cmd_view(args: argparse.Namespace) -> None:
         stem = source.name.removesuffix("_analysis_scene.json").removesuffix("_manifest.json")
         output = source.parent / f"{stem}_view.html"
     path = scene.save_html(output, inline_js=not args.cdn)
-    print(f"view file={path} layers={','.join(scene.layer_names)} size_MB={path.stat().st_size/1e6:.2f}")
+    print(f"view file={path} layers={','.join(scene.layer_names)} size_MB={path.stat().st_size / 1e6:.2f}")
     if args.open:
         import webbrowser
+
         webbrowser.open(path.resolve().as_uri())
 
 
@@ -2419,6 +3747,7 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         return path
 
     from .outputs import active_plan
+
     plan = active_plan()
     # --png, or figures selected through --outputs/--all (not part of the 0.2 analyze default).
     png = args.png or (plan is not None and plan.writes("figures"))
@@ -2426,12 +3755,19 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
     contacts: tuple = ()
     if {"profile", "residues", "network", "features"} & set(analyses):
         profile = pore_profile(
-            frame, axis=_profile_axis(args.axis), origin=args.origin, samples=args.samples, padding=args.padding,
-            section_spacing=args.section_spacing, enclosure_radius=args.enclosure_radius,
-            lateral_exits=args.lateral_exits, exit_bulk_radius=args.exit_bulk_radius,
+            frame,
+            axis=_profile_axis(args.axis),
+            origin=args.origin,
+            samples=args.samples,
+            section_spacing=args.section_spacing,
+            enclosure_radius=args.enclosure_radius,
+            lateral_exits=args.lateral_exits,
+            exit_bulk_radius=args.exit_bulk_radius,
             exit_spacing=args.exit_spacing,
-            search_radius=args.search_radius, refinement_steps=args.refinement_steps,
-            probe_radius=args.probe_radius, include_hydrogen=args.include_hydrogen,
+            search_radius=args.search_radius,
+            refinement_steps=args.refinement_steps,
+            probe_radius=args.probe_radius,
+            include_hydrogen=args.include_hydrogen,
             include_hetero=not args.exclude_hetero,
         )
     if {"residues", "network", "features"} & set(analyses):
@@ -2448,8 +3784,11 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
             plot_residue_contacts(contacts, target("residues.png"), dpi=args.dpi)
     if "cavities" in analyses:
         cavities = detect_cavities(
-            frame, spacing=args.cavity_spacing, min_radius=args.cavity_min_radius,
-            max_cavities=args.max_cavities, max_grid_points=args.cavity_max_grid_points,
+            frame,
+            spacing=args.cavity_spacing,
+            min_radius=args.cavity_min_radius,
+            max_cavities=args.max_cavities,
+            max_grid_points=args.cavity_max_grid_points,
             include_hydrogen=args.include_hydrogen,
             include_hetero=not args.exclude_hetero,
         )
@@ -2457,17 +3796,6 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         write_cavities_csv(cavities, target("cavities.csv"))
         if png:
             plot_cavity_summary(cavities, target("cavities.png"), dpi=args.dpi)
-    if "tunnels" in analyses:
-        tunnels = find_tunnels(
-            frame, start=parse_coord(args.start) if args.start else None,
-            spacing=args.tunnel_spacing, min_radius=args.tunnel_min_radius,
-            max_tunnels=args.max_tunnels, max_grid_points=args.tunnel_max_grid_points,
-            include_hydrogen=args.include_hydrogen,
-            include_hetero=not args.exclude_hetero,
-        )
-        write_tunnels_json(tunnels, target("tunnels.json"))
-        write_tunnels_csv(tunnels, target("tunnels.csv"))
-        write_tunnel_points_csv(tunnels, target("tunnel_points.csv"))
     if "network" in analyses:
         network = build_cavity_network(frame, profile, contacts=contacts, cutoff=args.cutoff)
         write_network_json(network, target("network.json"))
@@ -2478,16 +3806,18 @@ def _cmd_analyze(args: argparse.Namespace) -> None:
         write_features_csv(profile_features(profile, contacts), target("features.csv"))
 
     from .hydration_workflow import append_static_hydration
-    append_static_hydration(args,frame,source.path,files,residue_ids=[c.residue for c in contacts])
+
+    append_static_hydration(args, frame, source.path, files, residue_ids=[c.residue for c in contacts])
     manifest = {
         "analyses": list(analyses),
         "files": files,
         "source": source.to_dict(),
         "parser_report": parse_report,
         "interpretation": "Geometric outputs at the stated parameters; no curated "
-                          "axis, assembly or biological validation is implied.",
+        "axis, assembly or biological validation is implied.",
     }
     from .radii import radii_fields
+
     manifest.update(radii_fields())
     _write_json(manifest, str(out_dir / f"{prefix}_manifest.json"))
     args._run_manifest, args._run_source = str(out_dir / f"{prefix}_manifest.json"), source.to_dict()
@@ -2507,14 +3837,12 @@ def _cmd_static_suite(args: argparse.Namespace) -> None:
         probe_radii=tuple(args.probe_radius) if args.probe_radius else (0.0, 1.0, 1.4),
         residue_label_every=args.residue_label_every,
         cavity_spacing=args.cavity_spacing,
-        tunnel_spacing=args.tunnel_spacing,
         cast_spacing=args.cast_spacing,
         cast_min_radius=args.cast_min_radius,
         cast_max_components=args.cast_max_components,
         cast_max_grid_points=args.cast_max_grid_points,
         max_grid_points=args.max_grid_points,
         include_cavities=not args.skip_cavities,
-        include_tunnels=not args.skip_tunnels,
         include_network=not args.skip_network,
         dpi=args.dpi,
         enclosure_radius=args.enclosure_radius,
@@ -2543,17 +3871,21 @@ def _cmd_benchmark(args: argparse.Namespace) -> None:
                 path = fetch_benchmark_structure(system.pdb_id, args.cache_dir, extension=args.format)
                 row["path"] = str(path)
             frame = load_structure_report(path)[0]
-            profile = pore_profile(frame, axis="auto", samples=args.samples, search_radius=args.search_radius,
-                                   enclosure_radius=args.enclosure_radius)
+            profile = pore_profile(
+                frame,
+                axis="auto",
+                samples=args.samples,
+                search_radius=args.search_radius,
+                enclosure_radius=args.enclosure_radius,
+            )
             selection = profile.metadata.get("enclosure_probe_selection")
-            if profile.method != "axial-connected":
-                row.update({"enclosure_radius": None, "enclosure_probe_mode": "not_used",
-                            "enclosure_probe_reason": "search_radius=0 fixed-axis scan does not use an enclosure probe"})
-            else:
-                row.update({"enclosure_radius": selection["chosen_A"] if selection else args.enclosure_radius,
-                            "enclosure_probe_mode": "auto" if selection else "explicit",
-                            "enclosure_probe_reason": selection["reason"] if selection else
-                            "enclosure_radius given explicitly"})
+            row.update(
+                {
+                    "enclosure_radius": selection["chosen_A"] if selection else args.enclosure_radius,
+                    "enclosure_probe_mode": (selection.get("mode", "adaptive") if selection else "explicit"),
+                    "enclosure_probe_reason": selection["reason"] if selection else "enclosure_radius given explicitly",
+                }
+            )
             contacts = annotate_residues(frame, profile.points)
             row.update(
                 {
@@ -2574,13 +3906,23 @@ def _cmd_benchmark(args: argparse.Namespace) -> None:
             row.update({"status": "error", "error": str(exc)})
             selection = getattr(exc, "probe_selection", None)
             if selection is not None:
-                row.update({"enclosure_radius": None, "enclosure_probe_mode": "auto",
-                            "enclosure_probe_reason": selection["reason"]})
+                row.update(
+                    {
+                        "enclosure_radius": None,
+                        "enclosure_probe_mode": "auto",
+                        "enclosure_probe_reason": selection["reason"],
+                    }
+                )
         rows.append(row)
         print(f"{row['pdb_id']}\t{row['status']}\t{row.get('atom_count', '-')} atoms\t{row.get('error', '')}")
     from .radii import radii_fields
-    summary = {"benchmarks": rows, "ok": sum(row["status"] == "ok" for row in rows), "total": len(rows),
-               **radii_fields()}
+
+    summary = {
+        "benchmarks": rows,
+        "ok": sum(row["status"] == "ok" for row in rows),
+        "total": len(rows),
+        **radii_fields(),
+    }
     if args.output:
         _write_json(summary, args.output)
         _write_benchmark_csv(rows, _sibling(args.output, ".csv"))
@@ -2593,6 +3935,7 @@ def _add_radii_provenance(path: str | Path) -> None:
     as the writers use, so only the ``radii`` key is added.
     """
     from .radii import radii_fields
+
     target = Path(path)
     data = json.loads(target.read_text(encoding="utf-8"))
     data.update(radii_fields())
@@ -2606,9 +3949,11 @@ def _write_csv_provenance(csv_path: str | Path, command: str) -> None:
     effect), so a CSV-only output still says which atomic radii produced it.
     """
     from .radii import radii_fields
+
     target = Path(csv_path)
-    _write_json({"command": command, "csv": target.name, **radii_fields()},
-                target.with_name(target.stem + "_provenance.json"))
+    _write_json(
+        {"command": command, "csv": target.name, **radii_fields()}, target.with_name(target.stem + "_provenance.json")
+    )
 
 
 def _sibling(path: str | Path, suffix: str) -> Path:
@@ -2617,22 +3962,34 @@ def _sibling(path: str | Path, suffix: str) -> Path:
     return target.with_name(target.stem + suffix) if target.suffix else target.with_name(target.name + suffix)
 
 
-BENCHMARK_COLUMNS = {"pdb_id": "pdb_id", "expected_geometry": "expected_geometry", "curation_status": "curation_status",
-                     "path": "path", "status": "status", "atom_count": "atom_count", "residue_count": "residue_count",
-                     "profile_min_radius": "profile_min_radius_A", "profile_mean_radius": "profile_mean_radius_A",
-                     "profile_bottleneck_index": "profile_bottleneck_index",
-                     "enclosure_radius": "enclosure_radius_A", "enclosure_probe_mode": "enclosure_probe_mode",
-                     "enclosure_probe_reason": "enclosure_probe_reason",
-                     "residue_contact_count": "residue_contact_count", "cavity_count": "cavity_count",
-                     "top_cavity_volume": "top_cavity_volume_A3", "error": "error"}
+BENCHMARK_COLUMNS = {
+    "pdb_id": "pdb_id",
+    "expected_geometry": "expected_geometry",
+    "curation_status": "curation_status",
+    "path": "path",
+    "status": "status",
+    "atom_count": "atom_count",
+    "residue_count": "residue_count",
+    "profile_min_radius": "profile_min_radius_A",
+    "profile_mean_radius": "profile_mean_radius_A",
+    "profile_bottleneck_index": "profile_bottleneck_index",
+    "enclosure_radius": "enclosure_radius_A",
+    "enclosure_probe_mode": "enclosure_probe_mode",
+    "enclosure_probe_reason": "enclosure_probe_reason",
+    "residue_contact_count": "residue_contact_count",
+    "cavity_count": "cavity_count",
+    "top_cavity_volume": "top_cavity_volume_A3",
+    "error": "error",
+}
 
 
 def _write_benchmark_csv(rows: list[dict], path: Path) -> None:
     """One row per benchmark system; radii in Å (``_A``), volume in Å³ (``_A3``)."""
     import csv
     from ._portable_paths import portable_json
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    rows = portable_json(rows, path.parent)    # paths relative to the CSV's directory, "/" separators
+    rows = portable_json(rows, path.parent)  # paths relative to the CSV's directory, "/" separators
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(BENCHMARK_COLUMNS.values()))
         writer.writeheader()
@@ -2647,189 +4004,459 @@ def _write_json(data: object, path: str | Path) -> None:
 
 
 def _cmd_residue_evidence(args):
-    from .residue_evidence import read_binary_dx,boundary_residue_evidence,write_residue_evidence_bundle,restore_viewer_identities
-    frame,source,_=_load_input(args)
-    frame,identity_provenance=restore_viewer_identities(frame,args.structure)
-    grid,origin,deltas=read_binary_dx(args.volume_dx)
-    groups=json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
-    report=boundary_residue_evidence(frame,grid,origin,deltas,lining_distance=args.lining_distance,
-                                    contact_cutoff=args.contact_cutoff,residue_groups=groups)
-    report['source_volume_dx']=str(Path(args.volume_dx).resolve())
-    report['residue_identity_provenance']=identity_provenance
-    files=write_residue_evidence_bundle(report,frame,args.out_dir,prefix=args.prefix,scene_path=args.scene,dpi=args.dpi,
-                                        stick_residues=args.stick_residues)
+    from .residue_evidence import (
+        read_binary_dx,
+        boundary_residue_evidence,
+        write_residue_evidence_bundle,
+        restore_viewer_identities,
+    )
+
+    frame, source, _ = _load_input(args)
+    frame, identity_provenance = restore_viewer_identities(frame, args.structure)
+    grid, origin, deltas = read_binary_dx(args.volume_dx)
+    groups = json.loads(Path(args.residue_groups).read_text(encoding="utf-8")) if args.residue_groups else None
+    report = boundary_residue_evidence(
+        frame,
+        grid,
+        origin,
+        deltas,
+        lining_distance=args.lining_distance,
+        contact_cutoff=args.contact_cutoff,
+        residue_groups=groups,
+    )
+    report['source_volume_dx'] = str(Path(args.volume_dx).resolve())
+    report['residue_identity_provenance'] = identity_provenance
+    files = write_residue_evidence_bundle(
+        report,
+        frame,
+        args.out_dir,
+        prefix=args.prefix,
+        scene_path=args.scene,
+        dpi=args.dpi,
+        stick_residues=args.stick_residues,
+    )
     from .hydration_workflow import append_static_hydration
-    append_static_hydration(args,frame,source.path,files,residue_ids=[r['residue'] for r in report['residues'] if r['role']!='other'],roles={r['residue']:r['role'] for r in report['residues']})
+
+    append_static_hydration(
+        args,
+        frame,
+        source.path,
+        files,
+        residue_ids=[r['residue'] for r in report['residues'] if r['role'] != 'other'],
+        roles={r['residue']: r['role'] for r in report['residues']},
+    )
     from .radii import radii_fields
-    _write_json({'files':files,**radii_fields()},Path(args.out_dir)/f'{args.prefix}_evidence_manifest.json')
-    args._run_manifest,args._run_source=str(Path(args.out_dir)/f'{args.prefix}_evidence_manifest.json'),source.to_dict()
+
+    _write_json({'files': files, **radii_fields()}, Path(args.out_dir) / f'{args.prefix}_evidence_manifest.json')
+    args._run_manifest, args._run_source = (
+        str(Path(args.out_dir) / f'{args.prefix}_evidence_manifest.json'),
+        source.to_dict(),
+    )
     print(f"residue-evidence lining={len(report['lining_residues'])} out_dir={args.out_dir}")
 
 
 def _cmd_cavity_trajectory(args):
-    from .cavity_trajectory import CavityReference,analyze_cavity_trajectory,auto_workers,write_cavity_trajectory_bundle
-    if args.obstacle_selection and args.geometry_mode!="reference-region":
+    from .cavity_trajectory import (
+        CavityReference,
+        analyze_cavity_trajectory,
+        auto_workers,
+        write_cavity_trajectory_bundle,
+    )
+
+    if args.obstacle_selection and args.geometry_mode != "reference-region":
         raise ValueError("--obstacle-selection requires --geometry-mode reference-region")
-    trajectory,reader=load_trajectory_report(args.topology,args.trajectory,selection=args.selection,
-                                            stop=args.stop,max_frames=args.max_frames,pbc=args.pbc)
-    root=Path(args.out_dir);root.mkdir(parents=True,exist_ok=True)
-    _write_json(reader,root/(args.prefix+'_reader.json'))
-    reference=CavityReference.from_dx(args.reference_volume_dx,spacing=args.spacing,axis=args.axis,profile_padding=args.profile_padding,grid_phase=args.grid_phase)
-    scaffold=json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8")) if args.alignment_residues_json else None
-    geometry=dict(probe_radius=args.probe_radius,outer_radius=args.outer_radius,selection_mode=args.cavity_selection,
-                  enclosure_fraction=args.enclosure_fraction,min_component_volume=args.min_component_volume,max_grid_points=args.max_grid_points)
-    obstacles=None
+    trajectory, reader = load_trajectory_report(
+        args.topology,
+        args.trajectory,
+        selection=args.selection,
+        stop=args.stop,
+        max_frames=args.max_frames,
+        pbc=args.pbc,
+    )
+    root = Path(args.out_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    _write_json(reader, root / (args.prefix + '_reader.json'))
+    reference = CavityReference.from_dx(
+        args.reference_volume_dx,
+        spacing=args.spacing,
+        axis=args.axis,
+        profile_padding=args.profile_padding,
+        grid_phase=args.grid_phase,
+    )
+    scaffold = (
+        json.loads(Path(args.alignment_residues_json).read_text(encoding="utf-8"))
+        if args.alignment_residues_json
+        else None
+    )
+    geometry = dict(
+        probe_radius=args.probe_radius,
+        outer_radius=args.outer_radius,
+        selection_mode=args.cavity_selection,
+        enclosure_fraction=args.enclosure_fraction,
+        min_component_volume=args.min_component_volume,
+        max_grid_points=args.max_grid_points,
+    )
+    obstacles = None
     if args.obstacle_selection:
         from .cavity_obstacles import ObstacleSource
-        obstacles=ObstacleSource(args.topology,args.trajectory,protein_selection=args.selection,obstacle_selection=args.obstacle_selection,
-            reference_frame=trajectory.frames[0],frame_times=dict(zip(range(*reader["frame_indices"]),trajectory.times())),pbc=args.pbc)
-    waters=None
-    if getattr(args,'water_membership',False):
+
+        obstacles = ObstacleSource(
+            args.topology,
+            args.trajectory,
+            protein_selection=args.selection,
+            obstacle_selection=args.obstacle_selection,
+            reference_frame=trajectory.frames[0],
+            frame_times=dict(zip(range(*reader["frame_indices"]), trajectory.times())),
+            pbc=args.pbc,
+        )
+    waters = None
+    if getattr(args, 'water_membership', False):
         from .water_membership import WaterSource
-        waters=WaterSource(args.topology,args.trajectory,protein_selection=args.selection,reference_frame=trajectory.frames[0],
-            frame_times=dict(zip(range(*reader["frame_indices"]),trajectory.times())),pbc=args.pbc)
-    completed=0
-    frame_progress=_FrameProgress(len(trajectory.frames),"cavity frames")
-    def progress(index,row):
+
+        waters = WaterSource(
+            args.topology,
+            args.trajectory,
+            protein_selection=args.selection,
+            reference_frame=trajectory.frames[0],
+            frame_times=dict(zip(range(*reader["frame_indices"]), trajectory.times())),
+            pbc=args.pbc,
+        )
+    completed = 0
+    frame_progress = _FrameProgress(len(trajectory.frames), "cavity frames")
+
+    def progress(index, row):
         nonlocal completed
-        completed+=1
-        _write_json({'completed_frames':completed,'total_frames':len(trajectory.frames),
-                     'last_source_index':index,'last_status':row['status']},root/(args.prefix+'_progress.json'))
+        completed += 1
+        _write_json(
+            {
+                'completed_frames': completed,
+                'total_frames': len(trajectory.frames),
+                'last_source_index': index,
+                'last_status': row['status'],
+            },
+            root / (args.prefix + '_progress.json'),
+        )
         frame_progress()
+
     try:
-        analysis=analyze_cavity_trajectory(trajectory,reference,geometry=geometry,alignment_residues=scaffold,
-              minimum_overlap=args.minimum_overlap,ambiguity_ratio=args.ambiguity_ratio,lining_distance=args.lining_distance,
-              contact_cutoff=args.contact_cutoff,workers=args.workers if args.workers is not None else auto_workers(len(trajectory.frames),max_grid_points=args.max_grid_points),progress_callback=progress,geometry_mode=args.geometry_mode,region_margin=args.region_margin,obstacles=obstacles,waters=waters)
+        analysis = analyze_cavity_trajectory(
+            trajectory,
+            reference,
+            geometry=geometry,
+            alignment_residues=scaffold,
+            minimum_overlap=args.minimum_overlap,
+            ambiguity_ratio=args.ambiguity_ratio,
+            lining_distance=args.lining_distance,
+            contact_cutoff=args.contact_cutoff,
+            workers=args.workers
+            if args.workers is not None
+            else auto_workers(len(trajectory.frames), max_grid_points=args.max_grid_points),
+            progress_callback=progress,
+            geometry_mode=args.geometry_mode,
+            region_margin=args.region_margin,
+            obstacles=obstacles,
+            waters=waters,
+        )
     finally:
         frame_progress.close()
-    if getattr(args,'region_definition_metadata',None):
-        analysis['settings']['region_definition']=args.region_definition_metadata
-    files=write_cavity_trajectory_bundle(analysis,root,prefix=args.prefix,confidence=args.confidence,
-             block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi)
-    hydrated=_hydration_requested(args)
+    if getattr(args, 'region_definition_metadata', None):
+        analysis['settings']['region_definition'] = args.region_definition_metadata
+    files = write_cavity_trajectory_bundle(
+        analysis,
+        root,
+        prefix=args.prefix,
+        confidence=args.confidence,
+        block_length=args.block_length,
+        replicates=args.bootstrap_replicates,
+        seed=args.bootstrap_seed,
+        dpi=args.dpi,
+    )
+    hydrated = _hydration_requested(args)
     if hydrated:
         from .hydration_trajectory import analyze_hydration_trajectory
         from .hydration_workflow import analysis_options_from_args
         from .hydration_export import write_hydration_bundle
-        hydration=analyze_hydration_trajectory(args.topology,args.trajectory,context_json=files['statistics_json'],max_frames=args.max_frames,pbc=args.pbc,
-           cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,analysis_options=analysis_options_from_args(args),
-           progress_callback=_HydrationProgress())
+
+        hydration = analyze_hydration_trajectory(
+            args.topology,
+            args.trajectory,
+            context_json=files['statistics_json'],
+            max_frames=args.max_frames,
+            pbc=args.pbc,
+            cutoff=args.hydration_cutoff,
+            sasa_probe=args.hydration_probe,
+            sasa_samples=args.hydration_sasa_points,
+            analysis_options=analysis_options_from_args(args),
+            progress_callback=_HydrationProgress(),
+        )
         if waters is not None:
             from .water_membership import viewer_member_waters
-            hydration['member_waters']=viewer_member_waters(analysis)
-        extra=write_hydration_bundle(hydration,root,prefix=args.prefix,confidence=args.confidence,block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi)
-        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text(encoding="utf-8"));data['files'].update(extra);_write_json(data,manifest)
+
+            hydration['member_waters'] = viewer_member_waters(analysis)
+        extra = write_hydration_bundle(
+            hydration,
+            root,
+            prefix=args.prefix,
+            confidence=args.confidence,
+            block_length=args.block_length,
+            replicates=args.bootstrap_replicates,
+            seed=args.bootstrap_seed,
+            dpi=args.dpi,
+        )
+        manifest = Path(files['manifest_json'])
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data['files'].update(extra)
+        _write_json(data, manifest)
     elif _interactions_requested(args):
         # Typed residue-residue interactions without the water analyses (0.3 default).
-        from .residue_interactions import trajectory_residue_interactions,write_residue_interactions
+        from .residue_interactions import trajectory_residue_interactions, write_residue_interactions
+
         def run_interactions():
-            found,times=trajectory_residue_interactions(args.topology,args.trajectory,context_json=files['statistics_json'],
-                max_frames=args.max_frames,pbc=args.pbc,progress_callback=_HydrationProgress())
-            return write_residue_interactions(found,root,args.prefix,times=times,confidence=args.confidence,block_length=args.block_length,
-                replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
-        extra=_optional_analysis('interactions',run_interactions)
-        if 'status' in extra:extra={}
-        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text(encoding="utf-8"));data['files'].update(extra);_write_json(data,manifest)
+            found, times = trajectory_residue_interactions(
+                args.topology,
+                args.trajectory,
+                context_json=files['statistics_json'],
+                max_frames=args.max_frames,
+                pbc=args.pbc,
+                progress_callback=_HydrationProgress(),
+            )
+            return write_residue_interactions(
+                found,
+                root,
+                args.prefix,
+                times=times,
+                confidence=args.confidence,
+                block_length=args.block_length,
+                replicates=args.bootstrap_replicates,
+                seed=args.bootstrap_seed,
+            )
+
+        extra = _optional_analysis('interactions', run_interactions)
+        if 'status' in extra:
+            extra = {}
+        manifest = Path(files['manifest_json'])
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data['files'].update(extra)
+        _write_json(data, manifest)
     if waters is not None:
         from .water_membership import write_water_membership_bundle
         import numpy as np
-        counts=None
+
+        counts = None
         if hydrated and extra.get('hydration_frames_npz'):
-            with np.load(extra['hydration_frames_npz']) as saved:counts=saved['region_water_count'].copy() if 'region_water_count' in saved else None
-        extra=write_water_membership_bundle(analysis,root,prefix=args.prefix,confidence=args.confidence,block_length=args.block_length,
-            replicates=args.bootstrap_replicates,seed=args.bootstrap_seed,dpi=args.dpi,hydration_region_counts=counts)
-        manifest=Path(files['manifest_json']);data=json.loads(manifest.read_text(encoding="utf-8"));data['files'].update(extra);_write_json(data,manifest)
-    args._run_manifest=files['manifest_json']
-    _record_grid_resolution(files['manifest_json'],reference.spacing,
-                            [(None,"not measured (a per-frame region reports no narrowest width)")])
-    _run_sensitivity(args,"cavity-trajectory",trajectory=trajectory,reference=reference,obstacles=obstacles,
-                     csv_path=root/(args.prefix+'_sensitivity.csv'),manifest_path=files['manifest_json'])
+            with np.load(extra['hydration_frames_npz']) as saved:
+                counts = saved['region_water_count'].copy() if 'region_water_count' in saved else None
+        extra = write_water_membership_bundle(
+            analysis,
+            root,
+            prefix=args.prefix,
+            confidence=args.confidence,
+            block_length=args.block_length,
+            replicates=args.bootstrap_replicates,
+            seed=args.bootstrap_seed,
+            dpi=args.dpi,
+            hydration_region_counts=counts,
+        )
+        manifest = Path(files['manifest_json'])
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        data['files'].update(extra)
+        _write_json(data, manifest)
+    args._run_manifest = files['manifest_json']
+    _record_grid_resolution(
+        files['manifest_json'],
+        reference.spacing,
+        [(None, "not measured (a per-frame region reports no narrowest width)")],
+    )
+    _run_sensitivity(
+        args,
+        "cavity-trajectory",
+        trajectory=trajectory,
+        reference=reference,
+        obstacles=obstacles,
+        csv_path=root / (args.prefix + '_sensitivity.csv'),
+        manifest_path=files['manifest_json'],
+    )
     print(f"cavity trajectory frames={len(trajectory.frames)} statistics={files['statistics_json']}")
 
 
 def _cmd_hydration(args):
-    from .hydration_workflow import static_hydration_bundle,hydration_dependencies,analysis_options_from_args
-    if hydration_dependencies():raise RuntimeError("Hydration needs NumPy, SciPy and Matplotlib, which are required CREVICE dependencies but could not be imported: reinstall CREVICE (pip install --force-reinstall crevice)")
+    from .hydration_workflow import static_hydration_bundle, hydration_dependencies, analysis_options_from_args
+
+    if hydration_dependencies():
+        raise RuntimeError(
+            "Hydration needs NumPy, SciPy and Matplotlib, which are required CREVICE dependencies but could not be imported: reinstall CREVICE (pip install --force-reinstall crevice)"
+        )
     from .hydration_trajectory import analyze_hydration_trajectory
     from .hydration_export import write_hydration_bundle
-    residues=json.loads(Path(args.residues_json).read_text(encoding="utf-8")) if args.residues_json else None
+
+    residues = json.loads(Path(args.residues_json).read_text(encoding="utf-8")) if args.residues_json else None
     if args.trajectory:
-        result=analyze_hydration_trajectory(args.structure,args.trajectory,context_json=args.cavity_results,residue_ids=residues,
+        result = analyze_hydration_trajectory(
+            args.structure,
+            args.trajectory,
+            context_json=args.cavity_results,
+            residue_ids=residues,
             allow_radii_mismatch=args.allow_radii_mismatch,
-            selection=args.selection,water_selection=args.water_selection,start=args.start,stop=args.stop,stride=args.stride,
-            max_frames=args.max_frames,pbc=args.pbc,cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,analysis_options=analysis_options_from_args(args),
-            progress_callback=_HydrationProgress())
-        files=write_hydration_bundle(result,args.out_dir,prefix=args.prefix,dpi=args.dpi,confidence=args.confidence,block_length=args.block_length,replicates=args.bootstrap_replicates,seed=args.bootstrap_seed)
+            selection=args.selection,
+            water_selection=args.water_selection,
+            start=args.start,
+            stop=args.stop,
+            stride=args.stride,
+            max_frames=args.max_frames,
+            pbc=args.pbc,
+            cutoff=args.hydration_cutoff,
+            sasa_probe=args.hydration_probe,
+            sasa_samples=args.hydration_sasa_points,
+            analysis_options=analysis_options_from_args(args),
+            progress_callback=_HydrationProgress(),
+        )
+        files = write_hydration_bundle(
+            result,
+            args.out_dir,
+            prefix=args.prefix,
+            dpi=args.dpi,
+            confidence=args.confidence,
+            block_length=args.block_length,
+            replicates=args.bootstrap_replicates,
+            seed=args.bootstrap_seed,
+        )
     else:
-        if args.cavity_results:raise ValueError('--cavity-results requires --trajectory')
-        frame,source,_=_load_input(args)
+        if args.cavity_results:
+            raise ValueError('--cavity-results requires --trajectory')
+        frame, source, _ = _load_input(args)
         from .residue_evidence import restore_viewer_identities
-        frame,_=restore_viewer_identities(frame,source.path)
-        files=static_hydration_bundle(frame,args.out_dir,prefix=args.prefix,source_path=source.path,volume_path=args.volume_dx,residue_ids=residues,
-            cutoff=args.hydration_cutoff,sasa_probe=args.hydration_probe,sasa_samples=args.hydration_sasa_points,dpi=args.dpi,analysis_options=analysis_options_from_args(args))
-    manifest=Path(args.out_dir)/f'{args.prefix}_hydration_manifest.json'
-    args._run_manifest=str(manifest) if manifest.is_file() else None
-    print('hydration statistics='+files['hydration_json'])
+
+        frame, _ = restore_viewer_identities(frame, source.path)
+        files = static_hydration_bundle(
+            frame,
+            args.out_dir,
+            prefix=args.prefix,
+            source_path=source.path,
+            volume_path=args.volume_dx,
+            residue_ids=residues,
+            cutoff=args.hydration_cutoff,
+            sasa_probe=args.hydration_probe,
+            sasa_samples=args.hydration_sasa_points,
+            dpi=args.dpi,
+            analysis_options=analysis_options_from_args(args),
+        )
+    manifest = Path(args.out_dir) / f'{args.prefix}_hydration_manifest.json'
+    args._run_manifest = str(manifest) if manifest.is_file() else None
+    print('hydration statistics=' + files['hydration_json'])
 
 
 def _cmd_region_init(args):
-    from .region_definition import file_record,validate_definition,write_json
-    target=Path(args.output).resolve()
-    if target.exists():raise ValueError('Definition exists; use a new versioned filename')
-    landmarks=json.loads(Path(args.landmarks_json).read_text(encoding="utf-8")) if args.landmarks_json else []
-    reference={'kind':'existing_dx','asset':file_record(args.reference_volume_dx,target.parent)} if args.reference_volume_dx else {
-        'kind':'landmark_sphere','radius_A':args.radius,'max_seed_distance_A':min(3.,args.radius),'ambiguity_distance_A':.5}
-    data={'schema_version':1,'region_id':args.region_id,'label':args.region_id,
-      'review':{'status':'candidate','rationale':'Candidate regional observable; edit source-backed identity, assembly and landmark evidence before anatomical review.','sources':[]},
-      'system':{'topology':file_record(args.topology,target.parent),'trajectory':file_record(args.trajectory,target.parent) if args.trajectory else None,
-        'reference_frame':0,'protein_selection':args.selection,'obstacle_selection':args.obstacle_selection,'pbc':'check',
-        'assembly':'Unreviewed input assembly; no operators applied.','preparation':'Starting-model and preparation provenance unprovided.',
-        'membrane':'Membrane orientation and anatomical sides unassigned; profile axis is a coordinate convention.'},
-      'alignment':{'residues':None,'rationale':'All matching protein CA atoms (heavy-atom fallback); stable scaffold not independently established.'},
-      'geometry':{'spacing_A':args.spacing,'probe_radius_A':args.probe_radius,'region_margin_A':2.,'axis':[0.,0.,1.],
-                  'grid_phase':[0.,0.,0.],'profile_padding_A':4.,'max_grid_points':8000000},
-      'reference':reference,'landmarks':landmarks}
-    validate_definition(data);target.parent.mkdir(parents=True,exist_ok=True);write_json(target,data)
+    from .region_definition import file_record, validate_definition, write_json
+
+    target = Path(args.output).resolve()
+    if target.exists():
+        raise ValueError('Definition exists; use a new versioned filename')
+    landmarks = json.loads(Path(args.landmarks_json).read_text(encoding="utf-8")) if args.landmarks_json else []
+    reference = (
+        {'kind': 'existing_dx', 'asset': file_record(args.reference_volume_dx, target.parent)}
+        if args.reference_volume_dx
+        else {
+            'kind': 'landmark_sphere',
+            'radius_A': args.radius,
+            'max_seed_distance_A': min(3.0, args.radius),
+            'ambiguity_distance_A': 0.5,
+        }
+    )
+    data = {
+        'schema_version': 1,
+        'region_id': args.region_id,
+        'label': args.region_id,
+        'review': {
+            'status': 'candidate',
+            'rationale': 'Candidate regional observable; edit source-backed identity, assembly and landmark evidence before anatomical review.',
+            'sources': [],
+        },
+        'system': {
+            'topology': file_record(args.topology, target.parent),
+            'trajectory': file_record(args.trajectory, target.parent) if args.trajectory else None,
+            'reference_frame': 0,
+            'protein_selection': args.selection,
+            'obstacle_selection': args.obstacle_selection,
+            'pbc': 'check',
+            'assembly': 'Unreviewed input assembly; no operators applied.',
+            'preparation': 'Starting-model and preparation provenance unprovided.',
+            'membrane': 'Membrane orientation and anatomical sides unassigned; profile axis is a coordinate convention.',
+        },
+        'alignment': {
+            'residues': None,
+            'rationale': 'All matching protein CA atoms (heavy-atom fallback); stable scaffold not independently established.',
+        },
+        'geometry': {
+            'spacing_A': args.spacing,
+            'probe_radius_A': args.probe_radius,
+            'region_margin_A': 2.0,
+            'axis': [0.0, 0.0, 1.0],
+            'grid_phase': [0.0, 0.0, 0.0],
+            'profile_padding_A': 4.0,
+            'max_grid_points': 8000000,
+        },
+        'reference': reference,
+        'landmarks': landmarks,
+    }
+    validate_definition(data)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write_json(target, data)
     print(f'candidate region definition={target}')
 
 
 def _cmd_region_prepare(args):
     from .region_definition import prepare_region
-    files=prepare_region(args.definition,args.out_dir,allow_radii_mismatch=args.allow_radii_mismatch)
-    print('region review='+files['review_scene_json']+' landmarks='+files['review_landmarks_csv'])
+
+    files = prepare_region(args.definition, args.out_dir, allow_radii_mismatch=args.allow_radii_mismatch)
+    print('region review=' + files['review_scene_json'] + ' landmarks=' + files['review_landmarks_csv'])
 
 
 def _cmd_region_trajectory(args):
-    from .region_definition import trajectory_arguments,write_json
-    root=Path(args.out_dir).resolve()
-    if root.exists() and any(root.iterdir()):raise ValueError('Region trajectory requires an empty output directory; choose a new --out-dir')
-    from .radii import active_radii,use_radii
-    argv,metadata=trajectory_arguments(args.definition,root,radii=active_radii(),
-                                       allow_radii_mismatch=args.allow_radii_mismatch)
-    radius_set=metadata.pop('radius_set')
-    resolved=build_parser().parse_args(argv)
-    for key,value in vars(args).items():
-        if key not in {'definition','out_dir','command','func'}:setattr(resolved,key,value)
-    root.mkdir(parents=True,exist_ok=True)
-    scaffold=metadata['definition']['alignment']['residues']
+    from .region_definition import trajectory_arguments, write_json
+
+    root = Path(args.out_dir).resolve()
+    if root.exists() and any(root.iterdir()):
+        raise ValueError('Region trajectory requires an empty output directory; choose a new --out-dir')
+    from .radii import active_radii, use_radii
+
+    argv, metadata = trajectory_arguments(
+        args.definition, root, radii=active_radii(), allow_radii_mismatch=args.allow_radii_mismatch
+    )
+    radius_set = metadata.pop('radius_set')
+    resolved = build_parser().parse_args(argv)
+    for key, value in vars(args).items():
+        if key not in {'definition', 'out_dir', 'command', 'func'}:
+            setattr(resolved, key, value)
+    root.mkdir(parents=True, exist_ok=True)
+    scaffold = metadata['definition']['alignment']['residues']
     if scaffold is not None:
-        path=root/(metadata['region_id']+'_alignment_residues.json');write_json(path,scaffold)
-        resolved.alignment_residues_json=str(path)
-    resolved.region_definition_metadata=metadata
-    write_json(root/(metadata['region_id']+'_region_provenance.json'),metadata)
-    if metadata['radii_check']['status']!='requested_matches_definition':
-        print(f"radii={metadata['radii']['name']} ({metadata['radii_check']['status']}, "
-              f"table {metadata['radii']['table_sha256'][:12]})")
+        path = root / (metadata['region_id'] + '_alignment_residues.json')
+        write_json(path, scaffold)
+        resolved.alignment_residues_json = str(path)
+    resolved.region_definition_metadata = metadata
+    write_json(root / (metadata['region_id'] + '_region_provenance.json'), metadata)
+    if metadata['radii_check']['status'] != 'requested_matches_definition':
+        print(
+            f"radii={metadata['radii']['name']} ({metadata['radii_check']['status']}, "
+            f"table {metadata['radii']['table_sha256'][:12]})"
+        )
     # The definition's radius set (or the explicitly allowed override) for every frame and worker.
     with use_radii(radius_set):
         _cmd_cavity_trajectory(resolved)
-    args._run_manifest=getattr(resolved,'_run_manifest',None)
+    args._run_manifest = getattr(resolved, '_run_manifest', None)
 
 
 def _cmd_region_compare(args):
     from .region_comparison import compare_regions
-    result=compare_regions(args.left_statistics,args.right_statistics,args.out_dir,
-        left_definition=args.left_definition,right_definition=args.right_definition,
-        left_input_provenance=args.left_input_provenance,right_input_provenance=args.right_input_provenance,
-        allow_radii_mismatch=args.allow_radii_mismatch)
-    print(f"paired region frames={result['frame_count']} comparison={Path(args.out_dir)/'comparison.json'}")
+
+    result = compare_regions(
+        args.left_statistics,
+        args.right_statistics,
+        args.out_dir,
+        left_definition=args.left_definition,
+        right_definition=args.right_definition,
+        left_input_provenance=args.left_input_provenance,
+        right_input_provenance=args.right_input_provenance,
+        allow_radii_mismatch=args.allow_radii_mismatch,
+    )
+    print(f"paired region frames={result['frame_count']} comparison={Path(args.out_dir) / 'comparison.json'}")

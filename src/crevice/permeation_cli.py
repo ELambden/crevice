@@ -15,10 +15,10 @@ Channel definition, in order of precedence:
    pore);
 3. otherwise the per-frame profiles measured by the trajectory command.
 """
+
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -67,42 +67,134 @@ def add_permeation_arguments(parser: argparse.ArgumentParser) -> None:
         ``--dpi``.
     """
     group = parser.add_argument_group(
-        "permeation", "Permeation events, water pf/pd and ion current through the channel (needs --topology)")
-    group.add_argument("--permeation", action="append", metavar="SPECIES",
-                       help="Species to follow: comma-separated residue or atom names (e.g. TIP3,SOD,CLA or W,ION for "
-                            "Martini) or one MDAnalysis selection ('LABEL=resname TIP3 and name OH2'); repeatable. "
-                            "Names that match nothing are listed and skipped")
-    group.add_argument("--channel-extent", type=_pair, metavar="ZMIN,ZMAX",
-                       help="Explicit channel extent (Å) along --axis, as x.axis in the coordinates of the first "
-                            "analysed frame; default: each frame's measured profile")
-    group.add_argument("--channel-radius", type=float, metavar="Å",
-                       help="Lateral lumen radius around the axis line for --channel-extent; default no lateral limit")
-    group.add_argument("--permeation-pore", action="append", type=_vector, metavar="X,Y,Z",
-                       help="A point on the axis line of one pore (repeat for several pores, e.g. an aquaporin "
-                            "tetramer); with --channel-extent. Default: --origin, else the alignment-atom centroid")
-    group.add_argument("--permeation-region", metavar="FILE",
-                       help="Channel from a region map (.dx, first-frame coordinates) or a prepared region "
-                            "definition (.json); needs an axis (--axis, or the definition's)")
-    group.add_argument("--lumen-tolerance", type=float, metavar="Å",
-                       help="Added to the profile radius (profile channels) or used to dilate the region map; "
-                            "default 1.0 for profiles, 0 for regions unless given")
-    group.add_argument("--charge", action="append", metavar="NAME=q",
-                       help="Charge override (e) by species label, residue name or atom name; repeatable")
-    group.add_argument("--voltage", type=float, metavar="mV",
-                       help="Known transmembrane voltage (positive drives cations along +axis); enables conductance")
-    group.add_argument("--efield", type=_field, metavar="V/nm",
-                       help="Applied static field (E along z, or EX,EY,EZ); V = E x mean box length")
-    group.add_argument("--efield-from", metavar="FILE",
-                       help="Read the applied field from a GROMACS .mdp or .tpr (the .tpr needs gmx on the PATH)")
-    group.add_argument("--water-mapping", type=int, metavar="N",
-                       help="Water molecules per Martini water bead (default 4)")
-    group.add_argument("--permeation-stride", type=int, default=1, metavar="N",
-                       help="Read every Nth trajectory frame for permeation (default 1: every saved frame)")
-    group.add_argument("--msd-blocks", type=int, default=5, metavar="N",
-                       help="Contiguous segments for the D_n (pf) interval (default 5)")
-    group.add_argument("--permeation-only", action="store_true",
-                       help="Run only the permeation analysis (needs --channel-extent or --permeation-region); "
-                            "also the route for coarse-grained input, whose beads have no atomic radii")
+        "permeation", "Permeation events, water pf/pd and ion current through the channel (needs --topology)"
+    )
+    group.add_argument(
+        "--permeation",
+        action="append",
+        metavar="SPECIES",
+        help="Species to follow: comma-separated residue or atom names (e.g. TIP3,SOD,CLA or W,ION for "
+        "Martini) or one MDAnalysis selection ('LABEL=resname TIP3 and name OH2'); repeatable. "
+        "Names that match nothing are listed and skipped",
+    )
+    group.add_argument(
+        "--channel-extent",
+        type=_pair,
+        metavar="ZMIN,ZMAX",
+        help="Explicit channel extent (Å) along --axis, as x.axis in the coordinates of the first "
+        "analysed frame; default: each frame's measured profile",
+    )
+    group.add_argument(
+        "--channel-radius",
+        type=float,
+        metavar="Å",
+        help="Lateral lumen radius around the axis line for --channel-extent or --membrane-planes; "
+        "default no lateral limit",
+    )
+    group.add_argument(
+        "--membrane-planes",
+        metavar="SELECTION",
+        help="Channel extent that follows the membrane, instead of --channel-extent: in every frame "
+        "from the mean lower to the mean upper position of these atoms along --axis (lipid headgroups, "
+        "for example 'name P'), so an event is a passage from one side of the bilayer to the other",
+    )
+    group.add_argument(
+        "--permeation-pore",
+        action="append",
+        type=_vector,
+        metavar="X,Y,Z",
+        help="A point on the axis line of one pore (repeat for several pores, e.g. an aquaporin "
+        "tetramer); with --channel-extent. Default: --origin, else the alignment-atom centroid",
+    )
+    group.add_argument(
+        "--permeation-region",
+        metavar="FILE",
+        help="Channel from a region map (.dx, first-frame coordinates) or a prepared region "
+        "definition (.json); needs an axis (--axis, or the definition's)",
+    )
+    group.add_argument(
+        "--lumen-tolerance",
+        type=float,
+        metavar="Å",
+        help="Added to the profile radius (profile channels) or used to dilate the region map; "
+        "default 1.0 for profiles, 0 for regions unless given",
+    )
+    group.add_argument(
+        "--charge",
+        action="append",
+        metavar="NAME=q",
+        help="Charge override (e) by species label, residue name or atom name; repeatable",
+    )
+    group.add_argument(
+        "--voltage",
+        type=float,
+        metavar="mV",
+        help="Known transmembrane voltage (positive drives cations along +axis); enables conductance",
+    )
+    group.add_argument(
+        "--efield",
+        type=_field,
+        metavar="V/nm",
+        help="Applied static field (E along z, or EX,EY,EZ); V = E x mean box length",
+    )
+    group.add_argument(
+        "--efield-from",
+        metavar="FILE",
+        help="Read the applied field from a GROMACS .mdp or .tpr (the .tpr needs gmx on the PATH)",
+    )
+    group.add_argument(
+        "--water-mapping", type=int, metavar="N", help="Water molecules per Martini water bead (default 4)"
+    )
+    group.add_argument(
+        "--permeation-stride",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Read every Nth trajectory frame for permeation (default 1: every saved frame)",
+    )
+    group.add_argument(
+        "--msd-blocks",
+        type=int,
+        default=5,
+        metavar="N",
+        help="Contiguous segments for the D_n (pf) interval (default 5)",
+    )
+    group.add_argument(
+        "--permeation-convention",
+        choices=("compartment", "strict"),
+        default="compartment",
+        help="Event rule: 'compartment' (default) remembers the bulk side a molecule last occupied and "
+        "counts its arrival on the other side, attributed to the channel if it was in the lumen "
+        "on the way; 'strict' also requires an uninterrupted stay in the lumen",
+    )
+    group.add_argument(
+        "--event-blocks",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Time blocks for the dispersion index that widens the rate, pd and current intervals, and for the "
+        "interval of the axial free-energy profile (default 10)",
+    )
+    group.add_argument(
+        "--temperature",
+        type=float,
+        metavar="K",
+        help="Simulation temperature (K): also gives the axial free-energy profile in kcal/mol (it is always in kT)",
+    )
+    group.add_argument(
+        "--max-traces",
+        type=int,
+        default=200,
+        metavar="N",
+        help="Most molecules per channel and species in the axial position traces (STEM_permeation_positions.csv "
+        "and figure), evenly spaced in order of their first event; 0 keeps all (default 200)",
+    )
+    group.add_argument(
+        "--permeation-only",
+        action="store_true",
+        help="Run only the permeation analysis (needs --channel-extent or --permeation-region); "
+        "also the route for coarse-grained input, whose beads have no atomic radii",
+    )
 
 
 def permeation_requested(args: argparse.Namespace) -> bool:
@@ -136,25 +228,40 @@ def validate_permeation_arguments(args: argparse.Namespace) -> None:
     if getattr(args, "permeation_only", False) and not permeation_requested(args):
         raise ValueError("--permeation-only needs --permeation SPECIES")
     if not permeation_requested(args):
-        for flag in ("channel_extent", "channel_radius", "permeation_pore", "permeation_region", "voltage", "efield",
-                     "efield_from", "charge"):
+        for flag in (
+            "channel_extent",
+            "channel_radius",
+            "membrane_planes",
+            "permeation_pore",
+            "permeation_region",
+            "voltage",
+            "efield",
+            "efield_from",
+            "charge",
+        ):
             if getattr(args, flag, None):
                 raise ValueError(f"--{flag.replace('_', '-')} needs --permeation SPECIES")
         return
     if not getattr(args, "topology", None):
         raise ValueError("--permeation needs an MD trajectory: pass --topology and one trajectory file")
-    if args.permeation_only and not (args.channel_extent or args.permeation_region):
-        raise ValueError("--permeation-only needs --channel-extent ZMIN,ZMAX or --permeation-region FILE")
-    if (args.permeation_pore or args.channel_radius) and not args.channel_extent:
-        raise ValueError("--permeation-pore and --channel-radius need --channel-extent")
-    if args.channel_extent and args.permeation_region:
-        raise ValueError("choose --channel-extent or --permeation-region")
+    membrane = getattr(args, "membrane_planes", None)
+    if args.permeation_only and not (args.channel_extent or args.permeation_region or membrane):
+        raise ValueError(
+            "--permeation-only needs --channel-extent ZMIN,ZMAX, --membrane-planes SELECTION or "
+            "--permeation-region FILE"
+        )
+    if (args.permeation_pore or args.channel_radius) and not (args.channel_extent or membrane):
+        raise ValueError("--permeation-pore and --channel-radius need --channel-extent or --membrane-planes")
+    if sum(bool(v) for v in (args.channel_extent, args.permeation_region, membrane)) > 1:
+        raise ValueError("choose one of --channel-extent, --membrane-planes and --permeation-region")
     if args.voltage is not None and (args.efield or args.efield_from):
         raise ValueError("choose --voltage or an applied field (--efield/--efield-from)")
     if args.efield and args.efield_from:
         raise ValueError("choose --efield or --efield-from")
     if args.permeation_stride < 1:
         raise ValueError("--permeation-stride must be at least 1")
+    if getattr(args, "max_traces", 200) < 0:
+        raise ValueError("--max-traces must be 0 (all) or positive")
 
 
 def _axis(args):
@@ -171,6 +278,7 @@ def _axis(args):
 
 def _channels(args, result):
     from .permeation import CylinderChannel, ProfileChannel, RegionChannel, region_channel_from_definition
+
     axis = _axis(args)
     if args.permeation_region:
         path = Path(args.permeation_region)
@@ -178,23 +286,39 @@ def _channels(args, result):
         if path.suffix.lower() == ".json":
             channel = region_channel_from_definition(path, tolerance=tolerance)
             if channel.region_definition["reference_frame"] != args.start:
-                raise ValueError("the region is defined on frame "
-                                 f"{channel.region_definition['reference_frame']}; use --start "
-                                 f"{channel.region_definition['reference_frame']} so it is the reference frame")
+                raise ValueError(
+                    "the region is defined on frame "
+                    f"{channel.region_definition['reference_frame']}; use --start "
+                    f"{channel.region_definition['reference_frame']} so it is the reference frame"
+                )
             return [channel]
         if axis is None:
             raise ValueError("--permeation-region with a .dx map needs --axis x|y|z|X,Y,Z")
         return [RegionChannel(path.stem, path, axis, tolerance=tolerance)]
-    if args.channel_extent:
+    membrane = getattr(args, "membrane_planes", None)
+    if args.channel_extent or membrane:
+        flag = "--channel-extent" if args.channel_extent else "--membrane-planes"
         if axis is None:
-            raise ValueError("--channel-extent needs --axis x|y|z|X,Y,Z (the extent is measured along it)")
-        lo, hi = args.channel_extent
+            raise ValueError(f"{flag} needs --axis x|y|z|X,Y,Z (the extent is measured along it)")
+        lo, hi = args.channel_extent or (None, None)
         points = args.permeation_pore or ([tuple(args.origin)] if getattr(args, "origin", None) else [None])
-        return [CylinderChannel(f"pore{i + 1}" if len(points) > 1 else "channel", axis, lo, hi, point=p,
-                                radius=args.channel_radius) for i, p in enumerate(points)]
+        return [
+            CylinderChannel(
+                f"pore{i + 1}" if len(points) > 1 else "channel",
+                axis,
+                lo,
+                hi,
+                point=p,
+                radius=args.channel_radius,
+                membrane=membrane,
+            )
+            for i, p in enumerate(points)
+        ]
     if result is None or not any(f.profile is not None for f in result.frames):
-        raise ValueError("no channel profile was resolved, so the channel extent is unknown; give --channel-extent "
-                         "ZMIN,ZMAX with --axis (and optionally --channel-radius)")
+        raise ValueError(
+            "no channel profile was resolved, so the channel extent is unknown; give --channel-extent "
+            "ZMIN,ZMAX with --axis (and optionally --channel-radius)"
+        )
     profiles = [f.profile for f in result.frames]
     numbers = [f.frame_index for f in result.frames]
     tolerance = 1.0 if args.lumen_tolerance is None else args.lumen_tolerance
@@ -237,28 +361,49 @@ def run_permeation(args: argparse.Namespace, result=None) -> dict:
     from .permeation import analyze_permeation, parse_charge_overrides, read_applied_field, write_permeation_outputs
     from .trajectory import _open_universe
     from .cli import _FrameProgress
+
     universe = _open_universe(args.topology, args.structures[0])
     channels = _channels(args, result)
     efield, source = args.efield, None
     if args.efield_from:
         record = read_applied_field(args.efield_from)
         if not record["static"]:
-            raise ValueError(f"{args.efield_from}: the applied field is time dependent; conductance needs a static field")
+            raise ValueError(
+                f"{args.efield_from}: the applied field is time dependent; conductance needs a static field"
+            )
         efield, source = record["E_V_per_nm"], record["source"]
     elif args.efield:
         source = "--efield"
     selection = _alignment_selection(args, universe)
-    total = len(range(args.start, min(args.stop or len(universe.trajectory), len(universe.trajectory)),
-                      args.permeation_stride))
+    total = len(
+        range(args.start, min(args.stop or len(universe.trajectory), len(universe.trajectory)), args.permeation_stride)
+    )
     progress = _FrameProgress(total, "permeation frames")
     try:
         analysis = analyze_permeation(
-            universe, species=args.permeation, channels=channels, start=args.start, stop=args.stop,
-            stride=args.permeation_stride, align=args.align, alignment_selection=selection,
-            charges=parse_charge_overrides(args.charge), water_mapping=args.water_mapping, voltage_mV=args.voltage,
-            efield=efield, efield_source=source, msd_blocks=args.msd_blocks,
-            bootstrap_replicates=args.bootstrap_replicates, bootstrap_seed=args.bootstrap_seed,
-            confidence=args.confidence or 0.95, progress_callback=progress)
+            universe,
+            species=args.permeation,
+            channels=channels,
+            start=args.start,
+            stop=args.stop,
+            stride=args.permeation_stride,
+            align=args.align,
+            alignment_selection=selection,
+            charges=parse_charge_overrides(args.charge),
+            water_mapping=args.water_mapping,
+            voltage_mV=args.voltage,
+            efield=efield,
+            efield_source=source,
+            msd_blocks=args.msd_blocks,
+            convention=args.permeation_convention,
+            event_blocks=args.event_blocks,
+            temperature_K=args.temperature,
+            max_traces=args.max_traces,
+            bootstrap_replicates=args.bootstrap_replicates,
+            bootstrap_seed=args.bootstrap_seed,
+            confidence=args.confidence or 0.95,
+            progress_callback=progress,
+        )
     finally:
         progress.close()
     output = Path(args.output)
@@ -267,24 +412,37 @@ def run_permeation(args: argparse.Namespace, result=None) -> dict:
     for channel in summary["channels"]:
         name = channel["definition"]["name"]
         for row in channel["species"]:
-            line = (f"permeation {name} {row['species']}: up={row['events_up']} down={row['events_down']} "
-                    f"unresolved={row['unresolved_crossings']} mean_inside={row['occupancy']['mean']:.3g}")
+            line = (
+                f"permeation {name} {row['species']}: up={row['events_up']} down={row['events_down']} "
+                f"unresolved={row['unresolved_crossings']} mean_inside={row['occupancy']['mean']:.3g}"
+            )
+            if row.get("transits_outside_lumen"):
+                line += f" outside_lumen={row['transits_outside_lumen']}"
             water = row.get("water")
             if water:
                 pf = water["pf_cm3_per_s"]
-                line += f" pd={water['pd_cm3_per_s']:.3g} pf={pf:.3g} cm3/s" if pf is not None else \
-                        f" pd={water['pd_cm3_per_s']:.3g} cm3/s pf=unavailable"
+                line += (
+                    f" pd={water['pd_cm3_per_s']:.3g} pf={pf:.3g} cm3/s"
+                    if pf is not None
+                    else f" pd={water['pd_cm3_per_s']:.3g} cm3/s pf=unavailable"
+                )
             print(line)
         current = channel.get("ion_current_total")
         if current:
             g = current.get("conductance_pS")
-            print(f"permeation {name} ion current={current['current_pA']:.3g} pA "
-                  + (f"conductance={g:.3g} pS" if g is not None else "conductance undefined (no voltage)"))
+            print(
+                f"permeation {name} ion current={current['current_pA']:.3g} pA "
+                + (f"conductance={g:.3g} pS" if g is not None else "conductance undefined (no voltage)")
+            )
     for warning in summary["warnings"]:
         print(f"crevice: warning: {warning}", file=sys.stderr)
-    return {"files": {k: Path(v).name for k, v in files.items()}, "coarse_grained": summary["coarse_grained"],
-            "totals_over_channels": summary["totals_over_channels"], "voltage": summary["voltage"],
-            "channels": [c["definition"] for c in summary["channels"]]}
+    return {
+        "files": {k: Path(v).name for k, v in files.items()},
+        "coarse_grained": summary["coarse_grained"],
+        "totals_over_channels": summary["totals_over_channels"],
+        "voltage": summary["voltage"],
+        "channels": [c["definition"] for c in summary["channels"]],
+    }
 
 
 def write_permeation_only_record(args: argparse.Namespace, record: dict) -> None:
@@ -297,8 +455,16 @@ def write_permeation_only_record(args: argparse.Namespace, record: dict) -> None
     record : dict
         From :func:`run_permeation`.
     """
-    data = {"mode": "permeation-only", "topology": str(args.topology), "trajectory": str(args.structures[0]),
-            "permeation": record, "coarse_grained": record["coarse_grained"]}
+    data = {
+        "mode": "permeation-only",
+        "topology": str(args.topology),
+        "trajectory": str(args.structures[0]),
+        "permeation": record,
+        "coarse_grained": record["coarse_grained"],
+    }
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     from ._portable_paths import dumps_record  # 0.4: recorded paths relative to this file
-    Path(args.output).write_text(dumps_record(data, args.output, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+    Path(args.output).write_text(
+        dumps_record(data, args.output, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )

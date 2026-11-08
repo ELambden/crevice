@@ -18,13 +18,11 @@ from crevice import (annotate_residues, build_cavity_network, load_structure,
 frame = load_structure(".crevice/pdb/1GRM.cif")
 profile = pore_profile(frame, axis="auto")
 contacts = annotate_residues(frame, profile.points)
-network = build_cavity_network(frame, profile, contacts=contacts,
-                               distance_metric="center", include_hetero=True)
+network = build_cavity_network(frame, profile, contacts=contacts, include_hetero=True)
 print(network_metrics(network)["density"])
 ```
 
-The Python functions default to the surface-gap distance and leave
-heteroatoms out, so pass `distance_metric="center", include_hetero=True` as
+The Python functions leave heteroatoms out, so pass `include_hetero=True` as
 above to match the command.
 
 ## How it works
@@ -37,7 +35,9 @@ above to match the command.
   closest heavy-atom centres by default (`--contact-metric center`); `surface`
   measures the gap between atom surfaces instead.
 - **Edge labels** sort contacts into simple classes by distance and residue
-  type: `salt_bridge_candidate` (charged atoms within 4.0 Å),
+  type: `salt_bridge_candidate` (formally charged side-chain atoms within
+  4.0 Å, the same definition as the typed interactions; protonation comes from
+  residue names, so HSP/HIP and CYM count and LYN, ASH and GLH don't),
   `oppositely_charged_residue_contact`, `hydrophobic_residue_contact`,
   `polar_residue_contact` and `distance_contact`. They don't assign hydrogen
   bonds or energies; for typed chemical interactions, see
@@ -48,7 +48,7 @@ above to match the command.
   `--residue-groups groups.json` lets you summarise by helix or strand.
 
 In Python, the region you pass to {func}`crevice.build_cavity_network`
-decides which points residues are measured against: a profile or tunnel gives
+decides which points residues are measured against: a profile gives
 its path points, a cast {class}`~crevice.models.VoidComponent` its sample
 points, and a {class}`~crevice.models.Cavity` only its centre.
 

@@ -12,7 +12,7 @@ import math
 import pytest
 
 from crevice.models import Atom
-from crevice.sections import ChannelResolutionError, SectionGeometry, connected_profile
+from crevice.sections import ChannelResolutionError, connected_profile
 
 RINGS = (-8.0, -5.4, -2.8, 0.1, 2.7, 5.3, 7.9)  # one wider gap (-2.8 to 0.1): the grazing slab near -1.35
 
@@ -35,25 +35,28 @@ def _profile(atoms, samples):
 
 
 def test_grazing_slab_is_bridged_only_where_the_lumen_is_enclosed():
+    from crevice.adaptive_channel import _Tracer
     atoms = _tube()
-    geometry = SectionGeometry(atoms, (0, 0, 0), (0, 0, 1), spacing=0.25, extent=6.0, probe=1.0)
-    assert geometry.sections(-1.35) == []          # the lumen reaches the 6 A square edge
-    bridged = geometry.bridged_sections(-1.35)
-    assert len(bridged) == 1 and bridged[0].window_bridged
-    assert len(geometry.sections(-3.0)) == 1 and geometry.bridged_sections(-3.0) == []
+    tracer = _Tracer(atoms, (0, 0, 0), (0, 0, 1), spacing=0.25, extent=6.0, ladder=(1.0,), refinement_steps=4,
+                     shared=None)
+    center = (0.0, 0.0, -1.35)
+    found = tracer.enclosed_at(-1.35, center, 1.0)
+    assert found is not None and found[1]                 # enclosed only in the wider square
+    found = tracer.enclosed_at(-3.0, (0.0, 0.0, -3.0), 1.0)
+    assert found is not None and not found[1]             # enclosed in the plane's own square
     # A real wall opening (eight atoms removed from the rings at z = -2.8, 0.1 and 2.7) stays open in
-    # the wider window, so it is never bridged.
-    open_wall = _tube(gap=((2, 3, 4), range(0, 8)))
-    geometry = SectionGeometry(open_wall, (0, 0, 0), (0, 0, 1), spacing=0.25, extent=6.0, probe=1.0)
-    assert geometry.sections(0.1) == [] and geometry.bridged_sections(0.1) == []
+    # the wider square too.
+    tracer = _Tracer(_tube(gap=((2, 3, 4), range(0, 8))), (0, 0, 0), (0, 0, 1), spacing=0.25, extent=6.0,
+                     ladder=(1.0,), refinement_steps=4, shared=None)
+    assert tracer.enclosed_at(0.1, (0.0, 0.0, 0.1), 1.0) is None
 
 
 def test_profile_resolves_at_every_sample_count_and_agrees():
     atoms = _tube()
     plain, crossing = _profile(atoms, 21), _profile(atoms, 29)   # 29 samples place a plane in the slab
-    assert plain.metadata["window_bridged_samples"] == []
-    assert len(crossing.metadata["window_bridged_samples"]) == 1
-    assert crossing.points[crossing.metadata["window_bridged_samples"][0]].t == pytest.approx(-1.35, abs=0.1)
+    # Planes in the grazing slab are enclosed in the wider square (bridged); none breaks the channel.
+    for profile in (plain, crossing):
+        assert all(abs(profile.points[i].t + 1.35) < 1.0 for i in profile.metadata["window_bridged_samples"])
     assert (plain.points[0].t, plain.points[-1].t) == pytest.approx((crossing.points[0].t, crossing.points[-1].t), abs=1e-9)
     assert crossing.min_radius == pytest.approx(plain.min_radius, abs=0.005)
     assert plain.metadata["continuous_bottleneck_radius_A"] == pytest.approx(

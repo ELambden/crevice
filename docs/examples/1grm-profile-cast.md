@@ -4,7 +4,7 @@ This example measures the gramicidin A channel,
 [PDB 1GRM](https://www.rcsb.org/structure/1GRM) (a solution NMR structure; the
 first model is used), with [`profile`](../tools/profile.md), then writes the
 complete static bundle with [`report`](../tools/publish.md): the 3D channel
-cast, residue contacts, cavities, tunnels, the residue network and viewer
+cast, residue contacts, the residue network and viewer
 scenes. It takes about a minute.
 
 ## Get the structure
@@ -32,19 +32,33 @@ crevice profile 1GRM --axis auto -o 1GRM_profile.json \
 ```
 
 ```text
-profile points=81 min_radius=1.337 mean_radius=1.571 bottleneck_index=73
-enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
+profile points=81 min_radius=1.337 mean_radius=1.584 bottleneck_index=71
+enclosure_radius=per-plane 0.30-1.40 (auto: per-plane enclosure probe, 0.30-1.40 A over 81 samples)
+```
+
+The summary goes to standard output. While it runs, the command also writes
+status lines to standard error (`--quiet` turns them off):
+
+```text
+crevice: read 1GRM.cif: 272 atoms in 0.0 s
+crevice: initialising the enclosure probe for 1GRM.cif (per-plane probe, 0.30-3.00 A, section grid 0.5 A)
+crevice: pore radius found in 1.1 s: minimum 1.337 A at s = +9.6 A (no lower than 1.337 A between samples); mean 1.584 A over 81 samples, s = -12.4 to +12.4 A; per-plane enclosure probes 0.30-1.40 A
+crevice: profile: finished in 1.2 s
 ```
 
 `--axis auto` tried the three principal directions and accepted the one with a
 connected, laterally enclosed run of sections and two open ends. The enclosure
-probe was chosen automatically: the channel resolved at five probes of the
-0.5–3.0 Å ladder (0.75–1.1 Å), and the smallest of them, 0.75 Å, was used. The
-narrowest sample is 1.337 Å from the nearest atom surface (sample 73, nearest
-residue A:TRP13). Files written:
+probe was chosen slice by slice (see
+[Choosing the enclosure probe](../tools/profile.md#choosing-the-enclosure-probe)):
+0.30 Å, the smallest probe, in most of the narrow lumen, and up to 1.40 Å in
+the slices at the two mouths, where the lumen's sideways openings are
+wider. The channel runs 24.8 Å between its mouths (t = −12.4 to
++12.4 Å). The narrowest sample is 1.337 Å from the nearest atom surface
+(sample 71, nearest residue A:TRP15). Files written:
 
-- `1GRM_profile.json`: every sample, the axis, mouths, the probe choice
-  (`metadata.enclosure_probe_selection`) and the settings;
+- `1GRM_profile.json`: every sample, the axis, mouths, each slice's
+  enclosure probe (`metadata.enclosure_probes_A`, with the range in
+  `enclosure_probe_range_A`) and the settings;
 - `1GRM_profile.csv`: one row per sample (`index`, `x_A`, `y_A`, `z_A`,
   `radius_A`, `raw_clearance_A`, `axis_position_A`, `nearest_atom_serial`,
   `nearest_residue`), written beside the JSON by default;
@@ -52,8 +66,8 @@ residue A:TRP13). Files written:
 
 ```text
 index,x_A,y_A,z_A,radius_A,raw_clearance_A,axis_position_A,nearest_atom_serial,nearest_residue
-0,-0.1888,-11.6853,3.3340,1.6853,1.6853,-11.6599,231,B:DLE12
-1,-0.2674,-11.3972,3.4440,1.6690,1.6690,-11.3693,235,B:TRP13
+0,-0.1045,-12.3979,3.0619,1.8165,1.8165,-12.3750,272,B:ETA16
+1,-0.1063,-12.0887,3.1806,1.7498,1.7498,-12.0659,272,B:ETA16
 ```
 
 (values rounded here; the file keeps full precision)
@@ -64,7 +78,7 @@ index,x_A,y_A,z_A,radius_A,raw_clearance_A,axis_position_A,nearest_atom_serial,n
 
 `1GRM_profile.png`. Blue line and light-blue fill: pore radius (Å) at each
 sample against the axial coordinate (Å). Red dashed line and dot: the
-bottleneck (1.337 Å near t = 9.6 Å). Light grey: outside the two channel
+bottleneck (1.337 Å at t = 9.6 Å). Light grey: outside the two channel
 mouths, where lateral enclosure is lost (`--mouth-guides` adds orange mouth
 bands and lines; the positions are always in the JSON and PNG metadata). The figure
 is clean by default; the values are in its PNG metadata, and `--annotate`
@@ -88,8 +102,8 @@ from crevice import load_structure, pore_profile, write_profile_csv
 
 frame = load_structure(".crevice/pdb/1GRM.cif")
 profile = pore_profile(frame, axis="auto")          # enclosure probe chosen automatically
-print(round(profile.min_radius, 3), profile.bottleneck.nearest_residue)   # 1.337 A:TRP13
-print(profile.metadata["enclosure_probe_selection"]["chosen_A"])          # 0.75
+print(round(profile.min_radius, 3), profile.bottleneck.nearest_residue)   # 1.337 A:TRP15
+print(profile.metadata["enclosure_probe_range_A"])                        # [0.3, 1.4]
 write_profile_csv(profile, "1GRM_profile.csv")
 ```
 
@@ -97,30 +111,30 @@ write_profile_csv(profile, "1GRM_profile.csv")
 
 ```bash
 crevice report 1GRM --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
-    --outputs default,figures,cavities,tunnels,network
+    --outputs default,figures,network
 ```
 
 ```text
-publish files=52 out_dir=1GRM_bundle profile=resolved
+publish files=46 out_dir=1GRM_bundle profile=resolved
 ```
 
-`--outputs default,figures,cavities,tunnels,network` adds every figure and the
-separate cavity search, tunnel search and residue network to the default
+`--outputs default,figures,network` adds every figure and the
+residue network to the default
 bundle; plain `report` writes 40 files, and `--all` also adds the water
 analysis (1GRM has no explicit water), the fingerprint and an HTML view. The
 bundle holds the same 81-sample profile (`1GRM_profile.csv`), the measured
-channel cast and its scenes, residue contacts, typed residue interactions,
-cavities, tunnels and the residue network. Every file is listed in
-`1GRM_manifest.json`, which also records the chosen enclosure probe under
-`profile_status.enclosure_probe`.
+channel cast and its scenes, residue contacts, typed residue interactions
+and the residue network. Every file is listed in
+`1GRM_manifest.json`, which also records the enclosure probes under
+`profile_status.enclosure_probe` (mode `adaptive`, range 0.30–1.40 Å).
 
 The cast is the probe-swept lumen between the two mouths: grid points
 (0.5 Å here, `--cast-spacing`) that clear every atom (`--cast-min-radius`,
-default 0 Å), swept by the enclosure probe from the enclosed sections and
-connected to the measured centre line. `1GRM_void_cast.csv` reports one region
-of 263.6 Å³ (2109 samples). The cast volume depends on the cast grid: the
-0.25 Å grid used for the published 1GRM figures gives 292.4 Å³. Compare grids
-before interpreting a volume.
+default 0 Å), swept from the enclosed sections, each with its own enclosure
+probe (at least one cast grid spacing), and connected to the measured centre
+line. `1GRM_void_cast.csv` reports one region of 347.1 Å³ (2777 samples). The
+cast volume depends on the cast grid: `--cast-spacing 0.25` gives 335.4 Å³.
+Compare grids before interpreting a volume.
 
 This cast is the **LUMEN**. Beyond each mouth, the space out to bulk solvent
 (the boundary set by a rolling 6 Å probe, `--exit-bulk-radius`) is filled by
@@ -129,9 +143,12 @@ the same probe-swept rule and reported as a separate segment
 
 | Segment | End | Volume (Å³, 0.5 Å grid) | Volume (Å³, 0.25 Å grid) | Lining residues (3.3 Å) |
 |---|---|---:|---:|---|
-| `entry_1` | axis start (lower) | 17.6 | 24.2 | B:DLE10–B:ETA16 (7) |
-| `lumen` | between the mouths | 263.6 | 292.4 | all 32 residues |
-| `exit_1` | axis end (upper) | 24.6 | 27.3 | A:DLE10–A:ETA16 (7) |
+| `entry_1` | axis start (lower) | 16.5 | 18.1 | B:DLE12–B:ETA16 (5) |
+| `lumen` | between the mouths | 347.1 | 335.4 | all 32 residues |
+| `exit_1` | axis end (upper) | 21.0 | 22.5 | A:DLE12–A:ETA16 (5) |
+
+(The lining residues are those of the 0.5 Å grid; on the 0.25 Å grid the
+entry also has B:DLE10 and the exit A:DLE10 and A:TRP11.)
 
 Both ends are open, so the default rule labels the axis start ENTRY and the
 axis end EXIT; `--entry-end end` swaps them. These are geometric labels, not
@@ -163,9 +180,10 @@ or hidden alone; separately smoothed surfaces meet at the mouth planes.
 Grey-blue, 25% transparent: the protein cartoon. No mouth guides or labels are
 drawn by default; the lining-residue stick objects (`crevice_lumen_lining`,
 ...) are present but hidden. The check confirmed that the displayed surfaces
-match the reference meshes within 2.2 × 10⁻⁶ Å and that the camera matches the
-scene file. The PyMOL scene was also run and checked (`scripts/check_pymol.py`);
-the VMD version was not opened for this page.
+match the reference meshes within 2 × 10⁻⁶ Å and that the camera matches the
+scene file. The VMD scene was also run in VMD's text mode and its image
+checked (`scripts/check_vmd.py`); the PyMOL version was not opened for this
+page.
 ```
 
 `1GRM_residue_contacts.csv` ranks the residues around the profile; at the
@@ -177,11 +195,8 @@ contact network.
 :::{admonition} Interpreting the results
 :class: crevice-interpret
 
-The printed values were first recorded with CREVICE 0.1.0 and re-run with
-0.3.0 (same numbers; file counts as 0.3 writes them by default). The radii were
-re-run with 0.4.0, whose converged slice centres raise them slightly (minimum
-1.324 Å before); the cast volumes did not change. They are
-measurements with the settings shown; gramicidin A is a convenient, well-known
+The printed values and figures come from one run of the commands above.
+They are measurements with the settings shown; gramicidin A is a convenient, well-known
 test case, not a curated reference, so treat them as such (see
 [How far to trust the numbers](../tools/index.md#how-far-to-trust-the-numbers)).
 :::

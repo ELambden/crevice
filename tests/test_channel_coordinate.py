@@ -117,7 +117,7 @@ def test_curved_channel_continuity_and_solvent_termination():
 
 
 def test_wall_and_open_space_cannot_be_reported_as_a_through_channel():
-    with pytest.raises(ValueError, match="No connected channel"):
+    with pytest.raises(ValueError, match="capped"):
         pore_profile(rectangular_channel(capped=True), enclosure_radius=0.8, axis="z", search_radius=8)
     frame = StructureFrame((Atom(1, "C", "ALA", "A", 1, 0, 0, 0, "C"),))
     with pytest.raises(ValueError, match="No connected channel"):
@@ -152,10 +152,9 @@ def test_invalid_channel_controls(channel, options):
         pore_profile(channel[0], **options)
 
 
-def test_fixed_axis_scan_is_explicitly_unvalidated(channel):
-    p = pore_profile(channel[0], enclosure_radius=0.8, axis="z", search_radius=0, samples=7)
-    assert len(p.points) == 7
-    assert p.metadata["status"] == "unvalidated_axis_scan"
+def test_fixed_axis_scan_was_removed(channel):
+    with pytest.raises(ValueError, match="removed in CREVICE 0.5"):
+        pore_profile(channel[0], enclosure_radius=0.8, axis="z", search_radius=0, samples=7)
 
 
 def test_cli_uses_auto_axis_and_map_scene(tmp_path):
@@ -170,7 +169,7 @@ def test_cli_uses_auto_axis_and_map_scene(tmp_path):
     assert args.axis == "auto"
     assert main(["report", str(path), "--enclosure-radius", "0.8", "--out-dir", str(tmp_path / "out"), "--search-radius", "8",
                  "--samples", "21", "--section-spacing", "0.5", "--enclosure-radius", "0.8",
-                 "--skip-cavities", "--skip-tunnels", "--skip-network", "--dpi", "60"]) == 0
+                 "--skip-network", "--dpi", "60"]) == 0
     root = tmp_path / "out"
     scene = (root / "wall_volume.pml").read_text(encoding="utf-8")   # wall_pore_cast.pml is its --all alias
     assert "wall_volume.dx" in scene and "cmd.load_cgo" in scene

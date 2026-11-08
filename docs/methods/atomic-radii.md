@@ -75,7 +75,7 @@ an individual atom gets.
 
 | Where | How |
 |---|---|
-| Command line | `--radii default`, `--radii bondi`, `--radii hole`, `--radii charmm_like` or `--radii PATH` on every command that measures geometry (`profile`, `residues`, `cavities`, `cavities --tunnels`, `residues --network`, `residues --features`, `cavities --cast`, `report`, `report --analyze`, `residues --evidence`, `trajectory --water`, `trajectory`, `trajectory --cavities`, `region prepare`, `trajectory --region`, `report --benchmark`, `report --suite`) |
+| Command line | `--radii default`, `--radii bondi`, `--radii hole`, `--radii charmm_like` or `--radii PATH` on every command that measures geometry (`profile`, `residues`, `cavities`, `paths`, `residues --network`, `residues --features`, `cavities --cast`, `report`, `report --analyze`, `residues --evidence`, `trajectory --water`, `trajectory`, `trajectory --cavities`, `region prepare`, `trajectory --region`, `report --benchmark`, `report --suite`) |
 | Python, one call | `radii=` on every analysis that uses radii, for example `pore_profile(frame, radii="hole")`, `rolling_probe_cast(frame, radii=my_set)`, `write_static_publication_bundle(..., radii="path/to/radii.json")` |
 | Python, a block of code | `with crevice.radii.use_radii("hole"): ...` |
 
@@ -221,7 +221,7 @@ All analyses obtain atomic radii from one function,
 is held in a {mod}`contextvars` variable. `--radii`, every `radii=` argument and
 {func}`crevice.radii.use_radii` all set that variable for the duration of the
 command, call or `with` block, and restore it afterwards, even after an error.
-Nested analyses (a publish bundle's profile, cast, tunnels, network and
+Nested analyses (a publish bundle's profile, cast, network and
 hydration) therefore use the same set.
 
 - **Threads.** The variable is private to each thread. A thread you start
@@ -241,13 +241,13 @@ hydration) therefore use the same set.
 Every output records the set it used as `radii`, including runs with the
 default set:
 
-- in the `metadata` of results that have one (profiles, casts, tunnels,
+- in the `metadata` of results that have one (profiles, casts, paths,
   networks, trajectory analyses), and hence in their JSON files;
 - in every manifest: `report`, `cavities --cast`, `report --analyze`, `report --suite` (per system and
   in the summary), `report --benchmark`, `residues --evidence`, `trajectory --cavities` and
   `trajectory --region` (cavity manifest and region provenance), hydration
   manifests and `region prepare`;
-- in the JSON outputs of `cavities`, `cavities --tunnels`, `residues --json`, `residues --network`,
+- in the JSON outputs of `cavities`, `residues --json`, `residues --network`,
   `residues --network --connectivity-json`, `residues --features`, `trajectory` (and its
   `--distribution-csv` JSON and `--network-json`), and in the settings of
   `trajectory --cavities` statistics and trajectory hydration results;

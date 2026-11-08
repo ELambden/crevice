@@ -80,6 +80,7 @@ class SpatialIndex:
             self._coords = None
         else:
             import numpy as np
+
             self._coords = [atom.coord for atom in atoms]
             self._tree = cKDTree(self._coords)
             self._xyz = np.array(self._coords, dtype=float).reshape(-1, 3)
@@ -250,6 +251,7 @@ class SpatialIndex:
             Minimum signed surface distance of each point, Å.
         """
         import numpy as np
+
         pts = np.asarray(points, dtype=float).reshape(-1, 3)
         if len(pts) == 0:
             return np.zeros(0)
@@ -370,6 +372,7 @@ class SpatialIndex:
 def _point_surface_distances(points, centres, radii):
     """``distance(point, centre) - radius`` row by row, as :func:`crevice.geometry.distance` computes it."""
     import numpy as np
+
     dx = points[:, 0] - centres[:, 0]
     dy = points[:, 1] - centres[:, 1]
     dz = points[:, 2] - centres[:, 2]
@@ -385,6 +388,7 @@ def _segment_surface_distances(centres, radii, start, end):
     (``(m, 3)`` arrays).
     """
     import numpy as np
+
     start = np.asarray(start, dtype=float)
     end = np.asarray(end, dtype=float)
     d = end - start

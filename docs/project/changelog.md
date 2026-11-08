@@ -3,6 +3,40 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.5.0 (8 November 2026)
+
+**Per-slice enclosure probe, side portals of capped channels, faster
+profiles, one contact definition, and permeation traces and profiles.**
+
+- **Channel profiles choose the enclosure probe slice by slice** (0.30–3.00 Å)
+  instead of one probe for the whole channel, so a narrow filter and a leaky
+  wall can both be followed. Extents, minima and casts change; each slice's
+  probe is recorded (`metadata.enclosure_probes_A`). `trajectory` repeats the
+  choice in every frame. A number for `--enclosure-radius` runs that probe in
+  every slice.
+- **Capped channel ends** (`--lateral-exits`) are placed where the widest
+  route to bulk leaves the lumen, so TWIK-1 (3UKM) reports its two side
+  portals with the default probe. An end that already lies in bulk solvent is
+  open instead of refused.
+- **Status lines** on standard error say what each analysis found;
+  `--quiet` (or `CREVICE_PROGRESS=0`) turns them off.
+- **Faster profiles**, and the optional `fast` extra (numba kernels, identical
+  results).
+- **Residue networks** use the heavy-atom centre distance everywhere, and the
+  `salt_bridge_candidate` label uses the same charged sites as the typed
+  interactions.
+- **Permeation** follows the compartment rule by default
+  (`--permeation-convention strict` keeps the earlier rule), and the rate,
+  pd and current intervals are widened for correlated events. New outputs:
+  axial position traces of each permeating molecule, the lumen density and
+  free energy along the axis, and the occupancy distribution;
+  `--membrane-planes` takes the axial extent from the bilayer in every frame.
+- **Removed:** the single-probe automatic choice and the per-frame
+  `--probe-fallback` of 0.4, the fixed-axis scan (`--search-radius 0`,
+  `--padding`), the grid tunnel search (`cavities --tunnels`, use
+  `crevice paths`) and the grid cavity search inside `report` (use
+  `crevice cavities`). Install CREVICE 0.4.1 to reproduce 0.4 results.
+
 ## 0.4.1 (24 October 2026)
 
 **Bug fixes: trajectory memory, region sensitivity and the test suite.**

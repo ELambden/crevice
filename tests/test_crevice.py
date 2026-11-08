@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 
 import crevice
+from channel_fixtures import channel_frame, channel_pdb_text
+
 from crevice import (
     Atom,
     StructureFrame,
@@ -34,7 +36,7 @@ from crevice.cli import main
 class CreviceApiTests(unittest.TestCase):
     def test_cavity_network_includes_region_node(self) -> None:
         frame = _channel_frame()
-        profile = pore_profile(frame, axis="z", samples=5, search_radius=0.0)
+        profile = pore_profile(frame, axis="z", samples=5)
         contacts = annotate_residues(frame, profile.points, cutoff=4.0)
 
         network = build_cavity_network(frame, profile, contacts=contacts, cutoff=4.0)
@@ -49,7 +51,7 @@ class CreviceApiTests(unittest.TestCase):
         result = analyze_trajectory(
             trajectory,
             analyses=("profile", "residues", "network", "features"),
-            profile_kwargs={"axis": "z", "samples": 5, "search_radius": 0.0},
+            profile_kwargs={"axis": "z", "samples": 5},
             align=False,  # Legacy toy fixture repeats atom identities within residues.
         )
 
@@ -83,8 +85,6 @@ class CreviceApiTests(unittest.TestCase):
                 "z",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "-o",
                 str(network_output),
             ])
@@ -97,8 +97,6 @@ class CreviceApiTests(unittest.TestCase):
                 "z",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "--analysis",
                 "profile",
                 "--analysis",
@@ -150,7 +148,7 @@ class CreviceApiTests(unittest.TestCase):
         from PIL import Image
 
         frame = _channel_frame()
-        profile = pore_profile(frame, axis="z", samples=5, search_radius=0.0)
+        profile = pore_profile(frame, axis="z", samples=5)
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             png = root / "profile.png"
@@ -196,7 +194,7 @@ class CreviceApiTests(unittest.TestCase):
             cavity_png = root / "cavities.png"
             chord_png = root / "network_chord.png"
             frame = _channel_frame()
-            profile = pore_profile(frame, axis="z", samples=5, search_radius=0.0)
+            profile = pore_profile(frame, axis="z", samples=5)
             contacts = annotate_residues(frame, profile.points, cutoff=4.0)
             network = build_cavity_network(frame, profile, contacts=contacts, cutoff=4.0)
 
@@ -228,8 +226,6 @@ class CreviceApiTests(unittest.TestCase):
                 "z",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "-o",
                 str(output),
                 "--csv",
@@ -252,8 +248,6 @@ class CreviceApiTests(unittest.TestCase):
                 "z",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "-o",
                 str(network_output),
                 "--chord-png",
@@ -266,14 +260,10 @@ class CreviceApiTests(unittest.TestCase):
                 "z",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "--out-dir",
                 str(bundle_dir),
                 "--prefix",
                 "mini",
-                "--skip-cavities",
-                "--skip-tunnels",
                 "--skip-hydration",
                 "--all",   # 0.3: the complete bundle is opt-in
             ])
@@ -295,12 +285,10 @@ class CreviceApiTests(unittest.TestCase):
             self.assertTrue((bundle_dir / "mini_profile_radius_annotated.png").exists())
             self.assertTrue((bundle_dir / "mini_network_chord.png").exists())
             bundle_pml = (bundle_dir / "mini_pore_cast.pml").read_text(encoding="utf-8")
+            # A resolved channel: the pore-cast script draws the measured lumen mesh.
             self.assertIn("mini_viewer.pdb", bundle_pml)
-            self.assertIn("mini_pore_cast.pdb", bundle_pml)
-            self.assertIn("crevice_cartoon", bundle_pml)
-            self.assertIn("crevice_pore_fill", bundle_pml)
-            self.assertIn("color crevice_cyan, crevice_cartoon", bundle_pml)
-            self.assertIn("color crevice_pink, crevice_pore_fill", bundle_pml)
+            self.assertIn("mini_pymol_mesh.npz", bundle_pml)
+            self.assertIn("crevice_surface('crevice_lumen', 'lumen')", bundle_pml)
             self.assertNotIn("results/", bundle_pml)
 
     def test_cli_static_suite_generates_summary(self) -> None:
@@ -323,12 +311,9 @@ class CreviceApiTests(unittest.TestCase):
                 "pdb",
                 "--samples",
                 "5",
-                "--search-radius",
-                "0",
                 "--probe-radius",
                 "0",
                 "--skip-cavities",
-                "--skip-tunnels",
             ])
 
             self.assertEqual(status, 0)
@@ -339,56 +324,12 @@ class CreviceApiTests(unittest.TestCase):
 
 
 def _channel_frame() -> StructureFrame:
-    atoms: list[Atom] = []
-    serial = 1
-    residues = [
-        ("LEU", "CD1", (5.0, 0.0)),
-        ("ASP", "OD1", (-5.0, 0.0)),
-        ("LYS", "NZ", (0.0, 5.0)),
-        ("PHE", "CZ", (0.0, -5.0)),
-    ]
-    for z in (-4.0, 0.0, 4.0):
-        for resid, (resname, name, xy) in enumerate(residues, start=1):
-            atoms.append(
-                Atom(
-                    serial=serial,
-                    name=name,
-                    resname=resname,
-                    chain_id="A",
-                    resid=resid,
-                    x=xy[0],
-                    y=xy[1],
-                    z=z,
-                    element=name[0],
-                )
-            )
-            serial += 1
-    return StructureFrame(tuple(atoms), source="channel")
+    return channel_frame()
 
 
 def _pdb_fixture() -> str:
-    lines = []
-    serial = 1
-    for z in (-2.0, 2.0):
-        for resid, (resname, name, x, y) in enumerate(
-            [
-                ("LEU", "CD1", 5.0, 0.0),
-                ("ASP", "OD1", -5.0, 0.0),
-                ("LYS", "NZ", 0.0, 5.0),
-                ("PHE", "CZ", 0.0, -5.0),
-            ],
-            start=1,
-        ):
-            element = "C" if name.startswith("C") else name[0]
-            lines.append(
-                f"ATOM  {serial:5d} {name:>4s} {resname:>3s} A{resid:4d}    "
-                f"{x:8.3f}{y:8.3f}{z:8.3f}{1.00:6.2f}{10.00:6.2f}          {element:>2s}"
-            )
-            serial += 1
-    lines.append("END")
-    return "\n".join(lines) + "\n"
+    return channel_pdb_text()
 
 
 if __name__ == "__main__":
     unittest.main()
-

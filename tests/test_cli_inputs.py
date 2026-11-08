@@ -7,6 +7,7 @@ records, not the numerical correctness of any analysis.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -14,7 +15,7 @@ import pytest
 from crevice import pdb
 from crevice.cli import main
 
-ANALYSES = ("profile", "residues", "cavities", "tunnels", "network", "features")
+ANALYSES = ("profile", "residues", "cavities", "network", "features")
 
 from test_download_integrity import FakeResponse  # noqa: F401
 
@@ -53,16 +54,16 @@ _atom_site.pdbx_PDB_model_num
 def _cif_rows():
     rows = []
     serial = 1
-    # A ring of atoms around the z axis, wide enough for a profile to run.
-    for index, (x, y, z) in enumerate([
-        (6, 0, -3), (-6, 0, -3), (0, 6, -3), (0, -6, -3),
-        (6, 0, 3), (-6, 0, 3), (0, 6, 3), (0, -6, 3),
-    ]):
-        rows.append(
-            f"ATOM {serial} C CA ALA A 1 {index + 1} {index + 1} A . . 1.00 10.0 "
-            f"{float(x)} {float(y)} {float(z)} 1"
-        )
-        serial += 1
+    # Rings of 16 atoms (radius 6 A) stacked along z: a sealed wall around a channel a profile can follow.
+    for layer, z in enumerate((-4.5, -3.0, -1.5, 0.0, 1.5, 3.0, 4.5)):
+        for k in range(16):
+            x, y = 6 * math.cos(math.pi * k / 8), 6 * math.sin(math.pi * k / 8)
+            resid = layer * 4 + k // 4 + 1
+            rows.append(
+                f"ATOM {serial} C C{k % 4 + 1} ALA A 1 {resid} {resid} A . . 1.00 10.0 "
+                f"{x:.4f} {y:.4f} {float(z)} 1"
+            )
+            serial += 1
     return "\n".join(rows)
 
 
@@ -97,7 +98,7 @@ def manifest_for(out_dir, prefix):
 def test_analyze_accepts_a_local_file(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     data = manifest_for(out, "local")
     assert data["source"]["kind"] == "local_file"
     assert data["source"]["download"] is None
@@ -107,7 +108,7 @@ def test_analyze_accepts_a_local_file(tmp_path, local_cif, network):
 def test_analyze_accepts_an_accession_and_fetches_it(tmp_path, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
-                 "--out-dir", str(out), "--samples", "5", "--search-radius", "0"]) == 0
+                 "--out-dir", str(out), "--samples", "5"]) == 0
     data = manifest_for(out, "1GRM")
     assert data["source"]["kind"] == "downloaded"
     assert data["source"]["accession"] == "1GRM"
@@ -119,7 +120,7 @@ def test_a_cached_accession_is_not_refetched(tmp_path, network):
     for index in range(2):
         assert main(["report", "--analyze", "1GRM", "--cache-dir", str(cache),
                      "--out-dir", str(tmp_path / f"out{index}"),
-                     "--samples", "5", "--search-radius", "0"]) == 0
+                     "--samples", "5"]) == 0
     assert len(network) == 1
 
 
@@ -138,14 +139,14 @@ def test_an_unresolvable_argument_is_reported(tmp_path, network, capsys):
 def test_assembly_flag_reaches_the_download_url(tmp_path, network):
     assert main(["report", "--analyze", "1GRM", "--cache-dir", str(tmp_path / "cache"),
                  "--assembly", "1", "--out-dir", str(tmp_path / "out"),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert network == ["https://files.rcsb.org/download/1GRM-assembly1.cif"]
 
 
 def test_parser_choice_is_recorded_in_the_manifest(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out), "--parser", "builtin",
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert manifest_for(out, "local")["parser_report"]["parser"] == "builtin"
 
 
@@ -153,7 +154,7 @@ def test_default_parser_is_the_validated_one(tmp_path, local_cif, network):
     pytest.importorskip("gemmi")
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert manifest_for(out, "local")["parser_report"]["parser"] == "gemmi"
 
 
@@ -162,7 +163,7 @@ def test_default_parser_is_the_validated_one(tmp_path, local_cif, network):
 def test_default_analyses_are_profile_and_residues(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     data = manifest_for(out, "local")
     assert data["analyses"] == ["profile", "residues"]
     assert {"profile.json", "profile.csv", "residues.csv"} <= set(data["files"])
@@ -176,7 +177,7 @@ def test_requested_analyses_select_the_outputs(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--analysis", "cavities", "--analysis", "features",
-                 "--samples", "5", "--search-radius", "0",
+                 "--samples", "5",
                  "--cavity-spacing", "3"]) == 0
     data = manifest_for(out, "local")
     assert data["analyses"] == ["cavities", "features"]
@@ -191,7 +192,7 @@ def test_repeated_analyses_are_deduplicated(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
                  "--analysis", "profile", "--analysis", "profile",
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert manifest_for(out, "local")["analyses"] == ["profile"]
 
 
@@ -200,8 +201,8 @@ def test_every_analysis_choice_runs_and_writes_its_outputs(tmp_path, local_cif, 
     """Each choice must actually execute; a subset check hid a missing import."""
     out = tmp_path / analysis
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
-                 "--analysis", analysis, "--samples", "5", "--search-radius", "0",
-                 "--cavity-spacing", "3", "--tunnel-spacing", "3"]) == 0
+                 "--analysis", analysis, "--samples", "5",
+                 "--cavity-spacing", "3"]) == 0
     data = manifest_for(out, "local")
     assert data["analyses"] == [analysis]
     assert data["files"], f"{analysis} wrote no files"
@@ -213,8 +214,8 @@ def test_every_analysis_choice_runs_and_writes_its_outputs(tmp_path, local_cif, 
 def test_all_analyses_together_run_in_one_invocation(tmp_path, local_cif, network):
     out = tmp_path / "all"
     command = ["report", "--analyze", str(local_cif), "--out-dir", str(out),
-               "--samples", "5", "--search-radius", "0",
-               "--cavity-spacing", "3", "--tunnel-spacing", "3"]
+               "--samples", "5",
+               "--cavity-spacing", "3"]
     for analysis in ANALYSES:
         command += ["--analysis", analysis]
     assert main(command) == 0
@@ -233,14 +234,14 @@ def test_unknown_analysis_is_rejected_by_the_parser(tmp_path, local_cif):
 def test_manifest_states_that_nothing_is_curated(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert "no curated axis" in manifest_for(out, "local")["interpretation"]
 
 
 def test_prefix_overrides_the_output_names(tmp_path, local_cif, network):
     out = tmp_path / "out"
     assert main(["report", "--analyze", str(local_cif), "--out-dir", str(out), "--prefix", "run7",
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert (out / "run7_manifest.json").is_file()
 
 
@@ -333,7 +334,7 @@ def test_trajectory_flags_control_the_frames_read(tmp_path, gromacs_pair):
     assert main(["trajectory", str(trajectory), "--topology", str(topology),
                  "--selection", "name CA", "--start", "1", "--stop", "5", "--stride", "2",
                  "-o", str(tmp_path / "traj.json"), "--report-json", str(report),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     data = json.loads(report.read_text(encoding="utf-8"))
     assert data["loaded_frame_count"] == 2
     assert data["selection"] == "name CA"
@@ -354,12 +355,12 @@ def test_trajectory_stride_is_not_applied_twice(tmp_path, gromacs_pair):
     output = tmp_path / "traj.json"
     assert main(["trajectory", str(trajectory), "--topology", str(topology),
                  "--stride", "2", "-o", str(output),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert len(json.loads(output.read_text(encoding="utf-8"))["frames"]) == 3
 
 
 def test_static_frame_sequence_still_works(tmp_path, local_cif, network):
     output = tmp_path / "traj.json"
     assert main(["trajectory", str(local_cif), str(local_cif), "-o", str(output),
-                 "--samples", "5", "--search-radius", "0"]) == 0
+                 "--samples", "5"]) == 0
     assert len(json.loads(output.read_text(encoding="utf-8"))["frames"]) == 2

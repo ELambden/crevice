@@ -1,8 +1,8 @@
 """Native viewer scripts using one scene definition and absolute hydration palette."""
+
 from pathlib import Path
 from ._portable_paths import dumps_record
 import json
-import math
 
 from .presentation import annotate_option, annotations_enabled, scene_annotation_record
 
@@ -250,106 +250,225 @@ run(session,'2dlabels create creviceHydrationLabel text '+json.dumps(scene['anno
 if scene.get('region_definition'):
     run(session,'2dlabels create creviceRegionStatus text '+json.dumps(scene['annotations']['texts']['region_status'])+' color black xpos 0.15 ypos 0.94 size 17')
 '''
-CXC_LABEL_VISIBILITY = "    run(session,'2dlabels change creviceHydrationLabel visibility '+('false' if mode=='geometry' else 'true'))\n"
+CXC_LABEL_VISIBILITY = (
+    "    run(session,'2dlabels change creviceHydrationLabel visibility '+('false' if mode=='geometry' else 'true'))\n"
+)
 
 
-def _tcl(scene,root,mode,annotate=False):
+def _tcl(scene, root, mode, annotate=False):
     import numpy as np
     from .volume_export import _tcl_word as q
-    lines=['# CREVICE coordinated hydration; absolute occupancy scale.',
-           'set crevice_root [file dirname [file normalize [info script]]]',
-           'if {![file exists [file join $crevice_root '+q(scene['protein_pdb'])+']]} {set crevice_root [pwd]}',
-           'if {![file exists [file join $crevice_root '+q(scene['protein_pdb'])+']]} {error "CREVICE: data file '+''.join(c for c in scene['protein_pdb'] if c not in '"$[]{}\\')+' was not found next to this script or in the working directory ([pwd]); keep the script with the other files of its output folder[expr {[info script] eq {} ? { (VMD -e does not tell a script where it is: start VMD in the folder of the script, or type: source PATH)} : {}}]"}',
-           'if {[info exists crevice_owned_molecules]} {foreach m $crevice_owned_molecules {if {[lsearch -exact [molinfo list] $m]>=0} {mol delete $m}}}',
-           'catch {array unset crevice_surface}',
-           'set crevice_protein [mol new [file join $crevice_root '+q(scene['protein_pdb'])+'] waitfor all]',
-           'mol delrep 0 $crevice_protein',
-           'color change rgb 2 0.66 0.70 0.74','color change rgb 3 0.55 0.55 0.55',
-           'if {[lsearch -exact [material list] CREVICEProtein] < 0} {material add CREVICEProtein}',
-           'material change opacity CREVICEProtein 1.0','material change ambient CREVICEProtein 0.30','material change diffuse CREVICEProtein 0.70','material change specular CREVICEProtein 0.08',
-           'mol representation NewCartoon 0.25 24 4.0 1','mol color ColorID 2','mol selection all','mol material CREVICEProtein','mol addrep $crevice_protein',
-           'if {[lsearch -exact [material list] CREVICESticks] < 0} {material add CREVICESticks}',
-           'material change opacity CREVICESticks 1.0','material change specular CREVICESticks 0.08',
-           'set crevice_all [atomselect $crevice_protein all]','$crevice_all set user -1',
-           'set crevice_palette_start [colorinfo num]','set crevice_palette_size [expr {[colorinfo max]-[colorinfo num]}]',
-           'color scale method RGB','color scale min 0','color scale max 1',
-           'for {set i 0} {$i<$crevice_palette_size} {incr i} {set p [expr {double($i)/($crevice_palette_size-1)}]; color change rgb [expr {$crevice_palette_start+$i}] [expr {1-$p}] 0 $p}']
-    expected=root/(scene['prefix']+'_analysis_reference.tsv')
-    geometry=np.load(root/scene['geometry_npz']);expected.write_text(''.join(f'{i}\t{p[0]:.9f}\t{p[1]:.9f}\t{p[2]:.9f}\n' for i,p in enumerate(geometry['protein_coords_A'],1)), encoding="utf-8", newline="\n");geometry.close()
-    lines += ['set crevice_check [open [file join $crevice_root '+q(expected.name)+'] r]',
-              'set crevice_expected [dict create]',
-              'foreach line [split [read $crevice_check] "\\n"] {if {[llength $line]==4} {dict set crevice_expected [lindex $line 0] [lrange $line 1 3]}}',
-              'close $crevice_check',
-              'if {[$crevice_all num]!=[dict size $crevice_expected]} {error "CREVICE reference atom count mismatch"}',
-              'foreach serial [$crevice_all get serial] xyz [$crevice_all get {x y z}] {if {![dict exists $crevice_expected $serial]} {error "CREVICE serial mismatch"}; foreach a $xyz b [dict get $crevice_expected $serial] {if {abs($a-$b)>0.001} {error "CREVICE reference coordinate mismatch"}}}']
-    groups={'hydration':set(scene['display_residues']),'partners':{r['residue'] for r in scene['residues']}}
-    groups['network']=groups['hydration']|{k for e in scene['contacts'] for k in [e['source'],e['target']]}
-    for name,keys in groups.items():
-        values=[i for r in scene['residues'] if r['residue'] in keys for i in r['atom_serials']]
-        lines.append('set crevice_membership('+name+') {'+' '.join(map(str,values))+'}')
+
+    lines = [
+        '# CREVICE coordinated hydration; absolute occupancy scale.',
+        'set crevice_root [file dirname [file normalize [info script]]]',
+        'if {![file exists [file join $crevice_root ' + q(scene['protein_pdb']) + ']]} {set crevice_root [pwd]}',
+        'if {![file exists [file join $crevice_root '
+        + q(scene['protein_pdb'])
+        + ']]} {error "CREVICE: data file '
+        + ''.join(c for c in scene['protein_pdb'] if c not in '"$[]{}\\')
+        + ' was not found next to this script or in the working directory ([pwd]); keep the script with the other files of its output folder[expr {[info script] eq {} ? { (VMD -e does not tell a script where it is: start VMD in the folder of the script, or type: source PATH)} : {}}]"}',
+        'if {[info exists crevice_owned_molecules]} {foreach m $crevice_owned_molecules {if {[lsearch -exact [molinfo list] $m]>=0} {mol delete $m}}}',
+        'catch {array unset crevice_surface}',
+        'set crevice_protein [mol new [file join $crevice_root ' + q(scene['protein_pdb']) + '] waitfor all]',
+        'mol delrep 0 $crevice_protein',
+        'color change rgb 2 0.66 0.70 0.74',
+        'color change rgb 3 0.55 0.55 0.55',
+        'if {[lsearch -exact [material list] CREVICEProtein] < 0} {material add CREVICEProtein}',
+        'material change opacity CREVICEProtein 1.0',
+        'material change ambient CREVICEProtein 0.30',
+        'material change diffuse CREVICEProtein 0.70',
+        'material change specular CREVICEProtein 0.08',
+        'mol representation NewCartoon 0.25 24 4.0 1',
+        'mol color ColorID 2',
+        'mol selection all',
+        'mol material CREVICEProtein',
+        'mol addrep $crevice_protein',
+        'if {[lsearch -exact [material list] CREVICESticks] < 0} {material add CREVICESticks}',
+        'material change opacity CREVICESticks 1.0',
+        'material change specular CREVICESticks 0.08',
+        'set crevice_all [atomselect $crevice_protein all]',
+        '$crevice_all set user -1',
+        'set crevice_palette_start [colorinfo num]',
+        'set crevice_palette_size [expr {[colorinfo max]-[colorinfo num]}]',
+        'color scale method RGB',
+        'color scale min 0',
+        'color scale max 1',
+        'for {set i 0} {$i<$crevice_palette_size} {incr i} {set p [expr {double($i)/($crevice_palette_size-1)}]; color change rgb [expr {$crevice_palette_start+$i}] [expr {1-$p}] 0 $p}',
+    ]
+    expected = root / (scene['prefix'] + '_analysis_reference.tsv')
+    geometry = np.load(root / scene['geometry_npz'])
+    expected.write_text(
+        ''.join(f'{i}\t{p[0]:.9f}\t{p[1]:.9f}\t{p[2]:.9f}\n' for i, p in enumerate(geometry['protein_coords_A'], 1)),
+        encoding="utf-8",
+        newline="\n",
+    )
+    geometry.close()
+    lines += [
+        'set crevice_check [open [file join $crevice_root ' + q(expected.name) + '] r]',
+        'set crevice_expected [dict create]',
+        'foreach line [split [read $crevice_check] "\\n"] {if {[llength $line]==4} {dict set crevice_expected [lindex $line 0] [lrange $line 1 3]}}',
+        'close $crevice_check',
+        'if {[$crevice_all num]!=[dict size $crevice_expected]} {error "CREVICE reference atom count mismatch"}',
+        'foreach serial [$crevice_all get serial] xyz [$crevice_all get {x y z}] {if {![dict exists $crevice_expected $serial]} {error "CREVICE serial mismatch"}; foreach a $xyz b [dict get $crevice_expected $serial] {if {abs($a-$b)>0.001} {error "CREVICE reference coordinate mismatch"}}}',
+    ]
+    groups = {'hydration': set(scene['display_residues']), 'partners': {r['residue'] for r in scene['residues']}}
+    groups['network'] = groups['hydration'] | {k for e in scene['contacts'] for k in [e['source'], e['target']]}
+    for name, keys in groups.items():
+        values = [i for r in scene['residues'] if r['residue'] in keys for i in r['atom_serials']]
+        lines.append('set crevice_membership(' + name + ') {' + ' '.join(map(str, values)) + '}')
     for row in scene['residues']:
         if row['hydration_occupancy'] is not None:
-            lines+=['set sel [atomselect $crevice_protein {serial '+' '.join(map(str,row['atom_serials']))+'}]',
-                    f'$sel set user {row["hydration_occupancy"]:.12g}','$sel delete']
-    lines += ['$crevice_all delete','set crevice_stick_reps {}']
-    for condition,color in [('user >= 0','User'),('user < 0','ColorID 3')]:
-        lines+=['mol representation Licorice 0.20 24 24','mol selection {none}','mol color '+color,
-                'mol material CREVICESticks','mol addrep $crevice_protein',
-                'set rep [expr {[molinfo $crevice_protein get numreps]-1}]','mol scaleminmax $crevice_protein $rep 0 1',
-                'lappend crevice_stick_reps [list $rep {'+condition+'}]']
-    lines+=['set crevice_surface_molecules {}','array set crevice_surface {}']
-    for i,surface in enumerate(scene['surfaces'],10):
-        key=surface['key'];color=' '.join(map(str,surface['color_rgb']))
-        lines+=['set m [mol new [file join $crevice_root '+q(surface['dx'])+'] type dx waitfor all]',
-                'mol delrep 0 $m',f'color change rgb {i} {color}',
-                'if {[lsearch -exact [material list] CREVICE_'+key+']<0} {material add CREVICE_'+key+'}',
-                f'material change opacity CREVICE_{key} {surface["opacity"]}',f'material change specular CREVICE_{key} 0.08',
-                f'mol representation Isosurface {surface["level"]} 0 0 0 1 1',f'mol color ColorID {i}',
-                'mol selection all',f'mol material CREVICE_{key}','mol addrep $m',
-                'set crevice_surface('+key+') $m','lappend crevice_surface_molecules $m']
-    lines+=['set crevice_contacts [mol new]','mol rename $crevice_contacts crevice_interactions']
-    for i,edge in enumerate(scene['contacts']):
-        color_id=20+['hydrogen_bond','water_bridge_hbond','salt_bridge_candidate','aromatic_parallel_candidate','aromatic_edge_face_candidate'].index(edge['kind'])
-        lines += [f'color change rgb {color_id} '+' '.join(map(str,edge['color_rgb'])),f'graphics $crevice_contacts color {color_id}']
-        for left,right in zip(edge['points_A'],edge['points_A'][1:]):
-            a,b=np.asarray(left),np.asarray(right);segments=max(2,int(np.linalg.norm(b-a)/.25))
-            for j in range(0,segments,2):
-                p=a+(b-a)*j/segments;v=a+(b-a)*min(j+1,segments)/segments
-                lines += ['graphics $crevice_contacts cylinder {'+' '.join(f'{x:.9g}' for x in p)+'} {'+' '.join(f'{x:.9g}' for x in v)+'} radius 0.065 resolution 12 filled yes']
-    camera=scene['camera'];R=np.asarray(camera['camera_rotation']);center=np.asarray(camera['center']);span=camera['vertical_span']
-    def position(x,y):return center+np.asarray([x,y,0])*span@R
+            lines += [
+                'set sel [atomselect $crevice_protein {serial ' + ' '.join(map(str, row['atom_serials'])) + '}]',
+                f'$sel set user {row["hydration_occupancy"]:.12g}',
+                '$sel delete',
+            ]
+    lines += ['$crevice_all delete', 'set crevice_stick_reps {}']
+    for condition, color in [('user >= 0', 'User'), ('user < 0', 'ColorID 3')]:
+        lines += [
+            'mol representation Licorice 0.20 24 24',
+            'mol selection {none}',
+            'mol color ' + color,
+            'mol material CREVICESticks',
+            'mol addrep $crevice_protein',
+            'set rep [expr {[molinfo $crevice_protein get numreps]-1}]',
+            'mol scaleminmax $crevice_protein $rep 0 1',
+            'lappend crevice_stick_reps [list $rep {' + condition + '}]',
+        ]
+    lines += ['set crevice_surface_molecules {}', 'array set crevice_surface {}']
+    for i, surface in enumerate(scene['surfaces'], 10):
+        key = surface['key']
+        color = ' '.join(map(str, surface['color_rgb']))
+        lines += [
+            'set m [mol new [file join $crevice_root ' + q(surface['dx']) + '] type dx waitfor all]',
+            'mol delrep 0 $m',
+            f'color change rgb {i} {color}',
+            'if {[lsearch -exact [material list] CREVICE_' + key + ']<0} {material add CREVICE_' + key + '}',
+            f'material change opacity CREVICE_{key} {surface["opacity"]}',
+            f'material change specular CREVICE_{key} 0.08',
+            f'mol representation Isosurface {surface["level"]} 0 0 0 1 1',
+            f'mol color ColorID {i}',
+            'mol selection all',
+            f'mol material CREVICE_{key}',
+            'mol addrep $m',
+            'set crevice_surface(' + key + ') $m',
+            'lappend crevice_surface_molecules $m',
+        ]
+    lines += ['set crevice_contacts [mol new]', 'mol rename $crevice_contacts crevice_interactions']
+    for i, edge in enumerate(scene['contacts']):
+        color_id = 20 + [
+            'hydrogen_bond',
+            'water_bridge_hbond',
+            'salt_bridge_candidate',
+            'aromatic_parallel_candidate',
+            'aromatic_edge_face_candidate',
+        ].index(edge['kind'])
+        lines += [
+            f'color change rgb {color_id} ' + ' '.join(map(str, edge['color_rgb'])),
+            f'graphics $crevice_contacts color {color_id}',
+        ]
+        for left, right in zip(edge['points_A'], edge['points_A'][1:]):
+            a, b = np.asarray(left), np.asarray(right)
+            segments = max(2, int(np.linalg.norm(b - a) / 0.25))
+            for j in range(0, segments, 2):
+                p = a + (b - a) * j / segments
+                v = a + (b - a) * min(j + 1, segments) / segments
+                lines += [
+                    'graphics $crevice_contacts cylinder {'
+                    + ' '.join(f'{x:.9g}' for x in p)
+                    + '} {'
+                    + ' '.join(f'{x:.9g}' for x in v)
+                    + '} radius 0.065 resolution 12 filled yes'
+                ]
+    camera = scene['camera']
+    R = np.asarray(camera['camera_rotation'])
+    center = np.asarray(camera['center'])
+    span = camera['vertical_span']
+
+    def position(x, y):
+        return center + np.asarray([x, y, 0]) * span @ R
+
     # The legend molecule always exists (the view procedures toggle it) but is
     # empty unless annotating.
-    lines+=['set crevice_legend [mol new]','mol rename $crevice_legend crevice_hydration_legend']
+    lines += ['set crevice_legend [mol new]', 'mol rename $crevice_legend crevice_hydration_legend']
     for i in range(100 if annotate else 0):
-        color=f'[expr {{$crevice_palette_start+int({i}/99.0*($crevice_palette_size-1))}}]'
-        a,b=position(-.34+.35*i/100,-.425),position(-.34+.35*(i+1)/100,-.425)
-        lines+=['graphics $crevice_legend color '+color,
-                'graphics $crevice_legend cylinder {'+' '.join(map(str,a))+'} {'+' '.join(map(str,b))+'} radius '+str(span*.008)+' resolution 12 filled yes']
+        color = f'[expr {{$crevice_palette_start+int({i}/99.0*($crevice_palette_size-1))}}]'
+        a, b = position(-0.34 + 0.35 * i / 100, -0.425), position(-0.34 + 0.35 * (i + 1) / 100, -0.425)
+        lines += [
+            'graphics $crevice_legend color ' + color,
+            'graphics $crevice_legend cylinder {'
+            + ' '.join(map(str, a))
+            + '} {'
+            + ' '.join(map(str, b))
+            + '} radius '
+            + str(span * 0.008)
+            + ' resolution 12 filled yes',
+        ]
     if annotate:
-        texts=scene['annotations']['texts']
-        lines+=['graphics $crevice_legend color black']
-        for x,text in [(-.34,'0%'),(-.165,'50%'),(.01,'100%')]:
-            lines+=['graphics $crevice_legend text {'+' '.join(map(str,position(x,-.465)))+'} '+q(text)+' size 0.65 thickness 1.8']
-        lines+=['graphics $crevice_legend text {'+' '.join(map(str,position(.06,-.425)))+'} '+q(texts['colour_scale_caption'])+' size 0.65 thickness 1.8']
+        texts = scene['annotations']['texts']
+        lines += ['graphics $crevice_legend color black']
+        for x, text in [(-0.34, '0%'), (-0.165, '50%'), (0.01, '100%')]:
+            lines += [
+                'graphics $crevice_legend text {'
+                + ' '.join(map(str, position(x, -0.465)))
+                + '} '
+                + q(text)
+                + ' size 0.65 thickness 1.8'
+            ]
+        lines += [
+            'graphics $crevice_legend text {'
+            + ' '.join(map(str, position(0.06, -0.425)))
+            + '} '
+            + q(texts['colour_scale_caption'])
+            + ' size 0.65 thickness 1.8'
+        ]
         if texts.get('region_status'):
-            lines+=['graphics $crevice_legend text {'+' '.join(map(str,position(-.34,.43)))+'} '+q(texts['region_status'])+' size 0.75 thickness 1.8']
-    matrices={'center':np.eye(4),'rotate':np.eye(4),'scale':np.eye(4)}
-    matrices['center'][:3,3]=-center;matrices['rotate'][:3,:3]=R;matrices['scale'][:3,:3]*=2/span
-    lines += ['color Display Background white','display projection Orthographic','display depthcue off','display antialias on','display shadows off',
-              'render aasamples TachyonInternal 8','render aosamples TachyonInternal 8',
-              'display ambientocclusion on','display aoambient 0.8','display aodirect 0.4','axes location Off','display resetview',
-              'foreach molecule [concat [list $crevice_protein $crevice_contacts $crevice_legend] $crevice_surface_molecules] {']
-    for key,matrix in matrices.items():
-        value='{'+' '.join('{'+' '.join(f'{v:.12g}' for v in row)+'}' for row in matrix)+'}'
-        lines+=['molinfo $molecule set '+key+'_matrix [list '+value+']']
-    lines+=['}','display height 4.0','display resize 1200 900','set crevice_current_snapshot 1','set crevice_current_view hydration',
-            'set crevice_owned_molecules [concat [list $crevice_protein $crevice_contacts $crevice_legend] $crevice_surface_molecules]',
-            'set crevice_snapshot_files [list '+' '.join(q(s['pdb']) for s in scene['snapshots'])+']',
-            'set crevice_member_info '+('1' if scene.get('member_waters') else '0'),
-            'set crevice_member_files [list '+' '.join(q(s['pdb'] or '') for s in (scene.get('member_waters') or {}).get('snapshots',[]))+']',
-            'color change rgb 30 '+' '.join(map(str,(scene.get('member_waters') or {}).get('color_rgb',[1.,.5,0.]))),
-            'set crevice_member_radius '+str((scene.get('member_waters') or {}).get('sphere_radius_A',.7)),r'''
+            lines += [
+                'graphics $crevice_legend text {'
+                + ' '.join(map(str, position(-0.34, 0.43)))
+                + '} '
+                + q(texts['region_status'])
+                + ' size 0.75 thickness 1.8'
+            ]
+    matrices = {'center': np.eye(4), 'rotate': np.eye(4), 'scale': np.eye(4)}
+    matrices['center'][:3, 3] = -center
+    matrices['rotate'][:3, :3] = R
+    matrices['scale'][:3, :3] *= 2 / span
+    lines += [
+        'color Display Background white',
+        'display projection Orthographic',
+        'display depthcue off',
+        'display antialias on',
+        'display shadows off',
+        'render aasamples TachyonInternal 8',
+        'render aosamples TachyonInternal 8',
+        'display ambientocclusion on',
+        'display aoambient 0.8',
+        'display aodirect 0.4',
+        'axes location Off',
+        'display resetview',
+        'foreach molecule [concat [list $crevice_protein $crevice_contacts $crevice_legend] $crevice_surface_molecules] {',
+    ]
+    for key, matrix in matrices.items():
+        value = '{' + ' '.join('{' + ' '.join(f'{v:.12g}' for v in row) + '}' for row in matrix) + '}'
+        lines += ['molinfo $molecule set ' + key + '_matrix [list ' + value + ']']
+    lines += [
+        '}',
+        'display height 4.0',
+        'display resize 1200 900',
+        'set crevice_current_snapshot 1',
+        'set crevice_current_view hydration',
+        'set crevice_owned_molecules [concat [list $crevice_protein $crevice_contacts $crevice_legend] $crevice_surface_molecules]',
+        'set crevice_snapshot_files [list ' + ' '.join(q(s['pdb']) for s in scene['snapshots']) + ']',
+        'set crevice_member_info ' + ('1' if scene.get('member_waters') else '0'),
+        'set crevice_member_files [list '
+        + ' '.join(q(s['pdb'] or '') for s in (scene.get('member_waters') or {}).get('snapshots', []))
+        + ']',
+        'color change rgb 30 '
+        + ' '.join(map(str, (scene.get('member_waters') or {}).get('color_rgb', [1.0, 0.5, 0.0]))),
+        'set crevice_member_radius ' + str((scene.get('member_waters') or {}).get('sphere_radius_A', 0.7)),
+        r'''
 proc crevice_member_waters_load {index} {
     # Own molecule, shown by default and never toggled by crevice_view; hide with: mol off $crevice_member_waters
     global crevice_root crevice_member_info crevice_member_files crevice_member_waters crevice_member_radius crevice_protein crevice_owned_molecules
@@ -409,22 +528,30 @@ proc crevice_render {} {
     display resize 2400 1800;catch {display redraw};display update
     render TachyonInternal [file join $crevice_root __RENDER__]
 }
-'''.replace('__RENDER__',q(scene['prefix']+'_analysis_vmd.tga')), 'crevice_member_waters_load 1','crevice_view '+mode]
-    return '\n'.join(lines)+'\n'
+'''.replace('__RENDER__', q(scene['prefix'] + '_analysis_vmd.tga')),
+        'crevice_member_waters_load 1',
+        'crevice_view ' + mode,
+    ]
+    return '\n'.join(lines) + '\n'
 
 
 def scene_texts(scene):
     """Text elements of a coordinated hydration scene, drawn only when annotating."""
-    caption='Water-contact occupancy' if scene['frame_count']>1 else 'Observed snapshot contact'
-    if scene['water_status']=='unavailable_no_explicit_water':caption='Water contacts unobserved (grey)'
-    texts={'colour_scale_caption':caption,'colour_scale_ticks':'0% (red), 50% (purple), 100% (blue); grey = unobserved'}
-    region=scene.get('region_definition')
-    if region:texts['region_status']=region['review']['status'].upper()+' REGION | '+region['region_id']
+    caption = 'Water-contact occupancy' if scene['frame_count'] > 1 else 'Observed snapshot contact'
+    if scene['water_status'] == 'unavailable_no_explicit_water':
+        caption = 'Water contacts unobserved (grey)'
+    texts = {
+        'colour_scale_caption': caption,
+        'colour_scale_ticks': '0% (red), 50% (purple), 100% (blue); grey = unobserved',
+    }
+    region = scene.get('region_definition')
+    if region:
+        texts['region_status'] = region['review']['status'].upper() + ' REGION | ' + region['region_id']
     return texts
 
 
 @annotate_option
-def write_scene_scripts(output_dir,prefix,*,annotate=None):
+def write_scene_scripts(output_dir, prefix, *, annotate=None):
     """Write the coordinated hydration scenes for PyMOL, VMD and ChimeraX.
 
     Every script reads the same ``PREFIX_analysis_scene.json`` (written by
@@ -497,41 +624,78 @@ def write_scene_scripts(output_dir,prefix,*,annotate=None):
     * White background, orthographic camera, ambient occlusion.
     """
     import numpy as np
-    root=Path(output_dir).resolve();scene_path=root/(prefix+'_analysis_scene.json');scene=json.loads(scene_path.read_text(encoding="utf-8"))
-    annotate=annotations_enabled()
-    scene['annotations']=scene_annotation_record(scene_texts(scene),drawn=annotate)
-    scene_path.write_text(dumps_record(scene,scene_path,indent=2,allow_nan=False)+'\n', encoding="utf-8", newline="\n")
-    files={};reference_written=False
+
+    root = Path(output_dir).resolve()
+    scene_path = root / (prefix + '_analysis_scene.json')
+    scene = json.loads(scene_path.read_text(encoding="utf-8"))
+    annotate = annotations_enabled()
+    scene['annotations'] = scene_annotation_record(scene_texts(scene), drawn=annotate)
+    scene_path.write_text(
+        dumps_record(scene, scene_path, indent=2, allow_nan=False) + '\n', encoding="utf-8", newline="\n"
+    )
+    files = {}
+    reference_written = False
     from .outputs import wants
-    for mode,ending in [('hydration','_analysis'),('network','_analysis_network')]:
-        p=root/(prefix+ending+'.pml')
-        pml=PML.replace('__LEGEND__',PML_LEGEND if annotate else '').replace('__REGION_STATUS__',PML_REGION_STATUS if annotate else '')
+
+    for mode, ending in [('hydration', '_analysis'), ('network', '_analysis_network')]:
+        p = root / (prefix + ending + '.pml')
+        pml = PML.replace('__LEGEND__', PML_LEGEND if annotate else '').replace(
+            '__REGION_STATUS__', PML_REGION_STATUS if annotate else ''
+        )
         if wants(p):
-            p.write_text(pml.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode), encoding="utf-8", newline="\n");files[mode+'_pml']=str(p)
-        tcl_paths=[root/(prefix+ending+'.'+extension) for extension in ['vmd','tcl']]
+            p.write_text(
+                pml.replace('__SCENE__', repr(scene_path.name)).replace('__MODE__', mode),
+                encoding="utf-8",
+                newline="\n",
+            )
+            files[mode + '_pml'] = str(p)
+        tcl_paths = [root / (prefix + ending + '.' + extension) for extension in ['vmd', 'tcl']]
         if any(wants(p) for p in tcl_paths):
-            text=_tcl(scene,root,mode,annotate);reference_written=True
-            for extension,p in zip(['vmd','tcl'],tcl_paths):
-                p.write_text(text, encoding="utf-8", newline="\n");files[mode+'_'+extension]=str(p)
-        loader=root/(prefix+ending+'_chimerax.py')
-        cxc=CXC_PY.replace('__LEGEND__',CXC_LEGEND if annotate else '').replace('__LABEL_VISIBILITY__',CXC_LABEL_VISIBILITY if annotate else '')
+            text = _tcl(scene, root, mode, annotate)
+            reference_written = True
+            for extension, p in zip(['vmd', 'tcl'], tcl_paths):
+                p.write_text(text, encoding="utf-8", newline="\n")
+                files[mode + '_' + extension] = str(p)
+        loader = root / (prefix + ending + '_chimerax.py')
+        cxc = CXC_PY.replace('__LEGEND__', CXC_LEGEND if annotate else '').replace(
+            '__LABEL_VISIBILITY__', CXC_LABEL_VISIBILITY if annotate else ''
+        )
         if wants(loader):
-            loader.write_text(cxc.replace('__SCENE__',repr(scene_path.name)).replace('__MODE__',mode), encoding="utf-8", newline="\n");files[mode+'_chimerax_python']=str(loader)
-            p=root/(prefix+ending+'.cxc');p.write_text('open '+json.dumps(loader.name)+'\n', encoding="utf-8", newline="\n");files[mode+'_cxc']=str(p)
-    lines=[]
+            loader.write_text(
+                cxc.replace('__SCENE__', repr(scene_path.name)).replace('__MODE__', mode),
+                encoding="utf-8",
+                newline="\n",
+            )
+            files[mode + '_chimerax_python'] = str(loader)
+            p = root / (prefix + ending + '.cxc')
+            p.write_text('open ' + json.dumps(loader.name) + '\n', encoding="utf-8", newline="\n")
+            files[mode + '_cxc'] = str(p)
+    lines = []
     for edge in scene['contacts']:
-        lines.append('.color '+' '.join(map(str,edge['color_rgb'])))
-        for left,right in zip(edge['points_A'],edge['points_A'][1:]):
-            a,b=np.asarray(left),np.asarray(right);segments=max(2,int(np.linalg.norm(b-a)/.25))
-            for i in range(0,segments,2):
-                p=a+(b-a)*i/segments;q=a+(b-a)*min(i+1,segments)/segments
-                lines.append('.cylinder '+' '.join(f'{v:.9g}' for v in [*p,*q])+' 0.065')
-    p=root/(prefix+'_analysis_contacts.bild')
+        lines.append('.color ' + ' '.join(map(str, edge['color_rgb'])))
+        for left, right in zip(edge['points_A'], edge['points_A'][1:]):
+            a, b = np.asarray(left), np.asarray(right)
+            segments = max(2, int(np.linalg.norm(b - a) / 0.25))
+            for i in range(0, segments, 2):
+                p = a + (b - a) * i / segments
+                q = a + (b - a) * min(i + 1, segments) / segments
+                lines.append('.cylinder ' + ' '.join(f'{v:.9g}' for v in [*p, *q]) + ' 0.065')
+    p = root / (prefix + '_analysis_contacts.bild')
     if wants(p):
-        p.write_text('\n'.join(lines)+'\n', encoding="utf-8", newline="\n");files['analysis_contacts_bild']=str(p)
+        p.write_text('\n'.join(lines) + '\n', encoding="utf-8", newline="\n")
+        files['analysis_contacts_bild'] = str(p)
     if reference_written:
-        files['analysis_reference_tsv']=str(root/(prefix+'_analysis_reference.tsv'))
-    render=root/(prefix+'_analysis_render.cxc')
+        files['analysis_reference_tsv'] = str(root / (prefix + '_analysis_reference.tsv'))
+    render = root / (prefix + '_analysis_render.cxc')
     if wants(render):
-        render.write_text('open '+json.dumps(prefix+'_analysis.cxc')+'\nsave '+json.dumps(prefix+'_analysis_chimerax.png')+' width 2400 height 1800 supersample 3\n', encoding="utf-8", newline="\n");files['analysis_chimerax_render']=str(render)
+        render.write_text(
+            'open '
+            + json.dumps(prefix + '_analysis.cxc')
+            + '\nsave '
+            + json.dumps(prefix + '_analysis_chimerax.png')
+            + ' width 2400 height 1800 supersample 3\n',
+            encoding="utf-8",
+            newline="\n",
+        )
+        files['analysis_chimerax_render'] = str(render)
     return files

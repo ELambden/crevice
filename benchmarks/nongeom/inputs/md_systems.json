@@ -1,0 +1,598 @@
+{
+  "_comment": "Pore definitions for md_channel_analysis.py. Residue indices are 0-based MDAnalysis resindex values of the CHARMM-GUI builds (AQP4 3GD8 residues 32-254 are resindex 0-222 per chain; OmpF 2OMF residues 1-340 are resindex 0-339 per chain). Extents are relative to the centroid of point_selection (plus point_offset_A when given) along the axis, in the coordinates of the first analysed frame (start_frame), to which every frame is fitted. The entries without a suffix are the definitions fixed before the trajectories were analysed and are kept unchanged as the record (only their description text was corrected on 1 Nov 2026 against the .tpr/.mdp/.log of each run). For the AQP4 builds two of those choices proved wrong (z is not the pore axis of the tilted tetramer, and the NPA ND2 centroid lies beside the water lumen); the *_v2 entries correct them and say what changed in v2_note. See benchmarks/nongeom/md_systems/aqp4.md.",
+  "aqp4_monomer_porewaters": {
+    "description": "AQP4 (3GD8 chain A, residues 32-254) monomer, pore-water build: CHARMM-GUI Membrane Builder job 9283484867, OPM orientation (pore axis 0.0 deg from z at production start), crystal pore waters HOH 278-281 kept as TIP3, His201 HSP (other His HSD), CHARMM36m/TIP3P, CHL1 30 / DOPC 120 / DOPE 120 / DOPG 30, 80 SOD + 51 CLA (0.15 M NaCl, neutral), 19 373 waters, 99 791 atoms, 310 K, 1 bar semi-isotropic, no field; production 100 ns complete, 1001 frames every 100 ps",
+    "system": {
+      "build": "CHARMM-GUI Membrane Builder job 9283484867 from 3GD8 chain A (residues 32-254, NTER/CTER, no ligands) in the OPM orientation (PDB orientation kept)",
+      "histidine": "His201 HSP (both ring N protonated); every other His HSD",
+      "crystal_waters": "HOH 278-281 (pore waters of 3GD8) kept as the first four TIP3 molecules; their hydrogens reset to TIP3P geometry (oxygens and molecular planes kept)",
+      "orientation": "OPM; pore axis 0.0 deg from z at production start (CA fit to the OPM model), below 9 deg during the run",
+      "lipids": "CHL1 30, DOPC 120, DOPE 120, DOPG 30 (whole bilayer)",
+      "ions": "80 Na+ (SOD), 51 Cl- (CLA): 0.15 M NaCl plus neutralising Na+",
+      "water": "19 373 TIP3 (CHARMM TIP3P), including the four crystal waters",
+      "atoms": 99791,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV",
+      "equilibration": "minimisation and the six CHARMM-GUI stages 6.1-6.6 (position restraints released step by step), then production without restraints (define empty)",
+      "field": "none (electric-field-z = 0 0 0 0)",
+      "length": "50 000 000 steps x 2 fs = 100 ns, complete; 1001 frames, t = 0-100 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "prod.tpr, prod.xtc, prod.gro",
+      "verified": "1-2 Nov 2026 against prod.tpr (gmx dump), mdout.mdp, step7_production.mdp, topol.top, prod.log, the trajectory and the build notes"
+    },
+    "definition_status": "Pre-registered definition, kept as the record. resindex values are right (65/181 = Asn97/Asn213 ND2). It proved unsuitable: the Asn97/Asn213 ND2 centroid lies 3.05 A beside the pore-water centre line, so the 3 A cylinder holds only part of the lumen (strict convention 1 event, pf changes 28x between radii 2 and 6 A). Compartment event counts were robust (57 vs 59). Corrected: aqp4_monomer_porewaters_v2. Results: benchmarks/nongeom/md_systems/aqp4.md",
+    "species": [
+      "TIP3",
+      "SOD",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "start_frame": 0,
+    "pores": [
+      {
+        "name": "pore",
+        "point_selection": "resindex 65 181 and name ND2",
+        "point_note": "NPA asparagines N97 and N213 (3GD8 numbering)",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "extent_note": "NPA centroid -12 A (cytoplasmic mouth) to +10 A (past the ar/R filter F77/H201/R216 at about +8 A)",
+        "diagnostic_axis_selections": [
+          "resindex 65 181 and name ND2",
+          "(resindex 45 and name CZ) or (resindex 169 and name NE2) or (resindex 184 and name CZ)"
+        ]
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        2.0,
+        4.0,
+        6.0
+      ],
+      "extent_delta_A": [
+        -2.0,
+        2.0,
+        4.0
+      ]
+    }
+  },
+  "aqp4_monomer": {
+    "description": "AQP4 (3GD8 chain A, residues 32-254) monomer, first build: CHARMM-GUI job 9244985212, all His HSD (His201 HSD), no crystal waters, protein tilted 19.9 deg from the OPM membrane normal at production start (settles within ~20 ns), CHARMM36m/TIP3P, CHL1 30 / DOPC 120 / DOPE 120 / DOPG 30, 85 SOD + 55 CLA, 20 497 waters, 103 171 atoms, 310 K, no field; production 100 ns complete, 1001 frames every 100 ps; report it alongside the pore-water build",
+    "system": {
+      "build": "CHARMM-GUI Membrane Builder job 9244985212 from 3GD8 chain A (residues 32-254, NTER/CTER, no ligands); CHARMM-GUI's orientation step reoriented the protein",
+      "histidine": "all His HSD (His201 HSD)",
+      "crystal_waters": "none (removed before the build)",
+      "orientation": "pore axis 19.9 deg from the OPM membrane normal at production start (CA fit to the OPM model); it settles within ~20 ns (0.6 deg in the last frame)",
+      "lipids": "CHL1 30, DOPC 120, DOPE 120, DOPG 30 (whole bilayer)",
+      "ions": "85 Na+ (SOD), 55 Cl- (CLA): 0.15 M NaCl plus neutralising Na+",
+      "water": "20 497 TIP3 (CHARMM TIP3P)",
+      "atoms": 103171,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV",
+      "equilibration": "minimisation and the six CHARMM-GUI stages 6.1-6.6 (position restraints released step by step), then production without restraints (define empty)",
+      "field": "none (electric-field-z = 0 0 0 0)",
+      "length": "50 000 000 steps x 2 fs = 100 ns, complete; 1001 frames, t = 0-100 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "prod.tpr, prod.xtc, prod.gro",
+      "verified": "1-2 Nov 2026 against prod.tpr (gmx dump), mdout.mdp, step7_production.mdp, topol.top, prod.log, the trajectory and the build notes"
+    },
+    "definition_status": "Pre-registered definition, kept as the record. resindex values are right. The NPA centroid lies 2.5 A beside the pore-water centre line (occupancy 4.6 waters, 7.0 after the shift). Corrected: aqp4_monomer_v2. Results: benchmarks/nongeom/md_systems/aqp4.md",
+    "species": [
+      "TIP3",
+      "SOD",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "start_frame": 0,
+    "pores": [
+      {
+        "name": "pore",
+        "point_selection": "resindex 65 181 and name ND2",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "diagnostic_axis_selections": [
+          "resindex 65 181 and name ND2",
+          "(resindex 45 and name CZ) or (resindex 169 and name NE2) or (resindex 184 and name CZ)"
+        ],
+        "axis_from_reference": {
+          "mobile_selection": "protein and name CA",
+          "reference_selection": "protein and name CA",
+          "reference_axis": [
+            0,
+            0,
+            1
+          ],
+          "note": "pass --axis-reference charmm-gui-inputs/3gd8_monomer_opm_clean.pdb (OPM frame, membrane normal = z); the build is tilted about 20 deg from it"
+        }
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        2.0,
+        4.0,
+        6.0
+      ],
+      "extent_delta_A": [
+        -2.0,
+        2.0,
+        4.0
+      ]
+    }
+  },
+  "aqp4_tetramer_efield": {
+    "description": "AQP4 (3GD8 chains A-D, residues 32-254) tetramer: CHARMM-GUI job 9245173890, all His HSD (His201 HSD), no crystal waters, four-fold axis 24.9 deg from the OPM membrane normal at production start (settles to 2-3 deg within ~20 ns), CHARMM36m/TIP3P, CHL1 44 / POPC 176 / DOPE 176 / DOPG 44, 145 SOD + 101 CLA, 37 008 waters, 179 978 atoms, 310 K; static field E0 = 0.05 V/nm along z (electric-field-z = 0.05 0 0 0; tpr omega 0, sigma 0; about 0.54 V across the mean box height); production planned 1 us (500 000 000 steps), 183.8 ns analysed (1839 frames every 100 ps; the run stopped at 183.9 ns and is being continued). Selectivity control: ion events are expected to be zero; report upper bounds",
+    "system": {
+      "build": "CHARMM-GUI Membrane Builder job 9245173890 from the OPM 3GD8 tetramer (chains A-D, residues 32-254, NTER/CTER, no ligands); CHARMM-GUI's orientation step reoriented the protein. Production restarted from the same equilibrated state as an earlier production whose field was mis-specified (1 V/nm oscillating; that run collapsed and is not used): frame 0 of both is identical",
+      "histidine": "all His HSD (His201 HSD in all four chains)",
+      "crystal_waters": "none (removed before the build)",
+      "orientation": "four-fold axis 24.9 deg from the OPM membrane normal at production start (CA fit to the OPM model); it settles to 2-3 deg within ~20 ns (3.7 deg in the last frame)",
+      "lipids": "CHL1 44, POPC 176, DOPE 176, DOPG 44 (whole bilayer; POPC, not DOPC as in the monomers)",
+      "ions": "145 Na+ (SOD), 101 Cl- (CLA): 0.15 M NaCl plus neutralising Na+",
+      "water": "37 008 TIP3 (CHARMM TIP3P)",
+      "atoms": 179978,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV",
+      "equilibration": "minimisation and the six CHARMM-GUI stages 6.1-6.6 (position restraints released step by step), then production without restraints (define empty)",
+      "field": "electric-field-z = 0.05 0 0 0: E0 0.05 V/nm, omega 0, t0 0, sigma 0 (static), production only; V = E0 x mean Lz = 0.54 V (Lz 108.1 A on average over the analysed frames)",
+      "length": "planned 500 000 000 steps (1 us); the job stopped at 91 945 312 steps (183.9 ns, 48 h wall time) and is being continued; 1839 frames analysed, t = 0-183.8 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "prod.tpr, prod.xtc (no prod.gro: the job did not reach its end)",
+      "verified": "1-2 Nov 2026 against prod.tpr (gmx dump), mdout.mdp, step7_production.mdp, topol.top, prod.log, the trajectory and the build notes"
+    },
+    "definition_status": "Pre-registered definition, kept as the record. resindex values are right (+223 per chain). Not usable: frames are fitted to frame 0, where z is 24 deg from the pore axes, so the slab cut the membrane obliquely (1.45 million transits outside the lumen, 24 423 unresolved crossings, pf of order 1e-12 per pore), and the NPA centroids lie 2.5-3.6 A beside the lumen. Corrected: aqp4_tetramer_efield_v2. Results: benchmarks/nongeom/md_systems/aqp4.md",
+    "species": [
+      "TIP3",
+      "SOD",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "efield_V_per_nm": 0.05,
+    "start_frame": 0,
+    "pores": [
+      {
+        "name": "pore_A",
+        "point_selection": "resindex 65 181 and name ND2",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0
+      },
+      {
+        "name": "pore_B",
+        "point_selection": "resindex 288 404 and name ND2",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0
+      },
+      {
+        "name": "pore_C",
+        "point_selection": "resindex 511 627 and name ND2",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0
+      },
+      {
+        "name": "pore_D",
+        "point_selection": "resindex 734 850 and name ND2",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        2.0,
+        4.0
+      ],
+      "extent_delta_A": [
+        2.0
+      ]
+    }
+  },
+  "aqp4_monomer_porewaters_v2": {
+    "description": "AQP4 (3GD8 chain A, residues 32-254) monomer, pore-water build: CHARMM-GUI Membrane Builder job 9283484867, OPM orientation (pore axis 0.0 deg from z at production start), crystal pore waters HOH 278-281 kept as TIP3, His201 HSP (other His HSD), CHARMM36m/TIP3P, CHL1 30 / DOPC 120 / DOPE 120 / DOPG 30, 80 SOD + 51 CLA (0.15 M NaCl, neutral), 19 373 waters, 99 791 atoms, 310 K, 1 bar semi-isotropic, no field; production 100 ns complete, 1001 frames every 100 ps",
+    "system": {
+      "build": "CHARMM-GUI Membrane Builder job 9283484867 from 3GD8 chain A (residues 32-254, NTER/CTER, no ligands) in the OPM orientation (PDB orientation kept)",
+      "histidine": "His201 HSP (both ring N protonated); every other His HSD",
+      "crystal_waters": "HOH 278-281 (pore waters of 3GD8) kept as the first four TIP3 molecules; their hydrogens reset to TIP3P geometry (oxygens and molecular planes kept)",
+      "orientation": "OPM; pore axis 0.0 deg from z at production start (CA fit to the OPM model), below 9 deg during the run",
+      "lipids": "CHL1 30, DOPC 120, DOPE 120, DOPG 30 (whole bilayer)",
+      "ions": "80 Na+ (SOD), 51 Cl- (CLA): 0.15 M NaCl plus neutralising Na+",
+      "water": "19 373 TIP3 (CHARMM TIP3P), including the four crystal waters",
+      "atoms": 99791,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV",
+      "equilibration": "minimisation and the six CHARMM-GUI stages 6.1-6.6 (position restraints released step by step), then production without restraints (define empty)",
+      "field": "none (electric-field-z = 0 0 0 0)",
+      "length": "50 000 000 steps x 2 fs = 100 ns, complete; 1001 frames, t = 0-100 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "prod.tpr, prod.xtc, prod.gro",
+      "verified": "1-2 Nov 2026 against prod.tpr (gmx dump), mdout.mdp, step7_production.mdp, topol.top, prod.log, the trajectory and the build notes"
+    },
+    "definition_status": "Corrected definition (what changed: v2_note); every complete event equals the independent reference counter's. Results: benchmarks/nongeom/md_systems/aqp4.md",
+    "species": [
+      "TIP3",
+      "SOD",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "start_frame": 0,
+    "pores": [
+      {
+        "name": "pore",
+        "point_selection": "resindex 65 181 and name ND2",
+        "point_note": "NPA asparagines N97 and N213 (3GD8 numbering)",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "extent_note": "NPA centroid -12 A (cytoplasmic mouth) to +10 A (past the ar/R filter F77/H201/R216 at about +8 A)",
+        "diagnostic_axis_selections": [
+          "resindex 65 181 and name ND2",
+          "(resindex 45 and name CZ) or (resindex 169 and name NE2) or (resindex 184 and name CZ)"
+        ],
+        "point_offset_A": [
+          1.156,
+          2.824,
+          0.0
+        ]
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        2.0,
+        4.0
+      ],
+      "extent_delta_A": [
+        -2.0,
+        2.0
+      ]
+    },
+    "v2_note": "Changed from aqp4_monomer_porewaters: point_offset_A shifts the cylinder from the Asn97/Asn213 ND2 centroid onto the median position of the pore waters between the NPA and the ar/R filter (s = -4..+9 A, all frames), 3.05 A away; with the pre-registered point the 3 A cylinder held 3.5 waters on average (7.3 after the shift), the strict convention counted 1 event (8) and pf changed by 28x between radii 2 and 6 A. Axis, extent, radius, species unchanged. No initial frames are discarded: the run is not stationary (the ar/R narrows from ~60 ns), so no start time makes it so; report windows instead."
+  },
+  "aqp4_monomer_v2": {
+    "description": "AQP4 (3GD8 chain A, residues 32-254) monomer, first build: CHARMM-GUI job 9244985212, all His HSD (His201 HSD), no crystal waters, protein tilted 19.9 deg from the OPM membrane normal at production start (settles within ~20 ns), CHARMM36m/TIP3P, CHL1 30 / DOPC 120 / DOPE 120 / DOPG 30, 85 SOD + 55 CLA, 20 497 waters, 103 171 atoms, 310 K, no field; production 100 ns complete, 1001 frames every 100 ps; report it alongside the pore-water build",
+    "system": {
+      "build": "CHARMM-GUI Membrane Builder job 9244985212 from 3GD8 chain A (residues 32-254, NTER/CTER, no ligands); CHARMM-GUI's orientation step reoriented the protein",
+      "histidine": "all His HSD (His201 HSD)",
+      "crystal_waters": "none (removed before the build)",
+      "orientation": "pore axis 19.9 deg from the OPM membrane normal at production start (CA fit to the OPM model); it settles within ~20 ns (0.6 deg in the last frame)",
+      "lipids": "CHL1 30, DOPC 120, DOPE 120, DOPG 30 (whole bilayer)",
+      "ions": "85 Na+ (SOD), 55 Cl- (CLA): 0.15 M NaCl plus neutralising Na+",
+      "water": "20 497 TIP3 (CHARMM TIP3P)",
+      "atoms": 103171,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV",
+      "equilibration": "minimisation and the six CHARMM-GUI stages 6.1-6.6 (position restraints released step by step), then production without restraints (define empty)",
+      "field": "none (electric-field-z = 0 0 0 0)",
+      "length": "50 000 000 steps x 2 fs = 100 ns, complete; 1001 frames, t = 0-100 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "prod.tpr, prod.xtc, prod.gro",
+      "verified": "1-2 Nov 2026 against prod.tpr (gmx dump), mdout.mdp, step7_production.mdp, topol.top, prod.log, the trajectory and the build notes"
+    },
+    "definition_status": "Corrected definition (what changed: v2_note); every complete event equals the independent reference counter's. Results: benchmarks/nongeom/md_systems/aqp4.md",
+    "species": [
+      "TIP3",
+      "SOD",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "start_frame": 0,
+    "pores": [
+      {
+        "name": "pore",
+        "point_selection": "resindex 65 181 and name ND2",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "diagnostic_axis_selections": [
+          "resindex 65 181 and name ND2",
+          "(resindex 45 and name CZ) or (resindex 169 and name NE2) or (resindex 184 and name CZ)"
+        ],
+        "axis_from_reference": {
+          "mobile_selection": "protein and name CA",
+          "reference_selection": "protein and name CA",
+          "reference_axis": [
+            0,
+            0,
+            1
+          ],
+          "note": "pass --axis-reference charmm-gui-inputs/3gd8_monomer_opm_clean.pdb (OPM frame, membrane normal = z); the build is tilted about 20 deg from it"
+        },
+        "point_offset_A": [
+          2.372,
+          0.63,
+          0.177
+        ]
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        2.0,
+        4.0
+      ],
+      "extent_delta_A": [
+        -2.0,
+        2.0
+      ]
+    },
+    "v2_note": "Changed from aqp4_monomer: point_offset_A (2.46 A) shifts the cylinder onto the median pore-water position (s = -4..+9 A along the OPM normal mapped onto frame 0, all frames); axis_from_reference, extent, radius unchanged. No initial frames are discarded (the gate closes at ~14 ns, during the tilt relaxation; the run has one closing)."
+  },
+  "aqp4_tetramer_efield_v2": {
+    "description": "AQP4 (3GD8 chains A-D, residues 32-254) tetramer: CHARMM-GUI job 9245173890, all His HSD (His201 HSD), no crystal waters, four-fold axis 24.9 deg from the OPM membrane normal at production start (settles to 2-3 deg within ~20 ns), CHARMM36m/TIP3P, CHL1 44 / POPC 176 / DOPE 176 / DOPG 44, 145 SOD + 101 CLA, 37 008 waters, 179 978 atoms, 310 K; static field E0 = 0.05 V/nm along z (electric-field-z = 0.05 0 0 0; tpr omega 0, sigma 0; about 0.54 V across the mean box height); production planned 1 us (500 000 000 steps), 183.8 ns analysed (1839 frames every 100 ps; the run stopped at 183.9 ns and is being continued). Selectivity control: ion events are expected to be zero; report upper bounds",
+    "system": {
+      "build": "CHARMM-GUI Membrane Builder job 9245173890 from the OPM 3GD8 tetramer (chains A-D, residues 32-254, NTER/CTER, no ligands); CHARMM-GUI's orientation step reoriented the protein. Production restarted from the same equilibrated state as an earlier production whose field was mis-specified (1 V/nm oscillating; that run collapsed and is not used): frame 0 of both is identical",
+      "histidine": "all His HSD (His201 HSD in all four chains)",
+      "crystal_waters": "none (removed before the build)",
+      "orientation": "four-fold axis 24.9 deg from the OPM membrane normal at production start (CA fit to the OPM model); it settles to 2-3 deg within ~20 ns (3.7 deg in the last frame)",
+      "lipids": "CHL1 44, POPC 176, DOPE 176, DOPG 44 (whole bilayer; POPC, not DOPC as in the monomers)",
+      "ions": "145 Na+ (SOD), 101 Cl- (CLA): 0.15 M NaCl plus neutralising Na+",
+      "water": "37 008 TIP3 (CHARMM TIP3P)",
+      "atoms": 179978,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV",
+      "equilibration": "minimisation and the six CHARMM-GUI stages 6.1-6.6 (position restraints released step by step), then production without restraints (define empty)",
+      "field": "electric-field-z = 0.05 0 0 0: E0 0.05 V/nm, omega 0, t0 0, sigma 0 (static), production only; V = E0 x mean Lz = 0.54 V (Lz 108.1 A on average over the analysed frames)",
+      "length": "planned 500 000 000 steps (1 us); the job stopped at 91 945 312 steps (183.9 ns, 48 h wall time) and is being continued; 1839 frames analysed, t = 0-183.8 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "prod.tpr, prod.xtc (no prod.gro: the job did not reach its end)",
+      "verified": "1-2 Nov 2026 against prod.tpr (gmx dump), mdout.mdp, step7_production.mdp, topol.top, prod.log, the trajectory and the build notes"
+    },
+    "definition_status": "Corrected definition (what changed: v2_note); every complete event equals the independent reference counter's. Results: benchmarks/nongeom/md_systems/aqp4.md",
+    "species": [
+      "TIP3",
+      "SOD",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "efield_V_per_nm": 0.05,
+    "start_frame": 200,
+    "pores": [
+      {
+        "name": "pore_A",
+        "point_selection": "resindex 65 181 and name ND2",
+        "axis": [
+          -0.08481,
+          0.04519,
+          0.99537
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "point_offset_A": [
+          2.473,
+          2.611,
+          0.092
+        ]
+      },
+      {
+        "name": "pore_B",
+        "point_selection": "resindex 288 404 and name ND2",
+        "axis": [
+          -0.08481,
+          0.04519,
+          0.99537
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "point_offset_A": [
+          -2.145,
+          -2.544,
+          -0.067
+        ]
+      },
+      {
+        "name": "pore_C",
+        "point_selection": "resindex 511 627 and name ND2",
+        "axis": [
+          -0.08481,
+          0.04519,
+          0.99537
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "point_offset_A": [
+          -2.927,
+          1.739,
+          -0.328
+        ]
+      },
+      {
+        "name": "pore_D",
+        "point_selection": "resindex 734 850 and name ND2",
+        "axis": [
+          -0.08481,
+          0.04519,
+          0.99537
+        ],
+        "extent_relative_A": [
+          -12.0,
+          10.0
+        ],
+        "radius_A": 3.0,
+        "point_offset_A": [
+          2.469,
+          -2.067,
+          0.304
+        ]
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        2.0,
+        4.0
+      ],
+      "extent_delta_A": [
+        2.0
+      ],
+      "no_radius": false
+    },
+    "v2_note": "Changed from aqp4_tetramer_efield: (1) the first 20 ns (frames 0-199) are discarded: the tetramer starts 24.9 deg tilted and reorients in the membrane within ~20 ns; (2) the axis is the four-fold axis at frame 200 (normal of the plane of the four NPA centroids, 5.5 deg from z), not z (in frame 0 z is 24 deg from the pore axes, so the pre-registered slab cut the membrane obliquely); (3) each cylinder is shifted onto that pore's median pore-water position (3.2-3.6 A from the NPA centroid, frames 200-1838 fitted to frame 200). Extent, radius, species unchanged; the box-wide no_radius variant is switched off (memory in a 180 000-atom box)."
+  },
+  "ompf_trimer_efield": {
+    "description": "OmpF (2OMF) trimer, 1 M KCl, static 0.05 V/nm along z (+z extracellular), 100 ns, frames every 100 ps",
+    "system": {
+      "build": "CHARMM-GUI (PDB 2OMF, biological trimer, chains PROA/P2PROA/P3PROA, residues 1-340, NTER/CTER) repaired locally: protein moved +7.18 A along z onto the OPM membrane depth (CHARMM-GUI had translated it 7.2 A too deep; tilt 0.01 deg), overlapping lipids/waters/ions removed whole, 793 TIP3 waters placed in the three dry barrels, neutrality restored, minimised locally (5126 steepest-descent steps)",
+      "histidine": "HSD (one His per chain)",
+      "orientation": "OPM; N and C termini (periplasmic side) below the bilayer midplane, so +z is extracellular",
+      "lipids": "354 DOPE + 117 DOPG (3:1); upper leaflet 180 DOPE + 58 DOPG, lower 174 DOPE + 59 DOPG",
+      "ions": "1001 K+, 848 Cl- (1.0 M from the Cl- count; bulk slab more than 25 A from the bilayer midplane: 1.11 M K+, 1.06 M Cl- over the run); excess K+ neutralises DOPG (-117 e) and the protein (-12 e per chain)",
+      "water": "47 179 TIP3 (CHARMM TIP3P)",
+      "atoms": 219592,
+      "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
+      "engine": "GROMACS 2021.5 (production log)",
+      "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
+      "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
+      "field": "electric-field-z = 0.050 0 0 0: E0 0.05 V/nm, omega 0, t0 0, sigma 0 (static), production only; V = E0 x mean Lz = 561 mV (Lz 112.15 +- 0.90 A)",
+      "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
+      "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV (the solvent's centre-of-mass velocity is removed separately from the protein and membrane, which damps net solvent flow through the pores)",
+      "length": "50 000 000 steps x 2 fs = 100 ns; 1001 frames, t = 0-100 ns every 100 ps, all atoms, xtc precision 0.001 nm",
+      "files": "step7_1.tpr, step7_1.xtc, step7_1.gro",
+      "verified": "1 Nov 2026 against step7_1.tpr (gmx dump), step7_1.processed.mdp, topol.top, step7_1.log, the trajectory and the build README"
+    },
+    "definition_status": "Pre-registered definition held: resindex 41/81/131 (+340 per chain) are Arg42/82/132 CZ of each chain; 643 of 645 K+ and 400 of 400 Cl- transmembrane transits are attributed to a pore. No deviation needed. Analysis and results: benchmarks/nongeom/md_systems/ompf.md",
+    "species": [
+      "POT",
+      "CLA"
+    ],
+    "alignment_selection": "protein and name CA",
+    "efield_V_per_nm": 0.05,
+    "start_frame": 0,
+    "pores": [
+      {
+        "name": "pore_1",
+        "point_selection": "resindex 41 81 131 and name CZ",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -15.0,
+          15.0
+        ],
+        "radius_A": 8.0,
+        "point_note": "constriction (L3) arginines R42, R82, R132 of chain 1"
+      },
+      {
+        "name": "pore_2",
+        "point_selection": "resindex 381 421 471 and name CZ",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -15.0,
+          15.0
+        ],
+        "radius_A": 8.0
+      },
+      {
+        "name": "pore_3",
+        "point_selection": "resindex 721 761 811 and name CZ",
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "extent_relative_A": [
+          -15.0,
+          15.0
+        ],
+        "radius_A": 8.0
+      }
+    ],
+    "sensitivity": {
+      "radius_A": [
+        6.0,
+        10.0
+      ],
+      "extent_delta_A": [
+        -5.0,
+        5.0
+      ]
+    }
+  }
+}

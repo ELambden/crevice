@@ -162,21 +162,16 @@ Measure a channel's radius along its length, and fill pockets, cavities and chan
 ```
 
 (api-cavities)=
-## Cavities and tunnels
+## Cavities
 
-Grid searches for buried cavities and for the widest routes out of the protein.
+Grid search for buried cavities (routes out of the protein: {func}`crevice.paths.find_paths`).
 
 ```{eval-rst}
 .. autosummary::
    :nosignatures:
 
    ~crevice.cavities.detect_cavities
-   ~crevice.tunnels.find_tunnels
-   ~crevice.tunnels.rank_tunnels
-   ~crevice.tunnels.cluster_tunnels
-   ~crevice.tunnels.tunnel_profile
    ~crevice.models.Cavity
-   ~crevice.models.Tunnel
 ```
 
 (api-residues)=
@@ -314,16 +309,12 @@ Write results, figures and PyMOL/VMD/ChimeraX scenes. Analysis functions never w
    ~crevice.io.write_residue_contacts_json
    ~crevice.io.write_cavities_json
    ~crevice.io.write_cavities_pdb
-   ~crevice.io.write_tunnels_json
-   ~crevice.io.write_tunnels_pdb
    ~crevice.io.write_network_json
    ~crevice.io.write_trajectory_json
    ~crevice.io.write_void_cast_json
    ~crevice.io.write_void_cast_pdb
    ~crevice.io.write_void_cast_csv
    ~crevice.io.write_cavities_csv
-   ~crevice.io.write_tunnels_csv
-   ~crevice.io.write_tunnel_points_csv
    ~crevice.io.write_network_csv
    ~crevice.io.write_connectivity_csv
    ~crevice.io.write_features_csv

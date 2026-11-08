@@ -12,6 +12,241 @@ biological results.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-08
+
+### Changed
+
+- **A capped channel end is placed where the widest route to bulk leaves the
+  lumen** (`--lateral-exits`; Python `lateral_exits=True`). From the slices
+  beyond the seed and the channel's narrowest slice, a lateral-exit search
+  looks for a route to bulk clearly wider (by 0.1 Å or 10 %) than the rest of
+  the axial path, the end's own exit included; the end moves to the slice with
+  the widest such route (mouth reason `lateral_branch`, decision recorded in
+  `exits.<end>.lateral_branch`, the traced mouth in `traced_mouth`). With the
+  default per-slice probe, TWIK-1 (3UKM) now ends in the chamber under the cap
+  and reports its two side portals (2.20 and 2.17 Å) instead of one 1.09 Å
+  route through the cap. Open ends and through channels are unchanged.
+- **An end that already lies in bulk solvent is open**: a capped end whose last
+  sample is inside the rolling bulk-probe envelope is no longer refused, with
+  or without `--lateral-exits` (`exits.<end>.type` `"bulk"`, or
+  `metadata.ends_in_bulk`).
+- **The automatic enclosure probe of channel profiles is now chosen per slice**
+  (`crevice profile`, `report`, `profile --fingerprint`, `trajectory`; Python
+  `pore_profile(..., enclosure_radius=None)`). Each slice uses the smallest
+  probe of a 0.30-3.00 Å ladder at which its lumen is enclosed; neighbouring
+  slices join when the straight segment between their centres clears the
+  smaller of their probes. One probe for the whole channel cannot be both
+  smaller than a narrow filter and larger than the gaps in a leaky wall: KcsA
+  (1K4C, Bondi radii) was unresolved at every probe and now resolves over its
+  whole transmembrane pore, with the 0.747 Å filter minimum that HOLE reports.
+  Each slice's probe is reported (`metadata.enclosure_probes_A`,
+  `enclosure_probe_range_A`). The measured radii are unchanged in definition.
+- Slice centres follow the lumen: each slice climbs from the previous slice's
+  centre, and keeps the higher of that top and the top climbed from the slice's
+  best grid point only when the straight line between them keeps 90 % of the
+  lower top's clearance (one lumen). A profile can no longer detour through a
+  pocket in the wall or a neighbouring passage.
+- A channel's extent no longer depends on the sample count: the mouths come
+  from the discovery trace, and a resampled slice in a thin open slab is
+  measured and flagged (`metadata.unenclosed_samples`).
+- A slice too narrow for the section grid is re-gridded locally (up to eight
+  times finer), so constrictions down to just above the smallest probe
+  (0.32 Å with 0.25 Å sections, 0.34 Å with 0.5 Å) are followed wherever the
+  samples fall. A slice whose lumen is wide uses a search square twice or four
+  times `--search-radius`.
+- Profiles end at the outermost atom surfaces along the axis at the latest.
+  Mouths beyond them, which only probe-inflated spheres enclosed, no longer
+  occur.
+- `trajectory` repeats the per-slice choice in every frame (axis and seed of
+  the first frame are kept). `metadata.enclosure_probe.mode` is `adaptive`
+  (or `explicit` for a fixed probe), with per-frame counts in
+  `metadata.enclosure_probe.frames`; each frame's `enclosure_probe.source` is
+  `per_plane`, `fixed` or `none`.
+- A fixed `--enclosure-radius` now runs the same slice-by-slice tracer with
+  that one probe in every slice (`metadata.enclosure_mode = "fixed"`).
+- Channel profiles are several times faster. Enclosure is tested in one
+  window per slice, and the best grid node of a section is found by an exact
+  coarse-to-fine search; results are unchanged. With the new `fast` extra the
+  slice graph and its flood fill run as compiled numba kernels (identical
+  results): on one core, 0.25 Å sections, gramicidin 1.1 → 0.5 s, KcsA
+  3.3 → 0.8 s, OmpF 17.3 → 1.5 s, GLIC 30.6 → 3.0 s.
+- The channel cast of `report` sweeps each slice with its own probe (at least
+  one cast grid spacing), and a cast slice that leaks at its neighbours' probe
+  takes the next larger one. Cast volumes change accordingly (gramicidin A,
+  1GRM, 0.25 Å: 292.4 to 344.7 Å³).
+- `--sensitivity` for a per-slice profile varies the section grid only.
+- **Permeation events follow the compartment rule by default**
+  (`trajectory --permeation`; Python `analyze_permeation(convention=
+  "compartment")`). A molecule remembers the bulk side it last occupied; its
+  arrival on the other side through the channel's axial extent is an event,
+  attributed to the channel when it was in the lumen in at least one saved
+  frame of the passage. Leaving the lumen sideways no longer forgets the side.
+  This is the rule of GROMACS computational electrophysiology and of a
+  complete transport from one reservoir to the other. Passages that never
+  entered the lumen are listed with status `outside_lumen` (not counted) and
+  counted per channel and species as `transits_outside_lumen`; event
+  `entry_frame` is the first frame of the passage within the extent. Counts
+  are no longer cut by a lateral radius slightly narrower than the pore (3D
+  Brownian test: 1.00 of the membrane transits instead of 0.001 with a radius
+  1 Å inside the pore wall). The previous rule (uninterrupted stay in the
+  lumen) is `--permeation-convention strict`.
+- **Rate, q0 and pd intervals account for correlated events**: the exact
+  Poisson (Garwood) interval is widened by the dispersion index of the event
+  counts in 10 time blocks (`--event-blocks`), with the index floored at 1, so
+  independent events keep the Garwood interval. The current gets a primary
+  `interval_pA` (and `conductance_interval_pS`) from the block variance of the
+  net charge when it exceeds the Poisson variance. Single-file water: 95 %
+  coverage of pd went from 0.86 to 0.95. The dispersion indices are reported
+  (`event_dispersion`, `water.event_dispersion_index`,
+  `ion_current_total.dispersion_index`); the plain Garwood intervals are kept
+  as `*_garwood_interval_*`, and the earlier `poisson` and `block_bootstrap`
+  current records are unchanged.
+- **Residue networks use the heavy-atom centre distance everywhere.** The
+  Python functions (`build_residue_network`, `build_cavity_network`,
+  `analyze_trajectory`) and the networks inside `report` and `report --analyze`
+  defaulted to the van der Waals surface gap, so the same 4.5 Å cutoff meant
+  about 8 Å between carbon centres there and 4.5 Å in `residues --network` and
+  `trajectory`. The surface gap is still available (`distance_metric="surface"`,
+  `--contact-metric surface`). Both metrics now come from one exact KD-tree
+  search (the surface metric is about ten times faster; edges, distances and
+  labels on 1GRM, 4PYP, 3UKM and 1AF6 are unchanged), and every edge records
+  its closest atom serials, centre distance, surface gap and sequence
+  separation.
+- **One salt-bridge definition.** The `salt_bridge_candidate` network label now
+  uses the charged sites of the typed interactions
+  (`interaction_chemistry.CHARGED_SITES`, 4.0 Å): HSP/HIP and CYM count and the
+  neutral LYN, ASH and GLH no longer do. Networks record
+  `interaction_rules = "contact_v3_formal_charge_sites_4A"`.
+- `persistent_network` pools contacts per residue pair, as `crevice trajectory`
+  (`ResidueDynamics`) does: a changing interaction label no longer splits one
+  persistent contact into two weaker ones. The pooled edge takes the most
+  frequent label and records `contact_type_fractions`.
+
+### Added
+
+- Optional `fast` extra (`pip install "crevice[fast]"`): numba kernels for
+  channel profiles (`crevice._kernels`). `CREVICE_DISABLE_NUMBA=1` forces the
+  NumPy code, which gives the same results.
+- Status lines on standard error: what each analysis is doing and what it
+  found (`crevice: pore radius found in 3.7 s: minimum 0.747 A ...`; for
+  `trajectory`, the mean of the frame minima with its blocking standard error
+  when the frames allow one). They are also written to batch logs; `--quiet`
+  or `CREVICE_PROGRESS=0` turns them off.
+- Faster lateral exits: with the `fast` extra the lateral-exit search of
+  capped channel ends, its distinct-exit selection and the bulk envelope run
+  as compiled kernels, and one bulk envelope per end is shared by every exit
+  probe. The search itself is 4-10x faster (an AQP4 frame's profile about
+  1 s); results are byte-identical to the NumPy path and to the previous code.
+- `benchmarks/nongeom/md_channel_analysis.py`: optional `point_offset_A` per
+  pore, an optional switch-off of the box-wide `no_radius` variant, sensitivity
+  variants that keep only summaries and events (a four-pore tetramer run needs
+  1.5 GB instead of over 20 GB) and a complete-event identity column.
+- Permeation extent that follows the membrane: `--membrane-planes "name P"`
+  (Python: `CylinderChannel(..., membrane="name P")`) takes, in every frame,
+  the mean lower and upper planes of the selected lipid atoms as the axial
+  extent, after the protein fit and as nearest images about each pore, so an
+  event is a passage from one side of the bilayer to the other however the
+  membrane moves. The planes are recorded in the summary. On a 100 ns OmpF
+  trimer run (1 M KCl, applied field) it counts the same 643 K+ and 398 Cl-
+  crossings as a transcription of Gapsys and Kopec's ion permeation analyzer,
+  1040 of them identical (the other two are that analyzer's large-jump rule).
+- Permeation position traces and axial profile: every molecule with a counted
+  event is followed along the channel axis from the bulk frame before each
+  passage to the bulk frame after it (`STEM_permeation_positions.csv` and
+  `.png`; at most `--max-traces` molecules per channel and species, 200 by
+  default), and the lumen density in 0.5 A bins gives, for runs without an
+  applied field or voltage, the free energy along the axis by Boltzmann
+  inversion relative to the mouths, in kT with a block interval and in
+  kcal/mol with `--temperature` (`STEM_permeation_profile.csv` and `.png`;
+  `axial_density.free_energy` in the summary). Ideas from Gapsys and Kopec's
+  ion permeation analyzer.
+- Permeation occupancy distribution (`occupancy.frame_fraction_by_count`):
+  the fraction of frames with 0, 1, 2, ... molecules in the lumen.
+
+### Removed
+
+- The single-probe automatic choice of 0.4 (one probe for the whole channel,
+  chosen over a 0.5–3.0 Å ladder) and its per-frame fallback in `trajectory`
+  (`--probe-fallback`, Python `probe_fallback`). Install CREVICE 0.4.1 to
+  reproduce 0.4 profiles.
+- The fixed-axis clearance scan (`--search-radius 0`, Python
+  `search_radius=0`) and its `--padding` option (settings key `padding`):
+  profiles always follow a connected, enclosed channel.
+- The automatic-probe sensitivity benchmark (`benchmarks/probe_sensitivity.py`),
+  which tested the removed single-probe rule.
+- **The grid tunnel search** (`crevice cavities --tunnels`, the 0.3 name
+  `crevice tunnels`, `crevice.find_tunnels`, `rank_tunnels`, `cluster_tunnels`,
+  `tunnel_profile`, the `crevice.tunnels` module and the `Tunnel` model). It
+  duplicated `crevice paths`, which finds curved, branched widest routes from
+  a seed or region to bulk solvent and is the engine compared with CAVER.
+  `crevice cavities --tunnels` and `crevice tunnels` now stop with an error
+  that names `crevice paths`. With it went everything that only served it:
+  the `tunnels` choice of `trajectory --analysis` and `report --analyze
+  --analysis` (Python `analyze_trajectory(analyses=...)`, whose
+  `tunnel_kwargs` is gone), the `tunnels` token of `report --outputs`, the
+  `report --skip-tunnels`, `report --suite --tunnel-spacing/--skip-tunnels`
+  and `report --analyze --tunnel-*/--max-tunnels/--start` options, the
+  writers `write_tunnels_json/_csv/_pdb` and `write_tunnel_points_csv`, the
+  `PREFIX_tunnels.*`/`PREFIX_tunnel_points.csv` files of `report --all`, the
+  tunnel columns of the `report --suite` summary (`tunnel_count`,
+  `top_tunnel_*`), the `tunnel_count` column of `trajectory`'s
+  `*_frames.csv` and frame statistics, and the empty `tunnels` list of each
+  `trajectory` JSON frame. Settings files written by 0.4 still load; their
+  tunnel keys are ignored. The old search is in CREVICE 0.4.1
+  (`pip install crevice==0.4.1`).
+- **`crevice report` no longer runs the separate grid cavity search** (the
+  `cavities` token of `report --outputs`, part of `report --all`, and
+  `report --skip-cavities`; Python `include_cavities` of
+  `write_static_publication_bundle` and `compute_static_workflow`, and
+  `StaticWorkflowResult.cavities`). The bundle's measured volume is its
+  rolling-probe or channel cast; the grid search is a different definition
+  (probe-centre points of fully enclosed spaces on a 2 Å grid) and stays
+  available, unchanged, as `crevice cavities`, `report --analyze --analysis
+  cavities`, `report --suite`/`--benchmark` and `trajectory --analysis
+  cavities`. `report --all` writes four files fewer (`PREFIX_cavities.csv`,
+  `.json`, `.pdb`, `PREFIX_cavity_summary.png`), and the unresolved-profile
+  `fallback_analyses` record has no `cavities` entry. Settings files of
+  0.4 `report` runs still load (`skip_cavities` is ignored). CREVICE 0.4.1
+  keeps the old bundle.
+- Unused internal helpers and constants (no output changes):
+  `trajectory.align_frame` (use `align_frame_report`, which returns the same
+  fitted frame with the fit diagnostics), `uncertainty.SAMPLING_FIELDS`,
+  `cast_segments.SEGMENT_TYPES` and `figures.CREVICE_LIGHT`.
+
+### Fixed
+
+- The permeation collective coordinate n(t) no longer adds whole-extent jumps
+  of molecules outside the lumen (bulk water displaced by about half a box
+  between two saved frames, an ambiguous nearest image); such steps are still
+  listed as unresolved crossings. In AQP4 runs this lowered pf by 5-19 %.
+
+- Benchmarks: the independent reference counter of
+  `benchmarks/nongeom/md_channel_analysis.py` takes the minimum-image step when
+  checking for crossings over the whole extent (ions crossing the periodic face
+  in the bulk were flagged as unresolved) and lists the outside-lumen transits
+  of every molecule that entered the axial extent. CREVICE's counts are
+  unchanged and now match the reference event by event on the OmpF trimer.
+
+- The shared clearance cache of profile sections could drop values a request
+  still needed when it was cleared at its size limit (a `KeyError` on large
+  search windows).
+
+### Documentation
+
+- The 3UKM worked examples (the report bundle, the interactive view and the
+  pore fingerprint) use the default per-slice probe instead of a fixed
+  0.55 A probe, now that the default finds both side portals: the lumen cast
+  includes the wide upper vestibule (5801 A3 with 156 lining residues; the
+  0.55 A bundle split it into a 1679 A3 entry and a 551 A3 lumen), the exit
+  legs are 725 and 637 A3, the view file is 5.3 MB and the fingerprint lumen
+  41.4 A (29.7 pS in 150 mM KCl). The page keeps the fixed-probe profile as a
+  comparison.
+- Every worked example was rerun with the per-slice enclosure probe and its
+  outputs, tables and figures regenerated (ChimeraX renders checked
+  headless). 1OED is rewritten without the probe ladder; the NMR ensemble resolves all five models. The site was checked
+  against every command's `--help` and defaults, the benchmark summary against
+  the result tables, and the README alias names corrected.
+
 ## [0.4.1] - 2026-10-24
 
 ### Fixed

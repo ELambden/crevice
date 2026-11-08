@@ -24,16 +24,16 @@ crevice report --analyze 1GRM --analysis profile --analysis residues --analysis 
     --out-dir results/1GRM_analyze --png
 ```
 
-`report --analyze` runs any mix of `profile`, `residues`, `cavities`, `tunnels`,
+`report --analyze` runs any mix of `profile`, `residues`, `cavities`,
 `network` and `features` on one structure (repeat `--analysis` for each; the
 default is profile and residues), writing each as CSV (with the JSON
 records beside them), the typed interactions of the lining residues and a
 manifest: data only, by default. `--png` (or `--outputs default,figures`) adds
 figures for the profile, residues, cavities and network,
 `--outputs default,hydration` the water analysis with its scenes, and `--all`
-everything ({ref}`output-policy`). Unlike the standalone commands, its cavity
-and tunnel grid caps (`--cavity-max-grid-points`, `--tunnel-max-grid-points`)
-coarsen the spacing to stay under the cap, so raise them if you need a fine
+everything ({ref}`output-policy`). Unlike the standalone command, its cavity
+grid cap (`--cavity-max-grid-points`)
+coarsens the spacing to stay under the cap, so raise them if you need a fine
 grid. [All options](../reference/cli/report.md).
 
 ## Feature tables: `residues --features`
@@ -62,18 +62,18 @@ crevice report --suite 1GRM 4PYP --fetch --out-dir suite
 `report --benchmark --output b.json` also writes `b.csv`, one row per system with the
 profile radii, top cavity volume and any error. `report --suite` writes
 `static_benchmark_summary.csv` and `.json` and one bundle per system: the
-profile, cast, residue contacts, cavities, tunnels and network with their
+profile, cast, residue contacts, cavities and network with their
 figures and viewer scenes, plus `*_profile_sensitivity.csv`. It doesn't take
 `--outputs`; its bundle is the same as in 0.2. Both choose the
-enclosure probe automatically for each system and record it
-(`enclosure_radius_A`, `enclosure_probe_mode`); a system where no probe gives
-a stable channel becomes an error row naming the probes tried. Pass a number,
+enclosure probe slice by slice for each system and record it
+(`enclosure_radius_A`, `enclosure_probe_mode`); a system where no channel
+resolves becomes an error row with the reason. Pass a number,
 such as `--enclosure-radius 0.8`, to use one probe everywhere.
 
 The sensitivity rows of `report --suite` vary the *measurement* probe
 (`--probe-radius`: 0, 1.0 and 1.4 Å by default) and keep each system's
 enclosure probe. A measurement probe too wide for the channel (1.4 Å in 1GRM,
-whose narrowest radius is about 1.33 Å) gives an `unresolved` row rather than
+whose narrowest radius is about 1.34 Å) gives an `unresolved` row rather than
 failing the system. Options: [`report --benchmark`](../reference/cli/report.md),
 [`report --suite`](../reference/cli/report.md).
 

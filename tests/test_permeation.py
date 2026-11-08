@@ -4,8 +4,10 @@ These are software tests: every trajectory is generated here, so the expected
 counts, directions, frames and transit times are known exactly. They do not
 validate any real channel.
 """
+import csv
 import json
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -118,12 +120,16 @@ def test_bulk_return_through_boundary_then_entry_from_the_far_side_is_not_an_eve
     assert row["events_total"] == 0 and row["unresolved_crossings"] == 0
 
 
-def test_leaving_laterally_clears_the_side_and_whole_extent_jumps_are_unresolved():
+def test_leaving_laterally_clears_the_side_only_in_the_strict_convention_and_jumps_are_unresolved():
     lateral = [(0, -10), (0, -7), (0, -3), (8, -2), (0, 2), (0, 7), (0, 10)]   # inside -> out -> inside -> above
     jump = [-8, -8, 8, 8, 8, 8, 8]                                             # crosses 16 Å in one frame
     u = build([("TIP3", WATER, lambda t: (lateral[t][0], 0, lateral[t][1])),
                ("TIP3", WATER, path_from_z(jump))], 7)
-    result = run(u)
+    # Default (compartment): the side is remembered through the lateral excursion, so the transit counts.
+    row = run(u).summary["channels"][0]["species"][0]
+    assert (row["events_up"], row["unresolved_crossings"], row["transits_outside_lumen"]) == (1, 1, 0)
+    result = run(u, convention="strict")
+    assert result.summary["definitions"]["convention"] == "strict"
     row = result.summary["channels"][0]["species"][0]
     assert row["events_total"] == 0
     assert row["unresolved_crossings"] == 1
@@ -244,6 +250,26 @@ def test_collective_diffusion_recovers_a_known_random_walk():
     assert record["D_per_ps"] == pytest.approx(d, rel=0.08)
     low, high = record["interval_per_s"]
     assert low < d * 1e12 < high
+
+
+def test_a_jump_over_the_extent_beside_the_lumen_is_listed_but_not_added_to_n():
+    """n(t) sums displacements inside the channel: a whole-extent jump counts only through the lumen.
+
+    Both molecules cross the 10 Å extent in one frame (both unresolved crossings); only the one on the
+    axis passes the lumen (radius 3 Å), so n rises by exactly 1, not 2. Before the fix the molecule 10 Å
+    beside the axis also added 1 (in real trajectories: bulk water displaced by about half a box between
+    frames, an ambiguous minimum image, far from the pore).
+    """
+    jump = [-8, -8, 8, 8, 8]
+    u = build([("TIP3", WATER, path_from_z(jump)), ("TIP3", WATER, path_from_z(jump, x=10.0))], 5)
+    result = run(u)
+    row = result.summary["channels"][0]["species"][0]
+    assert row["unresolved_crossings"] == 2 and row["events_total"] == 0
+    n = result.frames["series"]["channel/TIP3"]["n"]
+    assert n == pytest.approx([0.0, 0.0, 1.0, 1.0, 1.0])
+    # Without a lateral radius every molecule in the extent is in the channel: both jumps count.
+    n_all = run(u, channels=[channel(radius=None)]).frames["series"]["channel/TIP3"]["n"]
+    assert n_all == pytest.approx([0.0, 0.0, 2.0, 2.0, 2.0])
 
 
 def test_collective_coordinate_of_a_rigid_single_file_column():
@@ -410,3 +436,198 @@ def test_d_n_interval_is_clipped_at_zero_and_json_serialisable():
     json.dumps(record)
     assert record["interval_per_s"][0] >= 0
     assert record["interval_clipped_at_zero"] is (record["interval_unclipped_per_s"][0] < 0)
+
+
+def test_compartment_convention_attributes_transits_and_lists_those_outside_the_lumen():
+    approach = [(8, -12), (8, -4), (0, -3), (0, 0), (0, 3), (0, 8), (0, 8)]   # enters the extent beside the lumen
+    beside = [(8, -10), (8, -4), (8, 0), (8, 4), (8, 10), (8, 10), (8, 10)]     # never in the lumen
+    back = [(0, -10), (0, -3), (8, 0), (8, -3), (0, -10), (0, -10), (0, -10)]   # returns to its own side
+    u = build([("TIP3", WATER, lambda t, p=p: (p[t][0], 0, p[t][1])) for p in (approach, beside, back)], 7)
+    result = run(u)
+    row = result.summary["channels"][0]["species"][0]
+    assert (row["events_up"], row["events_down"], row["transits_outside_lumen"]) == (1, 0, 1)
+    statuses = sorted((e["resid"], e["status"], e["entry_frame"], e["exit_frame"]) for e in result.events)
+    assert statuses == [(7, "complete", 1, 5), (8, "outside_lumen", 1, 4)]
+    assert any("never entered the lumen" in w for w in result.summary["warnings"])
+    assert result.summary["totals_over_channels"][0]["transits_outside_lumen"] == 1
+    strict = run(u, convention="strict").summary["channels"][0]["species"][0]
+    assert (strict["events_total"], strict["transits_outside_lumen"]) == (0, 0)
+    with pytest.raises(ValueError, match="convention"):
+        run(u, convention="sideways")
+
+
+def test_dispersion_interval_reduces_to_garwood_and_widens_for_bursts():
+    from crevice.permeation import dispersion_count_interval
+    even = np.zeros(1000)
+    even[::50] = 1                                          # 20 regular events: under-dispersed
+    r = dispersion_count_interval(even)
+    assert r["dispersion_index"] == pytest.approx(0.0)
+    assert r["interval"] == pytest.approx(list(poisson_interval(20)))
+    bursts = np.zeros(1000)
+    bursts[:100:5] = 1                                      # the same 20 events, all in the first block
+    r = dispersion_count_interval(bursts)
+    assert r["dispersion_index"] == pytest.approx(20.0)
+    lo, hi = r["interval"]
+    assert lo < poisson_interval(20)[0] and hi > poisson_interval(20)[1]
+    assert dispersion_count_interval(np.zeros(100))["interval"] == pytest.approx(list(poisson_interval(0)))
+    assert dispersion_count_interval(np.ones(10), blocks=10)["dispersion_index"] is None   # one frame per block
+
+
+def test_rate_pd_and_current_intervals_report_and_use_the_dispersion_index():
+    # Ten molecules cross up in two bursts (frames 2-8 and 42-48) of an 80-frame run; ten Na+ the same way.
+    def path(start):
+        zs = [-10] * start + [-6, -2, 2, 6, 10] + [10] * 80
+        return path_from_z(zs[:80])
+    starts = [2, 3, 4, 5, 6, 42, 43, 44, 45, 46]
+    u = build([("TIP3", WATER, path(s)) for s in starts] + [("SOD", ("SOD",), path(s)) for s in starts], 80)
+    result = run(u, species=["TIP3,SOD"], voltage_mV=100)
+    water = result.summary["channels"][0]["species"][0]
+    assert water["events_up"] == 10
+    disp = water["event_dispersion"]
+    assert disp["up"] > 1 and disp["blocks"] == 10
+    assert water["rate_up_interval_per_ns"][1] > disp["rate_up_garwood_interval_per_ns"][1]
+    assert water["water"]["event_dispersion_index"] == pytest.approx(disp["total"])
+    assert water["water"]["pd_interval_cm3_per_s"][1] > water["water"]["pd_garwood_interval_cm3_per_s"][1]
+    current = result.summary["channels"][0]["ion_current_total"]
+    assert current["dispersion_index"] > 1
+    width = current["interval_pA"][1] - current["interval_pA"][0]
+    assert width > current["poisson"]["interval_pA"][1] - current["poisson"]["interval_pA"][0]
+    assert current["conductance_interval_pS"] == pytest.approx(sorted(x / 0.1 for x in current["interval_pA"]))
+
+
+def membrane(thickness=16.0, shift=lambda t: 0.0):
+    """Eight lipid phosphorus atoms in two planes, the whole membrane displaced by ``shift(t)`` along z."""
+    sites = [(x, y) for x in (-9.0, 9.0) for y in (-9.0, 9.0)]
+    return [("POPC", ("P",), (lambda t, x=x, y=y, s=s: (x, y, s * thickness / 2 + shift(t))))
+            for s in (-1, 1) for x, y in sites]
+
+
+def membrane_channel(**kw):
+    return CylinderChannel("channel", (0, 0, 1), None, None, point=(15.0, 15.0, 20.0), radius=3.0,
+                           membrane="name P", **kw)
+
+
+def test_membrane_planes_follow_the_bilayer():
+    # The membrane moves up by 6 Å; the ion passes the initial upper plane (+8) but not the moved one (+14).
+    shift = lambda t: min(t, 6) * 1.0  # noqa: E731
+    shy = [-15, -12, -8, -4, 0, 4, 8, 10, 10, 4, -2, -10, -20, -20]
+    across = [-20, -16, -10, -4, 2, 8, 12, 16, 20, 20, 20, 20, 20, 20]
+    u = build(membrane(shift=shift) + [("SOD", ("SOD",), path_from_z(shy)), ("SOD", ("SOD",), path_from_z(across))],
+              len(shy))
+    moving = run(u, species=("SOD",), channels=[membrane_channel()]).summary["channels"][0]
+    assert [(r["events_up"], r["events_down"]) for r in moving["species"]] == [(1, 0)]
+    planes = moving["definition"]["membrane_planes"]
+    assert planes["reference_frame_planes_A"] == pytest.approx([12.0, 28.0])
+    assert planes["lower_mean_A"] == pytest.approx(12.0 + np.mean([min(t, 6) for t in range(len(shy))]), abs=1e-4)
+    assert planes["thickness_mean_A"] == pytest.approx(16.0, abs=1e-4)
+    # A fixed extent at the reference frame's planes also counts the ion that never left the moved membrane.
+    fixed = run(u, species=("SOD",), channels=[channel(zmin=-8.0, zmax=8.0)]).summary["channels"][0]
+    assert fixed["species"][0]["events_up"] == 2
+
+
+def test_membrane_planes_across_the_periodic_boundary():
+    # Everything shifted by 18 Å in z and wrapped: the upper headgroups appear at the bottom of the box.
+    lift = lambda t, frame: frame + [0.0, 0.0, 18.0]  # noqa: E731
+    across = [-20, -16, -10, -4, 2, 8, 12, 16, 20, 20]
+    u = build(membrane() + [("SOD", ("SOD",), path_from_z(across))], len(across), transform=lift)
+    ch = CylinderChannel("channel", (0, 0, 1), None, None, point=(15.0, 15.0, 38.0), radius=3.0, membrane="name P")
+    row = run(u, species=("SOD",), channels=[ch]).summary["channels"][0]
+    assert row["definition"]["membrane_planes"]["reference_frame_planes_A"] == pytest.approx([30.0, 46.0])
+    assert (row["species"][0]["events_up"], row["species"][0]["unresolved_crossings"]) == (1, 0)
+
+
+def test_membrane_channel_definition_errors():
+    with pytest.raises(ValueError, match="not both"):
+        CylinderChannel("c", (0, 0, 1), -5.0, 5.0, membrane="name P")
+    with pytest.raises(ValueError, match="zmin and zmax"):
+        CylinderChannel("c", (0, 0, 1), None, None)
+    u = build([("SOD", ("SOD",), path_from_z([0, 1]))], 2)
+    with pytest.raises(ValueError, match="fewer than 2"):
+        run(u, species=("SOD",), channels=[membrane_channel()])
+
+
+def test_occupancy_distribution_sums_to_one():
+    inside = [-10, 0, 1, 2, 10, 10]
+    u = build([("SOD", ("SOD",), path_from_z(inside)), ("SOD", ("SOD",), path_from_z([0, 0, 1, 10, 10, 10]))], 6)
+    occ = run(u, species=("SOD",)).summary["channels"][0]["species"][0]["occupancy"]
+    assert occ["frame_fraction_by_count"] == pytest.approx([2 / 6, 2 / 6, 2 / 6])
+
+
+def test_cli_membrane_planes(tmp_path):
+    from crevice.cli import main
+    across = [-20, -16, -10, -4, 2, 8, 12, 16, 20, 20]
+    top, traj = _write_system(tmp_path, membrane() + [("SOD", ("SOD",), path_from_z(across))], len(across))
+    out = tmp_path / "run" / "m.json"
+    base = ["trajectory", str(traj), "--topology", str(top), "--permeation", "SOD", "--permeation-only", "--axis", "z",
+            "--origin", "15,15,20", "-o", str(out)]
+    assert main(base + ["--membrane-planes", "name P", "--channel-radius", "3"]) == 0
+    summary = json.loads((tmp_path / "run" / "m_permeation.json").read_text())
+    assert summary["channels"][0]["species"][0]["events_up"] == 1
+    assert summary["channels"][0]["definition"]["membrane_planes"]["selection"] == "name P"
+    assert main(base + ["--membrane-planes", "name P", "--channel-extent", "15,25"]) != 0
+
+
+def test_positions_trace_permeating_molecules_from_bulk_to_bulk():
+    up = [-10, -8, -4, 0, 4, 8, 10, 10, 10, 10]           # enters at frame 2, above at 5
+    same_side = [-10, -7, -3, 1, -2, -6, -9, -9, -9, -9]   # never crosses
+    u = build([("TIP3", WATER, path_from_z(up)), ("TIP3", WATER, path_from_z(same_side))], 10)
+    result = run(u)
+    rows = result.positions
+    assert {r["resid"] for r in rows} == {7}
+    assert [(r["frame"], r["state"]) for r in rows] == [(1, "below"), (2, "inside"), (3, "inside"), (4, "inside"),
+                                                         (5, "above")]
+    assert [r["axial_A"] for r in rows] == pytest.approx([12, 16, 20, 24, 28])
+    assert {r["first_event_direction"] for r in rows} == {"up"}
+
+
+def _profile_system(frames=20):
+    half = frames // 2
+    return build([("SOD", ("SOD",), path_from_z([-4.75] * frames)),     # reference bin at the lower end
+                  ("SOD", ("SOD",), path_from_z([4.75] * frames)),      # reference bin at the upper end
+                  ("SOD", ("SOD",), path_from_z([0.25] * frames)),      # always in the middle bin
+                  ("SOD", ("SOD",), path_from_z([-2.25] * half + [-12.0] * (frames - half)))], frames)
+
+
+def test_axial_free_energy_by_boltzmann_inversion_with_block_interval():
+    density = run(_profile_system(), species=("SOD",), temperature_K=310.0).summary["channels"][0]["species"][0][
+        "axial_density"]
+    centres = density["bin_centres_A"]
+    energy = density["free_energy"]
+    assert energy["defined"] and energy["blocks"] == 10
+    middle, half_time = centres.index(20.25), centres.index(17.75)
+    # n_ref is the mean of the four end bins (two empty, two always occupied): 0.5 molecules per frame.
+    assert energy["kT"][middle] == pytest.approx(-math.log(2))
+    assert energy["interval_kT"][middle] == pytest.approx([-math.log(2), -math.log(2)])
+    assert energy["kT"][half_time] == pytest.approx(0.0)
+    assert energy["interval_kT"][half_time] is None            # empty in the second half's blocks
+    assert energy["kT"][centres.index(22.25)] is None           # never visited
+    assert energy["kcal_per_mol"][middle] == pytest.approx(-math.log(2) * 0.0019872043 * 310.0)
+    assert density["density_per_A"][middle] == pytest.approx(2.0)   # one molecule per 0.5 A bin
+
+
+def test_axial_free_energy_is_withheld_for_driven_runs_and_outputs_are_written(tmp_path):
+    result = run(_profile_system(), species=("SOD",), voltage_mV=100.0)
+    energy = result.summary["channels"][0]["species"][0]["axial_density"]["free_energy"]
+    assert not energy["defined"] and energy["kT"] is None and "driven" in energy["reason"]
+    files = write_permeation_outputs(result, tmp_path, prefix="p", dpi=40)
+    for key in ("positions_csv", "profile_csv", "positions_png", "profile_png"):
+        assert Path(files[key]).is_file(), key
+    with open(files["profile_csv"], newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    assert rows and rows[0]["free_energy_kT"] == "" and float(rows[0]["molecules_per_frame"]) == 1.0
+    with pytest.raises(ValueError, match="temperature"):
+        run(_profile_system(), species=("SOD",), temperature_K=-1.0)
+
+
+def test_position_traces_are_capped_evenly_in_order_of_first_event():
+    zs = [-10, -6, -2, 2, 6, 10, 10, 10, 10, 10, 10, 10]
+    molecules = [("SOD", ("SOD",), path_from_z([-10] * k + zs)) for k in range(5)]   # one crossing each, staggered
+    u = build(molecules, 17)
+    capped = run(u, species=("SOD",), max_traces=2)
+    row = capped.summary["channels"][0]["species"][0]
+    assert row["position_traces"]["molecules_with_events"] == 5 and row["position_traces"]["traced"] == 2
+    assert sorted({r["resid"] for r in capped.positions}) == [7, 11]                 # first and last crossing
+    every = run(u, species=("SOD",), max_traces=0)
+    assert len({r["resid"] for r in every.positions}) == 5
+    with pytest.raises(ValueError, match="max_traces"):
+        run(u, species=("SOD",), max_traces=-1)

@@ -5,9 +5,9 @@ means when an analysis comes back unresolved.
 
 ## What a run writes
 
-The low-level commands (`profile`, `residues`, `cavities`, `cavities --tunnels`, `residues --network`,
+The low-level commands (`profile`, `residues`, `cavities`, `residues --network`,
 `residues --features`) write the main result file you name with `-o`. `profile`,
-`cavities`, `cavities --tunnels`, `residues --network` and `residues --features` also write their tables as CSV
+`cavities`, `residues --network` and `residues --features` also write their tables as CSV
 beside it, with the same stem (for example `-o 1GRM_profile.json` gives
 `1GRM_profile.csv`, and `-o net.json` gives `net_nodes.csv` and
 `net_edges.csv`); `profile --csv PATH` chooses another path for the profile
@@ -52,15 +52,15 @@ in `cavities --cast`, `report`, `report --analyze`, `residues --evidence`, `traj
 `--outputs default,hydration` or `--all`. They still run by default where
 water is the point of the command: `trajectory --water`, and `trajectory --cavities` /
 `trajectory --region` with `--water-membership`. `report` also no longer runs
-the separate cavity search, tunnel search and residue network unless asked
-(`--outputs default,cavities,tunnels,network`). Residue contacts, lining
+the residue network unless asked (`--outputs default,network`); the separate
+grid cavity search is `crevice cavities`. Residue contacts, lining
 residues and cast segments are always written.
 
 ### What each command writes
 
 | Command | Written by default | Added by `--all` |
 |---|---|---|
-| `report` | data; `*_profile_radius.png` and `*_residue_contacts.png`; one PyMOL, VMD and ChimeraX scene of the cast and its entry, lumen and exit segments; lining residues; typed residue interactions | cavity search, tunnel search and residue network (tables and figures); hydration; pore fingerprint; the annotated radius figure; input copy and dummy-atom PDBs; `*_pore_cast.*` and `*_pore_spheres.pml` scenes; HTML view |
+| `report` | data; `*_profile_radius.png` and `*_residue_contacts.png`; one PyMOL, VMD and ChimeraX scene of the cast and its entry, lumen and exit segments; lining residues; typed residue interactions | residue network (tables and figures); hydration; pore fingerprint; the annotated radius figure; input copy and dummy-atom PDBs; `*_pore_cast.*` and `*_pore_spheres.pml` scenes; HTML view |
 | `cavities --cast` | data, including one map per region in `regions/`; PyMOL, VMD and ChimeraX scenes of the cast; typed residue interactions | hydration (with its scenes and figures); input copy; `*_pore_cast.*` and `*_end_view.*` scenes; HTML view |
 | `report --analyze` | data only: the CSV and JSON of each `--analysis`, and typed residue interactions | figures (as `--png`); hydration with its scenes; HTML view |
 | `residues --evidence` | data; `*_residue_evidence.png`; PyMOL, VMD and ChimeraX `*_residue_context.*` scenes; typed residue interactions | hydration (with its scenes and figures); HTML view |
@@ -70,7 +70,7 @@ residues and cast segments are always written.
 
 "Data" always includes the manifest, the CSV tables, the JSON records and the
 measured maps. The low-level commands (`profile`, `residues`, `cavities`,
-`cavities --tunnels`, `residues --network`, `residues --features`, `profile --fingerprint`, `paths`, `trajectory --track`,
+`residues --network`, `residues --features`, `profile --fingerprint`, `paths`, `trajectory --track`,
 `view`) don't take `--outputs`; they write the files described on their tool
 pages.
 
@@ -88,7 +88,7 @@ the command's defaults):
 | `extra-views` | alias and variant scenes: `*_pore_cast.*`, `*_end_view.*`, `*_pore_spheres.pml` |
 | `hydration` | the water analyses (implies `interactions`) |
 | `interactions` | typed residue–residue interactions and conformations |
-| `cavities`, `tunnels`, `network`, `fingerprint` | the extra `report` analyses |
+| `network`, `fingerprint` | the extra `report` analyses |
 | `default` | the command's default selection |
 | `none` | data only |
 
@@ -112,7 +112,7 @@ invented profile). The `--skip-*` flags still remove an analysis, also from
 | `--skip-interactions` | the typed residue interactions (and, with hydration, the water bridges) |
 | `--skip-water-density` | 3D water-density maps (hydration) |
 | `--skip-analysis-views` | the hydration scenes, evidence table and overview figures (the numbers are still written) |
-| `report --skip-cavities / --skip-tunnels / --skip-network` | the extra grid searches and network |
+| `report --skip-network` | the residue network |
 
 The plan is printed on standard error before any work when standard error is a
 terminal (or with `CREVICE_PROGRESS=1`). `--dry-run` validates the settings,
@@ -161,7 +161,7 @@ structure is read.
 ## Data files: CSV first
 
 Every table you would analyse is a CSV: profiles, residue contacts, cast
-regions, cavities, tunnels and tunnel path nodes, network nodes and edges,
+regions, cavities, paths and their nodes, network nodes and edges,
 connectivity paths, features, trajectory frames and profiles, hydration per
 residue and per frame, typed interactions and conformations per frame, cavity
 trajectories per frame, per section and per boundary residue, water membership,
@@ -184,10 +184,10 @@ JSON is kept only where a nested, machine-readable record is needed:
 |---|---|
 | `*_manifest.json`, `*_hydration_manifest.json`, `*_cavity_manifest.json`, `*_evidence_manifest.json`, `manifest.json` | file index, settings and status of a run |
 | `*_input_report.json`, `*_reader.json`, `reader.json`, `request.json`, `*_region_provenance.json`, `*_selection.json`, `*_hydration_alignment.json`, `*_cavity_frame_diagnostics.json` | input, reader, atom-selection and alignment provenance |
-| `*_profile.json`, `*_void_cast.json`, `*_cavities.json`, `*_tunnels.json`, `*_network.json`, `*_connectivity.json`, `*_residue_evidence.json`, `*_interactions.json`, `*_hydration.json`, `*_water_density.json`, `*_water_membership.json`, `*_cavity_statistics.json`, `*_cavity_profile_statistics.json`, `comparison.json` | full structured records (settings, metadata, nested statistics and intervals) that other commands read, for example `hydration --cavity-results`, `region compare` and `trajectory --lining-evidence` |
+| `*_profile.json`, `*_void_cast.json`, `*_cavities.json`, `*_network.json`, `*_connectivity.json`, `*_residue_evidence.json`, `*_interactions.json`, `*_hydration.json`, `*_water_density.json`, `*_water_membership.json`, `*_cavity_statistics.json`, `*_cavity_profile_statistics.json`, `comparison.json` | full structured records (settings, metadata, nested statistics and intervals) that other commands read, for example `hydration --cavity-results`, `region compare` and `trajectory --lining-evidence` |
 | `*_scene.json`, `*_analysis_scene.json`, `*_review_scene.json`, `*_volume_metadata.json`, `*_region_annotations.json`, `*.identities.json` | scene definitions and identity maps read by the viewer scripts |
 | `*_region.json`, `*_review.json` | versioned region definitions and their review diagnostics |
-| `-o` results of `profile`, `cavities`, `cavities --tunnels`, `residues --network`, `residues --features`, `trajectory`, and `--network-json`, `--report-json`, `fetch --json`, `report --benchmark --output` | the file you named; its tables are also written as CSV |
+| `-o` results of `profile`, `cavities`, `residues --network`, `residues --features`, `trajectory`, and `--network-json`, `--report-json`, `fetch --json`, `report --benchmark --output` | the file you named; its tables are also written as CSV |
 
 NPZ and DX files hold grids and arrays (measured and display maps, density,
 per-frame arrays) that viewers and later commands load; their tabular content is
@@ -271,8 +271,8 @@ a dry pocket.
 
 When `report` cannot resolve a unique through-profile, it warns, records the
 reason and writes a 3D rolling-probe cast. It does not make up a profile. The
-cavity, tunnel and network analyses you requested (`--outputs` or `--all`)
-still run.
+network you requested (`--outputs` or `--all`)
+still runs.
 `<prefix>_profile_status.json` and the manifest's `profile_status` and
 `fallback_analyses` entries record what was completed, what was skipped on
 request and what could not be completed. See

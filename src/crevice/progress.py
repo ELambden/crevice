@@ -12,6 +12,12 @@ job) nothing is printed, unless the environment variable ``CREVICE_PROGRESS``
 is ``1``: then a plain line is written every 10% of the work. ``CREVICE_PROGRESS=0``
 silences progress everywhere.
 
+Status lines (:func:`status`) are short sentences about what a command is
+doing and what it found ("initialising the enclosure probe for 1k4c.pdb",
+"pore radius found in 3.2 s: ..."). They follow the same switch and
+``CREVICE_PROGRESS=0``, but are also written when standard error is not a
+terminal, so batch logs record them; ``--quiet`` turns them off.
+
 Worker processes never print: the trajectory commands update the bar in the
 parent process as each frame's result arrives, so forked pools are safe.
 
@@ -26,6 +32,7 @@ Examples
 >>> stream.getvalue()
 ''
 """
+
 from __future__ import annotations
 
 import os
@@ -166,8 +173,10 @@ class ProgressBar:
             fraction = min(1.0, self.done / self.total)
             width = 20
             filled = int(fraction * width)
-            text = (f"{self.label}: [{'#' * filled}{'.' * (width - filled)}] {self.done}/{self.total} "
-                    f"({fraction:.0%}) {_clock(elapsed)} elapsed")
+            text = (
+                f"{self.label}: [{'#' * filled}{'.' * (width - filled)}] {self.done}/{self.total} "
+                f"({fraction:.0%}) {_clock(elapsed)} elapsed"
+            )
             if 0 < self.done < self.total:
                 text += f", ~{_clock(elapsed / self.done * (self.total - self.done))} left"
             return text
@@ -224,3 +233,70 @@ def note(message: str, *, stream: TextIO | None = None) -> None:
     if progress_mode(stream) is not None:
         stream.write(message + "\n")
         stream.flush()
+
+
+def status_mode(stream: TextIO | None = None) -> bool:
+    """Whether :func:`status` lines are shown right now.
+
+    Status lines follow the reporting switch (:func:`progress_reporting`, on
+    for the command line unless ``--quiet``) and ``CREVICE_PROGRESS=0``, but,
+    unlike progress bars, they are also written when standard error is not a
+    terminal (a log file or batch job), because they are a few lines per run.
+
+    Parameters
+    ----------
+    stream : typing.TextIO, optional
+        Destination; default ``sys.stderr``. Unused, kept for symmetry with
+        :func:`progress_mode`.
+
+    Returns
+    -------
+    bool
+    """
+    if not _ACTIVE or os.getpid() != _OWNER_PID:
+        return False
+    return os.environ.get(PROGRESS_ENV, "").strip().lower() not in {"0", "off", "no", "false"}
+
+
+def status(message: str, *, stream: TextIO | None = None) -> None:
+    """Write one ``crevice: ...`` status line to standard error (see :func:`status_mode`).
+
+    Used by the command line to say what it is doing and what it found, for
+    example ``crevice: pore radius found in 3.2 s: minimum 0.747 A ...``. Never
+    written to standard output and never part of an output file; ``--quiet``
+    turns it off.
+
+    Parameters
+    ----------
+    message : str
+        Text after the ``crevice:`` prefix.
+    stream : typing.TextIO, optional
+        Destination; default ``sys.stderr``.
+    """
+    if status_mode():
+        stream = sys.stderr if stream is None else stream
+        if _OPEN:
+            # A redrawn progress line is on screen: start a fresh line first.
+            try:
+                if stream.isatty():
+                    stream.write("\r\033[K")
+            except (AttributeError, ValueError):
+                pass
+        stream.write(f"crevice: {message}\n")
+        stream.flush()
+
+
+class Stopwatch:
+    """Wall-clock time since creation, for status messages (``str()`` gives ``"3.2 s"``)."""
+
+    def __init__(self) -> None:
+        self._start = time.monotonic()
+
+    @property
+    def seconds(self) -> float:
+        """Elapsed seconds."""
+        return time.monotonic() - self._start
+
+    def __str__(self) -> str:
+        seconds = self.seconds
+        return f"{seconds:.1f} s" if seconds < 600 else _clock(seconds)

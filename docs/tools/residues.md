@@ -45,6 +45,21 @@ The profile options (`--axis`, `--origin`, `--samples` and so on) work exactly
 as in [`profile`](profile.md); if the profile doesn't resolve, neither does
 this command.
 
+### Which "lining" is which
+
+CREVICE calls a residue lining in three outputs, each answering a different
+question about a different shape, so their residue lists differ:
+
+| Output | Region | A residue is listed when | Default |
+|---|---|---|---|
+| `residues` (roles above), report residue contacts, network region edges | profile spheres | its atom surfaces come within `--cutoff` of a sphere | 4.5 Å gap; 1.0 Å for `lining` |
+| report `*_lining_residues.csv` (per ENTRY, LUMEN, EXIT segment) | cast grid points | an atom centre lies within `--lining-cutoff` of a segment grid point | 3.3 Å |
+| [boundary residues](residue-evidence.md) | cast surface triangles | a triangle within `--lining-distance` of an atom surface is assigned to its nearest atom | 1.5 Å |
+
+Use the profile roles to compare with HOLE-style analyses, the segment table to
+say which part of a cast a residue lines, and boundary residues for how much of
+a cast's wall each residue forms.
+
 ## Options you'll use most
 
 | Option | Default | What it does |

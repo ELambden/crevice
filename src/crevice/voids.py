@@ -72,6 +72,7 @@ class _GridNode:
     """Candidate grid node: position (Å), clearance (Å), limiting atom and the
     number of atom-occupied octants within the shell radius.
     """
+
     position: Coord
     clearance: float
     nearest: Atom
@@ -266,17 +267,25 @@ def void_cast(
         raise ValueError("max_components must be a positive integer")
     if max_export_points < 1:
         raise ValueError("max_export_points must be at least 1")
-    for name, value in (("spacing", spacing), ("shell_radius", shell_radius),
-                        ("focus_radius", focus_radius), ("channel_radius_scale", channel_radius_scale)):
+    for name, value in (
+        ("spacing", spacing),
+        ("shell_radius", shell_radius),
+        ("focus_radius", focus_radius),
+        ("channel_radius_scale", channel_radius_scale),
+    ):
         if not math.isfinite(value) or value <= 0:
             raise ValueError(f"{name} must be finite and positive")
-    for name, value in (("min_radius", min_radius), ("padding", padding),
-                        ("min_component_volume", min_component_volume),
-                        ("channel_radius_padding", channel_radius_padding or 0.0)):
+    for name, value in (
+        ("min_radius", min_radius),
+        ("padding", padding),
+        ("min_component_volume", min_component_volume),
+        ("channel_radius_padding", channel_radius_padding or 0.0),
+    ):
         if not math.isfinite(value) or value < 0:
             raise ValueError(f"{name} must be finite and non-negative")
-    if max_component_volume is not None and (not math.isfinite(max_component_volume)
-                                             or max_component_volume < min_component_volume):
+    if max_component_volume is not None and (
+        not math.isfinite(max_component_volume) or max_component_volume < min_component_volume
+    ):
         raise ValueError("max_component_volume must be finite and >= min_component_volume")
     if channel_max_radius is not None and (not math.isfinite(channel_max_radius) or channel_max_radius <= 0):
         raise ValueError("channel_max_radius must be finite and positive")
@@ -299,32 +308,65 @@ def void_cast(
     if mode in {"auto", "channel"} and profile is None:
         from .analysis import pore_profile
         from .sections import ChannelResolutionError
+
         try:
             # Fixed legacy enclosure probe: void_cast exposes no enclosure option.
-            profile = pore_profile(frame, axis=axis, samples=centerline_samples or 81,
-                                   search_radius=centerline_search_radius, enclosure_radius=0.8,
-                                   include_hydrogen=include_hydrogen, include_hetero=include_hetero)
+            profile = pore_profile(
+                frame,
+                axis=axis,
+                samples=centerline_samples or 81,
+                search_radius=centerline_search_radius,
+                enclosure_radius=0.8,
+                include_hydrogen=include_hydrogen,
+                include_hetero=include_hetero,
+            )
         except ChannelResolutionError as exc:
             if mode != "auto" or "Ambiguous" in str(exc):
                 raise
-            cast = void_cast(frame, mode="cavity", axis=axis, spacing=spacing,
-                             min_radius=min_radius, max_components=max_components, padding=padding,
-                             shell_radius=shell_radius, min_octants=min_octants,
-                             min_component_points=min_component_points, max_grid_points=max_grid_points,
-                             max_export_points=max_export_points, focus_points=focus_points, focus_radius=focus_radius,
-                             min_component_volume=min_component_volume, max_component_volume=max_component_volume,
-                             include_hydrogen=include_hydrogen, include_hetero=include_hetero)
+            cast = void_cast(
+                frame,
+                mode="cavity",
+                axis=axis,
+                spacing=spacing,
+                min_radius=min_radius,
+                max_components=max_components,
+                padding=padding,
+                shell_radius=shell_radius,
+                min_octants=min_octants,
+                min_component_points=min_component_points,
+                max_grid_points=max_grid_points,
+                max_export_points=max_export_points,
+                focus_points=focus_points,
+                focus_radius=focus_radius,
+                min_component_volume=min_component_volume,
+                max_component_volume=max_component_volume,
+                include_hydrogen=include_hydrogen,
+                include_hetero=include_hetero,
+            )
             return replace(cast, metadata={**cast.metadata, "auto_channel_unresolved": str(exc)})
     if mode in {"auto", "channel"} and profile is not None and profile.method == "axial-connected":
         if channel_radius_scale != 1.0 or channel_radius_padding or channel_max_radius is not None or padding:
-            raise ValueError("Connected section casts use probe-swept boundaries; sphere radius scaling and padding do not apply")
+            raise ValueError(
+                "Connected section casts use probe-swept boundaries; sphere radius scaling and padding do not apply"
+            )
         from .sections import channel_cast
-        return channel_cast(frame, profile, spacing=spacing, min_radius=min_radius,
-                            max_grid_points=max_grid_points, max_components=max_components,
-                            max_export_points=max_export_points, min_component_points=min_component_points,
-                            focus_points=focus_points, focus_radius=focus_radius,
-                            min_component_volume=min_component_volume, max_component_volume=max_component_volume,
-                            include_hydrogen=include_hydrogen, include_hetero=include_hetero)
+
+        return channel_cast(
+            frame,
+            profile,
+            spacing=spacing,
+            min_radius=min_radius,
+            max_grid_points=max_grid_points,
+            max_components=max_components,
+            max_export_points=max_export_points,
+            min_component_points=min_component_points,
+            focus_points=focus_points,
+            focus_radius=focus_radius,
+            min_component_volume=min_component_volume,
+            max_component_volume=max_component_volume,
+            include_hydrogen=include_hydrogen,
+            include_hetero=include_hetero,
+        )
 
     atoms = frame.selected_atoms(include_hydrogen=include_hydrogen, include_hetero=include_hetero)
     effective_padding = padding
@@ -360,6 +402,7 @@ def void_cast(
             shell_radius=shell_radius,
             min_octants=required_octants,
         )
+
     def edge_allowed(left: GridIndex, right: GridIndex) -> bool:
         return connectivity.allows(left, right, candidates[left].clearance, candidates[right].clearance)
 
@@ -408,10 +451,13 @@ def void_cast(
         channel_max_radius=channel_max_radius,
     )
     if focus_points is not None:
-        export_points = tuple(p for p in export_points
-                              if any(distance(p.position, focus) <= focus_radius for focus in focus_points))
+        export_points = tuple(
+            p for p in export_points if any(distance(p.position, focus) <= focus_radius for focus in focus_points)
+        )
     cropped_point_count = len(export_points)
-    final_min_component_points = max(min_component_points, 8) if export_mode == "centerline_fill" else min_component_points
+    final_min_component_points = (
+        max(min_component_points, 8) if export_mode == "centerline_fill" else min_component_points
+    )
     final_candidates = _components_from_export_points(
         frame,
         export_points,
@@ -425,11 +471,17 @@ def void_cast(
         min_component_points=final_min_component_points,
     )
     cast_components, selection = _select_final_components(
-        final_candidates, max_components=max_components,
-        min_volume=min_component_volume, max_volume=max_component_volume)
+        final_candidates,
+        max_components=max_components,
+        min_volume=min_component_volume,
+        max_volume=max_component_volume,
+    )
     selection["discarded_small_component_points"] = cropped_point_count - sum(c.point_count for c in final_candidates)
-    rejected = [row["candidate_component_id"] for row in selection["candidates"]
-                if row["decision"] in {"below_min_volume", "above_max_volume"}]
+    rejected = [
+        row["candidate_component_id"]
+        for row in selection["candidates"]
+        if row["decision"] in {"below_min_volume", "above_max_volume"}
+    ]
     selected_source_ids = {c.metadata["source_component_id"] for c in cast_components}
     selected_sources = tuple(c for c in considered_sources if c.id in selected_source_ids)
     full_points = [point for component in cast_components for point in component.points]
@@ -582,7 +634,6 @@ def _collect_void_nodes(
     return candidates
 
 
-
 def _collect_buried_void_nodes(
     spatial: SpatialIndex,
     *,
@@ -606,17 +657,18 @@ def _collect_buried_void_nodes(
         coverage = _directional_coverage(point, spatial, shell_radius)
         empty[idx] = _GridNode(point, clearance, nearest, coverage)
 
-    exterior = _flood_exterior(empty, dims, edge_allowed=lambda a, b:
-                              connectivity.allows(a, b, empty[a].clearance, empty[b].clearance))
-    return {
-        idx: node
-        for idx, node in empty.items()
-        if idx not in exterior and node.coverage >= min_octants
-    }
+    exterior = _flood_exterior(
+        empty, dims, edge_allowed=lambda a, b: connectivity.allows(a, b, empty[a].clearance, empty[b].clearance)
+    )
+    return {idx: node for idx, node in empty.items() if idx not in exterior and node.coverage >= min_octants}
 
 
-def _flood_exterior(empty: dict[GridIndex, _GridNode], dims: tuple[int, int, int], *,
-                    edge_allowed: Callable[[GridIndex, GridIndex], bool]) -> set[GridIndex]:
+def _flood_exterior(
+    empty: dict[GridIndex, _GridNode],
+    dims: tuple[int, int, int],
+    *,
+    edge_allowed: Callable[[GridIndex, GridIndex], bool],
+) -> set[GridIndex]:
     """Breadth-first flood fill from every free node on the box boundary through
     edges accepted by ``edge_allowed``; returns the exterior node set.
     """
@@ -631,6 +683,7 @@ def _flood_exterior(empty: dict[GridIndex, _GridNode], dims: tuple[int, int, int
                 exterior.add(neighbor)
                 queue.append(neighbor)
     return exterior
+
 
 def _build_components(
     frame: StructureFrame,
@@ -722,9 +775,7 @@ def _component_points(
     return tuple(points)
 
 
-def _eligible_source_components(
-    components: Sequence[VoidComponent], *, mode: str
-) -> tuple[VoidComponent, ...]:
+def _eligible_source_components(components: Sequence[VoidComponent], *, mode: str) -> tuple[VoidComponent, ...]:
     """Sources a mode may use: cavity mode keeps buried components only; channel
     mode keeps open (through/surface) components when any exist; otherwise all.
     """
@@ -738,8 +789,11 @@ def _eligible_source_components(
 
 
 def _select_final_components(
-    components: Sequence[VoidComponent], *, max_components: int,
-    min_volume: float, max_volume: float | None,
+    components: Sequence[VoidComponent],
+    *,
+    max_components: int,
+    min_volume: float,
+    max_volume: float | None,
 ) -> tuple[tuple[VoidComponent, ...], dict[str, Any]]:
     """Filter all final candidates before applying the volume-ranked limit.
 
@@ -763,16 +817,33 @@ def _select_final_components(
             else:
                 decision = "selected"
                 output_id = len(selected) + 1
-                selected.append(replace(component, id=output_id, metadata={
-                    **component.metadata, "candidate_component_id": component.id}))
-        decisions.append({"candidate_component_id": component.id,
-                          "source_component_id": component.metadata["source_component_id"],
-                          "volume": component.volume, "point_count": component.point_count,
-                          "decision": decision, "output_component_id": output_id})
+                selected.append(
+                    replace(
+                        component, id=output_id, metadata={**component.metadata, "candidate_component_id": component.id}
+                    )
+                )
+        decisions.append(
+            {
+                "candidate_component_id": component.id,
+                "source_component_id": component.metadata["source_component_id"],
+                "volume": component.volume,
+                "point_count": component.point_count,
+                "decision": decision,
+                "output_component_id": output_id,
+            }
+        )
     return tuple(selected), {
-        "order": ["source_mode_eligibility", "centerline_crop", "focus_crop",
-                  "final_connected_components", "final_component_point_threshold", "inclusive_volume_bounds",
-                  "descending_final_volume", "component_limit", "display_sampling"],
+        "order": [
+            "source_mode_eligibility",
+            "centerline_crop",
+            "focus_crop",
+            "final_connected_components",
+            "final_component_point_threshold",
+            "inclusive_volume_bounds",
+            "descending_final_volume",
+            "component_limit",
+            "display_sampling",
+        ],
         "tie_break": "lexicographic minimum grid coordinate",
         "candidate_component_count": len(components),
         "eligible_component_count": eligible_count,
@@ -891,8 +962,9 @@ def _components_from_export_points(
     if not points:
         return ()
     point_by_idx = {_index_from_point(point.position, grid_origin, spacing): point for point in points}
-    source_by_idx = {_index_from_point(p.position, grid_origin, spacing): c
-                     for c in source_components for p in c.points}
+    source_by_idx = {
+        _index_from_point(p.position, grid_origin, spacing): c for c in source_components for p in c.points
+    }
     clusters = _cluster_point_indices(set(point_by_idx), edge_allowed=edge_allowed)
     components: list[VoidComponent] = []
     for cluster in clusters:
@@ -934,7 +1006,6 @@ def _components_from_export_points(
     return tuple(_renumber_components(components))
 
 
-
 def _renumber_components(components: Sequence[VoidComponent]) -> tuple[VoidComponent, ...]:
     """Copy components with ids 1..n in the given order."""
     return tuple(
@@ -951,6 +1022,7 @@ def _renumber_components(components: Sequence[VoidComponent]) -> tuple[VoidCompo
         )
         for index, component in enumerate(components, start=1)
     )
+
 
 def _ensure_centerline_profile(
     frame: StructureFrame,
@@ -1028,7 +1100,6 @@ def _renumber_points(points: Sequence[ChannelPoint]) -> tuple[ChannelPoint, ...]
     return tuple(renumbered)
 
 
-
 def _index_from_point(point: Coord, grid_origin: Coord, spacing: float) -> GridIndex:
     """Grid index of a position on the axis-aligned grid (rounded to nearest)."""
     return (
@@ -1036,6 +1107,7 @@ def _index_from_point(point: Coord, grid_origin: Coord, spacing: float) -> GridI
         int(round((point[1] - grid_origin[1]) / spacing)),
         int(round((point[2] - grid_origin[2]) / spacing)),
     )
+
 
 def _sample_points_by_axis(points: Sequence[ChannelPoint], max_points: int) -> list[ChannelPoint]:
     """Sort points by ``(t, position)`` and thin to ``max_points`` with :func:`_sample_evenly`."""
@@ -1070,8 +1142,9 @@ def _sample_evenly(points: Sequence[ChannelPoint], count: int) -> list[ChannelPo
     return selected[:count]
 
 
-def _cluster_point_indices(indices: set[GridIndex], *,
-                           edge_allowed: Callable[[GridIndex, GridIndex], bool]) -> list[list[GridIndex]]:
+def _cluster_point_indices(
+    indices: set[GridIndex], *, edge_allowed: Callable[[GridIndex, GridIndex], bool]
+) -> list[list[GridIndex]]:
     """Connected components of grid indices under ``edge_allowed`` (26-neighbour
     breadth-first search from sorted seeds), largest first, ties by smallest
     index.
@@ -1097,8 +1170,9 @@ def _cluster_point_indices(indices: set[GridIndex], *,
     return clusters
 
 
-def _cluster_indices(candidates: dict[GridIndex, _GridNode], *,
-                     edge_allowed: Callable[[GridIndex, GridIndex], bool]) -> list[list[GridIndex]]:
+def _cluster_indices(
+    candidates: dict[GridIndex, _GridNode], *, edge_allowed: Callable[[GridIndex, GridIndex], bool]
+) -> list[list[GridIndex]]:
     """Connected components of candidate nodes; see :func:`_cluster_point_indices`."""
     return _cluster_point_indices(set(candidates), edge_allowed=edge_allowed)
 
@@ -1150,7 +1224,13 @@ def _component_score(
     max_radius = max(clearances)
     topology_bonus = 3.0 if kind == "through_channel" else 1.5 if kind == "surface_connected" else 1.0
     face_bonus = 1.0 + 0.25 * len(boundary_faces) + 0.5 * _opposing_face_count(boundary_faces)
-    return topology_bonus * face_bonus * (volume ** (2.0 / 3.0)) * (0.5 * mean_radius + 0.5 * max_radius) * (1.0 + 0.02 * axis_span)
+    return (
+        topology_bonus
+        * face_bonus
+        * (volume ** (2.0 / 3.0))
+        * (0.5 * mean_radius + 0.5 * max_radius)
+        * (1.0 + 0.02 * axis_span)
+    )
 
 
 def _boundary_faces(cluster: Sequence[GridIndex], dims: tuple[int, int, int]) -> tuple[str, ...]:

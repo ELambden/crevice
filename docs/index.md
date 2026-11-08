@@ -5,7 +5,7 @@
 :::{container}
 **CREVICE** finds and measures the spaces inside proteins: the pores and
 channels that run through them, the cavities buried within them and the
-tunnels that lead out. It tells you which residues line those spaces, which
+routes that lead out. It tells you which residues line those spaces, which
 residues they touch, and where the water is, for a single structure or across a
 whole molecular-dynamics trajectory.
 
@@ -51,7 +51,7 @@ the main results and nothing you didn't ask for.
 - a **manifest** (`1GRM_manifest.json`) listing every file and every setting.
 
 Want more? `--outputs default,hydration` adds the water analyses, `--all`
-writes everything (cavities, tunnels, the residue network, every figure, a
+writes everything (the residue network, every figure, a
 pore fingerprint and an interactive HTML view), and `--dry-run` shows what a
 command would do without running it. [Outputs](getting-started/outputs.md)
 has the full list.
@@ -63,8 +63,8 @@ crevice profile 1GRM -o 1GRM_profile.json --png 1GRM_profile.png
 ```
 
 ```text
-profile points=81 min_radius=1.337 mean_radius=1.571 bottleneck_index=73
-enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
+profile points=81 min_radius=1.337 mean_radius=1.584 bottleneck_index=71
+enclosure_radius=per-plane 0.30-1.40 (auto: per-plane enclosure probe, 0.30-1.40 A over 81 samples)
 ```
 
 ```python
@@ -95,9 +95,9 @@ Radius profiles along a channel and 3D casts of the space inside it.
 :::{container} crevice-card crevice-violet
 ![](examples/images/4pyp_residue_context_chimerax.png)
 
-**[Cavities and tunnels](tools/cast.md)**
+**[Cavities and pockets](tools/cast.md)**
 
-Casts of pockets and buried cavities, and the widest routes to the outside.
+Casts of pockets and buried cavities; [pathways](tools/paths.md) give the widest routes to the outside.
 :::
 
 :::{container} crevice-card crevice-entry

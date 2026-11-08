@@ -3,9 +3,14 @@
 `crevice cavities` is a quick search for empty spaces that are completely
 enclosed by the protein, the kind a probe cannot reach from outside at the
 grid resolution you choose. It works on a coarse grid, so it's fast and makes a
-good first look. For pockets that open to one side, and for a finer,
-better-controlled shape and volume, use a [cast](cast.md); the two use
-different definitions, so their results aren't interchangeable.
+good first look, and it is cheap enough to run on every frame of a trajectory
+(`crevice trajectory --analysis cavities`). For pockets that open to one side,
+and for a finer, better-controlled shape and volume, use a
+[cast](cast.md) (`crevice cavities --cast`): the cast measures the volume a
+probe sweeps, this search counts probe-centre grid points of fully enclosed
+spaces only, so their results aren't interchangeable. `crevice report` does
+not run this search; run it on its own, or with
+`report --analyze --analysis cavities`.
 
 ## Quick start
 
@@ -28,7 +33,7 @@ points connect only if the straight line between them, diagonals included,
 also clears every atom. CREVICE then floods the free space inwards from the
 edges of the grid: whatever the flood can't reach is enclosed. Each connected
 enclosed group is a cavity, and the largest `--max-cavities` are reported.
-Open channels and tunnels are left out on purpose.
+Open channels and routes to the outside are left out on purpose (see [`paths`](paths.md)).
 
 The walls are protein heavy atoms. Heteroatoms (ligands, waters, ions) are
 left out unless you pass `--include-hetero`, and hydrogens unless you pass
@@ -72,7 +77,9 @@ Enclosure is judged at one grid resolution and one probe size, and the default
 2 Å grid is coarse: a narrow opening can be missed, or a closed space can look
 open, and results can change with the spacing or a small shift of the grid. An
 empty result doesn't mean the protein has no cavity. In our runs on 1GRM and 4PYP
-(`report --outputs default,cavities`) this search found none, yet 4PYP has a large cavity that opens to
-one side and casts clearly. The search is tested on synthetic structures; it
-has not been benchmarked against curated cavities.
+this search found none, yet 4PYP has a large cavity that opens to
+one side and casts clearly. Its probe-centre volumes are compared with the cast,
+pyKVFinder and POVME on three pockets in the
+[benchmarks](../methods/benchmarks.md); that comparison checks definitions, not
+biological correctness.
 :::

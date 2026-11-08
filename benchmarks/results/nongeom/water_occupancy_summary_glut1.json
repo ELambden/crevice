@@ -1,0 +1,60 @@
+{
+  "script": "benchmarks/nongeom/water_occupancy.py",
+  "machine": {
+    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.13.13",
+    "cpu_count": 8,
+    "load_average_1_5_15": [
+      3.93798828125,
+      3.451171875,
+      2.23876953125
+    ],
+    "cpu_model": "Intel(R) Core(TM) Ultra 7 268V"
+  },
+  "inputs": {
+    "topology": "prod.gro",
+    "trajectory": "prod2_short.xtc"
+  },
+  "hydration_contacts": {
+    "frames": 21,
+    "frame_range": [
+      0,
+      1001,
+      50
+    ],
+    "residues": 492,
+    "residue_frame_pairs": 10332,
+    "pairs_differing": 0,
+    "max_abs_difference": 0.0,
+    "total_contacts_crevice": 23547.0,
+    "total_contacts_reference": 23547.0,
+    "closest_pair_to_cutoff_A": 1.3310871403771074e-05,
+    "crevice_seconds": 9.263484274968505,
+    "reference_seconds": 0.24648425728082657,
+    "water_population": 27173
+  },
+  "membership_bulk": {
+    "frames": 101,
+    "centre_A": [
+      0.0,
+      48.099853515625,
+      127.94275665283203
+    ],
+    "radius_A": 8.0,
+    "spacing_A": 0.5,
+    "voxels": 17077,
+    "volume_A3": 2134.625,
+    "sphere_volume_A3": 2144.660584850632,
+    "straddles_periodic_face": true,
+    "membrane_median_z_A": 62.090003967285156,
+    "all_member_ids_identical": false,
+    "mean_members": 70.3069306930693,
+    "sd_members": 3.3398879449988312,
+    "mean_member_density_per_A3": 0.03293643178219561,
+    "mean_slab_density_per_A3": 0.033062915586068824,
+    "density_ratio": 0.9961744509934717,
+    "expected_members_from_slab_density": 70.57692618291216,
+    "note": "frames are correlated; the ratio's sampling error is roughly sd/sqrt(frames) / mean"
+  }
+}

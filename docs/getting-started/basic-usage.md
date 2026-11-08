@@ -20,12 +20,12 @@ crevice profile 1GRM -o 1GRM_profile.json --png 1GRM_profile_radius.png
 ```
 
 CREVICE downloads 1GRM into `.crevice/pdb/`, finds the channel axis, picks a
-suitable enclosure probe and measures the radius of the largest atom-free
-sphere at each point along the channel. It prints a one-line summary:
+suitable enclosure probe for each slice and measures the radius of the largest atom-free
+sphere at each point along the channel. It prints a short summary:
 
 ```text
-profile points=81 min_radius=1.337 mean_radius=1.571 bottleneck_index=73
-enclosure_radius=0.750 (auto: smallest probe of channel group 1, which resolved at 5 of 21 probes tried)
+profile points=81 min_radius=1.337 mean_radius=1.584 bottleneck_index=71
+enclosure_radius=per-plane 0.30-1.40 (auto: per-plane enclosure probe, 0.30-1.40 A over 81 samples)
 ```
 
 and writes three files:
@@ -90,8 +90,8 @@ Everything else is one option away, on every command that writes a directory:
 crevice report 1GRM --outputs help
 # add the water analyses
 crevice report 1GRM --out-dir r --outputs default,hydration
-# add the cavity and tunnel searches and the residue network
-crevice report 1GRM --out-dir r --outputs default,cavities,tunnels,network
+# add the residue network
+crevice report 1GRM --out-dir r --outputs default,network
 # every figure and an interactive HTML view
 crevice report 1GRM --out-dir r --outputs default,figures,viewer-html
 # data and the PyMOL scene only
@@ -139,9 +139,11 @@ shows the same scene (install `crevice[view]` first). See
 
 ### Progress, quiet runs and errors
 
-Long runs, such as trajectories and the automatic choice of the enclosure
-probe, show a progress bar while you watch them in a terminal. Add `--quiet`
-(`-q`) to hide it; nothing is shown when the output goes to a file anyway. If a
+Analyses print a few `crevice: ...` lines on standard error that say what they
+are doing and what they found, such as `pore radius found in 0.8 s: minimum
+0.747 A at s = +5.0 A ...`. Long runs, such as trajectories, also show a progress bar while
+you watch them in a terminal. Add `--quiet` (`-q`) to hide both; standard
+output and the output files are the same either way. If a
 command fails, CREVICE prints one `crevice: error:` line, often with a hint;
 add `--debug` to see the full Python traceback, which is handy in a bug report.
 See [Progress and errors](../reference/cli/common-options.md#progress-and-errors).
@@ -228,10 +230,8 @@ big difference when you run many structures or long trajectories:
   `trajectory --region` start up to four worker processes by default (fewer with
   few CPUs, few frames or little free memory). Set `--workers N` to choose;
   the results are the same for any worker count.
-- **Fix the enclosure probe once you know it.** With `--enclosure-radius auto`
-  CREVICE tries a ladder of probes until the channel resolves, and prints the
-  one it chose. Passing that value, for example `--enclosure-radius 0.75`,
-  skips the ladder.
+- **Install the compiled kernels.** `pip install "crevice[fast]"` adds numba,
+  which makes channel profiles several times faster with identical results.
 - **Fewer samples for a first look.** `--samples` sets the minimum number of
   points along a profile (81 by default); a smaller number is quicker while you
   explore. The section and cast spacings have a larger effect on run time, so
@@ -240,10 +240,10 @@ big difference when you run many structures or long trajectories:
   which is quick and keeps files small; use `--dpi 400` for print, or skip a
   figure you don't need.
 
-As an example on one 8-core desktop shared with other jobs (single-threaded
-maths libraries, a fixed axis and 0.25 Å sections), a 1GRM profile took about
-2.6 s with the automatic probe and about 0.6 s with `--enclosure-radius 0.8`;
-a 3UKM profile with `--lateral-exits` took about 40 s; and a five-frame GLUT1
+As an example on one 8-core desktop (single-threaded maths libraries, the
+optional numba kernels, a fixed axis and 0.25 Å sections), a 1GRM profile
+took about 0.6 s and a 3UKM profile with `--lateral-exits` about 2.7 s, each
+including about 0.3 s of start-up; a five-frame GLUT1
 `trajectory --region --water-membership` took about 24 s with the default
 workers. Your times will differ. To measure them on your own machine, the
 source repository has `scripts/timing.py`, which times a fixed set of commands

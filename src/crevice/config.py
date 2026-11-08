@@ -42,13 +42,16 @@ same command (``"report"``, ``"cavities --cast"``, ``"trajectory --region"``)
 is accepted wherever a command name is taken (:func:`crevice.cli.canonical_command`).
 Settings files written by CREVICE 0.3 keep working unchanged; their
 ``outputs.legacy_outputs`` key (``--legacy-outputs``, removed in 0.4) is
-ignored when false and refused when true.
+ignored when false and refused when true. The keys of the tunnel search
+removed in 0.5 (``skip_tunnels``, ``tunnel_spacing`` ...) and ``report``'s
+``skip_cavities`` are ignored.
 
 :meth:`RunSettings.validate` checks units, ranges, input files and option
 combinations before any structure is loaded or grid allocated. Every bundle
 command records the effective settings, where each value came from and the
 input file hashes in its manifest under ``run``.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -91,7 +94,7 @@ class InputSettings:
     selection, obstacle_selection, water_selection : str
         MDAnalysis selections (``cavities --cast --selection`` is ``protein``/``all``).
     include_hydrogen, exclude_hetero, include_hetero : bool
-        Obstacle atom policy of the profile family and cavity/tunnel searches.
+        Obstacle atom policy of the profile family and cavity searches.
     volume_dx, reference_volume_dx, cavity_results, scene : str
         Measured maps, earlier results and scenes the command builds on.
     residues_json, residue_groups, lining_evidence : str
@@ -160,7 +163,7 @@ class GeometrySettings:
     ----------
     axis, origin, section_spacing, enclosure_radius, lateral_exits : object
         Channel direction and seed, cross-section spacing (Å) and enclosure probe (Å; ``None`` = automatic).
-    exit_bulk_radius, exit_spacing, samples, padding, search_radius, refinement_steps : object
+    exit_bulk_radius, exit_spacing, samples, search_radius, refinement_steps : object
         Exit search (Å), profile sampling and centre refinement.
     probe_radius : float
         Probe radius (Å); subtracted from profile radii, or the rolling probe of casts.
@@ -178,12 +181,10 @@ class GeometrySettings:
         Residue contact settings (Å).
     geometry_mode, region_margin, grid_phase, profile_padding, minimum_overlap, ambiguity_ratio : object
         Cavity-trajectory geometry.
-    min_radius, max_cavities, max_tunnels, tunnel_start : object
-        Cavity and tunnel searches (``tunnel_start`` is ``--start`` of ``tunnels``/``report --analyze``).
+    min_radius, max_cavities : object
+        Cavity searches.
     cavity_spacing, cavity_min_radius, cavity_max_grid_points : object
         ``report --analyze``/``report --suite`` cavity search.
-    tunnel_spacing, tunnel_min_radius, tunnel_max_grid_points : object
-        ``report --analyze``/``report --suite`` tunnel search.
     radius : float
         ``region init`` landmark sphere radius (Å).
     hydrophobicity_bandwidth, lining_shell, electrolyte, resistivity : object
@@ -198,8 +199,7 @@ class GeometrySettings:
     exit_bulk_radius: Any = _f("Å", "positive")
     exit_spacing: Any = _f("Å", "positive")
     samples: Any = _f(None, "count2")
-    padding: Any = _f("Å", "nonnegative")
-    search_radius: Any = _f("Å", "nonnegative")
+    search_radius: Any = _f("Å", "positive")
     refinement_steps: Any = _f(None, "nonnegative")
     probe_radius: Any = _f("Å", "nonnegative")
     spacing: Any = _f("Å", "positive")
@@ -241,14 +241,9 @@ class GeometrySettings:
     ambiguity_ratio: Any = _f(None, "fraction")
     min_radius: Any = _f("Å", "nonnegative")
     max_cavities: Any = _f(None, "count1")
-    max_tunnels: Any = _f(None, "count1")
-    tunnel_start: Any = None
     cavity_spacing: Any = _f("Å", "positive")
     cavity_min_radius: Any = _f("Å", "nonnegative")
     cavity_max_grid_points: Any = _f(None, "count1")
-    tunnel_spacing: Any = _f("Å", "positive")
-    tunnel_min_radius: Any = _f("Å", "nonnegative")
-    tunnel_max_grid_points: Any = _f(None, "count1")
     radius: Any = _f("Å", "positive")
     hydrophobicity_bandwidth: Any = _f("Å", "positive")
     lining_shell: Any = _f("Å", "nonnegative")
@@ -282,7 +277,7 @@ class OutputSettings:
         Output directory, single output file and file-name prefix.
     outputs, all_outputs, dry_run : object
         Output policy (:mod:`crevice.outputs`) and plan-only runs.
-    skip_hydration, skip_cavities, skip_tunnels, skip_network : bool
+    skip_hydration, skip_cavities, skip_network : bool
         Remove an optional analysis.
     fingerprint : bool
         ``report --fingerprint``.
@@ -302,7 +297,6 @@ class OutputSettings:
     dry_run: Any = None
     skip_hydration: Any = None
     skip_cavities: Any = None
-    skip_tunnels: Any = None
     skip_network: Any = None
     fingerprint: Any = None
     csv: Any = None
@@ -366,7 +360,7 @@ class TrajectorySettings:
     ----------
     start, stop, stride, max_frames : int
         Frame range (``start``/``stop`` are source frame indices) and the frame guard.
-    pbc, workers, align, inspect, profile_errors, probe_fallback : object
+    pbc, workers, align, inspect, profile_errors : object
         Periodic handling, worker processes, alignment and error policy.
     confidence, block_length, bootstrap_replicates, bootstrap_seed : object
         Approximate mean intervals.
@@ -383,7 +377,6 @@ class TrajectorySettings:
     align: Any = None
     inspect: Any = None
     profile_errors: Any = None
-    probe_fallback: Any = None
     confidence: Any = _f(None, "confidence")
     block_length: Any = _f("frames", "count1")
     bootstrap_replicates: Any = _f(None, "count1")
@@ -422,37 +415,35 @@ class HydrationSettings:
     no_water: Any = None
 
 
-_SECTION_TYPES = {"input": InputSettings, "geometry": GeometrySettings, "radii": RadiiSettings,
-                  "outputs": OutputSettings, "display": DisplaySettings, "trajectory": TrajectorySettings,
-                  "hydration": HydrationSettings}
+_SECTION_TYPES = {
+    "input": InputSettings,
+    "geometry": GeometrySettings,
+    "radii": RadiiSettings,
+    "outputs": OutputSettings,
+    "display": DisplaySettings,
+    "trajectory": TrajectorySettings,
+    "hydration": HydrationSettings,
+}
 #: argparse destination -> (section, field name).
 FIELD_OF: dict = {f.name: (section, f.name) for section, cls in _SECTION_TYPES.items() for f in fields(cls)}
-#: ``--start`` is a coordinate for these commands, a frame index elsewhere.
-_TUNNEL_START_COMMANDS = {"tunnels", "analyze"}
 #: Never part of the settings.
 _EXCLUDED = {"func", "command", "quiet", "debug", "config", "print_config", "help"}
 
 
 def _section_of(command: str, dest: str) -> tuple:
-    if dest == "start" and command in _TUNNEL_START_COMMANDS:
-        return "geometry", "tunnel_start"
     return FIELD_OF.get(dest, ("method", dest))
-
-
-def _dest_of(command: str, section: str, name: str) -> str:
-    if section == "geometry" and name == "tunnel_start" and command in _TUNNEL_START_COMMANDS:
-        return "start"
-    return name
 
 
 def _canonical(command: str) -> str:
     """The analysis (0.3 command) name of a command given in the 0.3 or 0.4 form."""
     from .cli import canonical_command
+
     return canonical_command(command)
 
 
 def _subparser(command: str) -> argparse.ArgumentParser:
     from .cli import build_parser
+
     command = _canonical(command)
     parser = build_parser()
     action = next(a for a in parser._actions if isinstance(a, argparse._SubParsersAction))
@@ -473,8 +464,7 @@ def command_actions(command: str) -> dict:
     -------
     dict of str to argparse.Action
     """
-    return {a.dest: a for a in _subparser(command)._actions
-            if a.dest not in _EXCLUDED and a.dest != argparse.SUPPRESS}
+    return {a.dest: a for a in _subparser(command)._actions if a.dest not in _EXCLUDED and a.dest != argparse.SUPPRESS}
 
 
 def _jsonable(value):
@@ -540,8 +530,9 @@ class RunSettings:
         return cls.from_values(command, values, sources={dest: "default" for dest in values})
 
     @classmethod
-    def from_values(cls, command: str, values: dict, *, sources: dict | None = None,
-                    config_file: str | None = None) -> "RunSettings":
+    def from_values(
+        cls, command: str, values: dict, *, sources: dict | None = None, config_file: str | None = None
+    ) -> "RunSettings":
         """Build settings from a flat ``{argparse destination: value}`` mapping.
 
         Parameters
@@ -577,8 +568,9 @@ class RunSettings:
         return settings
 
     @classmethod
-    def from_namespace(cls, args: argparse.Namespace, *, sources: dict | None = None,
-                       config_file: str | None = None) -> "RunSettings":
+    def from_namespace(
+        cls, args: argparse.Namespace, *, sources: dict | None = None, config_file: str | None = None
+    ) -> "RunSettings":
         """Settings of a parsed ``crevice`` command line.
 
         Parameters
@@ -688,8 +680,9 @@ class RunSettings:
             Includes ``command`` and the handler ``func``.
         """
         parser = _subparser(self.command)
-        namespace = argparse.Namespace(command=self.command, quiet=False, debug=False, config=None,
-                                       print_config=False, **self.values())
+        namespace = argparse.Namespace(
+            command=self.command, quiet=False, debug=False, config=None, print_config=False, **self.values()
+        )
         namespace.func = parser.get_default("func")
         return namespace
 
@@ -760,11 +753,15 @@ class RunSettings:
 
     def _check_combinations(self) -> None:
         command, get, has = self.command, self.get, self.applicable.__contains__
-        if has("hydration_sasa_points") and get("hydration_sasa_points") is not None and get("hydration_sasa_points") < 32:
+        if (
+            has("hydration_sasa_points")
+            and get("hydration_sasa_points") is not None
+            and get("hydration_sasa_points") < 32
+        ):
             raise ValueError("--hydration-sasa-points: hydration SASA requires at least 32 points per atom")
         if command in {"hydration", "cavity-trajectory", "region-trajectory"} and get("max_frames") == 0:
             raise ValueError("--max-frames must be at least 1 for this command")
-        if has("start") and has("stop") and command not in _TUNNEL_START_COMMANDS:
+        if has("start") and has("stop"):
             start, stop = get("start"), get("stop")
             if stop is not None and start is not None and stop <= start:
                 raise ValueError(f"--stop ({stop}) must be greater than --start ({start})")
@@ -772,8 +769,12 @@ class RunSettings:
             low, high = get("quantiles")
             if not 0 <= low < high <= 1:
                 raise ValueError("--quantiles must satisfy 0 <= lower < upper <= 1")
-        if command == "hydration" and get("confidence") and get("bootstrap_replicates") is not None \
-                and get("bootstrap_replicates") < 200:
+        if (
+            command == "hydration"
+            and get("confidence")
+            and get("bootstrap_replicates") is not None
+            and get("bootstrap_replicates") < 200
+        ):
             raise ValueError("--bootstrap-replicates: hydration intervals need at least 200 replicates")
         if command == "cavity-trajectory" and get("obstacle_selection") and get("geometry_mode") != "reference-region":
             raise ValueError("--obstacle-selection requires --geometry-mode reference-region")
@@ -784,11 +785,19 @@ class RunSettings:
                 raise ValueError("Choose --alignment-residue or --alignment-residues-json")
             if get("topology") and len(get("structures") or ()) != 1:
                 raise ValueError("--topology requires exactly one trajectory file")
-        if command == "publish" and get("cast_mode") == "rolling" and (
-                get("focus") is not None or get("max_component_volume") is not None or get("cast_min_radius")):
-            raise ValueError("--cast-mode rolling does not support --focus, --max-component-volume or --cast-min-radius")
-        if command == "publish" and get("max_component_volume") is not None and \
-                get("max_component_volume") < (get("min_component_volume") or 0):
+        if (
+            command == "publish"
+            and get("cast_mode") == "rolling"
+            and (get("focus") is not None or get("max_component_volume") is not None or get("cast_min_radius"))
+        ):
+            raise ValueError(
+                "--cast-mode rolling does not support --focus, --max-component-volume or --cast-min-radius"
+            )
+        if (
+            command == "publish"
+            and get("max_component_volume") is not None
+            and get("max_component_volume") < (get("min_component_volume") or 0)
+        ):
             raise ValueError("--max-component-volume must be at least --min-component-volume")
         if command == "profile" and get("pymol") and not get("pdb"):
             raise ValueError("--pymol requires --pdb so the dummy atoms can be loaded")
@@ -801,15 +810,21 @@ def _check(command: str, dest: str, value, check: str) -> None:
         if not Path(value).exists():
             raise FileNotFoundError(f"--{dest.replace('_', '-')}: {value} does not exist")
         return
-    option = "--" + ("start" if dest == "tunnel_start" else dest.replace("_", "-"))
+    option = "--" + dest.replace("_", "-")
     if not isinstance(value, (int, float)):
         return
     if not math.isfinite(value):
         raise ValueError(f"{option} must be finite (got {value})")
-    rules = {"positive": (lambda v: v > 0, "positive"), "nonnegative": (lambda v: v >= 0, "non-negative"),
-             "count1": (lambda v: v >= 1, "at least 1"), "count2": (lambda v: v >= 2, "at least 2"),
-             "count32": (lambda v: v >= 32, "at least 32"), "fraction": (lambda v: 0 <= v <= 1, "in [0, 1]"),
-             "fraction_open": (lambda v: 0 < v <= 1, "in (0, 1]"), "confidence": (lambda v: 0 <= v < 1, "in [0, 1)")}
+    rules = {
+        "positive": (lambda v: v > 0, "positive"),
+        "nonnegative": (lambda v: v >= 0, "non-negative"),
+        "count1": (lambda v: v >= 1, "at least 1"),
+        "count2": (lambda v: v >= 2, "at least 2"),
+        "count32": (lambda v: v >= 32, "at least 32"),
+        "fraction": (lambda v: 0 <= v <= 1, "in [0, 1]"),
+        "fraction_open": (lambda v: 0 < v <= 1, "in (0, 1]"),
+        "confidence": (lambda v: 0 <= v < 1, "in [0, 1)"),
+    }
     ok, text = rules[check]
     if not ok(value):
         raise ValueError(f"{option} must be {text} (got {value})")
@@ -821,6 +836,7 @@ def _normalise(command: str, dest: str, value):
     if action is None or value is None:
         return value
     from .geometry import parse_coord
+
     if isinstance(value, list) and action.type is parse_coord:
         return tuple(float(v) for v in value)
     if action.type is float and isinstance(value, int) and not isinstance(value, bool):
@@ -863,14 +879,18 @@ def flatten_settings(data: dict, command: str | None = None) -> dict:
             continue
         if key in SECTIONS and isinstance(block, dict):
             for name, value in block.items():
-                values[_dest_of(command, key, name)] = value
+                values[name] = value
         elif key in SECTIONS:
             raise ValueError(f"settings section '{key}' must be a mapping")
         else:
             values[key] = value_or_error(key, block, actions, command)
+    for key in (*REMOVED_TUNNEL_SETTINGS, *REMOVED_SETTINGS.get(command, ())):
+        values.pop(key, None)
     if values.pop(REMOVED_LEGACY_OUTPUTS, False):
-        raise ValueError("--legacy-outputs (settings key outputs.legacy_outputs) was removed in CREVICE 0.4; "
-                         "use --all (\"all_outputs\": true) or --outputs")
+        raise ValueError(
+            "--legacy-outputs (settings key outputs.legacy_outputs) was removed in CREVICE 0.4; "
+            "use --all (\"all_outputs\": true) or --outputs"
+        )
     unknown = sorted(d for d in values if d not in actions)
     if unknown:
         raise ValueError(f"crevice {command} has no option(s): {', '.join(unknown)}")
@@ -879,6 +899,19 @@ def flatten_settings(data: dict, command: str | None = None) -> dict:
 
 #: Settings key of the removed ``--legacy-outputs`` (accepted when false, so 0.3 files still load).
 REMOVED_LEGACY_OUTPUTS = "legacy_outputs"
+#: Settings keys of the tunnel search removed in 0.5 (``--skip-tunnels``, ``--tunnel-*``, ``--max-tunnels``,
+#: the tunnel ``--start``). They configured only that search, so 0.4 settings files load with them ignored.
+REMOVED_TUNNEL_SETTINGS = (
+    "skip_tunnels",
+    "tunnel_spacing",
+    "tunnel_min_radius",
+    "tunnel_max_grid_points",
+    "max_tunnels",
+    "tunnel_start",
+)
+#: Per-command settings keys removed in 0.5 (``report --skip-cavities``: report no longer runs the grid cavity
+#: search). Ignored when a 0.4 settings file of that command is loaded.
+REMOVED_SETTINGS = {"publish": ("skip_cavities",)}
 
 
 def value_or_error(key: str, value, actions: dict, command: str):
@@ -904,7 +937,12 @@ def value_or_error(key: str, value, actions: dict, command: str):
     ValueError
         When ``key`` is neither a section nor an option of the command.
     """
-    if key not in actions and key != REMOVED_LEGACY_OUTPUTS:
+    if (
+        key not in actions
+        and key != REMOVED_LEGACY_OUTPUTS
+        and key not in REMOVED_TUNNEL_SETTINGS
+        and key not in REMOVED_SETTINGS.get(command, ())
+    ):
         raise ValueError(f"crevice {command}: unknown settings key '{key}' (sections: {', '.join(SECTIONS)})")
     return value
 
@@ -996,9 +1034,24 @@ def file_record(path: str | Path, role: str) -> dict:
 
 
 #: Input options whose files are hashed into the run record.
-INPUT_FILE_OPTIONS = ("structure", "structures", "topology", "trajectory", "definition", "volume_dx",
-                      "reference_volume_dx", "cavity_results", "residues_json", "residue_groups", "lining_evidence",
-                      "alignment_residues_json", "scene", "radii", "left_statistics", "right_statistics")
+INPUT_FILE_OPTIONS = (
+    "structure",
+    "structures",
+    "topology",
+    "trajectory",
+    "definition",
+    "volume_dx",
+    "reference_volume_dx",
+    "cavity_results",
+    "residues_json",
+    "residue_groups",
+    "lining_evidence",
+    "alignment_residues_json",
+    "scene",
+    "radii",
+    "left_statistics",
+    "right_statistics",
+)
 
 
 def run_record(settings: RunSettings, argv: list | None, plan=None, log=None, source=None) -> dict:
@@ -1022,6 +1075,7 @@ def run_record(settings: RunSettings, argv: list | None, plan=None, log=None, so
     dict
     """
     from . import __version__
+
     inputs = []
     for dest in INPUT_FILE_OPTIONS:
         if dest not in settings.applicable:
@@ -1031,18 +1085,23 @@ def run_record(settings: RunSettings, argv: list | None, plan=None, log=None, so
             continue
         if dest == "radii" and Path(str(value)).suffix.lower() not in {".json", ".csv", ".rad"}:
             continue
-        for item in (value if isinstance(value, (list, tuple)) else [value]):
+        for item in value if isinstance(value, (list, tuple)) else [value]:
             path = Path(str(item))
             if dest == "structure" and source and not path.is_file() and source.get("path"):
                 path = Path(source["path"])
             inputs.append(file_record(path, dest))
-    record = {"crevice_version": __version__, "command": settings.command,
-              "argv": list(argv) if argv is not None else None,
-              "interface": "cli" if argv is not None else "python",
-              "config_file": settings.config_file, "settings": settings.to_dict(),
-              "non_default_settings": {d: s for d, s in sorted(settings.sources.items()) if s != "default"},
-              "units": settings.units(), "inputs": inputs,
-              "python": sys.version.split()[0]}
+    record = {
+        "crevice_version": __version__,
+        "command": settings.command,
+        "argv": list(argv) if argv is not None else None,
+        "interface": "cli" if argv is not None else "python",
+        "config_file": settings.config_file,
+        "settings": settings.to_dict(),
+        "non_default_settings": {d: s for d, s in sorted(settings.sources.items()) if s != "default"},
+        "units": settings.units(),
+        "inputs": inputs,
+        "python": sys.version.split()[0],
+    }
     if source:
         record["structure_source"] = source
     if plan is not None:
@@ -1101,7 +1160,7 @@ def settings(command: str, *args, **values) -> RunSettings:
     for key, value in values.items():
         if key in SECTIONS and isinstance(value, dict):
             for name, item in value.items():
-                result.set(_dest_of(command, key, name), item)
+                result.set(name, item)
         else:
             result.set(key, value)
     missing = [d for d in positional if result.get(d) in (None, [])]
@@ -1134,5 +1193,6 @@ def run(run_settings: RunSettings) -> dict:
         file itself records the paths relative to its directory.
     """
     from .cli import execute
+
     run_settings.validate()
     return execute(run_settings.to_namespace(), settings=run_settings, argv=None)

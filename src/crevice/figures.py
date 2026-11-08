@@ -2,45 +2,20 @@
 
 from __future__ import annotations
 
-import json
 import math
 import shutil
 from pathlib import Path
 from ._script_paths import PYMOL_INPUT, script_relative
 from ._portable_paths import dumps_record
-from dataclasses import replace
 from typing import TYPE_CHECKING, Sequence
 
 if TYPE_CHECKING:  # pragma: no cover
     from matplotlib.figure import Figure
 
-from .analysis import annotate_residues, detect_cavities, pore_profile
-from .tunnels import find_tunnels
-from .voids import void_cast
-from .io import (
-    write_cavities_csv,
-    write_cavities_json,
-    write_cavities_pdb,
-    write_connectivity_csv,
-    write_network_csv,
-    write_profile_csv,
-    write_profile_json,
-    write_profile_pdb,
-    write_residue_contacts_csv,
-    write_tunnel_points_csv,
-    write_tunnels_csv,
-    write_tunnels_json,
-    write_tunnels_pdb,
-    write_void_cast_csv,
-    write_void_cast_json,
-    write_void_cast_pdb,
-)
-from .models import Cavity, FrameAnalysis, PoreProfile, ResidueContact, ResidueInteractionNetwork, StructureFrame, Tunnel, TrajectoryAnalysis
-from .networks import build_cavity_network, network_metrics
+from .models import Cavity, PoreProfile, ResidueContact, ResidueInteractionNetwork, StructureFrame, TrajectoryAnalysis
 from .outputs import output_option
-from .presentation import (FigureText, annotate_option, annotations_enabled, figure_annotations, figure_description,
-                           mouth_guides_enabled)
-from .radii import RadiusSet, radii_fields, radii_option
+from .presentation import FigureText, annotate_option, mouth_guides_enabled
+from .radii import RadiusSet, radii_option
 
 CREVICE_BLUE = "#1f77b4"
 CREVICE_TEAL = "#008b8b"
@@ -49,7 +24,6 @@ CREVICE_ORANGE = "#d9822b"
 CREVICE_GRAY = "#4d4d4d"
 CREVICE_GREEN = "#2e7d32"
 CREVICE_PURPLE = "#6f4aa8"
-CREVICE_LIGHT = "#eef3f7"
 
 
 def _draw_channel_mouths(ax, profile, text: FigureText | None = None):
@@ -64,9 +38,14 @@ def _draw_channel_mouths(ax, profile, text: FigureText | None = None):
         # lateral exit leg (``_draw_exit_legs``) is drawn there instead.
         if (exits.get(label) or {}).get("type") == "lateral":
             continue
-        ax.plot([p["t"] for p in segment], [p["radius"] for p in segment],
-                color="#8d969e", linestyle="--", linewidth=1.5,
-                label=None if labelled else "Exterior clearance")
+        ax.plot(
+            [p["t"] for p in segment],
+            [p["radius"] for p in segment],
+            color="#8d969e",
+            linestyle="--",
+            linewidth=1.5,
+            label=None if labelled else "Exterior clearance",
+        )
         labelled = True
     for label in ("lower", "upper"):
         mouth = mouths[label]
@@ -74,14 +53,21 @@ def _draw_channel_mouths(ax, profile, text: FigureText | None = None):
         if not mouth_guides_enabled():
             # Mouth brackets are opt-in (--mouth-guides); positions stay in metadata.
             if text is not None:
-                text.note(f"{label.title()} mouth at {t:.2f} Å (bracket {mouth['bracket_A'][0]:.2f} to "
-                          f"{mouth['bracket_A'][1]:.2f} Å); mouth guides not drawn")
+                text.note(
+                    f"{label.title()} mouth at {t:.2f} Å (bracket {mouth['bracket_A'][0]:.2f} to "
+                    f"{mouth['bracket_A'][1]:.2f} Å); mouth guides not drawn"
+                )
             continue
         ax.axvspan(*mouth["bracket_A"], color=CREVICE_ORANGE, alpha=0.25)
         ax.axvline(t, color=CREVICE_ORANGE, linewidth=1.2, linestyle=":")
         message = f"{label.title()} mouth\n{t:.2f} Å"
-        kwargs = dict(transform=ax.get_xaxis_transform(), ha="right" if label == "lower" else "left",
-                      va="top", fontsize=8, color="#996018")
+        kwargs = dict(
+            transform=ax.get_xaxis_transform(),
+            ha="right" if label == "lower" else "left",
+            va="top",
+            fontsize=8,
+            color="#996018",
+        )
         if text is None:
             ax.text(t, 0.98, message, **kwargs)
         else:
@@ -119,13 +105,21 @@ def _draw_exit_legs(ax, profile, text: FigureText | None = None) -> int:
             radii = leg.get("radii_A") or []
             if len(arc) != len(radii) or len(arc) < 2:
                 continue
-            ax.plot([point.t + sign*a for a in arc], radii, color=CREVICE_EXIT, linestyle="-.",
-                    linewidth=1.8, label=None if drawn else "Lateral exit (path length beyond mouth)")
+            ax.plot(
+                [point.t + sign * a for a in arc],
+                radii,
+                color=CREVICE_EXIT,
+                linestyle="-.",
+                linewidth=1.8,
+                label=None if drawn else "Lateral exit (path length beyond mouth)",
+            )
             drawn += 1
             if text is not None:
-                text.note(f"Lateral exit leg {leg.get('leg', 1)} at the {label} end: bottleneck "
-                          f"{leg['bottleneck_radius_A']:.3f} Å, length {leg['length_A']:.2f} Å; drawn against "
-                          "path length beyond the mouth")
+                text.note(
+                    f"Lateral exit leg {leg.get('leg', 1)} at the {label} end: bottleneck "
+                    f"{leg['bottleneck_radius_A']:.3f} Å, length {leg['length_A']:.2f} Å; drawn against "
+                    "path length beyond the mouth"
+                )
     return drawn
 
 
@@ -140,9 +134,11 @@ def _set_title(ax, text: FigureText, title: str | None, default: str, **kwargs) 
 
 def _profile_summary(profile: PoreProfile) -> str:
     b = profile.bottleneck
-    return (f"minimum radius {profile.min_radius:.3f} Å at the bottleneck (sample {b.index}, "
-            f"t = {b.t:.2f} Å, nearest residue {b.nearest_residue or 'unassigned'}); "
-            f"mean radius {profile.mean_radius:.3f} Å over {len(profile.points)} samples")
+    return (
+        f"minimum radius {profile.min_radius:.3f} Å at the bottleneck (sample {b.index}, "
+        f"t = {b.t:.2f} Å, nearest residue {b.nearest_residue or 'unassigned'}); "
+        f"mean radius {profile.mean_radius:.3f} Å over {len(profile.points)} samples"
+    )
 
 
 @annotate_option
@@ -234,7 +230,9 @@ def plot_profile_radius(
     output = _ensure_parent(path) if path is not None else None
     x = [point.t for point in profile.points]
     y = [point.radius for point in profile.points]
-    text = FigureText("Pore radius against axial coordinate for one resolved channel profile; " + _profile_summary(profile))
+    text = FigureText(
+        "Pore radius against axial coordinate for one resolved channel profile; " + _profile_summary(profile)
+    )
 
     fig, ax = plt.subplots(figsize=(6.8, 4.2), constrained_layout=True)
     ax.plot(x, y, color=CREVICE_BLUE, linewidth=2.2, label="Pore radius")
@@ -351,10 +349,14 @@ def plot_profile_radius_with_residues(
     x = [point.t for point in profile.points]
     y = [point.radius for point in profile.points]
     labels = _profile_residue_landmarks(profile, label_every=label_every, max_labels=max_labels)
-    text = FigureText("Pore radius against axial coordinate with a lane of nearest pore-lining residue landmarks; "
-                      + _profile_summary(profile))
-    text.note("Residue landmarks (residue at axial coordinate): "
-              + "; ".join(f"{_short_residue_label(label)} at {point.t:.2f} Å" for point, label in labels))
+    text = FigureText(
+        "Pore radius against axial coordinate with a lane of nearest pore-lining residue landmarks; "
+        + _profile_summary(profile)
+    )
+    text.note(
+        "Residue landmarks (residue at axial coordinate): "
+        + "; ".join(f"{_short_residue_label(label)} at {point.t:.2f} Å" for point, label in labels)
+    )
 
     fig, (ax, lane) = plt.subplots(
         2,
@@ -396,7 +398,12 @@ def plot_profile_radius_with_residues(
     for rank, (point, label) in enumerate(labels):
         y_text = 0.78 if rank % 2 == 0 else 0.28
         if text.draw:
-            lane.plot([point.t, point.t], [0.55, y_text - 0.08 if y_text > 0.5 else y_text + 0.08], color="#a9b2ba", linewidth=0.7)
+            lane.plot(
+                [point.t, point.t],
+                [0.55, y_text - 0.08 if y_text > 0.5 else y_text + 0.08],
+                color="#a9b2ba",
+                linewidth=0.7,
+            )
         lane.scatter([point.t], [0.62], s=18, color=_landmark_color(label), zorder=3)
         if text.draw:
             lane.text(
@@ -487,15 +494,18 @@ def plot_residue_contacts(
     plt = _pyplot()
     output = _ensure_parent(path) if path is not None else None
     ranked = sorted(contacts, key=lambda contact: (-contact.influence_score, contact.min_distance))[:top_n]
-    text = FigureText(f"Top {len(ranked)} residues ranked by influence score; bar colour is the contact role "
-                      "(gap = smallest residue atom-surface distance to the region surface; "
-                      "bottleneck = within two profile samples of the narrowest sample)")
+    text = FigureText(
+        f"Top {len(ranked)} residues ranked by influence score; bar colour is the contact role "
+        "(gap = smallest residue atom-surface distance to the region surface; "
+        "bottleneck = within two profile samples of the narrowest sample)"
+    )
     height = max(3.6, 0.32 * max(len(ranked), 1) + 1.2)
     fig, ax = plt.subplots(figsize=(7.2, height), constrained_layout=True)
     if not ranked:
         _empty_panel(ax, "No residue contacts detected", text)
     else:
         from matplotlib.patches import Patch
+
         labels = [contact.residue for contact in reversed(ranked)]
         scores = [contact.influence_score for contact in reversed(ranked)]
         colors = [_role_color(contact.role) for contact in reversed(ranked)]
@@ -505,10 +515,20 @@ def plot_residue_contacts(
         _set_title(ax, text, title, "CREVICE residue contacts")
         ax.grid(True, axis="x", color="#d8d8d8", linewidth=0.65, alpha=0.75)
         present = {_role_key(contact.role) for contact in ranked}
-        handles = [Patch(facecolor=_role_color(role), edgecolor="white", label=label)
-                   for role, label in ROLE_LEGEND if role in present]
-        fig.legend(handles=handles, title="Contact role", loc="outside lower center", ncol=2,
-                   fontsize=7.5, title_fontsize=8, frameon=False)
+        handles = [
+            Patch(facecolor=_role_color(role), edgecolor="white", label=label)
+            for role, label in ROLE_LEGEND
+            if role in present
+        ]
+        fig.legend(
+            handles=handles,
+            title="Contact role",
+            loc="outside lower center",
+            ncol=2,
+            fontsize=7.5,
+            title_fontsize=8,
+            frameon=False,
+        )
     _style_axes(ax)
     return _finish_figure(fig, output, dpi=dpi, text=text)
 
@@ -572,7 +592,9 @@ def plot_cavity_summary(
     plt = _pyplot()
     output = _ensure_parent(path) if path is not None else None
     ranked = sorted(cavities, key=lambda cavity: cavity.score, reverse=True)[:top_n]
-    text = FigureText(f"Volume (bars, left axis) and maximum radius (line, right axis) of the top {len(ranked)} detected cavities by score")
+    text = FigureText(
+        f"Volume (bars, left axis) and maximum radius (line, right axis) of the top {len(ranked)} detected cavities by score"
+    )
     fig, ax = plt.subplots(figsize=(7.0, 4.4), constrained_layout=True)
     if not ranked:
         _empty_panel(ax, "No cavities detected", text)
@@ -679,14 +701,17 @@ def plot_network_summary(
     top = [item for item in sorted(totals.items(), key=lambda item: (-item[1], item[0])) if item[1] > 0][:top_n]
     criterion = _contact_criterion(network)
     xlabel = f"Residue contacts (degree: residues with {criterion})"
-    text = FigureText(f"Number of residue-residue contacts (degree in the residue contact network, {criterion}) of the "
-                      f"{len(top)} residues with most contacts, split by contact class; region pseudo-node edges are not counted")
+    text = FigureText(
+        f"Number of residue-residue contacts (degree in the residue contact network, {criterion}) of the "
+        f"{len(top)} residues with most contacts, split by contact class; region pseudo-node edges are not counted"
+    )
     height = max(3.6, 0.32 * max(len(top), 1) + 1.2)
     fig, ax = plt.subplots(figsize=(7.2, height), constrained_layout=True)
     if not top:
         _empty_panel(ax, "No residue contacts in the network", text)
     else:
         from matplotlib.patches import Patch
+
         labels = [item[0] for item in reversed(top)]
         left = [0] * len(labels)
         present = []
@@ -704,10 +729,20 @@ def plot_network_summary(
         ax.xaxis.get_major_locator().set_params(integer=True)
         _set_title(ax, text, title, "CREVICE residue-interaction network")
         ax.grid(True, axis="x", color="#d8d8d8", linewidth=0.65, alpha=0.75)
-        handles = [Patch(facecolor=_interaction_color(key), edgecolor="white", label=label)
-                   for key, label in INTERACTION_LEGEND if key in present]
-        fig.legend(handles=handles, title="Contact class", loc="outside lower center", ncol=3,
-                   fontsize=7.5, title_fontsize=8, frameon=False)
+        handles = [
+            Patch(facecolor=_interaction_color(key), edgecolor="white", label=label)
+            for key, label in INTERACTION_LEGEND
+            if key in present
+        ]
+        fig.legend(
+            handles=handles,
+            title="Contact class",
+            loc="outside lower center",
+            ncol=3,
+            fontsize=7.5,
+            title_fontsize=8,
+            frameon=False,
+        )
     _style_axes(ax)
     return _finish_figure(fig, output, dpi=dpi, text=text)
 
@@ -801,8 +836,10 @@ def plot_network_chord(
     edges = [edge for edge in network.edges if edge.source in selected_set and edge.target in selected_set]
     edges.sort(key=lambda edge: (-edge.weight, edge.distance, edge.source, edge.target))
     edges = edges[:max_edges]
-    text = FigureText(f"Chord diagram of {len(selected)} highest-degree network nodes and {len(edges)} strongest edges among them; "
-                      "edge colour is the interaction type and width the relative weight")
+    text = FigureText(
+        f"Chord diagram of {len(selected)} highest-degree network nodes and {len(edges)} strongest edges among them; "
+        "edge colour is the interaction type and width the relative weight"
+    )
 
     fig, ax = plt.subplots(figsize=(7.2, 7.2), constrained_layout=True)
     ax.set_aspect("equal")
@@ -861,24 +898,40 @@ def plot_network_chord(
 
     _set_title(ax, text, title, "CREVICE residue interaction chord diagram", fontsize=12, color="#222222", pad=18)
     drawn = {_interaction_key(edge.interaction) for edge in edges}
-    legend_items = [Line2D([0], [0], color=_interaction_color(key), lw=2, label=label)
-                    for key, label in INTERACTION_LEGEND if key in drawn]
+    legend_items = [
+        Line2D([0], [0], color=_interaction_color(key), lw=2, label=label)
+        for key, label in INTERACTION_LEGEND
+        if key in drawn
+    ]
     ax.set_xlim(-1.38, 1.38)
     ax.set_ylim(-1.32, 1.35)
     if legend_items:
         # A figure legend "outside" the axes: constrained layout reserves a band
         # below the axes' full extent, residue names included, so the legend can
         # never overlap a label however many nodes or how long their names are.
-        fig.legend(handles=legend_items, frameon=False, loc="outside lower center",
-                   ncol=min(3, len(legend_items)), fontsize=8)
+        fig.legend(
+            handles=legend_items, frameon=False, loc="outside lower center", ncol=min(3, len(legend_items)), fontsize=8
+        )
     return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
 @annotate_option
 def plot_trajectory_profiles(
-    trajectory, path=None, *, dpi=200,title=None,view="distribution",quantiles=(.1,.9),
-    coordinate_grid=None,samples=101,confidence=None,block_length=None,
-    bootstrap_replicates=2000,seed=20260911,distribution=None,quantity="radius",
+    trajectory,
+    path=None,
+    *,
+    dpi=200,
+    title=None,
+    view="distribution",
+    quantiles=(0.1, 0.9),
+    coordinate_grid=None,
+    samples=101,
+    confidence=None,
+    block_length=None,
+    bootstrap_replicates=2000,
+    seed=20260911,
+    distribution=None,
+    quantity="radius",
     annotate=None,
 ):
     """Plot aligned per-frame channel profiles as a distribution or a timeseries.
@@ -964,52 +1017,100 @@ def plot_trajectory_profiles(
     * Light-grey grid; the radius axis starts at zero.
     """
     import numpy as np
-    if view not in {"distribution","timeseries"}:raise ValueError("view must be distribution or timeseries")
-    if quantity not in {"radius","diameter"}:raise ValueError("quantity must be radius or diameter")
-    plt=_pyplot();output=_ensure_parent(path) if path is not None else None
-    frames=tuple(trajectory.frames if isinstance(trajectory,TrajectoryAnalysis) else trajectory)
-    profiles=[f.profile for f in frames if f.profile is not None]
-    scale=2 if quantity=="diameter" else 1
-    text=FigureText(f"Aligned channel {quantity} {'distribution along the axis' if view=='distribution' else 'timeseries'}; "
-                    f"{len(profiles)} of {len(frames)} frames have a resolved profile")
-    if view=="distribution" and profiles:
+
+    if view not in {"distribution", "timeseries"}:
+        raise ValueError("view must be distribution or timeseries")
+    if quantity not in {"radius", "diameter"}:
+        raise ValueError("quantity must be radius or diameter")
+    plt = _pyplot()
+    output = _ensure_parent(path) if path is not None else None
+    frames = tuple(trajectory.frames if isinstance(trajectory, TrajectoryAnalysis) else trajectory)
+    profiles = [f.profile for f in frames if f.profile is not None]
+    scale = 2 if quantity == "diameter" else 1
+    text = FigureText(
+        f"Aligned channel {quantity} {'distribution along the axis' if view == 'distribution' else 'timeseries'}; "
+        f"{len(profiles)} of {len(frames)} frames have a resolved profile"
+    )
+    if view == "distribution" and profiles:
         from .ensemble import profile_distribution
-        distribution=distribution or profile_distribution(trajectory,quantiles=quantiles,coordinate_grid=coordinate_grid,
-                      samples=samples,confidence=confidence,block_length=block_length,
-                      bootstrap_replicates=bootstrap_replicates,seed=seed)
-        rows=distribution['rows'];x=[r['coordinate'] for r in rows]
-        values=lambda key:np.asarray([np.nan if r.get(key) is None else r[key]*scale for r in rows])
-        fig,(ax,coverage)=plt.subplots(2,1,figsize=(7.8,6),sharex=True,gridspec_kw={'height_ratios':[4,1]},layout='constrained')
-        ax.fill_between(x,values('lower_radius'),values('upper_radius'),color=CREVICE_TEAL,alpha=.17,
-                        label=f'{100*quantiles[0]:g}–{100*quantiles[1]:g}% frame range (fluctuations)')
-        interval=distribution.get('confidence_interval') or {}
-        if interval.get('status')=='estimated':
-            ax.fill_between(x,values('mean_band_lower'),values('mean_band_upper'),color=CREVICE_TEAL,alpha=.46,
-                            label=f"{100*interval['confidence']:g}% approximate simultaneous mean band")
+
+        distribution = distribution or profile_distribution(
+            trajectory,
+            quantiles=quantiles,
+            coordinate_grid=coordinate_grid,
+            samples=samples,
+            confidence=confidence,
+            block_length=block_length,
+            bootstrap_replicates=bootstrap_replicates,
+            seed=seed,
+        )
+        rows = distribution['rows']
+        x = [r['coordinate'] for r in rows]
+        values = lambda key: np.asarray([np.nan if r.get(key) is None else r[key] * scale for r in rows])
+        fig, (ax, coverage) = plt.subplots(
+            2, 1, figsize=(7.8, 6), sharex=True, gridspec_kw={'height_ratios': [4, 1]}, layout='constrained'
+        )
+        ax.fill_between(
+            x,
+            values('lower_radius'),
+            values('upper_radius'),
+            color=CREVICE_TEAL,
+            alpha=0.17,
+            label=f'{100 * quantiles[0]:g}–{100 * quantiles[1]:g}% frame range (fluctuations)',
+        )
+        interval = distribution.get('confidence_interval') or {}
+        if interval.get('status') == 'estimated':
+            ax.fill_between(
+                x,
+                values('mean_band_lower'),
+                values('mean_band_upper'),
+                color=CREVICE_TEAL,
+                alpha=0.46,
+                label=f"{100 * interval['confidence']:g}% approximate simultaneous mean band",
+            )
         elif interval:
-            text.text(ax,.02,.02,'Mean confidence unavailable: '+interval.get('status','unknown').replace('_',' '),
-                      transform=ax.transAxes,fontsize=8,wrap=True)
-        ax.plot(x,values('mean_radius'),color=CREVICE_TEAL,lw=2,label='Mean')
-        coverage.plot(x,[r['n_frames']/len(frames) for r in rows],color=CREVICE_GRAY,lw=1.5)
-        coverage.set_ylim(-.05,1.05);coverage.set_ylabel('Frame\ncoverage');coverage.set_xlabel('Aligned axial coordinate (Å)')
-        coverage.set_yticks([0,.5,1]);_style_axes(coverage)
-        unvalidated=any(p.metadata.get('status')=='unvalidated_axis_scan' for p in profiles)
-        _set_title(ax,text,title,('Unvalidated fixed-axis clearance' if unvalidated else 'Aligned pore profile')+f' · {len(profiles)}/{len(frames)} frames')
-        ax.set_ylabel(('Clearance ' if unvalidated else 'Pore ')+quantity+' (Å)');ax.legend(frameon=False,fontsize=8)
+            text.text(
+                ax,
+                0.02,
+                0.02,
+                'Mean confidence unavailable: ' + interval.get('status', 'unknown').replace('_', ' '),
+                transform=ax.transAxes,
+                fontsize=8,
+                wrap=True,
+            )
+        ax.plot(x, values('mean_radius'), color=CREVICE_TEAL, lw=2, label='Mean')
+        coverage.plot(x, [r['n_frames'] / len(frames) for r in rows], color=CREVICE_GRAY, lw=1.5)
+        coverage.set_ylim(-0.05, 1.05)
+        coverage.set_ylabel('Frame\ncoverage')
+        coverage.set_xlabel('Aligned axial coordinate (Å)')
+        coverage.set_yticks([0, 0.5, 1])
+        _style_axes(coverage)
+        _set_title(ax, text, title, f'Aligned pore profile · {len(profiles)}/{len(frames)} frames')
+        ax.set_ylabel('Pore ' + quantity + ' (Å)')
+        ax.legend(frameon=False, fontsize=8)
     else:
-        fig,ax=plt.subplots(figsize=(7.8,4.8),layout='constrained')
+        fig, ax = plt.subplots(figsize=(7.8, 4.8), layout='constrained')
         if not profiles:
-            _empty_panel(ax,'No reference through-channel profile resolved\nNo pore-width confidence band is available',text)
-            _set_title(ax,text,title,f'Profile status · {len(frames)} frames retained')
+            _empty_panel(
+                ax, 'No reference through-channel profile resolved\nNo pore-width confidence band is available', text
+            )
+            _set_title(ax, text, title, f'Profile status · {len(frames)} frames retained')
         else:
-            x=[f.time if f.time is not None else f.frame_index for f in frames]
-            for attr,color,label in [('min_radius',CREVICE_RED,'Minimum'),('mean_radius',CREVICE_BLUE,'Mean'),('max_radius',CREVICE_GRAY,'Maximum')]:
-                y=[getattr(f.profile,attr)*scale if f.profile is not None else np.nan for f in frames]
-                ax.plot(x,y,color=color,lw=1.6,label=label)
+            x = [f.time if f.time is not None else f.frame_index for f in frames]
+            for attr, color, label in [
+                ('min_radius', CREVICE_RED, 'Minimum'),
+                ('mean_radius', CREVICE_BLUE, 'Mean'),
+                ('max_radius', CREVICE_GRAY, 'Maximum'),
+            ]:
+                y = [getattr(f.profile, attr) * scale if f.profile is not None else np.nan for f in frames]
+                ax.plot(x, y, color=color, lw=1.6, label=label)
             ax.set_xlabel('Time (ps)' if all(f.time is not None for f in frames) else 'Frame')
-            unvalidated=any(p.metadata.get('status')=='unvalidated_axis_scan' for p in profiles)
-            ax.set_ylabel(('Clearance ' if unvalidated else 'Pore ')+quantity+' (Å)');_set_title(ax,text,title,'Unvalidated fixed-axis timeseries' if unvalidated else 'Profile timeseries · unresolved frames remain gaps');ax.legend(frameon=False)
-    ax.set_ylim(bottom=0);ax.grid(True,color='#d8d8d8',lw=.65,alpha=.75);_style_axes(ax)
+            ax.set_ylabel('Pore ' + quantity + ' (Å)')
+            _set_title(ax, text, title, 'Profile timeseries · unresolved frames remain gaps')
+            ax.legend(frameon=False)
+    ax.set_ylim(bottom=0)
+    ax.grid(True, color='#d8d8d8', lw=0.65, alpha=0.75)
+    _style_axes(ax)
     return _finish_figure(fig, output, dpi=dpi, text=text)
 
 
@@ -1191,19 +1292,17 @@ def write_static_publication_bundle(
     refinement_steps: int = 4,
     probe_radius: float = 0.0,
     dpi: int = 200,
-    include_cavities: bool | None = None,
-    include_tunnels: bool | None = None,
     include_network: bool | None = None,
     residue_label_every: int = 5,
     cast_mode: str = "auto",
     cast_outer_radius: float = 6.0,
-    cast_enclosure_fraction: float = .9,
+    cast_enclosure_fraction: float = 0.9,
     cast_extension: float = 2.0,
     cast_spacing: float = 0.5,
     cast_min_radius: float = 0.0,
     cast_max_components: int = 1,
     cast_selection: str = "dominant",
-    cast_core_fraction: float = .08,
+    cast_core_fraction: float = 0.08,
     surface_smoothing: float | None = None,
     cast_max_grid_points: int = 16_000_000,
     cast_focus_points: Sequence[tuple[float, float, float]] | None = None,
@@ -1225,8 +1324,8 @@ def write_static_publication_bundle(
     through-channel profile is resolved (:func:`crevice.channels.pore_profile`),
     residues within the profile's reach are annotated and a void cast is filled
     (:func:`crevice.voids.void_cast`). Tables, figures and native viewer scenes
-    (PyMOL, VMD, ChimeraX) are then written, followed by the requested cavity,
-    tunnel and network analyses. When no unique through-channel resolves and
+    (PyMOL, VMD, ChimeraX) are then written, followed by the residue network
+    when requested. When no unique through-channel resolves and
     ``cast_mode`` is ``"auto"`` with default crops, the bundle falls back to a
     3D rolling-probe cast (:func:`write_rolling_probe_bundle`), still runs the
     requested extras on that measured region, writes
@@ -1254,8 +1353,8 @@ def write_static_publication_bundle(
     enclosure_radius : float, optional
         Probe radius (Å) deciding which cross-section samples are enclosed
         channel. ``None`` (default; CLI ``--enclosure-radius auto``) chooses
-        it automatically (:func:`crevice.sections.connected_profile`); the
-        choice is recorded in the profile metadata and in the manifest's
+        it per slice (:mod:`crevice.adaptive_channel`); the choice is recorded
+        in the profile metadata and in the manifest's
         ``profile_status.enclosure_probe``. Also the rolling-probe radius of
         the ``rolling`` cast mode and of the fallback cast written when no
         channel resolves; there ``None`` means the legacy 0.8 Å (recorded as
@@ -1278,12 +1377,12 @@ def write_static_publication_bundle(
     dpi : int, default 200
         Resolution of every Matplotlib figure and the DPI recorded in rendered PyMOL
         images. The default suits screens; use 400 or more for print.
-    include_cavities, include_tunnels, include_network : bool, optional
-        Run the cavity search, tunnel search and residue network. ``None``
-        (default) follows the output plan: all three without a plan (as in
-        CREVICE 0.2), otherwise only when the plan includes ``cavities``,
-        ``tunnels`` or ``network`` (CLI ``--outputs``, ``--all``;
-        ``--skip-cavities``/``--skip-tunnels``/``--skip-network`` remove them).
+    include_network : bool, optional
+        Build the residue network. ``None`` (default) follows the output
+        plan: on without a plan (as in CREVICE 0.2), otherwise only when the
+        plan includes ``network`` (CLI ``--outputs``, ``--all``;
+        ``--skip-network`` removes it). The separate grid cavity search is
+        ``crevice cavities`` (:func:`crevice.cavities.detect_cavities`).
     residue_label_every : int, default 5
         Landmark spacing (profile samples) in ``PREFIX_profile_radius_annotated.png``.
     cast_mode : {"auto", "channel", "cavity", "all", "rolling"}, default "auto"
@@ -1361,7 +1460,7 @@ def write_static_publication_bundle(
         the set in effect, which is
         :data:`~crevice.radii.DEFAULT_RADII` (standard table plus CHARMM36 ion radii) unless a caller chose another
         (:func:`~crevice.radii.use_radii`, ``--radii``). Every atomic radius
-        used by this call (profiles, casts, cavities, tunnels, networks,
+        used by this call (profiles, casts, cavities, networks,
         hydration SASA) comes from that set, and results with a ``metadata``
         dict record it as ``metadata["radii"]``; see
         :doc:`/methods/atomic-radii`.
@@ -1422,14 +1521,6 @@ def write_static_publication_bundle(
         :func:`plot_profile_radius_with_residues` (landmark names only when annotating).
     PREFIX_residue_contacts.png : figure
         :func:`plot_residue_contacts` (with a contact-role legend).
-    PREFIX_cavities.csv, PREFIX_cavities.json, PREFIX_cavities.pdb, PREFIX_cavity_summary.png : cavities
-        :func:`crevice.analysis.detect_cavities` results as a table
-        (:func:`crevice.io.write_cavities_csv`), JSON record and dummy atoms,
-        and :func:`plot_cavity_summary`.
-    PREFIX_tunnels.csv, PREFIX_tunnel_points.csv, PREFIX_tunnels.json, PREFIX_tunnels.pdb : tunnels
-        :func:`crevice.tunnels.find_tunnels` results: one row per tunnel, one
-        row per path node, the JSON record (with per-segment metadata) and dummy
-        atoms. No tunnel figure is written.
     PREFIX_network_nodes.csv, PREFIX_network_edges.csv, PREFIX_network.json : network
         Contact network as node and edge tables (:func:`crevice.io.write_network_csv`)
         and the JSON record with metrics.
@@ -1445,7 +1536,7 @@ def write_static_publication_bundle(
 
     The CLI adds ``PREFIX_input_report.json`` (input provenance) and, when
     requested, the hydration outputs (:func:`crevice.hydration_export.write_hydration_bundle`).
-    No 3D preview image or tunnel summary figure is written. With an output
+    No 3D preview image is written. With an output
     plan (``outputs`` or an active plan) only the planned files are written;
     the list above is the complete (``--all``/legacy) set.
 
@@ -1507,45 +1598,97 @@ def write_static_publication_bundle(
     from .outputs import active_plan
     from .static_workflow import compute_static_workflow, export_static_workflow
     from .volume_export import resolve_display_smoothing
+
     resolve_display_smoothing(smooth, surface_smoothing)
     plan = active_plan()
-    include_cavities = (plan is None or plan.runs("cavities")) if include_cavities is None else include_cavities
-    include_tunnels = (plan is None or plan.runs("tunnels")) if include_tunnels is None else include_tunnels
     include_network = (plan is None or plan.runs("network")) if include_network is None else include_network
     fingerprint = bool(fingerprint) or (plan is not None and plan.runs("fingerprint"))
     result = compute_static_workflow(
-        frame, axis=axis, origin=origin, section_spacing=section_spacing, enclosure_radius=enclosure_radius,
-        include_hydrogen=include_hydrogen, include_hetero=include_hetero, samples=samples, lateral_exits=lateral_exits,
-        exit_bulk_radius=exit_bulk_radius, exit_spacing=exit_spacing, search_radius=search_radius,
-        refinement_steps=refinement_steps, probe_radius=probe_radius, include_cavities=include_cavities,
-        include_tunnels=include_tunnels, include_network=include_network, cast_mode=cast_mode,
-        cast_outer_radius=cast_outer_radius, cast_enclosure_fraction=cast_enclosure_fraction,
-        cast_extension=cast_extension, cast_spacing=cast_spacing, cast_min_radius=cast_min_radius,
-        cast_max_components=cast_max_components, cast_selection=cast_selection, cast_core_fraction=cast_core_fraction,
-        cast_max_grid_points=cast_max_grid_points, cast_focus_points=cast_focus_points,
-        cast_focus_radius=cast_focus_radius, cast_min_component_volume=cast_min_component_volume,
-        cast_max_component_volume=cast_max_component_volume, residue_groups=residue_groups, entry_end=entry_end,
-        lining_cutoff=lining_cutoff, fingerprint=fingerprint)
+        frame,
+        axis=axis,
+        origin=origin,
+        section_spacing=section_spacing,
+        enclosure_radius=enclosure_radius,
+        include_hydrogen=include_hydrogen,
+        include_hetero=include_hetero,
+        samples=samples,
+        lateral_exits=lateral_exits,
+        exit_bulk_radius=exit_bulk_radius,
+        exit_spacing=exit_spacing,
+        search_radius=search_radius,
+        refinement_steps=refinement_steps,
+        probe_radius=probe_radius,
+        include_network=include_network,
+        cast_mode=cast_mode,
+        cast_outer_radius=cast_outer_radius,
+        cast_enclosure_fraction=cast_enclosure_fraction,
+        cast_extension=cast_extension,
+        cast_spacing=cast_spacing,
+        cast_min_radius=cast_min_radius,
+        cast_max_components=cast_max_components,
+        cast_selection=cast_selection,
+        cast_core_fraction=cast_core_fraction,
+        cast_max_grid_points=cast_max_grid_points,
+        cast_focus_points=cast_focus_points,
+        cast_focus_radius=cast_focus_radius,
+        cast_min_component_volume=cast_min_component_volume,
+        cast_max_component_volume=cast_max_component_volume,
+        residue_groups=residue_groups,
+        entry_end=entry_end,
+        lining_cutoff=lining_cutoff,
+        fingerprint=fingerprint,
+    )
     if result.status == "unresolved":
         import warnings
-        warnings.warn('No unique through-channel profile resolved; wrote a 3D rolling-probe cast. '
-                      'See single_channel_unresolved_reason in the manifest.', RuntimeWarning, stacklevel=4)
-    return export_static_workflow(result, structure_path=structure_path, output_dir=output_dir, prefix=prefix, dpi=dpi,
-                                  residue_label_every=residue_label_every, cast_extension=cast_extension,
-                                  surface_smoothing=surface_smoothing, smooth=smooth)
+
+        warnings.warn(
+            'No unique through-channel profile resolved; wrote a 3D rolling-probe cast. '
+            'See single_channel_unresolved_reason in the manifest.',
+            RuntimeWarning,
+            stacklevel=4,
+        )
+    return export_static_workflow(
+        result,
+        structure_path=structure_path,
+        output_dir=output_dir,
+        prefix=prefix,
+        dpi=dpi,
+        residue_label_every=residue_label_every,
+        cast_extension=cast_extension,
+        surface_smoothing=surface_smoothing,
+        smooth=smooth,
+    )
 
 
 @output_option("cast")
 @radii_option
 @annotate_option
-def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="crevice",
-                               spacing=.5, probe_radius=.8, outer_radius=6.,
-                               enclosure_fraction=.9, min_depth=0.,
-                               min_component_volume=50., max_components=1,
-                               selection_mode="dominant", core_fraction=.08, surface_smoothing=None,
-                               max_grid_points=16_000_000, selection="protein", dpi=200, seed=None, seed_tolerance=.75,
-                               smooth=None, annotate=None,
-                               radii: RadiusSet | str | None = None, outputs=None):
+def write_rolling_probe_bundle(
+    frame,
+    *,
+    structure_path,
+    output_dir,
+    prefix="crevice",
+    spacing=0.5,
+    probe_radius=0.8,
+    outer_radius=6.0,
+    enclosure_fraction=0.9,
+    min_depth=0.0,
+    min_component_volume=50.0,
+    max_components=1,
+    selection_mode="dominant",
+    core_fraction=0.08,
+    surface_smoothing=None,
+    max_grid_points=16_000_000,
+    selection="protein",
+    dpi=200,
+    seed=None,
+    seed_tolerance=0.75,
+    smooth=None,
+    annotate=None,
+    radii: RadiusSet | str | None = None,
+    outputs=None,
+):
     """Write the 3D rolling-probe cast bundle of ``crevice cavities --cast``.
 
     A probe of radius ``probe_radius`` is rolled over the selected atoms on a
@@ -1611,7 +1754,7 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
         the set in effect, which is
         :data:`~crevice.radii.DEFAULT_RADII` (standard table plus CHARMM36 ion radii) unless a caller chose another
         (:func:`~crevice.radii.use_radii`, ``--radii``). Every atomic radius
-        used by this call (profiles, casts, cavities, tunnels, networks,
+        used by this call (profiles, casts, cavities, networks,
         hydration SASA) comes from that set, and results with a ``metadata``
         dict record it as ``metadata["radii"]``; see
         :doc:`/methods/atomic-radii`.
@@ -1660,17 +1803,34 @@ def write_rolling_probe_bundle(frame, *, structure_path, output_dir, prefix="cre
     """
     from .static_workflow import compute_rolling_cast, export_rolling_cast
     from .volume_export import resolve_display_smoothing
+
     if Path(prefix).name != prefix or not prefix or any(c in prefix for c in '\n\r"'):
         raise ValueError("prefix must be a simple filename stem")
     resolve_display_smoothing(smooth, surface_smoothing)
-    result = compute_rolling_cast(frame, spacing=spacing, probe_radius=probe_radius, outer_radius=outer_radius,
-                                  enclosure_fraction=enclosure_fraction, min_depth=min_depth,
-                                  min_component_volume=min_component_volume, max_components=max_components,
-                                  selection_mode=selection_mode, core_fraction=core_fraction,
-                                  max_grid_points=max_grid_points, selection=selection, seed=seed,
-                                  seed_tolerance=seed_tolerance)
-    return export_rolling_cast(result, structure_path=structure_path, output_dir=output_dir, prefix=prefix,
-                               surface_smoothing=surface_smoothing, smooth=smooth)
+    result = compute_rolling_cast(
+        frame,
+        spacing=spacing,
+        probe_radius=probe_radius,
+        outer_radius=outer_radius,
+        enclosure_fraction=enclosure_fraction,
+        min_depth=min_depth,
+        min_component_volume=min_component_volume,
+        max_components=max_components,
+        selection_mode=selection_mode,
+        core_fraction=core_fraction,
+        max_grid_points=max_grid_points,
+        selection=selection,
+        seed=seed,
+        seed_tolerance=seed_tolerance,
+    )
+    return export_rolling_cast(
+        result,
+        structure_path=structure_path,
+        output_dir=output_dir,
+        prefix=prefix,
+        surface_smoothing=surface_smoothing,
+        smooth=smooth,
+    )
 
 
 def _pdb_resi_for_min_radius(points: Sequence) -> int | None:
@@ -1678,13 +1838,17 @@ def _pdb_resi_for_min_radius(points: Sequence) -> int | None:
         return None
     return min(enumerate(points, start=1), key=lambda item: item[1].radius)[0]
 
+
 def _pyplot():
     try:
         import matplotlib
+
         matplotlib.use("Agg", force=True)
         import matplotlib.pyplot as plt
     except ImportError as exc:
-        raise ImportError("Publication figures require matplotlib. Matplotlib is a required CREVICE dependency; reinstall CREVICE or install matplotlib.") from exc
+        raise ImportError(
+            "Publication figures require matplotlib. Matplotlib is a required CREVICE dependency; reinstall CREVICE or install matplotlib."
+        ) from exc
     return plt
 
 
@@ -1717,6 +1881,7 @@ def _save_figure(fig, path: Path, *, dpi: int, text: FigureText | None = None, k
     path = Path(path)
     keep = keep or getattr(fig, "_crevice_keep", False)
     from .outputs import wants
+
     if not wants(path):
         if not keep:
             fig.clf()
@@ -1814,7 +1979,7 @@ def _interaction_color(interaction: str) -> str:
 def _contact_criterion(network: ResidueInteractionNetwork) -> str:
     """Plain-language residue contact rule of a network, from its metadata."""
     cutoff = network.metadata.get("cutoff")
-    metric = network.metadata.get("distance_metric", "vdw_surface_gap")
+    metric = network.metadata.get("distance_metric", "atom_center_distance")
     distance = "atom-centre distance" if metric in {"center", "atom_center_distance"} else "atom-surface gap"
     return f"{distance} ≤ {cutoff:g} Å" if isinstance(cutoff, (int, float)) else distance
 
@@ -1852,7 +2017,9 @@ def _profile_residue_landmarks(
     if len(landmarks) <= max_labels:
         return landmarks
     keep = {0, len(landmarks) - 1}
-    bottleneck_pos = next((idx for idx, item in enumerate(landmarks) if item[0].index == profile.bottleneck.index), None)
+    bottleneck_pos = next(
+        (idx for idx, item in enumerate(landmarks) if item[0].index == profile.bottleneck.index), None
+    )
     if bottleneck_pos is not None:
         keep.add(bottleneck_pos)
     slots = max(max_labels - len(keep), 0)
@@ -1878,11 +2045,12 @@ def _short_residue_label(label: str) -> str:
 
 def _copy_structure_for_bundle(structure_path: str | Path, root: Path, prefix: str) -> Path:
     from .outputs import wants
+
     source = Path(structure_path)
     suffix = "".join(source.suffixes) or ".pdb"
     destination = root / f"{prefix}_structure{suffix}"
     if source.exists() and source.resolve() != destination.resolve() and not wants(destination):
-        return destination   # the input copy is an optional output (file kind "structures")
+        return destination  # the input copy is an optional output (file kind "structures")
     if source.exists() and source.resolve() != destination.resolve():
         shutil.copyfile(source, destination)
         return destination
@@ -1895,6 +2063,7 @@ def _viewer_structure_for_bundle(frame, path: Path) -> Path:
     """Write the renumbered viewer PDB and its identity sidecar unless the output plan skips them."""
     from .outputs import wants
     from .presentation import write_viewer_structure
+
     path = Path(path)
     if wants(path) and wants(path.with_suffix(".identities.json")):
         return write_viewer_structure(frame, path)

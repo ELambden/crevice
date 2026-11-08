@@ -37,7 +37,7 @@ crevice view 3UKM_bundle --open
 ```
 
 ```text
-view file=3UKM_bundle/3UKM_view.html layers=protein,entry_1,lumen,exit_1,exit_2,lining_entry_1,lining_lumen,lining_exit_1,lining_exit_2,centre_line size_MB=2.60
+view file=3UKM_bundle/3UKM_view.html layers=protein,lumen,exit_1,exit_2,lining_lumen,lining_exit_1,lining_exit_2,centre_line size_MB=5.29
 ```
 
 `--open` opens the file in your default browser; `-o FILE` writes it somewhere
@@ -46,18 +46,19 @@ the scene. Each checkbox shows or hides one layer, *Reset view* returns to the
 starting orientation and *Save PNG* saves the canvas as an image.
 
 ```{figure} images/3ukm_interactive_view.png
-:alt: Interactive view of 3UKM in a web browser, with the yellow entry, teal lumen and two rust-coloured exits inside a grey cartoon, and a column of layer checkboxes
+:alt: Interactive view of 3UKM in a web browser, with the teal lumen and its wide upper vestibule and two rust-coloured exits inside a grey cartoon, and a column of layer checkboxes
 :width: 90%
 
-`3UKM_view.html` in Firefox. The channel cast is split into its ENTRY
-(yellow), LUMEN (teal) and two EXIT segments (rust). The starting orientation
-is the same as the native scenes: channel axis vertical.
+`3UKM_view.html` in Chromium (headless, 992 × 580 pixel window). The channel cast is split into its LUMEN
+(teal; with the default probe it includes the wide upper vestibule) and the two
+EXIT segments through the side portals (rust). The starting orientation is the
+same as the native scenes: channel axis vertical.
 ```
 
 The file holds everything it needs, including the
 [3Dmol.js](https://3dmol.org) library that draws the scene, so you can e-mail
 it or put it on a web page; it never fetches anything over the network. The
-3UKM file is 2.6 MB. `--cdn` writes a smaller file that loads 3Dmol.js from
+3UKM file is 5.3 MB. `--cdn` writes a smaller file that loads 3Dmol.js from
 the jsDelivr CDN instead, but then the page needs an internet connection to
 open.
 
@@ -66,7 +67,7 @@ To change which layers are visible when the page opens, use `--show` and
 layer of that kind:
 
 ```bash
-crevice view 3UKM_bundle -o 3UKM_lining.html --show lining --show centre_line --hide entry
+crevice view 3UKM_bundle -o 3UKM_lining.html --show lining --show centre_line --hide exit
 ```
 
 ## The same view in Jupyter
@@ -83,7 +84,7 @@ The notebook shows the same viewer and checkboxes as the HTML page.
 displayed (each call returns the view, so calls can be chained):
 
 ```python
-v.toggle("lining_lumen").toggle("entry_1", False).show()
+v.toggle("lining_lumen").toggle("exit_2", False).show()
 v.save_html("3UKM_view.html")
 ```
 
@@ -126,15 +127,22 @@ from crevice.cast_segments import lining_residues, segment_casts
 
 frame = crevice.load_structure("1GRM.cif")
 profile = crevice.pore_profile(frame)
-cast = crevice.void_cast(frame, profile=profile)
+cast = crevice.void_cast(frame, profile=profile, spacing=0.5)
 segments = segment_casts(frame, profile, cast)
 v = crevice.view(frame=frame, cast=cast, segments=segments, profile=profile,
                  lining=lining_residues(frame, cast, segments))
+print(v.layer_names)
+# ['protein', 'entry_1', 'lumen', 'exit_1', 'lining_entry_1', 'lining_lumen', 'lining_exit_1', 'centre_line']
 ```
 
-The surfaces are computed from the cast you pass, on its own grid and without
-the short display continuation that `report` adds beyond each mouth, so they
-can look coarser than those of a `report` bundle (which uses a 0.5 Å grid).
+`void_cast` uses a 1.5 Å grid and a 0.4 Å minimum clearance by default in
+Python (see [CLI or Python?](../getting-started/cli-vs-python.md)). On the
+1.5 Å grid the narrow gramicidin lumen is not resolved in every section (a
+warning says so), and `segment_casts` then returns no ENTRY or EXIT segments,
+so the example passes `spacing=0.5`. The surfaces are computed from the cast
+you pass, on its own grid and without the short display continuation that
+`report` adds beyond each mouth, so they can differ from those of a `report`
+bundle.
 
 ## What you are looking at
 

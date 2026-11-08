@@ -51,9 +51,9 @@ Widest curved routes from a site to the solvent, with junctions where they split
 
 ::::
 
-## Cavities and tunnels
+## Buried cavities
 
-Casts also handle cavities and pockets, on a finer grid and with more control. The two grid searches here are quick, coarse overviews.
+Casts also handle cavities and pockets, on a finer grid and with more control. The grid search here is a quick, coarse overview. Routes from a site to the outside are [curved and branched pathways](paths.md).
 
 ::::{container} crevice-cards
 
@@ -63,14 +63,6 @@ Casts also handle cavities and pockets, on a finer grid and with more control. T
 Enclosed empty spaces inside the protein.
 
 `crevice cavities`
-:::
-
-:::{container} crevice-card crevice-violet
-**[Access tunnels](tunnels.md)**
-
-The widest routes from a site to the outside.
-
-`crevice cavities --tunnels`
 :::
 
 ::::
@@ -182,7 +174,7 @@ Define a region once, review it, and compare it fairly across runs.
 
 **[One-command output bundle](publish.md)**
 
-The main tables, key figures and PyMOL, VMD and ChimeraX scenes for a structure in one run; cavities, tunnels, hydration and a fingerprint on request.
+The main tables, key figures and PyMOL, VMD and ChimeraX scenes for a structure in one run; cavities, hydration and a fingerprint on request.
 
 `crevice report`
 :::
@@ -236,7 +228,6 @@ cast
 fingerprint
 paths
 cavities
-tunnels
 residues
 residue-evidence
 network

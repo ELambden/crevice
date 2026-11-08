@@ -45,24 +45,32 @@ trajectory is read in chunks. Identities are geometric continuity under the
 stated probes, lattice and thresholds; they are not biological states, and an
 event can be produced by noise in a small or barely connected component.
 """
+
 from __future__ import annotations
 from ._portable_paths import dumps_record
 
 from dataclasses import dataclass, field
-import math
 
 from .radii import RadiusSet, radii_fields, radii_option
 from .mdinput import accepts_md_objects as _accepts_md_objects
 
-LINK_DEFINITION = ("components of consecutive measured frames are linked when Jaccard |A&B|/|A|B| >= link_jaccard "
-                   "or containment |A&B|/min(|A|,|B|) >= link_containment, on one fixed aligned lattice")
-CONTINUATION_DEFINITION = ("links taken in decreasing Jaccard order (ties: overlap, then order); a link continues "
-                           "an identity when neither component has been used yet")
-EVENT_DEFINITION = ("birth: current component with no link; death: previous component with no link; split: previous "
-                    "component linked to >= 2 current components; merge: current component linked to >= 2 previous "
-                    "components")
-INTERPRETATION = ("geometric continuity of measured cavity components under the stated probes, lattice and "
-                  "thresholds; not a biological state, transport event or proof of connectivity")
+LINK_DEFINITION = (
+    "components of consecutive measured frames are linked when Jaccard |A&B|/|A|B| >= link_jaccard "
+    "or containment |A&B|/min(|A|,|B|) >= link_containment, on one fixed aligned lattice"
+)
+CONTINUATION_DEFINITION = (
+    "links taken in decreasing Jaccard order (ties: overlap, then order); a link continues "
+    "an identity when neither component has been used yet"
+)
+EVENT_DEFINITION = (
+    "birth: current component with no link; death: previous component with no link; split: previous "
+    "component linked to >= 2 current components; merge: current component linked to >= 2 previous "
+    "components"
+)
+INTERPRETATION = (
+    "geometric continuity of measured cavity components under the stated probes, lattice and "
+    "thresholds; not a biological state, transport event or proof of connectivity"
+)
 
 _OFF = 1 << 20
 _BITS = 21
@@ -84,6 +92,7 @@ def voxel_keys(points, spacing):
         Sorted unique keys.
     """
     import numpy as np
+
     idx = np.rint(np.asarray(points, dtype=float).reshape(-1, 3) / spacing).astype(np.int64) + _OFF
     return np.unique((idx[:, 0] << (2 * _BITS)) | (idx[:, 1] << _BITS) | idx[:, 2])
 
@@ -105,6 +114,7 @@ class TrackedComponent:
     source_id : int
         Component id in the frame's cast.
     """
+
     keys: object
     volume: float
     centroid: tuple
@@ -158,23 +168,33 @@ class CavityTracker:
         self.link_jaccard = float(link_jaccard)
         self.link_containment = float(link_containment or 0.0)
         self.events, self.observations = [], []
-        self._previous = None      # list of (identity, TrackedComponent)
+        self._previous = None  # list of (identity, TrackedComponent)
         self._previous_frame = None
         self._next_id = 1
-        self._ident = {}           # identity -> record
+        self._ident = {}  # identity -> record
         self._measured = 0
 
     def _new(self, frame_index, time_ps, reason, parents=()):
         identity = self._next_id
         self._next_id += 1
-        self._ident[identity] = {"identity": identity, "first_frame": frame_index, "first_time_ps": time_ps,
-                                 "start_reason": reason, "parents": list(parents), "frames": 0,
-                                 "last_frame": frame_index, "last_time_ps": time_ps, "end_reason": "present_at_end",
-                                 "volumes": [], "merged_into": None}
+        self._ident[identity] = {
+            "identity": identity,
+            "first_frame": frame_index,
+            "first_time_ps": time_ps,
+            "start_reason": reason,
+            "parents": list(parents),
+            "frames": 0,
+            "last_frame": frame_index,
+            "last_time_ps": time_ps,
+            "end_reason": "present_at_end",
+            "volumes": [],
+            "merged_into": None,
+        }
         return identity
 
     def _links(self, current):
         import numpy as np
+
         prev = self._previous
         if not prev or not current:
             return []
@@ -244,19 +264,39 @@ class CavityTracker:
                     assigned[j] = self._new(frame_index, time_ps, "split" if parents else "birth", parents)
             for j in range(len(current)):
                 if j not in by_cur:
-                    new_events.append({"event": "birth", "identities": [assigned[j]], "parents": [],
-                                       "children": [assigned[j]], "jaccard": []})
+                    new_events.append(
+                        {
+                            "event": "birth",
+                            "identities": [assigned[j]],
+                            "parents": [],
+                            "children": [assigned[j]],
+                            "jaccard": [],
+                        }
+                    )
             for i, identity in enumerate(prev_ids):
                 targets = by_prev.get(i, [])
                 if not targets:
-                    new_events.append({"event": "death", "identities": [identity], "parents": [identity],
-                                       "children": [], "jaccard": []})
+                    new_events.append(
+                        {
+                            "event": "death",
+                            "identities": [identity],
+                            "parents": [identity],
+                            "children": [],
+                            "jaccard": [],
+                        }
+                    )
                     self._ident[identity]["end_reason"] = "death"
                 elif len(targets) >= 2:
                     kids = [assigned[j] for j, _ in targets]
-                    new_events.append({"event": "split", "identities": sorted({identity, *kids}),
-                                       "parents": [identity], "children": kids,
-                                       "jaccard": [round(v, 4) for _, v in targets]})
+                    new_events.append(
+                        {
+                            "event": "split",
+                            "identities": sorted({identity, *kids}),
+                            "parents": [identity],
+                            "children": kids,
+                            "jaccard": [round(v, 4) for _, v in targets],
+                        }
+                    )
                 if targets and i not in used_prev:
                     rec = self._ident[identity]
                     rec["end_reason"] = "merge"
@@ -264,9 +304,15 @@ class CavityTracker:
             for j, sources in by_cur.items():
                 if len(sources) >= 2:
                     parents = [prev_ids[i] for i, _ in sources]
-                    new_events.append({"event": "merge", "identities": sorted({assigned[j], *parents}),
-                                       "parents": parents, "children": [assigned[j]],
-                                       "jaccard": [round(v, 4) for _, v in sources]})
+                    new_events.append(
+                        {
+                            "event": "merge",
+                            "identities": sorted({assigned[j], *parents}),
+                            "parents": parents,
+                            "children": [assigned[j]],
+                            "jaccard": [round(v, 4) for _, v in sources],
+                        }
+                    )
             gap = frame_index - self._previous_frame - 1 if frame_index is not None else 0
         for event in new_events:
             event.update(frame_index=frame_index, time_ps=time_ps, gap_frames=gap)
@@ -276,11 +322,20 @@ class CavityTracker:
             rec["frames"] += 1
             rec["last_frame"], rec["last_time_ps"] = frame_index, time_ps
             rec["volumes"].append(comp.volume)
-            self.observations.append({"identity": assigned[j], "frame_index": frame_index, "time_ps": time_ps,
-                                      "volume_A3": comp.volume, "voxels": int(len(comp.keys)),
-                                      "centroid_x_A": comp.centroid[0], "centroid_y_A": comp.centroid[1],
-                                      "centroid_z_A": comp.centroid[2], "source_component": comp.source_id,
-                                      "lining_residues": ";".join(comp.lining)})
+            self.observations.append(
+                {
+                    "identity": assigned[j],
+                    "frame_index": frame_index,
+                    "time_ps": time_ps,
+                    "volume_A3": comp.volume,
+                    "voxels": int(len(comp.keys)),
+                    "centroid_x_A": comp.centroid[0],
+                    "centroid_y_A": comp.centroid[1],
+                    "centroid_z_A": comp.centroid[2],
+                    "source_component": comp.source_id,
+                    "lining_residues": ";".join(comp.lining),
+                }
+            )
         self._previous = list(zip(assigned, current))
         self._previous_frame = frame_index
         self._measured += 1
@@ -302,13 +357,23 @@ class CavityTracker:
         rows = []
         for rec in self._ident.values():
             v = rec["volumes"]
-            rows.append({"identity": rec["identity"], "first_frame": rec["first_frame"], "last_frame": rec["last_frame"],
-                         "first_time_ps": rec["first_time_ps"], "last_time_ps": rec["last_time_ps"],
-                         "lifetime_ps": rec["last_time_ps"] - rec["first_time_ps"], "frames_present": rec["frames"],
-                         "start_reason": rec["start_reason"], "parents": ";".join(map(str, rec["parents"])),
-                         "end_reason": rec["end_reason"], "merged_into": rec["merged_into"] or "",
-                         "mean_volume_A3": round(sum(v) / len(v), 3) if v else "",
-                         "max_volume_A3": round(max(v), 3) if v else ""})
+            rows.append(
+                {
+                    "identity": rec["identity"],
+                    "first_frame": rec["first_frame"],
+                    "last_frame": rec["last_frame"],
+                    "first_time_ps": rec["first_time_ps"],
+                    "last_time_ps": rec["last_time_ps"],
+                    "lifetime_ps": rec["last_time_ps"] - rec["first_time_ps"],
+                    "frames_present": rec["frames"],
+                    "start_reason": rec["start_reason"],
+                    "parents": ";".join(map(str, rec["parents"])),
+                    "end_reason": rec["end_reason"],
+                    "merged_into": rec["merged_into"] or "",
+                    "mean_volume_A3": round(sum(v) / len(v), 3) if v else "",
+                    "max_volume_A3": round(max(v), 3) if v else "",
+                }
+            )
         return rows
 
 
@@ -316,23 +381,40 @@ class CavityTracker:
 # Per-frame measurement
 # --------------------------------------------------------------------------
 
+
 def _crop_hetero(frame, margin):
     """Keep non-hetero atoms and hetero atoms within ``margin`` of the protein bounding box."""
     from dataclasses import replace
     import numpy as np
+
     protein = [a for a in frame.atoms if not a.hetero]
     if not protein:
         return frame
     xyz = np.asarray([a.coord for a in protein])
     low, high = xyz.min(axis=0) - margin, xyz.max(axis=0) + margin
-    keep = tuple(a for a in frame.atoms
-                 if not a.hetero or bool(np.all((np.asarray(a.coord) >= low) & (np.asarray(a.coord) <= high))))
+    keep = tuple(
+        a
+        for a in frame.atoms
+        if not a.hetero or bool(np.all((np.asarray(a.coord) >= low) & (np.asarray(a.coord) <= high)))
+    )
     return replace(frame, atoms=keep)
 
 
-def measure_frame(frame, reference, *, spacing=0.5, probe_radius=1.4, outer_radius=6.0, min_volume=5.0,
-                  centre=None, radius=8.0, alignment_residues=None, include_hetero=False, lining_cutoff=3.3,
-                  max_grid_points=16_000_000):
+def measure_frame(
+    frame,
+    reference,
+    *,
+    spacing=0.5,
+    probe_radius=1.4,
+    outer_radius=6.0,
+    min_volume=5.0,
+    centre=None,
+    radius=8.0,
+    alignment_residues=None,
+    include_hetero=False,
+    lining_cutoff=3.3,
+    max_grid_points=16_000_000,
+):
     """Align one frame and return its tracked components.
 
     Parameters
@@ -375,13 +457,22 @@ def measure_frame(frame, reference, *, spacing=0.5, probe_radius=1.4, outer_radi
     from scipy.spatial import cKDTree
     from .rolling import rolling_probe_cast
     from .trajectory import align_frame_report
+
     aligned, fit = align_frame_report(frame, reference, residues=alignment_residues)
     if include_hetero:
         aligned = _crop_hetero(aligned, outer_radius + 4.0)
-    cast = rolling_probe_cast(aligned, spacing=spacing, probe_radius=probe_radius, outer_radius=outer_radius,
-                              min_component_volume=min_volume, selection_mode="all", grid_basis=np.eye(3),
-                              grid_anchor=(0.0, 0.0, 0.0), include_hetero=include_hetero,
-                              max_grid_points=max_grid_points)
+    cast = rolling_probe_cast(
+        aligned,
+        spacing=spacing,
+        probe_radius=probe_radius,
+        outer_radius=outer_radius,
+        min_component_volume=min_volume,
+        selection_mode="all",
+        grid_basis=np.eye(3),
+        grid_anchor=(0.0, 0.0, 0.0),
+        include_hetero=include_hetero,
+        max_grid_points=max_grid_points,
+    )
     atoms = aligned.selected_atoms(include_hydrogen=False, include_hetero=include_hetero)
     xyz = np.asarray([a.coord for a in atoms])
     tree = cKDTree(xyz)
@@ -393,11 +484,18 @@ def measure_frame(frame, reference, *, spacing=0.5, probe_radius=1.4, outer_radi
         hits = cKDTree(pts).query_ball_tree(tree, lining_cutoff)
         near = sorted({k for row in hits for k in row})
         lining = list(dict.fromkeys(atoms[k].residue_key.label for k in near))
-        out.append(TrackedComponent(voxel_keys(pts, spacing), float(comp.volume), tuple(map(float, pts.mean(axis=0))),
-                                    lining, int(comp.id)))
-    return {"frame_index": frame.frame_index, "status": "measured", "components": out,
-            "component_count_all": len(cast.components),
-            "alignment": {"rmsd_after_A": fit.get("rmsd_after_A"), "atom_count": fit.get("atom_count")}}
+        out.append(
+            TrackedComponent(
+                voxel_keys(pts, spacing), float(comp.volume), tuple(map(float, pts.mean(axis=0))), lining, int(comp.id)
+            )
+        )
+    return {
+        "frame_index": frame.frame_index,
+        "status": "measured",
+        "components": out,
+        "component_count_all": len(cast.components),
+        "alignment": {"rmsd_after_A": fit.get("rmsd_after_A"), "atom_count": fit.get("atom_count")},
+    }
 
 
 _WORKER = None
@@ -408,6 +506,7 @@ def _init_worker(frames, reference, settings, radii=None):
     _WORKER = (frames, reference, settings)
     if radii is not None:
         from .radii import _ACTIVE_RADII
+
         _ACTIVE_RADII.set(radii)
 
 
@@ -420,17 +519,45 @@ def _safe_measure(frame, reference, settings):
     try:
         return measure_frame(frame, reference, **settings)
     except ValueError as exc:
-        return {"frame_index": frame.frame_index, "status": "unresolved", "reason": str(exc), "components": [],
-                "component_count_all": None, "alignment": None}
+        return {
+            "frame_index": frame.frame_index,
+            "status": "unresolved",
+            "reason": str(exc),
+            "components": [],
+            "component_count_all": None,
+            "alignment": None,
+        }
 
 
 @radii_option
 @_accepts_md_objects()
-def track_cavities(topology, trajectory=None, *, selection="protein", start=0, stop=None, stride=1, chunk=50,
-                   spacing=0.5, probe_radius=1.4, outer_radius=6.0, min_volume=5.0, centre=None, radius=8.0,
-                   region=None, alignment_residues=None, include_hetero=False, lining_cutoff=3.3,
-                   link_jaccard=0.2, link_containment=0.5, workers=1, pbc="check", max_grid_points=16_000_000,
-                   progress_callback=None, radii: RadiusSet | str | None = None):
+def track_cavities(
+    topology,
+    trajectory=None,
+    *,
+    selection="protein",
+    start=0,
+    stop=None,
+    stride=1,
+    chunk=50,
+    spacing=0.5,
+    probe_radius=1.4,
+    outer_radius=6.0,
+    min_volume=5.0,
+    centre=None,
+    radius=8.0,
+    region=None,
+    alignment_residues=None,
+    include_hetero=False,
+    lining_cutoff=3.3,
+    link_jaccard=0.2,
+    link_containment=0.5,
+    workers=1,
+    pbc="check",
+    max_grid_points=16_000_000,
+    progress_callback=None,
+    radii: RadiusSet | str | None = None,
+):
     """Track cavity components through a trajectory (bounded memory).
 
     Parameters
@@ -492,49 +619,77 @@ def track_cavities(topology, trajectory=None, *, selection="protein", start=0, s
         ``lifetimes``, ``settings`` (with definitions and the radius set) and
         ``interpretation``.
     """
-    import numpy as np
     from .trajectory import load_trajectory_report, inspect_trajectory
+
     if workers < 1 or chunk < 1 or stride < 1:
         raise ValueError("workers, chunk and stride must be positive integers")
-    first, _ = load_trajectory_report(topology, trajectory, selection=selection, start=start, stop=start + 1,
-                                      pbc=pbc)
+    first, _ = load_trajectory_report(topology, trajectory, selection=selection, start=start, stop=start + 1, pbc=pbc)
     reference = first.frames[0]
     region_residues = None
     if region is not None:
         from .paths import region_seed
+
         centre, region_residues = region_seed(reference, region)
     total = None
     if stop is None:
         info = inspect_trajectory(topology, trajectory, selection=selection)
         total = int(info["frame_count"])
         stop = total
-    settings = dict(spacing=spacing, probe_radius=probe_radius, outer_radius=outer_radius, min_volume=min_volume,
-                    centre=None if centre is None else tuple(map(float, centre)), radius=radius,
-                    alignment_residues=alignment_residues, include_hetero=include_hetero,
-                    lining_cutoff=lining_cutoff, max_grid_points=max_grid_points)
+    settings = dict(
+        spacing=spacing,
+        probe_radius=probe_radius,
+        outer_radius=outer_radius,
+        min_volume=min_volume,
+        centre=None if centre is None else tuple(map(float, centre)),
+        radius=radius,
+        alignment_residues=alignment_residues,
+        include_hetero=include_hetero,
+        lining_cutoff=lining_cutoff,
+        max_grid_points=max_grid_points,
+    )
     tracker = CavityTracker(link_jaccard=link_jaccard, link_containment=link_containment)
     frame_rows, done = [], 0
     from .radii import active_radii
+
     for chunk_start in range(start, stop, chunk * stride):
         chunk_stop = min(stop, chunk_start + chunk * stride)
-        loaded, _ = load_trajectory_report(topology, trajectory, selection=selection, start=chunk_start,
-                                           stop=chunk_stop, stride=stride, pbc=pbc, max_frames=None)
+        loaded, _ = load_trajectory_report(
+            topology,
+            trajectory,
+            selection=selection,
+            start=chunk_start,
+            stop=chunk_stop,
+            stride=stride,
+            pbc=pbc,
+            max_frames=None,
+        )
         frames, times = loaded.frames, loaded.times()
         if workers == 1:
             results = [_safe_measure(f, reference, settings) for f in frames]
         else:
             from concurrent.futures import ProcessPoolExecutor
             from .cavity_trajectory import _process_context
-            with ProcessPoolExecutor(max_workers=int(workers), mp_context=_process_context(), initializer=_init_worker,
-                                     initargs=(frames, reference, settings, active_radii())) as pool:
+
+            with ProcessPoolExecutor(
+                max_workers=int(workers),
+                mp_context=_process_context(),
+                initializer=_init_worker,
+                initargs=(frames, reference, settings, active_radii()),
+            ) as pool:
                 results = [None] * len(frames)
                 for i, rec in pool.map(_measure_worker, range(len(frames))):
                     results[i] = rec
         for frame, time_ps, rec in zip(frames, times, results):
-            row = {"frame_index": frame.frame_index, "time_ps": float(time_ps), "status": rec["status"],
-                   "components": len(rec["components"]), "components_all": rec["component_count_all"],
-                   "total_volume_A3": round(sum(c.volume for c in rec["components"]), 3),
-                   "alignment_rmsd_A": (rec["alignment"] or {}).get("rmsd_after_A"), "reason": rec.get("reason", "")}
+            row = {
+                "frame_index": frame.frame_index,
+                "time_ps": float(time_ps),
+                "status": rec["status"],
+                "components": len(rec["components"]),
+                "components_all": rec["component_count_all"],
+                "total_volume_A3": round(sum(c.volume for c in rec["components"]), 3),
+                "alignment_rmsd_A": (rec["alignment"] or {}).get("rmsd_after_A"),
+                "reason": rec.get("reason", ""),
+            }
             if rec["status"] == "measured":
                 events = tracker.update(frame.frame_index, float(time_ps), rec["components"])
                 row["events"] = ";".join(e["event"] for e in events)
@@ -545,20 +700,36 @@ def track_cavities(topology, trajectory=None, *, selection="protein", start=0, s
             if progress_callback:
                 progress_callback(done, row)
         del loaded, frames, results
-    return {"frames": frame_rows, "events": tracker.events, "observations": tracker.observations,
-            "lifetimes": tracker.lifetimes(),
-            "settings": {**{k: v for k, v in settings.items()}, "selection": selection, "start": start, "stop": stop,
-                         "stride": stride, "chunk": chunk, "link_jaccard": link_jaccard,
-                         "link_containment": link_containment, "workers": workers, "pbc": pbc,
-                         "region_landmarks": region_residues, "reference_frame": reference.frame_index,
-                         "definitions": {"link": LINK_DEFINITION, "continuation": CONTINUATION_DEFINITION,
-                                         "events": EVENT_DEFINITION,
-                                         "cast": "rolling_probe_cast selection_mode='all' on a world-axis lattice "
-                                                 "with a node at the origin, after C-alpha alignment to the first frame",
-                                         "lining": "residue with a heavy-atom centre within lining_cutoff of a "
-                                                   "component voxel"},
-                         **radii_fields()},
-            "interpretation": INTERPRETATION}
+    return {
+        "frames": frame_rows,
+        "events": tracker.events,
+        "observations": tracker.observations,
+        "lifetimes": tracker.lifetimes(),
+        "settings": {
+            **{k: v for k, v in settings.items()},
+            "selection": selection,
+            "start": start,
+            "stop": stop,
+            "stride": stride,
+            "chunk": chunk,
+            "link_jaccard": link_jaccard,
+            "link_containment": link_containment,
+            "workers": workers,
+            "pbc": pbc,
+            "region_landmarks": region_residues,
+            "reference_frame": reference.frame_index,
+            "definitions": {
+                "link": LINK_DEFINITION,
+                "continuation": CONTINUATION_DEFINITION,
+                "events": EVENT_DEFINITION,
+                "cast": "rolling_probe_cast selection_mode='all' on a world-axis lattice "
+                "with a node at the origin, after C-alpha alignment to the first frame",
+                "lining": "residue with a heavy-atom centre within lining_cutoff of a component voxel",
+            },
+            **radii_fields(),
+        },
+        "interpretation": INTERPRETATION,
+    }
 
 
 # --------------------------------------------------------------------------
@@ -574,8 +745,10 @@ _EVENT_MARKERS = {"birth": ("^", "Birth"), "death": ("x", "Death"), "split": ("D
 def _ranked_identities(result):
     """Identities ordered by persistence (frames present x mean volume), most persistent first."""
     rows = result["lifetimes"]
-    return [r["identity"] for r in sorted(rows, key=lambda r: (-(r["frames_present"] * float(r["mean_volume_A3"] or 0)),
-                                                               r["identity"]))]
+    return [
+        r["identity"]
+        for r in sorted(rows, key=lambda r: (-(r["frames_present"] * float(r["mean_volume_A3"] or 0)), r["identity"]))
+    ]
 
 
 def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
@@ -617,12 +790,15 @@ def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
     from matplotlib.lines import Line2D
     from .figures import _finish_figure, _pyplot, _style_axes
     from .presentation import FigureText
+
     plt = _pyplot()
     output = Path(path) if path is not None else None
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
-    text = FigureText("Cavity identities tracked across trajectory frames by voxel overlap: volume of each identity "
-                      "against time (top) and identity lifetimes with birth, death, split and merge events (bottom)")
+    text = FigureText(
+        "Cavity identities tracked across trajectory frames by voxel overlap: volume of each identity "
+        "against time (top) and identity lifetimes with birth, death, split and merge events (bottom)"
+    )
     ranked = _ranked_identities(result)
     color = {ident: (IDENTITY_COLORS[k] if k < len(IDENTITY_COLORS) else _OTHER) for k, ident in enumerate(ranked)}
     series = {}
@@ -630,8 +806,9 @@ def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
         series.setdefault(row["identity"], []).append((row["frame_index"], row["time_ps"] / 1000.0, row["volume_A3"]))
     measured = [r["frame_index"] for r in result["frames"] if r["status"] == "measured"]
     order = {f: k for k, f in enumerate(measured)}
-    fig, (top, bottom) = plt.subplots(2, 1, figsize=(7.0, 5.6), sharex=True, constrained_layout=True,
-                                      gridspec_kw={"height_ratios": [1.0, 1.25]})
+    fig, (top, bottom) = plt.subplots(
+        2, 1, figsize=(7.0, 5.6), sharex=True, constrained_layout=True, gridspec_kw={"height_ratios": [1.0, 1.25]}
+    )
     dense = len(measured) > 100
     shown = ranked if len(ranked) <= 300 else ranked[:300]
     if len(shown) < len(ranked):
@@ -642,13 +819,25 @@ def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
         run = []
         for k, p in enumerate(pts):
             if run and order.get(p[0], -9) != order.get(run[-1][0], -9) + 1:
-                top.plot([q[1] for q in run], [q[2] for q in run], color=color[ident], linewidth=1.6 if main else 0.8,
-                         zorder=3 if main else 2)
+                top.plot(
+                    [q[1] for q in run],
+                    [q[2] for q in run],
+                    color=color[ident],
+                    linewidth=1.6 if main else 0.8,
+                    zorder=3 if main else 2,
+                )
                 run = []
             run.append(p)
         if run:
-            top.plot([q[1] for q in run], [q[2] for q in run], color=color[ident], linewidth=1.6 if main else 0.8,
-                     zorder=3 if main else 2, marker="o" if len(run) == 1 else None, markersize=3)
+            top.plot(
+                [q[1] for q in run],
+                [q[2] for q in run],
+                color=color[ident],
+                linewidth=1.6 if main else 0.8,
+                zorder=3 if main else 2,
+                marker="o" if len(run) == 1 else None,
+                markersize=3,
+            )
     lanes = ranked[:max_lanes]
     lane = {ident: len(lanes) - 1 - k for k, ident in enumerate(lanes)}
     for ident in lanes:
@@ -664,16 +853,33 @@ def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
         on = event["parents"] if event["event"] in ("split", "death") else event["children"]
         for ident in on:
             if ident in lane:
-                style = (dict(facecolor="white", edgecolor="#222222") if marker in "^Do" else dict(color="#222222"))
-                bottom.scatter([event["time_ps"] / 1000.0], [lane[ident]], marker=marker, s=12 if dense else 34,
-                               linewidth=0.6 if dense else 1.0, zorder=5, **style)
+                style = dict(facecolor="white", edgecolor="#222222") if marker in "^Do" else dict(color="#222222")
+                bottom.scatter(
+                    [event["time_ps"] / 1000.0],
+                    [lane[ident]],
+                    marker=marker,
+                    s=12 if dense else 34,
+                    linewidth=0.6 if dense else 1.0,
+                    zorder=5,
+                    **style,
+                )
                 used.add(event["event"])
     for row in result["frames"]:
         if row["status"] != "measured":
             bottom.axvline(row["time_ps"] / 1000.0, color="#9aa0a6", linewidth=0.6, linestyle=":", zorder=1)
-    handles = [Line2D([], [], marker=_EVENT_MARKERS[e][0], linestyle="", markerfacecolor="white" if
-                      _EVENT_MARKERS[e][0] in "^Do" else "#222222", markeredgecolor="#222222", markersize=6)
-               for e in ("birth", "death", "split", "merge") if e in used]
+    handles = [
+        Line2D(
+            [],
+            [],
+            marker=_EVENT_MARKERS[e][0],
+            linestyle="",
+            markerfacecolor="white" if _EVENT_MARKERS[e][0] in "^Do" else "#222222",
+            markeredgecolor="#222222",
+            markersize=6,
+        )
+        for e in ("birth", "death", "split", "merge")
+        if e in used
+    ]
     labels = [_EVENT_MARKERS[e][1] for e in ("birth", "death", "split", "merge") if e in used]
     if handles:
         bottom.legend(handles, labels, frameon=False, fontsize=8, loc="upper left", bbox_to_anchor=(1.0, 1.0))
@@ -695,7 +901,7 @@ def plot_tracking(result, path=None, *, dpi: int = 200, max_lanes: int = 30):
         text.note(f"{len(ranked) - len(lanes)} less persistent identities not drawn as lanes")
     counts = {e: sum(1 for x in result["events"] if x["event"] == e) for e in _EVENT_MARKERS}
     text.note("Events: " + ", ".join(f"{k} {v}" for k, v in counts.items()))
-    text.note(f"Identities: {len(ranked)}; coloured: {', '.join(map(str, ranked[:len(IDENTITY_COLORS)]))}")
+    text.note(f"Identities: {len(ranked)}; coloured: {', '.join(map(str, ranked[: len(IDENTITY_COLORS)]))}")
     text.title(top, "CREVICE cavity tracking")
     return _finish_figure(fig, output, dpi=dpi, text=text)
 
@@ -739,8 +945,8 @@ def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: i
         :func:`plot_tracking`.
     """
     import csv
-    import json
     from pathlib import Path
+
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     written = []
@@ -754,24 +960,82 @@ def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: i
                 writer.writerow({c: row.get(c, "") for c in columns})
         written.append(path)
 
-    events = [{**e, "parents": ";".join(map(str, e["parents"])), "children": ";".join(map(str, e["children"])),
-               "jaccard": ";".join(map(str, e["jaccard"]))} for e in result["events"]]
-    table("tracking_events", events, ["event", "frame_index", "time_ps", "gap_frames", "parents", "children", "jaccard"])
-    obs = [{**o, **{k: round(o[k], 3) for k in ("centroid_x_A", "centroid_y_A", "centroid_z_A", "volume_A3")}}
-           for o in result["observations"]]
-    table("tracking_identities", obs, ["identity", "frame_index", "time_ps", "volume_A3", "voxels", "centroid_x_A",
-                                        "centroid_y_A", "centroid_z_A", "source_component", "lining_residues"])
-    table("tracking_lifetimes", result["lifetimes"],
-          ["identity", "first_frame", "last_frame", "first_time_ps", "last_time_ps", "lifetime_ps", "frames_present",
-           "start_reason", "parents", "end_reason", "merged_into", "mean_volume_A3", "max_volume_A3"])
-    table("tracking_frames", result["frames"], ["frame_index", "time_ps", "status", "components", "components_all",
-                                                "total_volume_A3", "events", "alignment_rmsd_A", "reason"])
+    events = [
+        {
+            **e,
+            "parents": ";".join(map(str, e["parents"])),
+            "children": ";".join(map(str, e["children"])),
+            "jaccard": ";".join(map(str, e["jaccard"])),
+        }
+        for e in result["events"]
+    ]
+    table(
+        "tracking_events", events, ["event", "frame_index", "time_ps", "gap_frames", "parents", "children", "jaccard"]
+    )
+    obs = [
+        {**o, **{k: round(o[k], 3) for k in ("centroid_x_A", "centroid_y_A", "centroid_z_A", "volume_A3")}}
+        for o in result["observations"]
+    ]
+    table(
+        "tracking_identities",
+        obs,
+        [
+            "identity",
+            "frame_index",
+            "time_ps",
+            "volume_A3",
+            "voxels",
+            "centroid_x_A",
+            "centroid_y_A",
+            "centroid_z_A",
+            "source_component",
+            "lining_residues",
+        ],
+    )
+    table(
+        "tracking_lifetimes",
+        result["lifetimes"],
+        [
+            "identity",
+            "first_frame",
+            "last_frame",
+            "first_time_ps",
+            "last_time_ps",
+            "lifetime_ps",
+            "frames_present",
+            "start_reason",
+            "parents",
+            "end_reason",
+            "merged_into",
+            "mean_volume_A3",
+            "max_volume_A3",
+        ],
+    )
+    table(
+        "tracking_frames",
+        result["frames"],
+        [
+            "frame_index",
+            "time_ps",
+            "status",
+            "components",
+            "components_all",
+            "total_volume_A3",
+            "events",
+            "alignment_rmsd_A",
+            "reason",
+        ],
+    )
     counts = {e: sum(1 for x in result["events"] if x["event"] == e) for e in _EVENT_MARKERS}
-    summary = {"settings": result["settings"], "interpretation": result["interpretation"],
-               "frames": len(result["frames"]),
-               "measured_frames": sum(1 for r in result["frames"] if r["status"] == "measured"),
-               "identities": len(result["lifetimes"]), "event_counts": counts,
-               "most_persistent": [r for r in sorted(result["lifetimes"], key=lambda r: -r["frames_present"])[:10]]}
+    summary = {
+        "settings": result["settings"],
+        "interpretation": result["interpretation"],
+        "frames": len(result["frames"]),
+        "measured_frames": sum(1 for r in result["frames"] if r["status"] == "measured"),
+        "identities": len(result["lifetimes"]),
+        "event_counts": counts,
+        "most_persistent": [r for r in sorted(result["lifetimes"], key=lambda r: -r["frames_present"])[:10]],
+    }
     path = directory / f"{prefix}_tracking.json"
     path.write_text(dumps_record(summary, path, indent=1, default=str) + "\n", encoding="utf-8", newline="\n")
     written.append(path)
@@ -784,6 +1048,7 @@ def write_tracking_outputs(result, directory, *, prefix: str = "crevice", dpi: i
 # --------------------------------------------------------------------------
 # Command line
 # --------------------------------------------------------------------------
+
 
 def add_tracking_command(subparsers):
     """Register ``crevice trajectory --track`` on the CLI subparsers.
@@ -799,43 +1064,72 @@ def add_tracking_command(subparsers):
         The parser (handler :func:`run_tracking_command`).
     """
     from .geometry import parse_coord
+
     parser = subparsers.add_parser(
-        "track-cavities", help="Track cavity components across trajectory frames: identities, births, deaths, "
-                               "splits and merges")
+        "track-cavities",
+        help="Track cavity components across trajectory frames: identities, births, deaths, splits and merges",
+    )
     parser.add_argument("topology", help="Topology or structure file (GRO, PDB, ...)")
     parser.add_argument("trajectory", nargs="?", help="Trajectory file (XTC, DCD, ...); omit for the topology frames")
     parser.add_argument("-o", "--output-dir", required=True, help="Output directory")
     parser.add_argument("--prefix", default=None, help="File prefix (default: trajectory or topology stem)")
-    parser.add_argument("--md-selection", default="protein",
-                        help="MDAnalysis selection (default protein; use 'not resname TIP3' with --include-hetero "
-                             "for lipids as obstacles)")
-    parser.add_argument("--include-hetero", action="store_true",
-                        help="Hetero atoms (lipids, ions) near the protein are obstacles")
+    parser.add_argument(
+        "--md-selection",
+        default="protein",
+        help="MDAnalysis selection (default protein; use 'not resname TIP3' with --include-hetero "
+        "for lipids as obstacles)",
+    )
+    parser.add_argument(
+        "--include-hetero", action="store_true", help="Hetero atoms (lipids, ions) near the protein are obstacles"
+    )
     parser.add_argument("--start", type=int, default=0, help="First frame (zero-based)")
     parser.add_argument("--stop", type=int, help="One past the last frame (default: end)")
     parser.add_argument("--stride", type=int, default=1, help="Frame stride")
     parser.add_argument("--chunk", type=int, default=50, help="Frames read per chunk (bounds memory; default 50)")
     where = parser.add_mutually_exclusive_group()
-    where.add_argument("--centre", type=parse_coord,
-                       help="Keep components with a voxel within --radius of this point x,y,z (first-frame coordinates, Å)")
+    where.add_argument(
+        "--centre",
+        type=parse_coord,
+        help="Keep components with a voxel within --radius of this point x,y,z (first-frame coordinates, Å)",
+    )
     where.add_argument("--region", help="Region definition JSON: its landmark anchor in the first frame is the centre")
     parser.add_argument("--radius", type=float, default=8.0, help="Neighbourhood radius in Å (default 8)")
     parser.add_argument("--spacing", type=float, default=0.5, help="Lattice spacing in Å (default 0.5)")
     parser.add_argument("--probe-radius", type=float, default=1.4, help="Cavity probe radius in Å (default 1.4)")
     parser.add_argument("--outer-radius", type=float, default=6.0, help="Bulk-probe radius in Å (default 6)")
     parser.add_argument("--min-volume", type=float, default=5.0, help="Smallest component volume kept, Å³ (default 5)")
-    parser.add_argument("--lining-cutoff", type=float, default=3.3,
-                        help="Atom-centre to voxel distance of a lining residue, Å (default 3.3)")
-    parser.add_argument("--link-jaccard", type=float, default=0.2,
-                        help="Jaccard overlap that links components of consecutive frames (default 0.2)")
-    parser.add_argument("--link-containment", type=float, default=0.5,
-                        help="Containment |A&B|/min(|A|,|B|) that also links them (default 0.5; 0 disables)")
+    parser.add_argument(
+        "--lining-cutoff",
+        type=float,
+        default=3.3,
+        help="Atom-centre to voxel distance of a lining residue, Å (default 3.3)",
+    )
+    parser.add_argument(
+        "--link-jaccard",
+        type=float,
+        default=0.2,
+        help="Jaccard overlap that links components of consecutive frames (default 0.2)",
+    )
+    parser.add_argument(
+        "--link-containment",
+        type=float,
+        default=0.5,
+        help="Containment |A&B|/min(|A|,|B|) that also links them (default 0.5; 0 disables)",
+    )
     parser.add_argument("--workers", type=int, default=1, help="Worker processes (default 1)")
-    parser.add_argument("--pbc", choices=["check", "none"], default="check",
-                        help="Periodic-boundary bond check (none for wrapped lipids)")
+    parser.add_argument(
+        "--pbc",
+        choices=["check", "none"],
+        default="check",
+        help="Periodic-boundary bond check (none for wrapped lipids)",
+    )
     parser.add_argument("--max-grid-points", type=int, default=16_000_000, help="Cast grid guard")
-    parser.add_argument("--dpi", type=int, default=200,
-                        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)")
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=200,
+        help="PNG figure resolution in dots per inch (default 200; use --dpi 400 or more for print/publication)",
+    )
     parser.set_defaults(func=run_tracking_command)
     return parser
 
@@ -849,16 +1143,35 @@ def run_tracking_command(args):
         Parsed ``trajectory --track`` arguments.
     """
     from pathlib import Path
-    result = track_cavities(args.topology, args.trajectory, selection=args.md_selection, start=args.start,
-                            stop=args.stop, stride=args.stride, chunk=args.chunk, spacing=args.spacing,
-                            probe_radius=args.probe_radius, outer_radius=args.outer_radius,
-                            min_volume=args.min_volume, centre=args.centre, radius=args.radius, region=args.region,
-                            include_hetero=args.include_hetero, lining_cutoff=args.lining_cutoff,
-                            link_jaccard=args.link_jaccard, link_containment=args.link_containment,
-                            workers=args.workers, pbc=args.pbc, max_grid_points=args.max_grid_points)
+
+    result = track_cavities(
+        args.topology,
+        args.trajectory,
+        selection=args.md_selection,
+        start=args.start,
+        stop=args.stop,
+        stride=args.stride,
+        chunk=args.chunk,
+        spacing=args.spacing,
+        probe_radius=args.probe_radius,
+        outer_radius=args.outer_radius,
+        min_volume=args.min_volume,
+        centre=args.centre,
+        radius=args.radius,
+        region=args.region,
+        include_hetero=args.include_hetero,
+        lining_cutoff=args.lining_cutoff,
+        link_jaccard=args.link_jaccard,
+        link_containment=args.link_containment,
+        workers=args.workers,
+        pbc=args.pbc,
+        max_grid_points=args.max_grid_points,
+    )
     prefix = args.prefix or Path(args.trajectory or args.topology).stem
     write_tracking_outputs(result, args.output_dir, prefix=prefix, dpi=args.dpi)
     counts = {e: sum(1 for x in result["events"] if x["event"] == e) for e in _EVENT_MARKERS}
     measured = sum(1 for r in result["frames"] if r["status"] == "measured")
-    print(f"track-cavities frames={len(result['frames'])} measured={measured} identities={len(result['lifetimes'])} "
-          + " ".join(f"{k}={v}" for k, v in counts.items()))
+    print(
+        f"track-cavities frames={len(result['frames'])} measured={measured} identities={len(result['lifetimes'])} "
+        + " ".join(f"{k}={v}" for k, v in counts.items())
+    )

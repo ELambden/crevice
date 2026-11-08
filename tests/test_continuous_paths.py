@@ -6,10 +6,10 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from crevice import StructureFrame, find_tunnels, void_cast
-from crevice import analysis, voids
+from crevice import StructureFrame, void_cast
+from crevice import voids
 from crevice.spatial import SpatialIndex
-from test_ensemble_cast_network import atom, cage, ring
+from test_ensemble_cast_network import atom
 
 
 def diagonal_fixture():
@@ -32,24 +32,6 @@ def test_clear_diagonal_endpoints_do_not_merge_across_atom(monkeypatch):
     assert cast.component_count == 2
     assert [c.point_count for c in cast.components] == [1, 1]
     assert len({c.metadata["source_component_id"] for c in cast.components}) == 2
-
-
-def test_tunnel_retains_actual_off_grid_start():
-    frame = ring()
-    start = (0.2, 0.3, 0.4)
-    tunnels = find_tunnels(frame, start=start, spacing=2, min_radius=0.5, max_tunnels=1)
-    assert tunnels
-    assert tunnels[0].start == start
-    assert tunnels[0].points[0].position == start
-    spatial = SpatialIndex(frame.atoms)
-    tunnel = tunnels[0]
-    clearances = [spatial.segment_clearance(a.position, b.position)
-                  for a, b in zip(tunnel.points, tunnel.points[1:])]
-    assert min(clearances) >= 0.5
-    assert tunnel.bottleneck_radius == pytest.approx(min(clearances))
-    assert tunnel.metadata["segment_clearances_A"] == pytest.approx(clearances)
-    assert tunnel.length == pytest.approx(sum(math.dist(a.position, b.position)
-                                            for a, b in zip(tunnel.points, tunnel.points[1:])))
 
 
 @pytest.mark.parametrize("start,end,expected", [
@@ -120,27 +102,6 @@ def test_flood_fill_does_not_escape_through_blocked_diagonal():
     exterior = voids._flood_exterior(nodes, (3, 3, 3), edge_allowed=lambda a, b:
                                     graph.allows(a, b, nodes[a].clearance, nodes[b].clearance))
     assert exterior == {(0, 0, 0)}
-
-
-@pytest.mark.parametrize("required, reachable", [(0.2, True), (0.4, False)])
-def test_widest_path_uses_between_node_capacity(required, reachable):
-    from crevice.grid import GridConnectivity
-    spatial = SpatialIndex((atom(1, (0, 0, 0)),))
-    graph = GridConnectivity(spatial, (-3, 2, 0), 6, required)
-    left, right = (0, 0, 0), (1, 0, 0)
-    nodes = {p: spatial.nearest_surface(graph.position(p))[0] for p in (left, right)}
-    assert min(nodes.values()) > 1.9
-    widths, _, _ = analysis._widest_paths(nodes, (2, 1, 1), left, 6,
-                                         edge_clearance=graph.clearance, min_radius=required)
-    assert (right in widths) == reachable
-    if reachable:
-        assert widths[right] == pytest.approx(0.3)
-
-
-def test_valid_seed_does_not_teleport_out_of_unsampled_cage():
-    frame = StructureFrame(cage())
-    assert SpatialIndex(frame.atoms).nearest_surface((0, 0, 0))[0] > 3
-    assert find_tunnels(frame, start=(0, 0, 0), spacing=20, min_radius=0.5) == ()
 
 
 def test_edge_certificates_and_bounded_cache_match_exact_clearance():

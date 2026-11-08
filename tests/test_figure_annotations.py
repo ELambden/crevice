@@ -111,7 +111,7 @@ def test_publish_figures_are_clean_by_default_and_annotate_restores_text(tmp_pat
     default = dict(saved_figures); saved_figures.clear()
     drawn = _publish(tmp_path, 'annotated', annotate=True)
     annotated = dict(saved_figures)
-    assert set(default) == set(annotated) and len(default) >= 7
+    assert set(default) == set(annotated) and len(default) >= 6   # report no longer draws a cavity summary
     for name, text in default.items():
         _assert_clean(name, text, clean/name)
         # The omitted text is recorded in the file itself.

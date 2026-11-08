@@ -96,13 +96,13 @@ probability that a functional gate is open or shut.
 
 ## Nonlocal contacts and movement
 
-CLI contacts use the minimum selected heavy-atom center distance, <=4.5 Å by default.
+Contacts use the minimum selected heavy-atom center distance, <=4.5 Å by default.
 A nonlocal pair lies on different chains or is separated by more than two
 positions in observed residue order. Missing sequence stretches can affect that
 order-based definition. Distance and observed separation are exported so users
-can apply another criterion. The low-level `build_residue_network` default is a
-van der Waals surface-gap metric; it must not be mistaken for a center-distance
-cutoff, so choose the metric explicitly in scripts.
+can apply another criterion. The optional van der Waals surface-gap metric
+(`--contact-metric surface`) is much more permissive at the same cutoff and
+must not be mistaken for a center-distance cutoff.
 
 A trajectory physical contact pools all qualifying chemical labels for each
 residue pair. Occupancy is contact frames divided by all analyzed frames with

@@ -76,13 +76,15 @@ from .models import Atom
 #: Every element symbol (Z = 1-118), upper case. Used to decide whether an
 #: explicit element column holds a real symbol; the list is embedded so the
 #: result does not depend on optional packages.
-ELEMENT_SYMBOLS: frozenset[str] = frozenset("""
+ELEMENT_SYMBOLS: frozenset[str] = frozenset(
+    """
 H HE LI BE B C N O F NE NA MG AL SI P S CL AR K CA SC TI V CR MN FE CO NI CU ZN
 GA GE AS SE BR KR RB SR Y ZR NB MO TC RU RH PD AG CD IN SN SB TE I XE CS BA LA
 CE PR ND PM SM EU GD TB DY HO ER TM YB LU HF TA W RE OS IR PT AU HG TL PB BI PO
 AT RN FR RA AC TH PA U NP PU AM CM BK CF ES FM MD NO LR RF DB SG BH HS MT DS RG
 CN NH FL MC LV TS OG
-""".split())
+""".split()
+)
 
 # Sources of the tabulated radii (Å):
 #   Bondi 1964: A. Bondi, J. Phys. Chem. 68, 441-451 (1964), Table I.
@@ -93,28 +95,65 @@ CN NH FL MC LV TS OG
 #     was not recorded. They are kept unchanged so results stay reproducible.
 _RADIUS_SOURCES: dict[str, tuple[str, float]] = {
     # Bondi 1964
-    "H": ("Bondi 1964", 1.20), "C": ("Bondi 1964", 1.70), "N": ("Bondi 1964", 1.55),
-    "O": ("Bondi 1964", 1.52), "F": ("Bondi 1964", 1.47), "P": ("Bondi 1964", 1.80),
-    "S": ("Bondi 1964", 1.80), "CL": ("Bondi 1964", 1.75), "BR": ("Bondi 1964", 1.85),
-    "I": ("Bondi 1964", 1.98), "SE": ("Bondi 1964", 1.90), "MG": ("Bondi 1964", 1.73),
-    "ZN": ("Bondi 1964", 1.39), "NA": ("Bondi 1964", 2.27), "K": ("Bondi 1964", 2.75),
-    "LI": ("Bondi 1964", 1.82), "CU": ("Bondi 1964", 1.40), "NI": ("Bondi 1964", 1.63),
-    "HE": ("Bondi 1964", 1.40), "NE": ("Bondi 1964", 1.54), "AR": ("Bondi 1964", 1.88),
-    "KR": ("Bondi 1964", 2.02), "XE": ("Bondi 1964", 2.16), "SI": ("Bondi 1964", 2.10),
-    "AS": ("Bondi 1964", 1.85), "TE": ("Bondi 1964", 2.06), "GA": ("Bondi 1964", 1.87),
-    "IN": ("Bondi 1964", 1.93), "SN": ("Bondi 1964", 2.17), "TL": ("Bondi 1964", 1.96),
-    "PB": ("Bondi 1964", 2.02), "PD": ("Bondi 1964", 1.63), "AG": ("Bondi 1964", 1.72),
-    "CD": ("Bondi 1964", 1.58), "PT": ("Bondi 1964", 1.72), "AU": ("Bondi 1964", 1.66),
-    "HG": ("Bondi 1964", 1.55), "U": ("Bondi 1964", 1.86),
+    "H": ("Bondi 1964", 1.20),
+    "C": ("Bondi 1964", 1.70),
+    "N": ("Bondi 1964", 1.55),
+    "O": ("Bondi 1964", 1.52),
+    "F": ("Bondi 1964", 1.47),
+    "P": ("Bondi 1964", 1.80),
+    "S": ("Bondi 1964", 1.80),
+    "CL": ("Bondi 1964", 1.75),
+    "BR": ("Bondi 1964", 1.85),
+    "I": ("Bondi 1964", 1.98),
+    "SE": ("Bondi 1964", 1.90),
+    "MG": ("Bondi 1964", 1.73),
+    "ZN": ("Bondi 1964", 1.39),
+    "NA": ("Bondi 1964", 2.27),
+    "K": ("Bondi 1964", 2.75),
+    "LI": ("Bondi 1964", 1.82),
+    "CU": ("Bondi 1964", 1.40),
+    "NI": ("Bondi 1964", 1.63),
+    "HE": ("Bondi 1964", 1.40),
+    "NE": ("Bondi 1964", 1.54),
+    "AR": ("Bondi 1964", 1.88),
+    "KR": ("Bondi 1964", 2.02),
+    "XE": ("Bondi 1964", 2.16),
+    "SI": ("Bondi 1964", 2.10),
+    "AS": ("Bondi 1964", 1.85),
+    "TE": ("Bondi 1964", 2.06),
+    "GA": ("Bondi 1964", 1.87),
+    "IN": ("Bondi 1964", 1.93),
+    "SN": ("Bondi 1964", 2.17),
+    "TL": ("Bondi 1964", 1.96),
+    "PB": ("Bondi 1964", 2.02),
+    "PD": ("Bondi 1964", 1.63),
+    "AG": ("Bondi 1964", 1.72),
+    "CD": ("Bondi 1964", 1.58),
+    "PT": ("Bondi 1964", 1.72),
+    "AU": ("Bondi 1964", 1.66),
+    "HG": ("Bondi 1964", 1.55),
+    "U": ("Bondi 1964", 1.86),
     # Mantina 2009
-    "B": ("Mantina 2009", 1.92), "CA": ("Mantina 2009", 2.31), "BE": ("Mantina 2009", 1.53),
-    "AL": ("Mantina 2009", 1.84), "GE": ("Mantina 2009", 2.11), "SB": ("Mantina 2009", 2.06),
-    "BI": ("Mantina 2009", 2.07), "PO": ("Mantina 2009", 1.97), "AT": ("Mantina 2009", 2.02),
-    "RN": ("Mantina 2009", 2.20), "RB": ("Mantina 2009", 3.03), "CS": ("Mantina 2009", 3.43),
-    "SR": ("Mantina 2009", 2.49), "BA": ("Mantina 2009", 2.68), "FR": ("Mantina 2009", 3.48),
+    "B": ("Mantina 2009", 1.92),
+    "CA": ("Mantina 2009", 2.31),
+    "BE": ("Mantina 2009", 1.53),
+    "AL": ("Mantina 2009", 1.84),
+    "GE": ("Mantina 2009", 2.11),
+    "SB": ("Mantina 2009", 2.06),
+    "BI": ("Mantina 2009", 2.07),
+    "PO": ("Mantina 2009", 1.97),
+    "AT": ("Mantina 2009", 2.02),
+    "RN": ("Mantina 2009", 2.20),
+    "RB": ("Mantina 2009", 3.03),
+    "CS": ("Mantina 2009", 3.43),
+    "SR": ("Mantina 2009", 2.49),
+    "BA": ("Mantina 2009", 2.68),
+    "FR": ("Mantina 2009", 3.48),
     "RA": ("Mantina 2009", 2.83),
     # legacy, source not recorded
-    "FE": ("legacy", 1.94), "MN": ("legacy", 1.97), "CO": ("legacy", 1.67),
+    "FE": ("legacy", 1.94),
+    "MN": ("legacy", 1.97),
+    "CO": ("legacy", 1.67),
 }
 
 #: Radius in Å used for any element not in :data:`VDW_RADII` (the carbon value).
@@ -182,19 +221,45 @@ AMBIGUOUS_NAME_ELEMENTS = frozenset({"CA", "NA", "CO", "NI"})
 # Pseudo-atoms such as GROMACS "IB+" (big positive ion) have no element and are
 # deliberately absent.
 _CHARMM36_IONS = {
-    ("LIT", "LIT"): "LI", ("SOD", "SOD"): "NA", ("MG", "MG"): "MG", ("POT", "POT"): "K",
-    ("CAL", "CAL"): "CA", ("RUB", "RUB"): "RB", ("CES", "CES"): "CS", ("BAR", "BAR"): "BA",
-    ("ZN2", "ZN"): "ZN", ("CD2", "CD"): "CD", ("CLA", "CLA"): "CL",
+    ("LIT", "LIT"): "LI",
+    ("SOD", "SOD"): "NA",
+    ("MG", "MG"): "MG",
+    ("POT", "POT"): "K",
+    ("CAL", "CAL"): "CA",
+    ("RUB", "RUB"): "RB",
+    ("CES", "CES"): "CS",
+    ("BAR", "BAR"): "BA",
+    ("ZN2", "ZN"): "ZN",
+    ("CD2", "CD"): "CD",
+    ("CLA", "CLA"): "CL",
 }
 _GROMACS_IONS = {
-    ("NA", "NA"): "NA", ("K", "K"): "K", ("CL", "CL"): "CL", ("CA", "CA"): "CA",
-    ("MG", "MG"): "MG", ("ZN", "ZN"): "ZN", ("LI", "LI"): "LI", ("RB", "RB"): "RB",
-    ("CS", "CS"): "CS", ("CU", "CU"): "CU", ("CU1", "CU"): "CU", ("F", "F"): "F",
-    ("BR", "BR"): "BR", ("I", "I"): "I", ("NA+", "NA+"): "NA", ("CL-", "CL-"): "CL",
+    ("NA", "NA"): "NA",
+    ("K", "K"): "K",
+    ("CL", "CL"): "CL",
+    ("CA", "CA"): "CA",
+    ("MG", "MG"): "MG",
+    ("ZN", "ZN"): "ZN",
+    ("LI", "LI"): "LI",
+    ("RB", "RB"): "RB",
+    ("CS", "CS"): "CS",
+    ("CU", "CU"): "CU",
+    ("CU1", "CU"): "CU",
+    ("F", "F"): "F",
+    ("BR", "BR"): "BR",
+    ("I", "I"): "I",
+    ("NA+", "NA+"): "NA",
+    ("CL-", "CL-"): "CL",
 }
 _AMBER_LEGACY_IONS = {
-    ("LI+", "LI+"): "LI", ("NA+", "NA+"): "NA", ("K+", "K+"): "K", ("RB+", "RB+"): "RB",
-    ("CS+", "CS+"): "CS", ("F-", "F-"): "F", ("CL-", "CL-"): "CL", ("BR-", "BR-"): "BR",
+    ("LI+", "LI+"): "LI",
+    ("NA+", "NA+"): "NA",
+    ("K+", "K+"): "K",
+    ("RB+", "RB+"): "RB",
+    ("CS+", "CS+"): "CS",
+    ("F-", "F-"): "F",
+    ("CL-", "CL-"): "CL",
+    ("BR-", "BR-"): "BR",
     ("I-", "I-"): "I",
 }
 #: Element of each recognised monatomic MD ion, keyed by upper-case
@@ -214,9 +279,17 @@ ION_NAME_ELEMENTS: dict[tuple[str, str], str] = {**_AMBER_LEGACY_IONS, **_GROMAC
 # 0.404468 nm, i.e. Rmin/2 = sigma * 2**(1/6) / 2 = 1.41075 and 2.27 Å.
 # Keyed by element; the value is (CHARMM atom type, Rmin/2).
 _CHARMM36_ION_RMIN_HALF: dict[str, tuple[str, float]] = {
-    "LI": ("LIT", 1.2975), "NA": ("SOD", 1.41075), "MG": ("MG", 1.185), "K": ("POT", 1.76375),
-    "CA": ("CAL", 1.367), "RB": ("RUB", 1.90), "CS": ("CES", 2.100), "BA": ("BAR", 1.890),
-    "ZN": ("ZN", 1.09), "CD": ("CAD", 1.357), "CL": ("CLA", 2.27),
+    "LI": ("LIT", 1.2975),
+    "NA": ("SOD", 1.41075),
+    "MG": ("MG", 1.185),
+    "K": ("POT", 1.76375),
+    "CA": ("CAL", 1.367),
+    "RB": ("RUB", 1.90),
+    "CS": ("CES", 2.100),
+    "BA": ("BAR", 1.890),
+    "ZN": ("ZN", 1.09),
+    "CD": ("CAD", 1.357),
+    "CL": ("CLA", 2.27),
 }
 
 #: Label of the source of the default ion radii (:data:`ION_RADII`).
@@ -228,7 +301,8 @@ ION_RADII_CITATION = (
     "CAD, CLA (copy distributed by CHARMM-GUI v3.7, 25 Aug 2026; the file has no version string; "
     "SHA-256 41c6474470fa66e927198582a314f9e390cd6bf6fbd1449475d35e3346d72bdc). Ion parameters: "
     "Beglov and Roux, J. Chem. Phys. 100, 9050 (1994) and later Roux-group values cited in the file; "
-    "Zn: Stote and Karplus, Proteins 23, 12 (1995)")
+    "Zn: Stote and Karplus, Proteins 23, 12 (1995)"
+)
 
 #: Default radii (Å) of recognised monatomic ions, keyed by element. Each value is
 #: the CHARMM36 Lennard-Jones Rmin/2 of that ion type (``toppar_water_ions.str``). Applied
@@ -305,10 +379,15 @@ def ion_name_source(resname: str, atom_name: str) -> str | None:
     True
     """
     key = (resname.strip().upper(), atom_name.strip().upper())
-    sources = [label for label, table in (("CHARMM36 toppar_water_ions.str", _CHARMM36_IONS),
-                                          ("GROMACS 2022.4 ions.itp", _GROMACS_IONS),
-                                          ("AMBER legacy (Joung-Cheatham)", _AMBER_LEGACY_IONS))
-               if key in table]
+    sources = [
+        label
+        for label, table in (
+            ("CHARMM36 toppar_water_ions.str", _CHARMM36_IONS),
+            ("GROMACS 2022.4 ions.itp", _GROMACS_IONS),
+            ("AMBER legacy (Joung-Cheatham)", _AMBER_LEGACY_IONS),
+        )
+        if key in table
+    ]
     return "; ".join(sources) or None
 
 
@@ -533,9 +612,14 @@ def partition_atoms_with_radii(atoms, radii: "RadiusSet | str | os.PathLike | No
     return tuple(kept), dict(sorted(elements.items())), dict(sorted(names.items()))
 
 
-def unrecognised_element_message(by_element: Mapping[str, int], by_name: Mapping[str, int] | None = None,
-                                 source: str = "", *, radii: "RadiusSet | str | os.PathLike | None" = None,
-                                 excluded: bool = True) -> str:
+def unrecognised_element_message(
+    by_element: Mapping[str, int],
+    by_name: Mapping[str, int] | None = None,
+    source: str = "",
+    *,
+    radii: "RadiusSet | str | os.PathLike | None" = None,
+    excluded: bool = True,
+) -> str:
     """Explain which atoms have no radius and how to supply one.
 
     Parameters
@@ -556,20 +640,24 @@ def unrecognised_element_message(by_element: Mapping[str, int], by_name: Mapping
     -------
     str
     """
-    listing = ", ".join(f"{element} ({count} atom{'s' if count != 1 else ''})"
-                        for element, count in sorted(by_element.items()))
+    listing = ", ".join(
+        f"{element} ({count} atom{'s' if count != 1 else ''})" for element, count in sorted(by_element.items())
+    )
     names = sorted(by_name or {})
     keys = ", ".join(names[:5]) + (", ..." if len(names) > 5 else "")
     radius_set = effective_radii(radii)
     outcome = "were excluded from the analysis" if excluded else "cannot be analysed"
-    return ((f"{source}: " if source else "")
-            + f"atoms with no van der Waals radius in radius set {radius_set.name!r} {outcome}: {listing}"
-            + (f" [{keys}]" if keys else "") + ". "
-            "To include them, give their radii in a radius file and pass it with --radii FILE "
-            "(Python: radii=FILE, also when loading the structure). Start from "
-            "crevice.radii.write_radius_template('radii.csv', elements=[...]); entries can be keyed by "
-            "element, atom name or RESNAME:ATOMNAME, so designed or modified residues can be given "
-            "their own radii.")
+    return (
+        (f"{source}: " if source else "")
+        + f"atoms with no van der Waals radius in radius set {radius_set.name!r} {outcome}: {listing}"
+        + (f" [{keys}]" if keys else "")
+        + ". "
+        "To include them, give their radii in a radius file and pass it with --radii FILE "
+        "(Python: radii=FILE, also when loading the structure). Start from "
+        "crevice.radii.write_radius_template('radii.csv', elements=[...]); entries can be keyed by "
+        "element, atom name or RESNAME:ATOMNAME, so designed or modified residues can be given "
+        "their own radii."
+    )
 
 
 def write_radius_template(path, *, elements=(), base: str = "default") -> Path:
@@ -610,10 +698,13 @@ def write_radius_template(path, *, elements=(), base: str = "default") -> Path:
     if target.suffix.lower() != ".csv":
         raise ValueError("write_radius_template writes a .csv radius file")
     preset = radii_preset(base)
-    lines = ["# CREVICE radius file (see the Atomic radii page of the documentation).",
-             f"# Starts from the built-in {preset.name!r} set; rows below add or override radii in angstrom.",
-             "# Keys: element (GD), atom name (GD1) or RESNAME:ATOMNAME (XGD:GD1, most specific wins).",
-             "kind,key,radius", f"base,{preset.name},"]
+    lines = [
+        "# CREVICE radius file (see the Atomic radii page of the documentation).",
+        f"# Starts from the built-in {preset.name!r} set; rows below add or override radii in angstrom.",
+        "# Keys: element (GD), atom name (GD1) or RESNAME:ATOMNAME (XGD:GD1, most specific wins).",
+        "kind,key,radius",
+        f"base,{preset.name},",
+    ]
     lines += [f"# element,{str(e).strip().upper()},<radius in angstrom>" for e in elements]
     lines += ["# atom,RESNAME:ATOMNAME,<radius in angstrom>"]
     target.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
@@ -684,8 +775,9 @@ def atom_vdw_radius(atom: Atom, radii: "RadiusSet | str | os.PathLike | None" = 
     return effective_radii(radii).radius_for_names(atom.name, atom.resname, atom.element)
 
 
-def radius_for_names(name: str, resname: str = "", element: str = "",
-                     radii: "RadiusSet | str | os.PathLike | None" = None) -> float:
+def radius_for_names(
+    name: str, resname: str = "", element: str = "", radii: "RadiusSet | str | os.PathLike | None" = None
+) -> float:
     """:func:`atom_vdw_radius` for an atom given by its names (no :class:`Atom` needed).
 
     Parameters
@@ -754,14 +846,21 @@ def residue_properties(resname: str) -> tuple[str, ...]:
         props.append("other")
     return tuple(props)
 
+
 # ---------------------------------------------------------------------------
 # Radius sets
 # ---------------------------------------------------------------------------
 
 #: Lookup order used by :meth:`RadiusSet.radius_for_atom`; also recorded in
 #: provenance.
-RADIUS_PRECEDENCE = ("RESNAME:ATOMNAME", "ATOMNAME", "recognised ion residue (ion_radii by element)",
-                     "HOLE VDWR records (first match)", "element", "default")
+RADIUS_PRECEDENCE = (
+    "RESNAME:ATOMNAME",
+    "ATOMNAME",
+    "recognised ion residue (ion_radii by element)",
+    "HOLE VDWR records (first match)",
+    "element",
+    "default",
+)
 
 
 def _hole_match(pattern: str, text: str) -> bool:
@@ -919,7 +1018,8 @@ class RadiusSet:
                 raise ValueError(
                     f"Radius set {self.name!r}: no VDWR record matches atom {atom_key!r} in residue "
                     f"{residue!r} (HOLE stops on the same atom). Add a specific record, or a final "
-                    f"catch-all such as 'VDWR ???? ??? 1.70'.")
+                    f"catch-all such as 'VDWR ???? ??? 1.70'."
+                )
         else:
             value = self.radius_for_element(infer_element(name, element, resname))
         self._cache[key] = float(value)
@@ -987,8 +1087,7 @@ class RadiusSet:
             found = True
         elif self.hole_records:
             atom_field, residue_field = atom_key.ljust(4)[:4], residue.ljust(3)[:3]
-            found = any(_hole_match(a, atom_field) and _hole_match(r, residue_field)
-                        for a, r, _ in self.hole_records)
+            found = any(_hole_match(a, atom_field) and _hole_match(r, residue_field) for a, r, _ in self.hole_records)
         else:
             symbol = infer_element(name, element, resname)
             found = symbol in self.element_radii or (symbol in HYDROGEN_ISOTOPES and "H" in self.element_radii)
@@ -1043,7 +1142,9 @@ class RadiusSet:
                 "table_sha256": self.table_sha256,
                 "default_radius_A": float(self.default_radius),
                 "element_overrides_A": {k: v for k, v in elements.items() if VDW_RADII.get(k) != v},
-                "standard_elements_missing": sorted(VDW_RADII.keys() - elements.keys()) if not self.hole_records else [],
+                "standard_elements_missing": sorted(VDW_RADII.keys() - elements.keys())
+                if not self.hole_records
+                else [],
                 "atom_radii_A": {k: float(v) for k, v in sorted(self.atom_radii.items())},
                 "ion_radii_A": {k: float(v) for k, v in sorted(self.ion_radii.items())},
                 "ion_scope": ION_SCOPE if self.ion_radii else None,
@@ -1072,37 +1173,54 @@ _HOLE_SIMPLE_RAD = (
     ("LP??", "???", 0.00),
 )
 
-_BONDI_CITATION = ("Bondi, J. Phys. Chem. 68, 441 (1964); Mantina et al., J. Phys. Chem. A 113, 5806 "
-                   "(2009) for main-group elements Bondi lacked; Fe, Mn, Co legacy (see radius_source)")
+_BONDI_CITATION = (
+    "Bondi, J. Phys. Chem. 68, 441 (1964); Mantina et al., J. Phys. Chem. A 113, 5806 "
+    "(2009) for main-group elements Bondi lacked; Fe, Mn, Co legacy (see radius_source)"
+)
 
 #: The rule that decides which atoms get :attr:`RadiusSet.ion_radii`; recorded
 #: in provenance.
-ION_SCOPE = ("recognised monatomic ion residues only: (residue name, atom name) in "
-             "crevice.radii.ION_NAME_ELEMENTS and the atom's element equal to that entry's element; "
-             "metals inside other residues, C-alpha CA, PRO CD and heme NA are not ions")
+ION_SCOPE = (
+    "recognised monatomic ion residues only: (residue name, atom name) in "
+    "crevice.radii.ION_NAME_ELEMENTS and the atom's element equal to that entry's element; "
+    "metals inside other residues, C-alpha CA, PRO CD and heme NA are not ions"
+)
 
 #: The radius set used when none is chosen. It combines the standard
 #: :data:`VDW_RADII` element table with :data:`ION_RADII` (CHARMM36 Rmin/2) for recognised ion
 #: residues. Also available as the preset ``"default"``.
 DEFAULT_RADII = RadiusSet(
-    "default", VDW_RADII, ion_radii=ION_RADII,
+    "default",
+    VDW_RADII,
+    ion_radii=ION_RADII,
     source="crevice.radii.VDW_RADII (the standard table) with crevice.radii.ION_RADII for recognised ion residues",
-    citation=f"{_BONDI_CITATION}. Ion residues: {ION_RADII_CITATION}")
+    citation=f"{_BONDI_CITATION}. Ion residues: {ION_RADII_CITATION}",
+)
 
 #: Built-in radius tables; see :func:`radii_preset`.
 RADIUS_PRESETS: dict[str, RadiusSet] = {
     "default": DEFAULT_RADII,
-    "bondi": RadiusSet("bondi", VDW_RADII, source="crevice.radii.VDW_RADII (the standard table) for every atom, "
-                                                  "ions included",
-                       citation=_BONDI_CITATION),
-    "hole": RadiusSet("hole", hole_records=_HOLE_SIMPLE_RAD, source="HOLE 2.3.1 rad/simple.rad",
-                      citation="HOLE: Smart et al., J. Mol. Graph. 14, 354 (1996); simple.rad values: AMBER "
-                               "united-atom radii, Weiner et al., J. Am. Chem. Soc. 106, 765 (1984)"),
-    "charmm_like": RadiusSet("charmm_like", {**VDW_RADII, "C": 2.00, "N": 1.85, "O": 1.70, "S": 2.00},
-                             ion_radii=ION_RADII,
-                             source="CREVICE approximation: VDW_RADII with larger C, N, O, S (not read "
-                                    "from a CHARMM parameter file); ION_RADII for recognised ion residues",
-                             citation=f"Ion residues: {ION_RADII_CITATION}"),
+    "bondi": RadiusSet(
+        "bondi",
+        VDW_RADII,
+        source="crevice.radii.VDW_RADII (the standard table) for every atom, ions included",
+        citation=_BONDI_CITATION,
+    ),
+    "hole": RadiusSet(
+        "hole",
+        hole_records=_HOLE_SIMPLE_RAD,
+        source="HOLE 2.3.1 rad/simple.rad",
+        citation="HOLE: Smart et al., J. Mol. Graph. 14, 354 (1996); simple.rad values: AMBER "
+        "united-atom radii, Weiner et al., J. Am. Chem. Soc. 106, 765 (1984)",
+    ),
+    "charmm_like": RadiusSet(
+        "charmm_like",
+        {**VDW_RADII, "C": 2.00, "N": 1.85, "O": 1.70, "S": 2.00},
+        ion_radii=ION_RADII,
+        source="CREVICE approximation: VDW_RADII with larger C, N, O, S (not read "
+        "from a CHARMM parameter file); ION_RADII for recognised ion residues",
+        citation=f"Ion residues: {ION_RADII_CITATION}",
+    ),
 }
 
 
@@ -1260,13 +1378,12 @@ def custom_radii_set(
     start = radii_preset(base) if isinstance(base, str) else base
     elements = dict(start.element_radii) if start is not None else {}
     atoms = dict(start.atom_radii) if start is not None else {}
-    elements.update({_element_key(k, name): _radius_value(v, f"{name} element {k}")
-                     for k, v in dict(element_radii or {}).items()})
-    atoms.update({_atom_key(k, name): _radius_value(v, f"{name} atom {k}")
-                  for k, v in dict(atom_radii or {}).items()})
+    elements.update(
+        {_element_key(k, name): _radius_value(v, f"{name} element {k}") for k, v in dict(element_radii or {}).items()}
+    )
+    atoms.update({_atom_key(k, name): _radius_value(v, f"{name} atom {k}") for k, v in dict(atom_radii or {}).items()})
     ions = dict(start.ion_radii) if start is not None else {}
-    ions.update({_element_key(k, name): _radius_value(v, f"{name} ion {k}")
-                 for k, v in dict(ion_radii or {}).items()})
+    ions.update({_element_key(k, name): _radius_value(v, f"{name} ion {k}") for k, v in dict(ion_radii or {}).items()})
     return RadiusSet(
         name=name,
         element_radii=elements,
@@ -1321,8 +1438,10 @@ def read_hole_radius_file(path) -> tuple:
         line = line.ljust(23)
         value = line[13:23].strip()
         if not value or "." not in value:
-            raise ValueError(f"{path}:{number}: radius field (columns 14-23) {value!r} needs a decimal "
-                             "point; HOLE's F10.3 read would change its value")
+            raise ValueError(
+                f"{path}:{number}: radius field (columns 14-23) {value!r} needs a decimal "
+                "point; HOLE's F10.3 read would change its value"
+            )
         records.append((line[5:9], line[10:13], _radius_value(value, f"{path}:{number}")))
     if not records:
         raise ValueError(f"{path}: no VDWR records found")
@@ -1384,26 +1503,38 @@ def load_radius_file(path) -> RadiusSet:
     suffix = path.suffix.lower()
     digest = _file_sha256(path)
     if suffix == ".rad":
-        return RadiusSet(path.stem, hole_records=read_hole_radius_file(path), source=str(path),
-                         source_sha256=digest, citation="")
+        return RadiusSet(
+            path.stem, hole_records=read_hole_radius_file(path), source=str(path), source_sha256=digest, citation=""
+        )
     if suffix == ".json":
         data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             raise ValueError(f"{path}: expected a JSON object")
-        unknown = set(data) - {"name", "base", "default_radius", "element_radii", "atom_radii", "ion_radii",
-                               "citation"}
+        unknown = set(data) - {"name", "base", "default_radius", "element_radii", "atom_radii", "ion_radii", "citation"}
         if unknown:
             raise ValueError(f"{path}: unknown keys {sorted(unknown)}")
         for key in ("element_radii", "atom_radii", "ion_radii"):
             if not isinstance(data.get(key, {}), dict):
                 raise ValueError(f"{path}: {key} must be an object")
-        spec = dict(name=str(data.get("name") or path.stem), element_radii=data.get("element_radii"),
-                    atom_radii=data.get("atom_radii"), default_radius=data.get("default_radius", DEFAULT_RADIUS),
-                    base=data.get("base"), citation=str(data.get("citation") or ""), ion_radii=data.get("ion_radii"))
+        spec = dict(
+            name=str(data.get("name") or path.stem),
+            element_radii=data.get("element_radii"),
+            atom_radii=data.get("atom_radii"),
+            default_radius=data.get("default_radius", DEFAULT_RADIUS),
+            base=data.get("base"),
+            citation=str(data.get("citation") or ""),
+            ion_radii=data.get("ion_radii"),
+        )
     elif suffix == ".csv":
-        lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")]
+        lines = [
+            line
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
         rows = list(csv.DictReader(lines))
-        if not lines or not {"kind", "key", "radius"} <= {h.strip().lower() for h in (csv.DictReader(lines).fieldnames or [])}:
+        if not lines or not {"kind", "key", "radius"} <= {
+            h.strip().lower() for h in (csv.DictReader(lines).fieldnames or [])
+        }:
             raise ValueError(f"{path}: CSV needs a header with kind,key,radius")
         elements, atoms, ions, base, default = {}, {}, {}, None, DEFAULT_RADIUS
         for number, row in enumerate(rows, 2):
@@ -1421,8 +1552,15 @@ def load_radius_file(path) -> RadiusSet:
                 base = row["key"]
             else:
                 raise ValueError(f"{path}: row {number}: kind must be element, atom, ion, default or base")
-        spec = dict(name=path.stem, element_radii=elements, atom_radii=atoms, default_radius=default, base=base,
-                    citation="", ion_radii=ions)
+        spec = dict(
+            name=path.stem,
+            element_radii=elements,
+            atom_radii=atoms,
+            default_radius=default,
+            base=base,
+            citation="",
+            ion_radii=ions,
+        )
     else:
         raise ValueError(f"{path}: radius files must be .json, .csv or .rad")
     radii = custom_radii_set(source=str(path), **spec)
@@ -1461,8 +1599,10 @@ def resolve_radii(radii: "RadiusSet | str | os.PathLike | None") -> RadiusSet | 
     if path.is_file():
         return load_radius_file(path)
     valid = ", ".join(sorted(RADIUS_PRESETS))
-    raise ValueError(f"Unknown radius set {str(radii)!r}: use a preset ({valid}) or the path of a "
-                     ".json, .csv or HOLE .rad radius file")
+    raise ValueError(
+        f"Unknown radius set {str(radii)!r}: use a preset ({valid}) or the path of a "
+        ".json, .csv or HOLE .rad radius file"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1611,7 +1751,7 @@ def radii_option(func):
     ``radii=None`` inherits the set in effect (:data:`DEFAULT_RADII` unless a
     caller chose one); anything else is resolved with :func:`resolve_radii`
     and used for the whole call, including nested analyses. Results with a
-    ``metadata`` dict (profiles, casts, tunnels, networks, trajectory
+    ``metadata`` dict (profiles, casts, paths, networks, trajectory
     analyses) get ``metadata["radii"]`` provenance of the set used, default
     set included; an existing entry is kept.
 
@@ -1625,6 +1765,7 @@ def radii_option(func):
     callable
         The wrapped analysis.
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with use_radii(kwargs.get("radii")) as active:
@@ -1633,12 +1774,14 @@ def radii_option(func):
             result = func(*args, **kwargs)
             _record_radii(result, (DEFAULT_RADII if active is None else active).provenance())
         return result
+
     return wrapper
 
 
 # ---------------------------------------------------------------------------
 # Rebuilding and comparing recorded sets
 # ---------------------------------------------------------------------------
+
 
 def radius_set_from_provenance(provenance: Mapping, *, base_dir=None) -> RadiusSet:
     """Rebuild the :class:`RadiusSet` that a ``radii`` provenance record describes.
@@ -1701,12 +1844,15 @@ def radius_set_from_provenance(provenance: Mapping, *, base_dir=None) -> RadiusS
                 pass
     missing = set(provenance.get("standard_elements_missing") or ())
     overrides = {k: float(v) for k, v in (provenance.get("element_overrides_A") or {}).items()}
-    common = dict(atom_radii={k: float(v) for k, v in (provenance.get("atom_radii_A") or {}).items()},
-                  default_radius=float(provenance.get("default_radius_A", DEFAULT_RADIUS)),
-                  hole_records=tuple((a, r, float(v)) for a, r, v in (provenance.get("hole_records") or ())),
-                  ion_radii={k: float(v) for k, v in (provenance.get("ion_radii_A") or {}).items()},
-                  source=str(source or ""), source_sha256=provenance.get("source_sha256"),
-                  citation=str(provenance.get("citation") or ""))
+    common = dict(
+        atom_radii={k: float(v) for k, v in (provenance.get("atom_radii_A") or {}).items()},
+        default_radius=float(provenance.get("default_radius_A", DEFAULT_RADIUS)),
+        hole_records=tuple((a, r, float(v)) for a, r, v in (provenance.get("hole_records") or ())),
+        ion_radii={k: float(v) for k, v in (provenance.get("ion_radii_A") or {}).items()},
+        source=str(source or ""),
+        source_sha256=provenance.get("source_sha256"),
+        citation=str(provenance.get("citation") or ""),
+    )
     elements = {k: v for k, v in VDW_RADII.items() if k not in missing}
     elements.update(overrides)
     candidates.append(RadiusSet(name or "recorded", elements, **common))
@@ -1715,9 +1861,11 @@ def radius_set_from_provenance(provenance: Mapping, *, base_dir=None) -> RadiusS
     for candidate in candidates:
         if candidate.table_sha256 == target:
             return candidate
-    raise ValueError(f"Cannot rebuild the recorded radius set {name!r} (table {target[:12]}...): no preset, "
-                     "source file or recorded table reproduces its hash. Pass the same radius set explicitly "
-                     "with --radii / radii=.")
+    raise ValueError(
+        f"Cannot rebuild the recorded radius set {name!r} (table {target[:12]}...): no preset, "
+        "source file or recorded table reproduces its hash. Pass the same radius set explicitly "
+        "with --radii / radii=."
+    )
 
 
 def same_radius_set(first: Mapping | RadiusSet | None, second: Mapping | RadiusSet | None) -> bool:
@@ -1744,12 +1892,14 @@ def same_radius_set(first: Mapping | RadiusSet | None, second: Mapping | RadiusS
     >>> same_radius_set(radii_preset("default"), radii_preset("bondi"))
     False
     """
+
     def digest(value):
         if value is None:
             return None
         if isinstance(value, RadiusSet):
             return value.table_sha256
         return value.get("table_sha256") if isinstance(value, Mapping) else None
+
     a, b = digest(first), digest(second)
     return a is not None and a == b
 
@@ -1775,9 +1925,14 @@ def radius_set_label(value: Mapping | RadiusSet | None) -> str:
     return f"{value.get('name')!s} (table {str(value.get('table_sha256'))[:12]})"
 
 
-def reconcile_recorded_radii(recorded: Mapping | None, requested: "RadiusSet | str | os.PathLike | None" = None, *,
-                             allow_mismatch: bool = False, what: str = "the earlier results",
-                             base_dir=None) -> tuple[RadiusSet, dict]:
+def reconcile_recorded_radii(
+    recorded: Mapping | None,
+    requested: "RadiusSet | str | os.PathLike | None" = None,
+    *,
+    allow_mismatch: bool = False,
+    what: str = "the earlier results",
+    base_dir=None,
+) -> tuple[RadiusSet, dict]:
     """Choose the radius set for a step that reuses recorded results.
 
     Rules:
@@ -1837,7 +1992,9 @@ def reconcile_recorded_radii(recorded: Mapping | None, requested: "RadiusSet | s
     elif allow_mismatch:
         used, status = chosen, "mismatch_overridden"
     else:
-        raise ValueError(f"Radius set mismatch: {what} used {radius_set_label(recorded)} but "
-                         f"{radius_set_label(chosen)} was requested. Omit --radii to use the recorded set, or pass "
-                         "--allow-radii-mismatch to proceed with the requested set (recorded).")
+        raise ValueError(
+            f"Radius set mismatch: {what} used {radius_set_label(recorded)} but "
+            f"{radius_set_label(chosen)} was requested. Omit --radii to use the recorded set, or pass "
+            "--allow-radii-mismatch to proceed with the requested set (recorded)."
+        )
     return used, {"status": status, "recorded": short(recorded), "used": short(used)}

@@ -119,3 +119,45 @@ def test_trajectory_frame_statistics_on_a_synthetic_channel():
     assert {"min_radius_A", "mean_radius_A", "max_radius_A", "bottleneck_axis_position_A"} <= set(stats["quantities"])
     sampling = stats["quantities"]["min_radius_A"]["sampling_uncertainty"]
     assert sampling["frame_count"] == 24 and sampling["effective_sample_size"] is not None
+
+
+@pytest.mark.parametrize("n", [5000, 6000])
+def test_blocking_level_is_not_inflated_when_frames_are_dropped(n):
+    """White noise of a length that is not a power of two: the automatic level stays low and the SE unbiased.
+
+    Odd trailing frames are dropped while blocking, so the top-level block means no
+    longer average to the overall mean; measuring the lag-one autocovariance about
+    the overall mean then inflated the few-block levels of Jonsson's statistic and
+    chose needlessly coarse levels (mean level about 3 instead of about 1.7 here,
+    and 95 % coverage of about 0.85).
+    """
+    rng = np.random.default_rng(11)
+    levels, ratio, covered = [], [], 0
+    for _ in range(200):
+        x = rng.normal(size=n)
+        r = blocking_standard_error(x)
+        levels.append(r["level"])
+        ratio.append(r["standard_error"] * math.sqrt(n))
+        covered += abs(x.mean()) <= 1.96 * r["standard_error"]
+    assert np.mean(levels) < 2.2
+    assert np.mean(ratio) == pytest.approx(1.0, abs=0.03)
+    assert covered / 200 >= 0.92
+
+
+def test_blocking_matches_power_of_two_truncation_reference_on_2_to_the_d_frames():
+    """For 2**d frames every level averages to the overall mean, so the level-mean rule changes nothing."""
+    for phi in (0.0, 0.9):
+        x = ar1(phi, 4096, 7)
+        r = blocking_standard_error(x)
+        # Jonsson's reference code (power of two, overall mean): transcribed check of the level statistic.
+        from scipy.stats import chi2
+        y, mu, s, g = x.copy(), x.mean(), [], []
+        while len(y) >= 2:
+            g.append(np.sum((y[:-1] - mu) * (y[1:] - mu)) / len(y)); s.append(y.var())
+            y = 0.5 * (y[0::2] + y[1::2])
+        s, g = np.asarray(s), np.asarray(g)
+        d = len(s)
+        m = np.cumsum(((g / s) ** 2 * 2.0 ** np.arange(d, 0, -1))[::-1])[::-1]
+        k = next((k for k in range(d) if m[k] < chi2.ppf(0.99, k + 1)), d - 1)
+        assert r["level"] == k
+        assert r["standard_error"] == pytest.approx(math.sqrt(s[k] / 2 ** (d - k)), rel=1e-12)

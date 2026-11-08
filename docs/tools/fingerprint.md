@@ -21,7 +21,7 @@ not to predict one.
 
 ```bash
 crevice profile --fingerprint 1GRM --axis auto --out-dir 1GRM_fp --prefix 1GRM
-crevice profile --fingerprint 3UKM --assembly 1 --exclude-hetero --lateral-exits --enclosure-radius 0.55 \
+crevice profile --fingerprint 3UKM --assembly 1 --exclude-hetero --lateral-exits \
     --out-dir 3UKM_fp --prefix 3UKM
 crevice profile --fingerprint glut1_excerpt.gro --trajectory glut1_excerpt.xtc \
     --selection 'protein and not name H*' --axis z --lateral-exits --enclosure-radius 0.55 \

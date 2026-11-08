@@ -12,7 +12,7 @@ Loading
 Analysis
     :func:`analyze_trajectory` superimposes each frame on the first frame
     (Kabsch fit on CA atoms, :func:`align_frame_report`) and runs the
-    requested analyses: channel profile, lining residues, cavities, tunnels,
+    requested analyses: channel profile, lining residues, cavities,
     residue networks and numeric features. The channel axis and origin are
     fixed from the first frame, so every profile is measured along the same
     aligned axis. Results are :class:`~crevice.models.TrajectoryAnalysis`
@@ -48,7 +48,6 @@ from .ml import profile_features
 from .models import Atom, FrameAnalysis, StructureFrame, TrajectoryAnalysis
 from .networks import build_cavity_network, build_residue_network, network_metrics
 from .parser import load_structure
-from .tunnels import find_tunnels
 from .radii import RadiusSet, radii_option
 
 
@@ -92,6 +91,7 @@ class Trajectory:
     ValueError
         If ``frames`` is empty or ``frame_times`` has the wrong length.
     """
+
     frames: Sequence[StructureFrame]
     source: str = ""
     time_step: float | None = None
@@ -101,7 +101,7 @@ class Trajectory:
     def __post_init__(self) -> None:
         if not self.frames:
             raise ValueError("Trajectory requires at least one frame")
-        if self.frame_times is not None and len(self.frame_times)!=len(self.frames):
+        if self.frame_times is not None and len(self.frame_times) != len(self.frames):
             raise ValueError("frame_times must match the number of frames")
 
     def times(self) -> tuple[float | None, ...]:
@@ -117,22 +117,30 @@ class Trajectory:
             return self.frame_times
         if self.time_step is None:
             return tuple(None for _ in self.frames)
-        return tuple(
-            self.time_origin + index * self.time_step for index in range(len(self.frames))
-        )
+        return tuple(self.time_origin + index * self.time_step for index in range(len(self.frames)))
 
 
 class _CoordinateFrames(Sequence):
     """Compact coordinate snapshots, materializing one atom frame on access."""
-    def __init__(self,template,coordinates,indices):
-        self._template=template;self._coordinates=tuple(coordinates);self._indices=tuple(indices)
-        for xyz in self._coordinates:xyz.setflags(write=False)
-    def __len__(self):return len(self._coordinates)
-    def __getitem__(self,index):
-        if isinstance(index,slice):return tuple(self[i] for i in range(*index.indices(len(self))))
-        xyz=self._coordinates[index]
-        atoms=tuple(replace(a,x=float(p[0]),y=float(p[1]),z=float(p[2])) for a,p in zip(self._template.atoms,xyz))
-        return replace(self._template,atoms=atoms,frame_index=self._indices[index])
+
+    def __init__(self, template, coordinates, indices):
+        self._template = template
+        self._coordinates = tuple(coordinates)
+        self._indices = tuple(indices)
+        for xyz in self._coordinates:
+            xyz.setflags(write=False)
+
+    def __len__(self):
+        return len(self._coordinates)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            return tuple(self[i] for i in range(*index.indices(len(self))))
+        xyz = self._coordinates[index]
+        atoms = tuple(
+            replace(a, x=float(p[0]), y=float(p[1]), z=float(p[2])) for a, p in zip(self._template.atoms, xyz)
+        )
+        return replace(self._template, atoms=atoms, frame_index=self._indices[index])
 
 
 def trajectory_from_frames(
@@ -168,10 +176,10 @@ def trajectory_from_frames(
     ([0, 1, 2], (0.0, 10.0, 20.0))
     """
 
-    frames=tuple(frames)
-    if len(frames)>1 and all(f.frame_index==0 for f in frames):
-        frames=tuple(replace(f,frame_index=i) for i,f in enumerate(frames))
-    return Trajectory(frames,source=source,time_step=time_step)
+    frames = tuple(frames)
+    if len(frames) > 1 and all(f.frame_index == 0 for f in frames):
+        frames = tuple(replace(f, frame_index=i) for i, f in enumerate(frames))
+    return Trajectory(frames, source=source, time_step=time_step)
 
 
 def load_static_frames(paths: Sequence[str | Path]) -> Trajectory:
@@ -192,7 +200,7 @@ def load_static_frames(paths: Sequence[str | Path]) -> Trajectory:
         With ``source="static-file-sequence"``.
     """
 
-    frames = tuple(replace(load_structure(path),frame_index=i) for i,path in enumerate(paths))
+    frames = tuple(replace(load_structure(path), frame_index=i) for i, path in enumerate(paths))
     return Trajectory(frames, source="static-file-sequence")
 
 
@@ -204,6 +212,7 @@ def _open_universe(topology, trajectory: str | Path | None = None):
     (see :mod:`crevice.mdinput`).
     """
     from .mdinput import is_md_object, universe_of
+
     if is_md_object(topology):
         if trajectory is not None:
             raise ValueError("Pass either an MDAnalysis Universe/AtomGroup or topology/trajectory paths, not both")
@@ -221,8 +230,7 @@ def _open_universe(topology, trajectory: str | Path | None = None):
     if trajectory is not None and not Path(trajectory).exists():
         raise FileNotFoundError(f"Trajectory {Path(trajectory)} does not exist")
     try:
-        return (mda.Universe(str(topology_path), str(trajectory)) if trajectory
-                else mda.Universe(str(topology_path)))
+        return mda.Universe(str(topology_path), str(trajectory)) if trajectory else mda.Universe(str(topology_path))
     except Exception as exc:  # MDAnalysis raises a wide range of reader errors
         target = f"{topology_path} with {trajectory}" if trajectory else str(topology_path)
         raise ValueError(f"MDAnalysis could not read {target}: {exc}") from exc
@@ -285,6 +293,7 @@ def inspect_trajectory(
     """
 
     from .mdinput import is_atomgroup, is_md_object, md_input_paths, resolve_md_input
+
     group_given, md_object = is_atomgroup(topology), is_md_object(topology)
     top_path, traj_path = md_input_paths(topology, trajectory)
     topology_label, trajectory_label = str(top_path), (str(traj_path) if traj_path else None)
@@ -375,8 +384,15 @@ def load_trajectory(
     """
 
     return load_trajectory_report(
-        topology, trajectory, selection=selection, start=start, stop=stop,
-        stride=stride,max_frames=max_frames,pbc=pbc,hetero_polymer=hetero_polymer,
+        topology,
+        trajectory,
+        selection=selection,
+        start=start,
+        stop=stop,
+        stride=stride,
+        max_frames=max_frames,
+        pbc=pbc,
+        hetero_polymer=hetero_polymer,
     )[0]
 
 
@@ -464,22 +480,41 @@ def load_trajectory_report(
         failed unwrap.
     """
 
-    if pbc not in {"check","none","unwrap"}:
+    if pbc not in {"check", "none", "unwrap"}:
         raise ValueError("pbc must be check, none or unwrap")
     from .mdinput import is_md_object, preserve_frame
+
     if is_md_object(topology):
         with preserve_frame(topology):
-            return _load_trajectory_report(topology, trajectory, selection=selection, start=start, stop=stop,
-                                           stride=stride, max_frames=max_frames, pbc=pbc,
-                                           hetero_polymer=hetero_polymer)
-    return _load_trajectory_report(topology, trajectory, selection=selection, start=start, stop=stop,
-                                   stride=stride, max_frames=max_frames, pbc=pbc, hetero_polymer=hetero_polymer)
+            return _load_trajectory_report(
+                topology,
+                trajectory,
+                selection=selection,
+                start=start,
+                stop=stop,
+                stride=stride,
+                max_frames=max_frames,
+                pbc=pbc,
+                hetero_polymer=hetero_polymer,
+            )
+    return _load_trajectory_report(
+        topology,
+        trajectory,
+        selection=selection,
+        start=start,
+        stop=stop,
+        stride=stride,
+        max_frames=max_frames,
+        pbc=pbc,
+        hetero_polymer=hetero_polymer,
+    )
 
 
 def _md_polymer_linked(universe):
     """Atom indices of residues outside MDAnalysis ``protein`` peptide-bonded into it, and their names."""
     from collections import Counter
     from .parser import polymer_linked_residues
+
     protein = universe.select_atoms("protein")
     outside = universe.atoms - protein
     if not len(protein) or not len(outside):
@@ -489,19 +524,25 @@ def _md_polymer_linked(universe):
         return set(), {}
     keys = [int(i) for i in ends.resindices]
     linked = polymer_linked_residues(
-        keys, [int(i) for i in ends.segindices], [str(n) for n in ends.names], ends.positions,
+        keys,
+        [int(i) for i in ends.segindices],
+        [str(n) for n in ends.names],
+        ends.positions,
         polymer=set(int(i) for i in protein.residues.resindices),
-        candidates=set(int(i) for i in outside.residues.resindices))
+        candidates=set(int(i) for i in outside.residues.resindices),
+    )
     if not linked:
         return set(), {}
     residues = universe.residues[sorted(linked)]
     return set(int(i) for i in residues.atoms.indices), dict(sorted(Counter(str(n) for n in residues.resnames).items()))
 
 
-def _load_trajectory_report(topology, trajectory, *, selection, start, stop, stride, max_frames, pbc,
-                            hetero_polymer="include"):
+def _load_trajectory_report(
+    topology, trajectory, *, selection, start, stop, stride, max_frames, pbc, hetero_polymer="include"
+):
     """Body of :func:`load_trajectory_report` (paths, or a Universe/AtomGroup)."""
     from .mdinput import is_atomgroup, is_md_object, md_input_paths, md_source_label, resolve_md_input
+
     md_object, group_given = is_md_object(topology), is_atomgroup(topology)
     source = md_source_label(topology, trajectory)
     top_path, traj_path = md_input_paths(topology, trajectory)
@@ -509,6 +550,7 @@ def _load_trajectory_report(topology, trajectory, *, selection, start, stop, str
     topology, trajectory, selection = resolve_md_input(topology, trajectory, selection)
     universe = _open_universe(topology, trajectory)
     from .parser import HETERO_POLYMER_CHOICES
+
     if hetero_polymer not in HETERO_POLYMER_CHOICES:
         raise ValueError(f"hetero_polymer must be one of {', '.join(HETERO_POLYMER_CHOICES)}")
     try:
@@ -530,6 +572,7 @@ def _load_trajectory_report(topology, trajectory, *, selection, start, stop, str
         )
 
     from collections import Counter
+
     protein_indices = set(universe.select_atoms("protein").indices) | linked_indices
     selected_indices = set(selected_atoms.indices)
     excluded = universe.atoms[[i for i in range(len(universe.atoms)) if i not in selected_indices]]
@@ -540,38 +583,56 @@ def _load_trajectory_report(topology, trajectory, *, selection, start, stop, str
     _require_radii(names, resnames, elements, "AtomGroup" if group_given else selection, source)
     resids = [int(value) for value in selected_atoms.resids]
 
-    pbc_pairs,pbc_pair_source=_periodic_check_pairs(selected_atoms,chain_ids,resids,names)
-    pbc_checked=0
-    coordinates=[]
-    template=None
-    frame_times=[]
+    pbc_pairs, pbc_pair_source = _periodic_check_pairs(selected_atoms, chain_ids, resids, names)
+    pbc_checked = 0
+    coordinates = []
+    template = None
+    frame_times = []
     for output_index, frame_index in enumerate(wanted):
         # Seek only when needed: a Universe already on the frame keeps its current coordinates.
-        ts=universe.trajectory.ts if md_object and universe.trajectory.ts.frame==frame_index else universe.trajectory[frame_index]
+        ts = (
+            universe.trajectory.ts
+            if md_object and universe.trajectory.ts.frame == frame_index
+            else universe.trajectory[frame_index]
+        )
         frame_times.append(float(ts.time))
-        if pbc=="unwrap":
+        if pbc == "unwrap":
             try:
-                if len(selected_atoms.fragments)!=1:
-                    raise ValueError("Automatic unwrap requires one bonded fragment; reimage multimer assemblies explicitly")
+                if len(selected_atoms.fragments) != 1:
+                    raise ValueError(
+                        "Automatic unwrap requires one bonded fragment; reimage multimer assemblies explicitly"
+                    )
                 # Not in place, so a caller's Universe is left unchanged.
-                positions=selected_atoms.unwrap(compound="fragments",reference=None,inplace=False)
-            except (AttributeError,ValueError) as exc:
-                raise ValueError("PBC unwrap requires reliable topology bonds and a valid box; use a bonded topology or preprocessed whole coordinates") from exc
+                positions = selected_atoms.unwrap(compound="fragments", reference=None, inplace=False)
+            except (AttributeError, ValueError) as exc:
+                raise ValueError(
+                    "PBC unwrap requires reliable topology bonds and a valid box; use a bonded topology or preprocessed whole coordinates"
+                ) from exc
         else:
             positions = selected_atoms.positions
-        if pbc!="none" and len(pbc_pairs) and ts.dimensions is not None:
-            _check_periodic_pairs(positions,pbc_pairs,ts.dimensions,frame_index)
-            pbc_checked+=1
+        if pbc != "none" and len(pbc_pairs) and ts.dimensions is not None:
+            _check_periodic_pairs(positions, pbc_pairs, ts.dimensions, frame_index)
+            pbc_checked += 1
         coordinates.append(positions.copy())
         if template is None:
-            icodes=_optional_attribute(selected_atoms,"icodes")
-            atoms=tuple(Atom(serial=serial,name=names[serial-1],resname=resnames[serial-1],
-                    chain_id=chain_ids[serial-1],resid=resids[serial-1],
-                    x=float(position[0]),y=float(position[1]),z=float(position[2]),element=elements[serial-1],
-                    icode=icodes[serial-1] if icodes else '',
-                    hetero=int(selected_atoms.indices[serial-1]) not in protein_indices)
-                    for serial,position in enumerate(positions,start=1))
-            template=StructureFrame(atoms,source=source,model_index=0,frame_index=frame_index)
+            icodes = _optional_attribute(selected_atoms, "icodes")
+            atoms = tuple(
+                Atom(
+                    serial=serial,
+                    name=names[serial - 1],
+                    resname=resnames[serial - 1],
+                    chain_id=chain_ids[serial - 1],
+                    resid=resids[serial - 1],
+                    x=float(position[0]),
+                    y=float(position[1]),
+                    z=float(position[2]),
+                    element=elements[serial - 1],
+                    icode=icodes[serial - 1] if icodes else '',
+                    hetero=int(selected_atoms.indices[serial - 1]) not in protein_indices,
+                )
+                for serial, position in enumerate(positions, start=1)
+            )
+            template = StructureFrame(atoms, source=source, model_index=0, frame_index=frame_index)
 
     step = float(getattr(universe.trajectory, "dt", 0.0) or 0.0) or None
     time_step = step * stride if step else None
@@ -586,33 +647,39 @@ def _load_trajectory_report(topology, trajectory, *, selection, start, stop, str
         "excluded_atom_count": len(excluded),
         "excluded_residue_atom_counts": dict(sorted(Counter(str(r) for r in excluded.resnames).items())),
         "selected_residue_atom_counts": dict(sorted(Counter(resnames).items())),
-        "hetero_definition": ("outside MDAnalysis protein selection and its peptide-bonded residues"
-                              if hetero_polymer == "include" else "outside MDAnalysis protein selection"),
+        "hetero_definition": (
+            "outside MDAnalysis protein selection and its peptide-bonded residues"
+            if hetero_polymer == "include"
+            else "outside MDAnalysis protein selection"
+        ),
         "hetero_polymer": hetero_polymer,
         "polymer_hetatm_residues": linked_residues,
         "selected_atom_count": len(selected_atoms),
         "selected_residue_count": len(selected_atoms.residues),
         "available_frame_count": total_frames,
-        "loaded_frame_count":len(coordinates),
-        "coordinate_storage":"compact arrays; atom frames materialized on access",
+        "loaded_frame_count": len(coordinates),
+        "coordinate_storage": "compact arrays; atom frames materialized on access",
         "frame_indices": [wanted.start, wanted.stop, wanted.step],
         "source_time_step_ps": step,
         "loaded_time_step_ps": time_step,
-        "frame_times_ps":frame_times,
-        "time_origin_source":"reader timestamps",
+        "frame_times_ps": frame_times,
+        "time_origin_source": "reader timestamps",
         "element_source": "reader" if _optional_attribute(selected_atoms, "elements") else "name inference",
         "chain_id_source": chain_source,
         "chain_ids": sorted(set(chain_ids)),
-        "periodic_boundary_handling":pbc,
-        "periodic_check_pair_source":pbc_pair_source,
-        "periodic_check_pair_count":len(pbc_pairs),
-        "periodic_checked_frame_count":pbc_checked,
-        "periodic_check_scope":"known bonds when available; otherwise consecutive peptide C-N links only",
+        "periodic_boundary_handling": pbc,
+        "periodic_check_pair_source": pbc_pair_source,
+        "periodic_check_pair_count": len(pbc_pairs),
+        "periodic_checked_frame_count": pbc_checked,
+        "periodic_check_scope": "known bonds when available; otherwise consecutive peptide C-N links only",
         "completeness_validated": False,
     }
     return Trajectory(
-        _CoordinateFrames(template,coordinates,wanted),source=source,
-        time_step=time_step, time_origin=frame_times[0],frame_times=tuple(frame_times),
+        _CoordinateFrames(template, coordinates, wanted),
+        source=source,
+        time_step=time_step,
+        time_origin=frame_times[0],
+        frame_times=tuple(frame_times),
     ), report
 
 
@@ -662,13 +729,16 @@ def _require_radii(names, resnames, elements, selection, source) -> None:
         (:meth:`crevice.radii.RadiusSet.has_radius`).
     """
     from .radii import partition_atoms_with_radii, unrecognised_element_message
+
     atoms = [Atom(i + 1, n, r, "", 0, 0.0, 0.0, 0.0, e) for i, (n, r, e) in enumerate(zip(names, resnames, elements))]
     kept, by_element, by_name = partition_atoms_with_radii(atoms)
     if by_element:
         residues = " ".join(sorted({key.split(":", 1)[0] for key in by_name}))
-        raise ValueError(unrecognised_element_message(by_element, by_name, source, excluded=False)
-                         + f" Or exclude them from the MDAnalysis selection, for example "
-                           f"'({selection}) and not resname {residues}'.")
+        raise ValueError(
+            unrecognised_element_message(by_element, by_name, source, excluded=False)
+            + f" Or exclude them from the MDAnalysis selection, for example "
+            f"'({selection}) and not resname {residues}'."
+        )
 
 
 def _chain_labels(selected_atoms) -> tuple[str, list[str]]:
@@ -698,42 +768,36 @@ def analyze_trajectory(
     stride: int = 1,
     profile_kwargs: dict | None = None,
     cavity_kwargs: dict | None = None,
-    tunnel_kwargs: dict | None = None,
     network_kwargs: dict | None = None,
     align: bool = True,
     alignment_residues: Sequence[str] | None = None,
     on_profile_error: str = "record",
     retain_networks: bool = True,
     lining_residues: Sequence[str] = (),
-    network_occupancy: float = .75,
+    network_occupancy: float = 0.75,
     progress_callback=None,
     radii: RadiusSet | str | None = None,
-    probe_fallback: bool | None = None,
 ) -> TrajectoryAnalysis:
     """Run selected CREVICE analyses over a trajectory or frame sequence.
 
     Steps:
 
     1. The first frame is the reference. If a profile, residues or features
-       are requested, the channel is resolved once on the reference: in
-       connected mode (``search_radius > 0``) its axis direction and middle
-       point become the fixed ``axis``/``origin`` for every frame (unless an
-       ``origin`` was given); with ``search_radius=0`` the reference axis and
-       atom centroid are used.
+       are requested, the channel is resolved once on the reference: its axis
+       direction and middle point become the fixed ``axis``/``origin`` for
+       every frame (unless an ``origin`` was given).
     2. Every ``stride``-th frame is superimposed on the reference
        (:func:`align_frame_report`) when ``align`` is true.
-    3. The requested analyses run on the aligned frame with the pinned
-       enclosure probe. If that probe does not resolve the channel in a frame
-       and the per-frame fallback is on (the default when the probe was chosen
-       automatically), the frame is profiled again with the automatic choice
-       made on that frame alone (same axis and origin). The frame records
-       which probe it used (``metadata["enclosure_probe"]``). A frame in which
-       the fixed origin has no clearance greater than the probes (for example
-       an atom has moved onto it) is unresolved in the same way, rather than
-       stopping the run; see ``metadata["origin_clearance"]`` under Returns.
-       If that happens on the reference frame itself, no axis or probe can be
-       fixed: as for a reference frame whose channel is unresolved, no frame
-       is profiled (under ``on_profile_error="record"``).
+    3. The requested analyses run on the aligned frame. The profile uses the
+       same enclosure setting in every frame: per-plane probes found again in
+       each frame (the default), or one fixed probe. A frame whose channel
+       does not resolve, or in which the fixed origin has no clearance greater
+       than the probe (for example an atom has moved onto it), is recorded as
+       unresolved rather than stopping the run; see
+       ``metadata["origin_clearance"]`` under Returns. If that happens on the
+       reference frame itself, no axis can be fixed: as for a reference frame
+       whose channel is unresolved, no frame is profiled (under
+       ``on_profile_error="record"``).
     4. When a profile exists, residues limiting its constriction are also
        recorded (``metadata["constriction"]``).
 
@@ -742,32 +806,28 @@ def analyze_trajectory(
     trajectory : Trajectory or sequence of StructureFrame
     analyses : sequence of str, default ("profile",)
         Any of ``"profile"``, ``"residues"`` (lining residues along the
-        profile), ``"cavities"``, ``"tunnels"``, ``"network"`` and
-        ``"features"``. Duplicates are ignored.
+        profile), ``"cavities"``, ``"network"`` and ``"features"``.
+        Duplicates are ignored. (The ``"tunnels"`` analysis was removed in
+        CREVICE 0.5; routes to bulk solvent are found by
+        :func:`crevice.paths.find_paths`, command ``crevice paths``.)
     stride : int, default 1
         Analyse every ``stride``-th frame of ``trajectory``.
     profile_kwargs : dict, optional
         Options for :func:`crevice.channels.pore_profile`. ``axis`` and
         ``origin`` are overwritten from the reference frame as described above.
-        Without ``enclosure_radius`` (or with ``None``) the enclosure probe is
-        chosen automatically once, on the reference frame
-        (:func:`crevice.sections.connected_profile`), and that value is then
-        passed explicitly for every frame, so frames never re-run the
-        automatic choice. A number is used unchanged for every frame. The
-        ``crevice trajectory`` CLI does the same (``--enclosure-radius auto``,
-        the default, or a number). The choice and its reason are recorded in
-        ``metadata["enclosure_probe"]``. A frame that the pinned probe cannot
-        resolve may be retried with a per-frame automatic choice; see
-        ``probe_fallback``.
+        Without ``enclosure_radius`` (or with ``None``) every frame uses the
+        per-plane enclosure probe (:mod:`crevice.adaptive_channel`); a number
+        is used unchanged in every plane of every frame. The ``crevice
+        trajectory`` CLI does the same (``--enclosure-radius auto``, the
+        default, or a number). The setting is recorded in
+        ``metadata["enclosure_probe"]``.
     cavity_kwargs : dict, optional
         Options for :func:`crevice.cavities.detect_cavities`.
-    tunnel_kwargs : dict, optional
-        Options for :func:`crevice.tunnels.find_tunnels`.
     network_kwargs : dict, optional
         Options for :func:`crevice.networks.build_cavity_network` (when a
         profile exists) or :func:`crevice.networks.build_residue_network`.
-        These default to the surface-gap metric; ``crevice trajectory`` passes
-        ``distance_metric="center"``.
+        These default to the heavy-atom centre distance, as in ``crevice
+        trajectory``.
     align : bool, default True
         Superimpose every frame on the first frame before analysis.
     alignment_residues : sequence of str, optional
@@ -804,38 +864,20 @@ def analyze_trajectory(
         used by this call comes from that set, and results with a ``metadata``
         dict record it as ``metadata["radii"]``; see
         :doc:`/methods/atomic-radii`.
-    probe_fallback : bool or None, default None
-        Per-frame fallback for the enclosure probe. When the pinned probe
-        does not resolve a frame's channel (``ChannelResolutionError``), retry
-        that frame with ``enclosure_radius=None``, i.e. the automatic choice
-        (:func:`crevice.sections.connected_profile`) made on that frame, with
-        the same fixed axis and origin. ``None`` (default) enables the
-        fallback only when the probe itself was chosen automatically (no
-        ``enclosure_radius`` in ``profile_kwargs``); an explicit probe stays
-        strict. ``True`` enables it for an explicit probe as well; ``False``
-        disables it. A fallback frame's profile is measured with a different
-        wall definition (its own probe); radii inside a channel's resolving
-        window barely depend on the probe, but the mouths can move, so the
-        fallback frames are listed and counted. Has no effect with
-        ``search_radius=0`` (no enclosure probe) or when the reference frame
-        is unresolved (no axis exists).
-
     Returns
     -------
     TrajectoryAnalysis
         One :class:`~crevice.models.FrameAnalysis` per analysed frame. Frame
         metadata records the alignment report, ``profile_status`` (for example
-        ``"resolved"``, ``"unresolved"``, ``"unvalidated_axis_scan"``) and the
-        reason for a missing profile. Trajectory metadata includes how many
-        profiles were resolved, per residue the number of frames in which it
-        limited the constriction, and ``enclosure_probe``: ``mode``
-        (``"auto"``, ``"explicit"`` or ``"not_used"`` for ``search_radius=0``),
-        ``chosen_A`` (the pinned probe; ``None`` if the automatic choice
-        failed), ``reason``, in automatic mode the full ``selection`` record
-        of the reference frame, and ``fallback``: ``enabled``, ``policy``,
-        ``pinned_frames``, ``fallback_frames``, ``unresolved_frames`` (counts),
-        ``fallback_frame_indices`` and ``fallback_probes_A`` (source frame
-        index to probe). ``None`` when no profile was requested.
+        ``"resolved"`` or ``"unresolved"``) and the reason for a missing
+        profile. Trajectory metadata includes how many profiles were resolved,
+        per residue the number of frames in which it limited the
+        constriction, and ``enclosure_probe``: ``mode`` (``"adaptive"`` or
+        ``"explicit"``), ``chosen_A`` (the fixed probe, ``None`` for the
+        per-plane probe), ``reason``, ``applied``, for the per-plane probe
+        ``reference_probe_range_A`` and ``rule``, and ``frames``
+        (``resolved_frames``, ``unresolved_frames``). ``None`` when no profile
+        was requested.
         ``origin_clearance`` is present only when some frames are unresolved
         and the fixed origin lacks clearance for a probe there: ``unresolved_frames``
         (count), ``frame_indices`` (source frame indices), ``origin`` and
@@ -845,16 +887,14 @@ def analyze_trajectory(
         ``reference_frame=True``; no frame has a profile.
 
         Each frame's ``metadata["enclosure_probe"]`` records ``source``
-        (``"pinned"``, ``"fallback"``, ``"none"`` when no probe resolved the
-        frame, or ``"not_attempted"``), ``radius_A`` (the effective probe of
-        the profile, ``None`` if unresolved), ``pinned_A``, and for a retried
-        frame ``pinned_failure`` and the fallback's ``reason`` or
-        ``fallback_failure``. A frame in which an attempt failed because the
-        origin lacks clearance also records ``origin_clearance_A`` (the
-        clearance at the origin in that frame, Å); a fallback with a smaller
-        probe can still resolve such a frame. When this happens on the
-        reference frame, that frame's record (``source="not_attempted"``)
-        carries ``origin_clearance_A``.
+        (``"per_plane"``, ``"fixed"``, ``"none"`` when the frame did not
+        resolve, or ``"not_attempted"``), ``radius_A`` (the largest probe of
+        the profile, ``None`` if unresolved), ``probe_range_A`` and, for an
+        unresolved frame, ``failure``. A frame that failed because the origin
+        lacks clearance also records ``origin_clearance_A`` (the clearance at
+        the origin in that frame, Å). When this happens on the reference
+        frame, that frame's record (``source="not_attempted"``) carries
+        ``origin_clearance_A``.
 
     Raises
     ------
@@ -895,153 +935,141 @@ def analyze_trajectory(
         raise ValueError("stride must be at least 1")
     traj = trajectory if isinstance(trajectory, Trajectory) else trajectory_from_frames(trajectory)
     selected = tuple(dict.fromkeys(analyses))
-    valid = {"profile", "residues", "cavities", "tunnels", "network", "features"}
+    valid = {"profile", "residues", "cavities", "network", "features"}
     unknown = set(selected) - valid
     if unknown:
-        raise ValueError(f"Unknown trajectory analyses: {', '.join(sorted(unknown))}")
+        hint = (
+            "; the tunnels analysis was removed in CREVICE 0.5, use crevice.paths.find_paths (crevice paths)"
+            if "tunnels" in unknown
+            else ""
+        )
+        raise ValueError(f"Unknown trajectory analyses: {', '.join(sorted(unknown))}{hint}")
 
-    if on_profile_error not in {"record","raise"}:
+    if on_profile_error not in {"record", "raise"}:
         raise ValueError("on_profile_error must be record or raise")
     from .sections import ChannelResolutionError, OriginClearanceError
-    reference_error=None
-    reference_origin_failure=None
-    reference_profile=None
-    enclosure_probe=None
-    accumulator=None
+
+    reference_error = None
+    reference_origin_failure = None
+    reference_profile = None
+    enclosure_probe = None
+    accumulator = None
     if "network" in selected and not retain_networks:
         from .residue_dynamics import ResidueDynamics
-        accumulator=ResidueDynamics(lining_residues=lining_residues,min_occupancy=network_occupancy)
+
+        accumulator = ResidueDynamics(lining_residues=lining_residues, min_occupancy=network_occupancy)
     profile_kwargs = dict(profile_kwargs or {})
     cavity_kwargs = dict(cavity_kwargs or {})
-    tunnel_kwargs = dict(tunnel_kwargs or {})
     network_kwargs = dict(network_kwargs or {})
     frame_results: list[FrameAnalysis] = []
     times = traj.times()
     reference = traj.frames[0]
     if any(item in selected for item in ("profile", "residues", "features")):
-        from .geometry import axis_from_name
+        requested_probe = profile_kwargs.get("enclosure_radius")
+        adaptive_probe = requested_probe is None or (
+            isinstance(requested_probe, str) and requested_probe.lower() in {"auto", "adaptive"}
+        )
+        try:
+            reference_profile = pore_profile(reference, **profile_kwargs)
+            profile_kwargs["axis"] = reference_profile.axis_direction
+            if adaptive_probe:
+                # Per-plane probe: every frame finds its own probes; the axis and
+                # seed of the reference frame are kept.
+                selection = reference_profile.metadata["enclosure_probe_selection"]
+                profile_kwargs["enclosure_radius"] = None
+                enclosure_probe = {
+                    "mode": "adaptive",
+                    "chosen_A": None,
+                    "reason": selection["reason"],
+                    "applied": "per plane, found again in every frame",
+                    "reference_probe_range_A": selection["probe_range_A"],
+                    "rule": selection["rule"],
+                }
+            else:
+                enclosure_probe = {
+                    "mode": "explicit",
+                    "chosen_A": requested_probe,
+                    "reason": "enclosure_radius given explicitly",
+                    "applied": "fixed for every frame",
+                }
+            if profile_kwargs.get("origin") is None:
+                profile_kwargs["origin"] = reference_profile.points[len(reference_profile.points) // 2].position
+        except (ChannelResolutionError, OriginClearanceError) as exc:
+            # A supplied origin without clearance on the reference frame leaves
+            # no axis to fix: like an unresolved reference channel, no frame is
+            # profiled (recorded under "record", raised under "raise").
+            enclosure_probe = {
+                "mode": "adaptive" if adaptive_probe else "explicit",
+                "chosen_A": None if adaptive_probe else requested_probe,
+                "reason": "reference frame unresolved",
+                "applied": "no frame profiled",
+            }
+            if on_profile_error == "raise":
+                raise
+            reference_error = str(exc)
+            if isinstance(exc, OriginClearanceError):
+                reference_origin_failure = exc
 
-        atoms = reference.selected_atoms(
-            include_hydrogen=profile_kwargs.get("include_hydrogen", False),
-            include_hetero=profile_kwargs.get("include_hetero", True))
-        if profile_kwargs.get("search_radius", 6.0) > 0:
-            automatic_probe = profile_kwargs.get("enclosure_radius") is None
-            try:
-                reference_profile=pore_profile(reference,**profile_kwargs)
-                profile_kwargs["axis"]=reference_profile.axis_direction
-                if automatic_probe:
-                    # Automatic probe: chosen once on the reference frame, then
-                    # pinned so every frame uses the same enclosure definition
-                    # (frames never re-run the automatic choice).
-                    selection=reference_profile.metadata["enclosure_probe_selection"]
-                    profile_kwargs["enclosure_radius"]=selection["chosen_A"]
-                    enclosure_probe={"mode":"auto","chosen_A":selection["chosen_A"],"reason":selection["reason"],
-                                     "chosen_on":"reference frame (first frame)","applied":"fixed for every frame",
-                                     "selection":selection}
-                else:
-                    enclosure_probe={"mode":"explicit","chosen_A":profile_kwargs["enclosure_radius"],
-                                     "reason":"enclosure_radius given explicitly",
-                                     "applied":"fixed for every frame"}
-                if profile_kwargs.get("origin") is None:
-                    profile_kwargs["origin"]=reference_profile.points[len(reference_profile.points)//2].position
-            except (ChannelResolutionError,OriginClearanceError) as exc:
-                # A supplied origin without clearance on the reference frame leaves
-                # no axis or probe to fix: like an unresolved reference channel, no
-                # frame is profiled (recorded under "record", raised under "raise").
-                selection=getattr(exc,"probe_selection",None)
-                enclosure_probe=({"mode":"auto","chosen_A":None,"reason":selection["reason"],
-                                  "chosen_on":"reference frame (first frame)","applied":"no frame profiled",
-                                  "selection":selection} if automatic_probe and selection is not None else
-                                 {"mode":"auto" if automatic_probe else "explicit",
-                                  "chosen_A":profile_kwargs.get("enclosure_radius"),
-                                  "reason":"reference frame unresolved","applied":"no frame profiled"})
-                if on_profile_error=="raise":raise
-                reference_error=str(exc)
-                if isinstance(exc,OriginClearanceError):reference_origin_failure=exc
-        else:
-            enclosure_probe={"mode":"not_used","chosen_A":None,
-                             "reason":"search_radius=0 fixed-axis scan does not use an enclosure probe"}
-            origin, direction, _ = axis_from_name(profile_kwargs.get("axis", "auto"), atoms)
-            profile_kwargs["axis"] = direction
-            if profile_kwargs.get("origin") is None:profile_kwargs["origin"]=origin
-
-    fallback_enabled=False
-    if enclosure_probe is not None and enclosure_probe.get("mode") in {"auto","explicit"} and reference_error is None:
-        fallback_enabled=(enclosure_probe["mode"]=="auto") if probe_fallback is None else bool(probe_fallback)
-    fallback_counts={"pinned":0,"fallback":0,"none":0}
-    fallback_probes={}
-    origin_frames=[]
+    probe_counts = {"per_plane": 0, "fixed": 0, "none": 0}
+    origin_frames = []
 
     for output_index, frame_index in enumerate(range(0, len(traj.frames), stride)):
         frame = traj.frames[frame_index]
-        probe_use=None
-        alignment={"status":"not_requested"}
+        probe_use = None
+        alignment = {"status": "not_requested"}
         if align:
-            frame,alignment=align_frame_report(frame,reference,residues=alignment_residues)
-        profile_status="not_requested"
-        profile_reason=None
-        constriction=None
+            frame, alignment = align_frame_report(frame, reference, residues=alignment_residues)
+        profile_status = "not_requested"
+        profile_reason = None
+        constriction = None
         profile = None
         contacts = ()
         cavities = ()
-        tunnels = ()
         network = None
         features = {}
         if "profile" in selected or "residues" in selected or "features" in selected:
             if reference_error is not None:
-                profile_status="not_attempted_reference_unresolved"
-                profile_reason=reference_error
-                probe_use={"source":"not_attempted","radius_A":None,"pinned_A":None}
-                if reference_origin_failure is not None and output_index==0:
-                    probe_use["origin_clearance_A"]=reference_origin_failure.clearance
+                profile_status = "not_attempted_reference_unresolved"
+                profile_reason = reference_error
+                probe_use = {"source": "not_attempted", "radius_A": None}
+                if reference_origin_failure is not None and output_index == 0:
+                    probe_use["origin_clearance_A"] = reference_origin_failure.clearance
                     origin_frames.append(frame.frame_index if frame.frame_index is not None else frame_index)
             else:
-                pinned=profile_kwargs.get("enclosure_radius")
                 try:
-                    profile=pore_profile(frame,**profile_kwargs)
-                    profile_status=profile.metadata.get("status","resolved")
-                    probe_use={"source":"pinned","radius_A":profile.metadata.get("enclosure_radius_A",pinned),"pinned_A":pinned}
-                except (ChannelResolutionError,OriginClearanceError) as exc:
+                    profile = pore_profile(frame, **profile_kwargs)
+                    profile_status = profile.metadata.get("status", "resolved")
+                    probe_use = {
+                        "source": "per_plane" if enclosure_probe["mode"] == "adaptive" else "fixed",
+                        "radius_A": profile.metadata.get("enclosure_radius_A"),
+                        "probe_range_A": profile.metadata.get("enclosure_probe_range_A"),
+                    }
+                except (ChannelResolutionError, OriginClearanceError) as exc:
                     # A fixed origin may lose its clearance in a later frame (an atom
                     # moves onto it): that frame is unresolved, like a frame without a
                     # resolvable channel, rather than stopping the run.
-                    probe_use={"source":"none","radius_A":None,"pinned_A":pinned,"pinned_failure":str(exc)}
-                    origin_failure=exc if isinstance(exc,OriginClearanceError) else None
-                    if fallback_enabled:
-                        try:
-                            # Per-frame fallback: the automatic choice on this frame alone,
-                            # with the reference axis and origin unchanged.
-                            profile=pore_profile(frame,**{**profile_kwargs,"enclosure_radius":None})
-                            profile_status=profile.metadata.get("status","resolved")
-                            selection=profile.metadata.get("enclosure_probe_selection") or {}
-                            probe_use.update(source="fallback",radius_A=profile.metadata.get("enclosure_radius_A",selection.get("chosen_A")),
-                                             reason=selection.get("reason"))
-                        except (ChannelResolutionError,OriginClearanceError) as again:
-                            probe_use["fallback_failure"]=str(again)
-                            if origin_failure is None and isinstance(again,OriginClearanceError):origin_failure=again
-                            if on_profile_error=="raise":raise
-                            profile_status="unresolved";profile_reason=f"{exc}; per-frame automatic probe also failed: {again}"
-                    else:
-                        if on_profile_error=="raise":raise
-                        probe_use["fallback"]="disabled"
-                        profile_status="unresolved";profile_reason=str(exc)
-                    if origin_failure is not None:
-                        probe_use["origin_clearance_A"]=origin_failure.clearance
-                        if profile is None:
-                            origin_frames.append(frame.frame_index if frame.frame_index is not None else frame_index)
-                if probe_use["source"] in fallback_counts:fallback_counts[probe_use["source"]]+=1
-                if probe_use["source"]=="fallback":
-                    fallback_probes[frame.frame_index if frame.frame_index is not None else frame_index]=probe_use["radius_A"]
+                    if on_profile_error == "raise":
+                        raise
+                    probe_use = {"source": "none", "radius_A": None, "failure": str(exc)}
+                    profile_status = "unresolved"
+                    profile_reason = str(exc)
+                    if isinstance(exc, OriginClearanceError):
+                        probe_use["origin_clearance_A"] = exc.clearance
+                        origin_frames.append(frame.frame_index if frame.frame_index is not None else frame_index)
+                probe_counts[probe_use["source"]] += 1
         if profile is not None:
             from .residue_evidence import profile_constriction_evidence
-            constriction=profile_constriction_evidence(frame,profile)
+
+            constriction = profile_constriction_evidence(frame, profile)
         if profile is not None and ("residues" in selected or "features" in selected):
-            contacts = annotate_residues(frame,profile.points,include_hydrogen=profile_kwargs.get("include_hydrogen",False),
-                                         include_hetero=profile_kwargs.get("include_hetero",True))
+            contacts = annotate_residues(
+                frame,
+                profile.points,
+                include_hydrogen=profile_kwargs.get("include_hydrogen", False),
+                include_hetero=profile_kwargs.get("include_hetero", True),
+            )
         if "cavities" in selected:
             cavities = detect_cavities(frame, **cavity_kwargs)
-        if "tunnels" in selected:
-            tunnels = find_tunnels(frame, **tunnel_kwargs)
         if "network" in selected:
             if profile is not None:
                 if not contacts:
@@ -1061,87 +1089,118 @@ def analyze_trajectory(
                     }
                 )
         if accumulator is not None and network is not None:
-            accumulator.add(frame,network,frame_index=frame.frame_index,time=times[frame_index])
+            accumulator.add(frame, network, frame_index=frame.frame_index, time=times[frame_index])
         frame_results.append(
             FrameAnalysis(
                 frame_index=frame.frame_index if frame.frame_index is not None else frame_index,
                 time=times[frame_index],
                 profile=profile,
                 cavities=tuple(cavities),
-                tunnels=tuple(tunnels),
                 residue_contacts=tuple(contacts),
                 network=network if retain_networks else None,
                 features=features,
-                metadata={"trajectory_index":output_index,"source_index":frame_index,"alignment":alignment,
-                          "profile_status":profile_status,"profile_reason":profile_reason,"enclosure_probe":probe_use,
-                          "constriction":constriction,
-                          "network_summary_only":not retain_networks,
-                          "network_node_count":len(network.nodes) if network else 0,
-                          "network_edge_count":len(network.edges) if network else 0},
+                metadata={
+                    "trajectory_index": output_index,
+                    "source_index": frame_index,
+                    "alignment": alignment,
+                    "profile_status": profile_status,
+                    "profile_reason": profile_reason,
+                    "enclosure_probe": probe_use,
+                    "constriction": constriction,
+                    "network_summary_only": not retain_networks,
+                    "network_node_count": len(network.nodes) if network else 0,
+                    "network_edge_count": len(network.edges) if network else 0,
+                },
             )
         )
         if progress_callback is not None:
             progress_callback(frame_results[-1])
-    if enclosure_probe is not None and enclosure_probe.get("mode") in {"auto","explicit"}:
-        enclosure_probe["fallback"]={
-            "enabled":fallback_enabled,
-            "policy":("per-frame automatic choice when the pinned probe does not resolve a frame"
-                      if fallback_enabled else
-                      "off: explicit probe kept strict (enable with probe_fallback=True / --probe-fallback)"
-                      if enclosure_probe["mode"]=="explicit" else
-                      "off" if reference_error is None else "not applicable: reference frame unresolved"),
-            "pinned_frames":fallback_counts["pinned"],"fallback_frames":fallback_counts["fallback"],
-            "unresolved_frames":fallback_counts["none"],
-            "fallback_frame_indices":sorted(fallback_probes),
-            "fallback_probes_A":{str(k):v for k,v in sorted(fallback_probes.items())}}
-    origin_record=None
+    if enclosure_probe is not None:
+        enclosure_probe["frames"] = {
+            "resolved_frames": probe_counts["per_plane"] + probe_counts["fixed"],
+            "unresolved_frames": probe_counts["none"],
+        }
+    origin_record = None
     if origin_frames:
-        origin=[float(v) for v in profile_kwargs["origin"]]
+        origin = [float(v) for v in profile_kwargs["origin"]]
         if reference_origin_failure is not None:
-            origin_record={"unresolved_frames":1,"frame_indices":origin_frames,"origin":origin,"reference_frame":True,
-                           "reason":"on the reference (first) frame the fixed origin has no clearance greater than the "
-                                    "enclosure and measurement probes, so no channel axis or enclosure probe could be "
-                                    "fixed and no frame was profiled (the other frames are not attempted)"}
-            warnings.warn(f"The fixed channel origin ({', '.join(f'{v:.3f}' for v in origin)}) has too little clearance "
-                          f"for the enclosure probe on the reference frame (frame {origin_frames[0]}; clearance "
-                          f"{reference_origin_failure.clearance:.2f} A), so no frame is profiled; all "
-                          f"{len(frame_results)} frames are recorded without a profile. An origin with more clearance "
-                          "(a point near the channel's centre line) avoids this.",
-                          OriginClearanceWarning,stacklevel=2)
+            origin_record = {
+                "unresolved_frames": 1,
+                "frame_indices": origin_frames,
+                "origin": origin,
+                "reference_frame": True,
+                "reason": "on the reference (first) frame the fixed origin has no clearance greater than the "
+                "enclosure and measurement probes, so no channel axis or enclosure probe could be "
+                "fixed and no frame was profiled (the other frames are not attempted)",
+            }
+            warnings.warn(
+                f"The fixed channel origin ({', '.join(f'{v:.3f}' for v in origin)}) has too little clearance "
+                f"for the enclosure probe on the reference frame (frame {origin_frames[0]}; clearance "
+                f"{reference_origin_failure.clearance:.2f} A), so no frame is profiled; all "
+                f"{len(frame_results)} frames are recorded without a profile. An origin with more clearance "
+                "(a point near the channel's centre line) avoids this.",
+                OriginClearanceWarning,
+                stacklevel=2,
+            )
         else:
-            origin_record={"unresolved_frames":len(origin_frames),"frame_indices":origin_frames,"origin":origin,
-                           "reason":"in these frames the fixed origin has no clearance greater than the enclosure and "
-                                    "measurement probes (for example an atom moved onto it), and no probe resolved them"}
-            shown=", ".join(str(i) for i in origin_frames[:10])+(", ..." if len(origin_frames)>10 else "")
-            warnings.warn(f"{len(origin_frames)} of {len(frame_results)} frames are unresolved where the fixed channel "
-                          f"origin ({', '.join(f'{v:.3f}' for v in origin)}) has too little clearance for the enclosure "
-                          f"probe (frames {shown}); they are recorded as unresolved and the other frames are kept. "
-                          "An origin with more clearance (a point near the channel's centre line) avoids this.",
-                          OriginClearanceWarning,stacklevel=2)
+            origin_record = {
+                "unresolved_frames": len(origin_frames),
+                "frame_indices": origin_frames,
+                "origin": origin,
+                "reason": "in these frames the fixed origin has no clearance greater than the enclosure and "
+                "measurement probes (for example an atom moved onto it), and no probe resolved them",
+            }
+            shown = ", ".join(str(i) for i in origin_frames[:10]) + (", ..." if len(origin_frames) > 10 else "")
+            warnings.warn(
+                f"{len(origin_frames)} of {len(frame_results)} frames are unresolved where the fixed channel "
+                f"origin ({', '.join(f'{v:.3f}' for v in origin)}) has too little clearance for the enclosure "
+                f"probe (frames {shown}); they are recorded as unresolved and the other frames are kept. "
+                "An origin with more clearance (a point near the channel's centre line) avoids this.",
+                OriginClearanceWarning,
+                stacklevel=2,
+            )
     from collections import Counter
-    constraint_frames=[f for f in frame_results if f.metadata.get("constriction") and f.metadata['constriction']['status']=='measured_path_constraints']
-    constraints=Counter(row['residue'] for f in constraint_frames for row in f.metadata['constriction']['residues'])
-    constraint_rows=[{'residue':residue,'limiting_frames':count,'eligible_profile_frames':len(constraint_frames),
-                     'total_frames':len(frame_results),'conditional_frequency':count/len(constraint_frames)}
-                    for residue,count in sorted(constraints.items(),key=lambda item:(-item[1],item[0]))]
+
+    constraint_frames = [
+        f
+        for f in frame_results
+        if f.metadata.get("constriction") and f.metadata['constriction']['status'] == 'measured_path_constraints'
+    ]
+    constraints = Counter(row['residue'] for f in constraint_frames for row in f.metadata['constriction']['residues'])
+    constraint_rows = [
+        {
+            'residue': residue,
+            'limiting_frames': count,
+            'eligible_profile_frames': len(constraint_frames),
+            'total_frames': len(frame_results),
+            'conditional_frequency': count / len(constraint_frames),
+        }
+        for residue, count in sorted(constraints.items(), key=lambda item: (-item[1], item[0]))
+    ]
     return TrajectoryAnalysis(
         frames=tuple(frame_results),
         analyses=selected,
-        metadata={"source": traj.source, "stride": stride, "input_frame_count": len(traj.frames),
-                  "aligned_to_first_frame": align, "alignment_residues": alignment_residues,
-                  "profile_reference":"first_frame_fixed_axis_and_origin",
-                  "reference_profile_status":"unresolved" if reference_error else "available",
-                  "reference_profile_reason":reference_error,
-                  "enclosure_probe":enclosure_probe,
-                  "resolved_profile_count":sum(f.profile is not None for f in frame_results),
-                  **({"origin_clearance":origin_record} if origin_record else {}),
-                  "constriction_residue_evidence":constraint_rows,
-                  "residue_dynamics":accumulator.finish(aligned=align) if accumulator is not None else None},
+        metadata={
+            "source": traj.source,
+            "stride": stride,
+            "input_frame_count": len(traj.frames),
+            "aligned_to_first_frame": align,
+            "alignment_residues": alignment_residues,
+            "profile_reference": "first_frame_fixed_axis_and_origin",
+            "reference_profile_status": "unresolved" if reference_error else "available",
+            "reference_profile_reason": reference_error,
+            "enclosure_probe": enclosure_probe,
+            "resolved_profile_count": sum(f.profile is not None for f in frame_results),
+            **({"origin_clearance": origin_record} if origin_record else {}),
+            "constriction_residue_evidence": constraint_rows,
+            "residue_dynamics": accumulator.finish(aligned=align) if accumulator is not None else None,
+        },
     )
 
 
-def align_frame_report(frame: StructureFrame, reference: StructureFrame,
-                *, residues: Sequence[str] | None = None) -> tuple[StructureFrame, dict]:
+def align_frame_report(
+    frame: StructureFrame, reference: StructureFrame, *, residues: Sequence[str] | None = None
+) -> tuple[StructureFrame, dict]:
     """Rigid least-squares fit with matching CA atoms (heavy atoms if <3 CA).
 
     Coordinates must already be made whole across periodic boundaries. Residue
@@ -1199,16 +1258,21 @@ def align_frame_report(frame: StructureFrame, reference: StructureFrame,
         return atom.residue_key, atom.name, atom.altloc
 
     def selected(source):
-        atoms = [a for a in source.atoms if a.element.upper() not in {"H", "D"} and not a.hetero
-                 and (residues is None or a.residue_key.label in residues)]
+        atoms = [
+            a
+            for a in source.atoms
+            if a.element.upper() not in {"H", "D"}
+            and not a.hetero
+            and (residues is None or a.residue_key.label in residues)
+        ]
         mapping = {key(a): a for a in atoms}
         if len(mapping) != len(atoms):
             raise ValueError("Ambiguous atom identities in alignment selection")
         return mapping
 
     if residues is not None:
-        available={a.residue_key.label for a in reference.atoms}
-        if not residues or set(residues)-available:
+        available = {a.residue_key.label for a in reference.atoms}
+        if not residues or set(residues) - available:
             raise ValueError("Alignment selection contains unknown residues or is empty")
     mobile, target = selected(frame), selected(reference)
     if mobile.keys() != target.keys():
@@ -1227,41 +1291,29 @@ def align_frame_report(frame: StructureFrame, reference: StructureFrame,
     correction[2, 2] = np.linalg.det(u @ vt)
     rotation = u @ correction @ vt
     coords = (np.asarray([a.coord for a in frame.atoms]) - xc) @ rotation + yc
-    aligned=replace(frame,atoms=tuple(replace(a,x=float(p[0]),y=float(p[1]),z=float(p[2]))
-                                      for a,p in zip(frame.atoms,coords)))
-    fit=(x-xc)@rotation+yc
-    report={"status":"fitted","method":"Kabsch proper rigid least-squares",
-            "atom_count":len(keys),"atom_selection":"CA" if all(k[1]=="CA" for k in keys) else "heavy_atom_fallback",
-            "rmsd_before_A":float(np.sqrt(np.mean(np.sum((x-y)**2,axis=1)))),
-            "rmsd_after_A":float(np.sqrt(np.mean(np.sum((fit-y)**2,axis=1)))),
-            "rotation_rows":rotation.tolist(),"translation_A":(yc-xc@rotation).tolist(),
-            "transform_convention":"row coordinates: x @ rotation + translation",
-            "selected_residues":list(residues) if residues is not None else None,
-            "periodic_repair_performed":False}
-    return aligned,report
+    aligned = replace(
+        frame, atoms=tuple(replace(a, x=float(p[0]), y=float(p[1]), z=float(p[2])) for a, p in zip(frame.atoms, coords))
+    )
+    fit = (x - xc) @ rotation + yc
+    report = {
+        "status": "fitted",
+        "method": "Kabsch proper rigid least-squares",
+        "atom_count": len(keys),
+        "atom_selection": "CA" if all(k[1] == "CA" for k in keys) else "heavy_atom_fallback",
+        "rmsd_before_A": float(np.sqrt(np.mean(np.sum((x - y) ** 2, axis=1)))),
+        "rmsd_after_A": float(np.sqrt(np.mean(np.sum((fit - y) ** 2, axis=1)))),
+        "rotation_rows": rotation.tolist(),
+        "translation_A": (yc - xc @ rotation).tolist(),
+        "transform_convention": "row coordinates: x @ rotation + translation",
+        "selected_residues": list(residues) if residues is not None else None,
+        "periodic_repair_performed": False,
+    }
+    return aligned, report
 
 
-def align_frame(frame: StructureFrame,reference: StructureFrame,*,residues=None)->StructureFrame:
-    """Fit a frame to matching reference atoms and return only the moved frame.
-
-    Parameters
-    ----------
-    frame, reference : StructureFrame
-    residues : sequence of str, optional
-        Residue labels restricting the fit atoms.
-
-    Returns
-    -------
-    StructureFrame
-
-    See Also
-    --------
-    align_frame_report : Same fit, with RMSD and transform diagnostics.
-    """
-    return align_frame_report(frame,reference,residues=residues)[0]
-
-
-def profile_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwargs) -> list[dict[str, float | int | None]]:
+def profile_timeseries(
+    trajectory: Trajectory | Sequence[StructureFrame], **kwargs
+) -> list[dict[str, float | int | None]]:
     """Per-frame profile radius summaries.
 
     Runs :func:`analyze_trajectory` with ``analyses=("profile",)``, alignment to
@@ -1309,7 +1361,9 @@ def profile_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwar
     ]
 
 
-def cavity_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwargs) -> list[dict[str, float | int | None]]:
+def cavity_timeseries(
+    trajectory: Trajectory | Sequence[StructureFrame], **kwargs
+) -> list[dict[str, float | int | None]]:
     """Per-frame cavity counts and total cavity volume.
 
     Runs :func:`analyze_trajectory` with ``analyses=("cavities",)``, alignment
@@ -1342,13 +1396,15 @@ def cavity_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwarg
     ]
 
 
-def network_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwargs) -> list[dict[str, float | int | None]]:
+def network_timeseries(
+    trajectory: Trajectory | Sequence[StructureFrame], **kwargs
+) -> list[dict[str, float | int | None]]:
     """Per-frame residue-network size and density.
 
     Runs :func:`analyze_trajectory` with ``analyses=("network",)``, alignment
     to the first frame, and ``kwargs`` as ``network_kwargs``. Without a profile
     this builds :func:`crevice.networks.build_residue_network` networks with its
-    defaults (surface-gap metric, heteroatoms excluded).
+    defaults (heavy-atom centre distance, heteroatoms excluded).
 
     Parameters
     ----------
@@ -1367,7 +1423,9 @@ def network_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwar
     result = analyze_trajectory(trajectory, analyses=("network",), network_kwargs=kwargs)
     rows = []
     for frame in result.frames:
-        metrics = network_metrics(frame.network) if frame.network else {"node_count": 0, "edge_count": 0, "density": 0.0}
+        metrics = (
+            network_metrics(frame.network) if frame.network else {"node_count": 0, "edge_count": 0, "density": 0.0}
+        )
         rows.append(
             {
                 "frame_index": frame.frame_index,
@@ -1380,33 +1438,44 @@ def network_timeseries(trajectory: Trajectory | Sequence[StructureFrame], **kwar
     return rows
 
 
-def _periodic_check_pairs(selected_atoms,chain_ids,resids,names):
+def _periodic_check_pairs(selected_atoms, chain_ids, resids, names):
     """Use supplied bonds, else an explicitly limited peptide-link screen."""
     import numpy as np
     from MDAnalysis.exceptions import NoDataError
-    lookup={int(v):i for i,v in enumerate(selected_atoms.indices)}
+
+    lookup = {int(v): i for i, v in enumerate(selected_atoms.indices)}
     try:
-        bonds=selected_atoms.universe.bonds.to_indices()
-        pairs=[(lookup[int(a)],lookup[int(b)]) for a,b in bonds if int(a) in lookup and int(b) in lookup]
-        if pairs:return np.asarray(pairs,dtype=int),'topology_bonds'
-    except (NoDataError,AttributeError):pass
-    atoms={(chain,resid,name):i for i,(chain,resid,name) in enumerate(zip(chain_ids,resids,names))}
-    pairs=[(i,atoms[(chain,resid+1,'N')]) for (chain,resid,name),i in atoms.items()
-           if name=='C' and (chain,resid+1,'N') in atoms]
-    return np.asarray(pairs,dtype=int).reshape(-1,2),'consecutive_peptide_C_N_only'
+        bonds = selected_atoms.universe.bonds.to_indices()
+        pairs = [(lookup[int(a)], lookup[int(b)]) for a, b in bonds if int(a) in lookup and int(b) in lookup]
+        if pairs:
+            return np.asarray(pairs, dtype=int), 'topology_bonds'
+    except (NoDataError, AttributeError):
+        pass
+    atoms = {(chain, resid, name): i for i, (chain, resid, name) in enumerate(zip(chain_ids, resids, names))}
+    pairs = [
+        (i, atoms[(chain, resid + 1, 'N')])
+        for (chain, resid, name), i in atoms.items()
+        if name == 'C' and (chain, resid + 1, 'N') in atoms
+    ]
+    return np.asarray(pairs, dtype=int).reshape(-1, 2), 'consecutive_peptide_C_N_only'
 
 
-def _check_periodic_pairs(positions,pairs,box,frame_index):
+def _check_periodic_pairs(positions, pairs, box, frame_index):
     """Raise if any pair looks split across the box: direct distance > 3 Å,
     minimum-image distance < 2.5 Å and at least 0.5 Å shorter than direct.
     """
     import numpy as np
     from MDAnalysis.lib.distances import calc_bonds
-    box=np.asarray(box)
-    if not np.isfinite(box).all() or np.any(box[:3]<=0):
+
+    box = np.asarray(box)
+    if not np.isfinite(box).all() or np.any(box[:3] <= 0):
         raise ValueError('Periodic checks require finite positive box lengths')
-    left=positions[pairs[:,0]];right=positions[pairs[:,1]]
-    raw=np.linalg.norm(left-right,axis=1);mic=calc_bonds(left,right,box=box)
-    split=(raw>3)&(mic<2.5)&(raw>mic+.5)
+    left = positions[pairs[:, 0]]
+    right = positions[pairs[:, 1]]
+    raw = np.linalg.norm(left - right, axis=1)
+    mic = calc_bonds(left, right, box=box)
+    split = (raw > 3) & (mic < 2.5) & (raw > mic + 0.5)
     if split.any():
-        raise ValueError(f'Frame {frame_index}: {int(split.sum())} bonded/peptide links cross the periodic boundary; make the protein whole before alignment')
+        raise ValueError(
+            f'Frame {frame_index}: {int(split.sum())} bonded/peptide links cross the periodic boundary; make the protein whole before alignment'
+        )

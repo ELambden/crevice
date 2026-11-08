@@ -64,7 +64,7 @@ def capped():
 
 
 def test_capped_end_is_refused_without_the_option():
-    with pytest.raises(ChannelResolutionError, match="No connected channel"):
+    with pytest.raises(ChannelResolutionError, match="capped.*--lateral-exits"):
         pore_profile(capped_channel(), **OPTIONS)
 
 
@@ -117,7 +117,7 @@ def test_through_channel_is_unchanged_by_the_option():
 def test_lateral_exit_controls_are_validated():
     frame = capped_channel()
     with pytest.raises(ValueError, match="search_radius"):
-        pore_profile(frame, axis="z", search_radius=0, lateral_exits=True)
+        pore_profile(frame, axis="z", search_radius=-1, lateral_exits=True)
     with pytest.raises(ValueError, match="exit_bulk_radius"):
         pore_profile(frame, lateral_exits=True, exit_bulk_radius=0.5, **OPTIONS)
 
@@ -132,7 +132,7 @@ def _publish_capped(tmp_path, *extra):
     out = tmp_path / "out"
     assert main(["report", str(path), "--out-dir", str(out), "--axis", "z", "--origin", "0,0,0",
                  "--search-radius", "7", "--samples", "25", "--section-spacing", "0.5",
-                 "--enclosure-radius", "0.8", "--lateral-exits", "--skip-cavities", "--skip-tunnels", "--skip-network",
+                 "--enclosure-radius", "0.8", "--lateral-exits", "--skip-network",
                  "--skip-hydration", "--dpi", "60", *extra]) == 0
     return out
 

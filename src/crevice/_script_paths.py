@@ -12,6 +12,7 @@ The snippets here are pasted into the generated text; the functions they
 define (``crevice_input`` in Python and Tcl) are part of the scripts, not of
 the CREVICE package.
 """
+
 from __future__ import annotations
 
 import os
@@ -33,7 +34,7 @@ def script_relative(path: str | os.PathLike, script_dir: str | os.PathLike) -> s
     base = Path(os.path.abspath(script_dir))
     try:
         common = Path(os.path.commonpath([target, base]))
-    except ValueError:   # another drive (Windows)
+    except ValueError:  # another drive (Windows)
         return target.name
     if common == Path(common.anchor):
         return target.name
@@ -82,17 +83,19 @@ def tcl_input_proc(root_variable: str = "crevice_root") -> str:
     returns the file next to the script, else in the working directory, and
     raises a Tcl error naming the file otherwise.
     """
-    return ("proc crevice_input {name} {\n"
-            f"    global {root_variable}\n"
-            f"    set crevice_hint [expr {{[info script] eq {{}} ? {{ (VMD -e does not tell a script where it is: start VMD in the folder of the script, or type: source PATH)}} : {{}}}}]\n"
-            "    set candidates [list $name]\n"
-            "    if {[file tail $name] ne $name} {lappend candidates [file tail $name]}\n"
-            f"    foreach directory [list ${root_variable} [pwd]] {{\n"
-            "        foreach candidate $candidates {\n"
-            "            set path [file join $directory $candidate]\n"
-            "            if {[file exists $path]} {return $path}\n"
-            "        }\n"
-            "    }\n"
-            f"    error \"CREVICE: data file $name was not found next to this script (${root_variable}) or in the "
-            "working directory ([pwd]); keep the script with the other files of its output folder$crevice_hint\"\n"
-            "}\n")
+    return (
+        "proc crevice_input {name} {\n"
+        f"    global {root_variable}\n"
+        f"    set crevice_hint [expr {{[info script] eq {{}} ? {{ (VMD -e does not tell a script where it is: start VMD in the folder of the script, or type: source PATH)}} : {{}}}}]\n"
+        "    set candidates [list $name]\n"
+        "    if {[file tail $name] ne $name} {lappend candidates [file tail $name]}\n"
+        f"    foreach directory [list ${root_variable} [pwd]] {{\n"
+        "        foreach candidate $candidates {\n"
+        "            set path [file join $directory $candidate]\n"
+        "            if {[file exists $path]} {return $path}\n"
+        "        }\n"
+        "    }\n"
+        f"    error \"CREVICE: data file $name was not found next to this script (${root_variable}) or in the "
+        "working directory ([pwd]); keep the script with the other files of its output folder$crevice_hint\"\n"
+        "}\n"
+    )
