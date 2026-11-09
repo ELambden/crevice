@@ -3,6 +3,21 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.5.1 (9 November 2026)
+
+**Small fixes.**
+
+- `crevice report` counts every file it wrote, including subfolders and the
+  HTML view, in its summary line.
+- `crevice view --show/--hide entry` (or `exit`, `lining`) on a bundle with no
+  layer of that kind changes nothing and says so, instead of stopping.
+- Clearer wording of the error for a channel capped at both ends, and cast
+  volumes in the documentation name the settings they depend on.
+- Point clearances use CREVICE's own distance formula throughout, not
+  SciPy's compiled KD-tree distance, which differed from the `fast` (numba)
+  kernels in the last bits on macOS arm64.
+- The benchmark scripts run on Windows.
+
 ## 0.5.0 (8 November 2026)
 
 **Per-slice enclosure probe, side portals of capped channels, faster

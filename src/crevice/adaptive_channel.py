@@ -1347,9 +1347,9 @@ def _build_profile(
                 capped[k] = False
                 ends_in_bulk.append(label)
     if any(capped) and not lateral_exits:
-        ends = " and ".join(name for name, c in zip(("lower", "upper"), capped) if c)
+        ends = "lower and upper ends are" if all(capped) else ("lower end is" if capped[0] else "upper end is")
         raise ChannelResolutionError(
-            f"The channel's {ends} end is capped: the straight continuation along the axis beyond the mouth does not "
+            f"The channel's {ends} capped: the straight continuation along the axis beyond the mouth does not "
             "clear the end plane's enclosure probe. Add lateral_exits (--lateral-exits) to accept a capped end with a "
             "lateral exit to bulk"
         )

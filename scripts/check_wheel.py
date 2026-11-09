@@ -195,9 +195,10 @@ def main():
         source.write_text("\n".join(lines) + "\nEND\n", encoding="utf-8", newline="\n")
         run(root / "venv/bin/crevice", "--help")
         run(root / "venv/bin/crevice", "profile", source, "--axis", "z", "--samples", "3",
-            "--search-radius", "0", "-o", root / "profile.json")
+            "-o", root / "profile.json")
         profile = json.loads((root / "profile.json").read_text(encoding="utf-8"))
-        assert profile["point_count"] == 3 and abs(profile["min_radius"] - 3.3) < 1e-8
+        # Rings of CA atoms (radius 1.7 A) 5 A from the axis: the true minimum is 3.3 A, in the ring planes.
+        assert profile["point_count"] >= 3 and 3.3 - 1e-8 < profile["min_radius"] < 3.35, profile
 
         segments = json.loads(run(python, "-c", SEGMENT_CHECKS))
         for path in ("tree", "fallback"):

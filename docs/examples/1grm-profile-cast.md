@@ -133,8 +133,10 @@ The cast is the probe-swept lumen between the two mouths: grid points
 default 0 Å), swept from the enclosed sections, each with its own enclosure
 probe (at least one cast grid spacing), and connected to the measured centre
 line. `1GRM_void_cast.csv` reports one region of 347.1 Å³ (2777 samples). The
-cast volume depends on the cast grid: `--cast-spacing 0.25` gives 335.4 Å³.
-Compare grids before interpreting a volume.
+cast volume depends on the cast grid: `--cast-spacing 0.25` gives 335.4 Å³
+(and 344.7 Å³ with `--samples 101 --section-spacing 0.25` as well, because the
+samples and sections set the swept planes). Compare grids before interpreting
+a volume.
 
 This cast is the **LUMEN**. Beyond each mouth, the space out to bulk solvent
 (the boundary set by a rolling 6 Å probe, `--exit-bulk-radius`) is filled by

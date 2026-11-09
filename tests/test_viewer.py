@@ -104,6 +104,10 @@ def test_publish_directory_scene_has_toggleable_segments_lining_and_centre_line(
     assert not v.layer("exit_1").visible and not v.layer("protein").visible
     with pytest.raises(KeyError, match="layers are"):
         v.toggle("nonexistent")
+    # A group with no layers of its kind (this bundle has no entry segment) changes nothing.
+    before = {layer.name: layer.visible for layer in v.layers}
+    v.toggle("entry", False)
+    assert {layer.name: layer.visible for layer in v.layers} == before
     scene = v.scene()
     assert scene["schema"] == "crevice.interactive_view.v1" and scene["structure"]["format"] == "pdb"
     lumen = next(layer for layer in scene["layers"] if layer["name"] == "lumen")
@@ -153,6 +157,9 @@ def test_cli_view_writes_the_html_with_requested_layers(published, tmp_path, cap
     assert main(["view", str(published)]) == 0
     assert (published / "capped_view.html").is_file()
     assert main(["view", str(tmp_path / "missing")]) == 2
+    capsys.readouterr()
+    assert main(["view", str(published), "-o", str(tmp_path / "w.html"), "--hide", "entry"]) == 0
+    assert "no entry layers" in capsys.readouterr().err
 
 
 def test_region_scene_shows_surfaces_member_waters_and_snapshots(tmp_path):

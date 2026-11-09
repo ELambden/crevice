@@ -1333,7 +1333,7 @@ def profile_timeseries(
 
     Examples
     --------
-    Fixed-axis scans (``search_radius=0``) are fast:
+    A ring channel along ``z``, profiled in two identical frames:
 
     >>> import math
     >>> from crevice.models import Atom, StructureFrame
@@ -1343,7 +1343,7 @@ def profile_timeseries(
     ...               -10.5 + 1.5 * k, "C")
     ...          for k in range(15) for j in range(12)]
     >>> frame = StructureFrame(tuple(atoms))
-    >>> rows = profile_timeseries([frame, frame], axis="z", search_radius=0, samples=5)
+    >>> rows = profile_timeseries([frame, frame], axis="z", samples=5)
     >>> [(row["frame_index"], round(row["min_radius"], 2)) for row in rows]
     [(0, 4.3), (1, 4.3)]
     """

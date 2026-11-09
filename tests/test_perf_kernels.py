@@ -49,6 +49,36 @@ def test_batched_point_and_segment_clearances_are_bit_identical(seed):
     assert index.segment_clearances(starts, ends).tolist() == reference
 
 
+class _LowKDTree:
+    """A KD-tree whose nearest-centre distances are one unit in the last place low.
+
+    Stands in for a SciPy build whose compiled distance rounds differently (for
+    example fused multiply-adds on arm64, where macOS CI saw the NumPy path and
+    the numba kernels disagree in the last bits).
+    """
+
+    def __init__(self, tree):
+        self._tree = tree
+
+    def query(self, x, k=1, **kwargs):
+        distance, index = self._tree.query(x, k=k, **kwargs)
+        return np.nextafter(distance, -np.inf), index
+
+    def __getattr__(self, name):
+        return getattr(self._tree, name)
+
+
+def test_clearances_do_not_take_the_kdtree_distance():
+    atoms = _random_atoms(4)
+    index = SpatialIndex(atoms)
+    rng = random.Random(104)
+    points = [(rng.uniform(-2, 16), rng.uniform(-2, 16), rng.uniform(-2, 16)) for _ in range(400)]
+    formula = [index._nearest_surface_bruteforce(p)[0] for p in points]
+    index._tree = _LowKDTree(index._tree)
+    assert index.nearest_surface_values(points).tolist() == formula
+    assert [index.nearest_surface(p)[0] for p in points] == formula
+
+
 @pytest.mark.parametrize("probe", [0.0, 0.5, 0.8, 1.4, 3.0])
 @pytest.mark.parametrize("atoms", [_random_atoms(7, 250), _ring_channel()], ids=["random", "ring"])
 def test_plane_graph_matches_scalar_plane_masks(atoms, probe):

@@ -2099,6 +2099,7 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
         return {"manifest": None, "files": {}, "plan": plan.to_dict() if plan else None}
     args._run_manifest = None
     args._run_source = None
+    args._summary = None
     # One radius set for the whole command, including trajectory worker processes.
     with (
         figure_annotations(getattr(args, "annotate", False)),
@@ -2122,6 +2123,8 @@ def execute(args: argparse.Namespace, *, settings=None, argv: list[str] | None =
             status(f"{label}: finished in {clock}")
         if plan is not None and plan.writes("viewer-html") and args._run_manifest:
             _write_view_html(Path(args._run_manifest), plan)
+        if args._summary is not None:
+            args._summary()
     result = {"manifest": args._run_manifest, "files": {}, "plan": plan.to_dict() if plan else None}
     if args._run_manifest and Path(args._run_manifest).is_file():
         path = Path(args._run_manifest)
@@ -3578,8 +3581,14 @@ def _cmd_publish(args: argparse.Namespace) -> None:
         if "profile_json" in manifest
         else "not_assigned"
     )
-    written = len({p for p in Path(args.out_dir).iterdir() if p.is_file()})
-    print(f"publish files={written} out_dir={args.out_dir} profile={profile_status}")
+    # Printed after the run's last output (the optional HTML view), so the count includes every file.
+    args._summary = lambda: _print_publish_summary(args.out_dir, profile_status, manifest)
+
+
+def _print_publish_summary(out_dir, profile_status: str, manifest: dict) -> None:
+    """Print ``report``'s summary line: every file under ``out_dir`` (subfolders included) and the profile status."""
+    written = sum(1 for p in Path(out_dir).rglob("*") if p.is_file())
+    print(f"publish files={written} out_dir={out_dir} profile={profile_status}")
     if profile_status == "unresolved":
         print(
             f"crevice: note: the files describe the space without a channel profile ({Path(manifest['profile_status_json']).name} "
@@ -3716,10 +3725,11 @@ def _cmd_view(args: argparse.Namespace) -> None:
     from .viewer import view
 
     scene = view(args.outdir, kind=args.kind, snapshot=args.snapshot)
-    for name in args.show:
-        scene.toggle(name, True)
-    for name in args.hide:
-        scene.toggle(name, False)
+    for names, visible in ((args.show, True), (args.hide, False)):
+        for name in names:
+            if not any(n == name or n.startswith(name + "_") for n in scene.layer_names):
+                print(f"crevice: note: this view has no {name} layers; {name!r} changed nothing", file=sys.stderr)
+            scene.toggle(name, visible)
     if args.output:
         output = Path(args.output)
     else:

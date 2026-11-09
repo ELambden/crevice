@@ -156,7 +156,7 @@ def machine_record() -> dict:
               "cpu_count": os.cpu_count()}
     try:
         record["load_average_1_5_15"] = list(os.getloadavg())
-    except OSError:
+    except (AttributeError, OSError):  # no os.getloadavg on Windows
         pass
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():

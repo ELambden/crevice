@@ -131,7 +131,7 @@ Reading the table:
 * With default options CREVICE resolves 5 of 11 entries; with the documented
   options (`--lateral-exits` for capped ends) 10 (Bondi: 11). Every plane uses
   its own enclosure probe, so narrow filters and leaky wide regions resolve in
-  the same channel: KcsA's 0.62 Å filter and TWIK-1's 0.50 Å filter are
+  the same channel: KcsA's 0.62 Å filter and TWIK-1's 0.51 Å filter are
   followed. The smallest traceable clearance is about 0.32 Å with 0.25 Å
   sections.
 * HOLE's minimum within the protein lies inside CREVICE's range for 7 of the

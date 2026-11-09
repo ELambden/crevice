@@ -146,3 +146,11 @@ def test_portable_replaces_longest_paths_first():
     out = timing.portable(text, {"/data/ws": "<work-dir>", "/data/ws/bench": "<work>", "/usr/bin/python": "python",
                                  "": "ignored"})
     assert out == "<work>/x.json <work-dir>/a.gro python"
+
+
+def test_machine_record_without_load_average(monkeypatch):
+    import common
+
+    monkeypatch.delattr(os, "getloadavg", raising=False)  # as on Windows
+    record = common.machine_record()
+    assert "load_average_1_5_15" not in record and record["cpu_count"] == os.cpu_count()

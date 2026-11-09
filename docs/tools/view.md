@@ -74,7 +74,7 @@ You can also view results you still have in memory, before writing any files:
 |---|---|---|
 | `-o/--output` | `OUTDIR/PREFIX_view.html` | where to write the HTML file |
 | `--open` | off | open the file in your web browser |
-| `--show LAYER`, `--hide LAYER` | | change which layers are visible at first; `entry`, `exit` and `lining` select every layer of that kind (repeatable) |
+| `--show LAYER`, `--hide LAYER` | | change which layers are visible at first; `entry`, `exit` and `lining` select every layer of that kind, and change nothing (with a note) when the bundle has none (repeatable) |
 | `--snapshot N` | 0 | which saved frame's member waters to show |
 | `--kind` | `auto` | show the cast scene or the hydration (region) scene of a directory that has both |
 | `--cdn` | off | load 3Dmol.js from a CDN instead of inlining it |

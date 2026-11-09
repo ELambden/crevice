@@ -16,7 +16,7 @@ crevice profile 4PYP -o 4PYP_profile.json
 
 ```text
 crevice: no channel resolved in 4PYP.cif after 19.3 s
-crevice: error: The channel's lower and upper end is capped: the straight continuation along the axis beyond the mouth does not clear the end plane's enclosure probe. Add lateral_exits (--lateral-exits) to accept a capped end with a lateral exit to bulk
+crevice: error: The channel's lower and upper ends are capped: the straight continuation along the axis beyond the mouth does not clear the end plane's enclosure probe. Add lateral_exits (--lateral-exits) to accept a capped end with a lateral exit to bulk
 crevice: hint: no through-channel was resolved, so no radius profile was measured. ...
 ```
 

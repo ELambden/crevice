@@ -12,6 +12,40 @@ biological results.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-09
+
+### Fixed
+
+- `crevice report` prints the number of files it wrote including those in
+  subfolders (`regions/`) and the HTML view of `--all`, which is written
+  after the measurement; 4PYP printed `files=28` for 29 files.
+- `crevice view --show/--hide entry` (or `exit`, `lining`) on a bundle with no
+  layer of that kind changes nothing and says so on standard error, instead of
+  stopping with "no layer 'entry'"; `CreviceView.toggle` accepts such a group
+  too. A name that is neither a layer nor a group still raises `KeyError`.
+- The profile error for a channel capped at both ends reads "lower and upper
+  ends are capped".
+- Point clearances (`SpatialIndex.nearest_surface`, `nearest_surface_values`)
+  no longer take SciPy's KD-tree distance as a candidate value; the tree only
+  bounds the atom search. Its compiled distance can differ in the last bits
+  between builds, so the NumPy path disagreed with the `fast` (numba) kernels
+  by an ulp on macOS arm64. Results on Linux x86-64 are unchanged.
+- The benchmark scripts' machine record works on Windows (no
+  `os.getloadavg`).
+- The `profile_timeseries` docstring example no longer passes the
+  `search_radius=0` removed in 0.5.0, and the wheel smoke test
+  (`scripts/check_wheel.py`) no longer passes `--search-radius 0`.
+
+### Documentation
+
+- Cast volumes name the settings they depend on: the 0.5.0 entry's 1GRM cast
+  (344.7 Å³) uses 101 samples with 0.25 Å sections and cast grid, and
+  `report --cast-spacing 0.25` alone gives 335.4 Å³; Python `void_cast` keeps
+  its 0.4 Å default clearance (1GRM at 0.5 Å: 195.5 Å³, or 347.1 Å³ with
+  `min_radius=0.0` as in `report`).
+- The benchmark notes quote TWIK-1's filter as CREVICE's 0.51 Å minimum, as
+  the documentation does.
+
 ## [0.5.0] - 2026-11-08
 
 ### Changed
@@ -73,7 +107,7 @@ biological results.
 - The channel cast of `report` sweeps each slice with its own probe (at least
   one cast grid spacing), and a cast slice that leaks at its neighbours' probe
   takes the next larger one. Cast volumes change accordingly (gramicidin A,
-  1GRM, 0.25 Å: 292.4 to 344.7 Å³).
+  1GRM, 101 samples with 0.25 Å sections and cast grid: 292.4 to 344.7 Å³).
 - `--sensitivity` for a per-slice profile varies the section grid only.
 - **Permeation events follow the compartment rule by default**
   (`trajectory --permeation`; Python `analyze_permeation(convention=

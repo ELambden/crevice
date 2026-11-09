@@ -139,7 +139,9 @@ print(v.layer_names)
 Python (see [CLI or Python?](../getting-started/cli-vs-python.md)). On the
 1.5 Å grid the narrow gramicidin lumen is not resolved in every section (a
 warning says so), and `segment_casts` then returns no ENTRY or EXIT segments,
-so the example passes `spacing=0.5`. The surfaces are computed from the cast
+so the example passes `spacing=0.5`. With the default 0.4 Å clearance this
+cast holds 195.5 Å³; add `min_radius=0.0` for the cast of `report`
+(347.1 Å³ on the same grid). The surfaces are computed from the cast
 you pass, on its own grid and without the short display continuation that
 `report` adds beyond each mouth, so they can differ from those of a `report`
 bundle.

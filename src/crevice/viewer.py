@@ -74,6 +74,8 @@ WATER_HEX = "#ff8000"
 WATER_RADIUS_A = 0.7
 #: Lining-residue stick radius (Å), as in the native scenes.
 STICK_RADIUS_A = 0.2
+#: Group names of :meth:`CreviceView.toggle`: each selects every ``entry_N``, ``exit_N`` or ``lining_*`` layer.
+LAYER_GROUPS = ("entry", "exit", "lining")
 
 _ASSETS = Path(__file__).with_name("_viewer_assets")
 _THREEDMOL = "3Dmol-min.js"
@@ -369,7 +371,9 @@ class CreviceView:
         ----------
         name : str
             Layer name, or a group: ``"entry"``, ``"exit"`` or ``"lining"``
-            match every ``entry_N``, ``exit_N`` or ``lining_*`` layer.
+            match every ``entry_N``, ``exit_N`` or ``lining_*`` layer. A group
+            with no such layers (a bundle without an entry segment) changes
+            nothing.
         visible : bool, optional
             New state; default flips the current state.
 
@@ -377,9 +381,15 @@ class CreviceView:
         -------
         CreviceView
             ``self``, so calls can be chained (``v.toggle("lining").show()``).
+
+        Raises
+        ------
+        KeyError
+            For a name that is neither a layer nor a group; the message lists
+            the valid names.
         """
         matches = [layer for layer in self.layers if layer.name == name or layer.name.startswith(name + "_")]
-        if not matches:
+        if not matches and name not in LAYER_GROUPS:
             self.layer(name)  # raises KeyError with the valid names
         for layer in matches:
             layer.visible = (not layer.visible) if visible is None else bool(visible)

@@ -258,7 +258,9 @@ class SpatialIndex:
         if self._tree is None:
             return np.array([self._nearest_surface_bruteforce(tuple(map(float, p)))[0] for p in pts])
         nearest_distance, nearest_index = self._tree.query(pts, k=1)
-        best = nearest_distance - self._radius_array[nearest_index]
+        # The KD-tree distance only bounds the search: its compiled arithmetic can differ in the last bits
+        # between SciPy builds, so the clearance itself is always the formula value.
+        best = _point_surface_distances(pts, self._xyz[nearest_index], self._radius_array[nearest_index])
         search = np.maximum(np.maximum(nearest_distance, best + self._max_radius), 0.0) + 1e-9
         balls = self._tree.query_ball_point(pts, search, return_sorted=False)
         counts = np.fromiter(map(len, balls), dtype=np.intp, count=len(balls))
@@ -327,10 +329,15 @@ class SpatialIndex:
     def _nearest_surface_kdtree(self, point: Coord) -> tuple[float, Atom]:
         """KD-tree nearest surface: nearest centre, then a ball search of radius
         ``max(d_centre, best_clearance + max_radius)`` to catch larger atoms.
+
+        The KD-tree distance only bounds the search. Every returned value is
+        computed by :meth:`atom_surface_distance`, because SciPy's compiled
+        distance can differ in the last bits between builds (for example where
+        the compiler fuses multiply-adds, as on arm64).
         """
         nearest_distance, nearest_index = self._tree.query(point, k=1)
         nearest_atom = self.atoms[int(nearest_index)]
-        best_clearance = float(nearest_distance) - self._radii[nearest_atom]
+        best_clearance = self.atom_surface_distance(point, nearest_atom)
         search_radius = max(float(nearest_distance), best_clearance + self._max_radius, 0.0) + 1e-9
         indices = self._tree.query_ball_point(point, search_radius)
         if not indices:
