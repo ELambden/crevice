@@ -93,6 +93,22 @@ Radius, lining hydrophobicity, chemistry, water and a geometric conductance esti
 Trace the widest routes from the sugar site to the solvent on either side, and follow the site's cavity through every frame. *A few minutes, using the GLUT1 excerpt.*
 :::
 
+:::{container} crevice-card
+![](images/aqp4_permeation_positions.png)
+
+**[Water through an aquaporin: AQP4 permeation](aqp4-water-permeation.md)**
+
+Count water molecules crossing the AQP4 pore in a 20 ns membrane simulation, and derive pd, pf and the free-energy profile along the pore. *A few seconds, plus a 10 MB download.*
+:::
+
+:::{container} crevice-card
+![](images/ompf_permeation.png)
+
+**[Ions through a porin: OmpF current and conductance](ompf-ion-permeation.md)**
+
+Count K⁺ and Cl⁻ crossing the three OmpF pores under an applied field, with the membrane as the reference, and turn the counts into a current and conductance per pore. *A few seconds, plus a 7 MB download.*
+:::
+
 ::::
 
 Every command and Python block was run and the numbers were copied from that
@@ -145,4 +161,6 @@ glut1-trajectory
 explore-interactively
 pore-fingerprint
 glut1-paths-tracking
+aqp4-water-permeation
+ompf-ion-permeation
 ```

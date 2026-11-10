@@ -1469,6 +1469,19 @@ def _minimum_image(vectors, box):
     return minimize_vectors(vectors, np.asarray(box, dtype=np.float64))
 
 
+def _axial_copy(shift, box, rotation, axis):
+    """Index of the periodic copy of a channel, from lab-frame shifts that are sums of box vectors.
+
+    The copies are stacked along the box vector most aligned with ``axis`` (reference frame); the result is
+    the whole number of those box vectors in each shift (lateral box vectors are ignored).
+    """
+    from MDAnalysis.lib.mdamath import triclinic_vectors
+
+    vectors = triclinic_vectors(np.asarray(box, dtype=np.float64))
+    along = int(np.argmax(np.abs((vectors @ rotation) @ axis)))
+    return np.round(np.asarray(shift, dtype=np.float64) @ np.linalg.inv(vectors))[:, along]
+
+
 def _kabsch(mobile, reference):
     xc, yc = mobile.mean(axis=0), reference.mean(axis=0)
     h = (mobile - xc).T @ (reference - yc)
@@ -1686,6 +1699,18 @@ def analyze_permeation(
             "origin": np.zeros(n_mol, dtype=np.int8),
             "passage_start": np.zeros(n_mol, dtype=np.int64),
             "passed": np.zeros(n_mol, dtype=bool),
+            # Periodic layers: ``r`` is each molecule's unwrapped position relative to the channel centre (lab
+            # frame); ``r - d_lab`` is a sum of box vectors, and its count along the box vector most aligned with
+            # the axis (the membrane normal) is the copy of the channel, stacked along the axis, that the
+            # minimum image refers to. The bulk is a stack of layers: layer m lies above copy m and below copy
+            # m + 1. Each remembered side keeps its layer, and a crossing is a change of layer (up when it
+            # increases), so a molecule that passes the half-box point of its layer ("below" the next copy) does
+            # not cross, and one that crosses and passes that point in the same saved interval crosses once.
+            # Wraps along the other box vectors (lateral) leave the layer unchanged.
+            "r": None,
+            "side_layer": np.zeros(n_mol),
+            "origin_layer": np.zeros(n_mol),
+            "entry_layer": np.zeros(n_mol),
         }
         for _ in channels
     ]
@@ -1736,6 +1761,16 @@ def analyze_permeation(
             d_ref = d_lab @ rotation
             pos = centre + d_ref
             s = pos @ axis
+            if s_state["r"] is None:
+                s_state["r"] = d_lab.copy()
+            else:
+                s_state["r"] = s_state["r"] + _minimum_image(d_lab - s_state["prev_d"], box)
+            image = _axial_copy(s_state["r"] - d_lab, box, rotation, axis) if has_box else np.zeros(len(d_lab))
+
+            def seen_from_here(side, side_layer):
+                """A remembered side relative to each molecule's current copy of the channel (0 stays unknown)."""
+                return np.where(side == 0, 0, np.where(side_layer >= image, _STATE_ABOVE, _STATE_BELOW)).astype(np.int8)
+
             zmin, zmax = channel.extent(k)
             state = np.where(s < zmin, _STATE_BELOW, np.where(s > zmax, _STATE_ABOVE, _STATE_OUT)).astype(np.int8)
             slab = np.flatnonzero(state == _STATE_OUT)
@@ -1743,6 +1778,7 @@ def analyze_permeation(
                 inside = channel.lumen(pos[slab], k)
                 state[slab[inside]] = _STATE_INSIDE
             is_in = state == _STATE_INSIDE
+            layer = image + np.where(state == _STATE_ABOVE, 0.0, -1.0)  # meaningful for bulk molecules
             if s_state["prev_state"] is not None:
                 prev = s_state["prev_state"]
                 delta = d_lab - s_state["prev_d"]
@@ -1800,8 +1836,8 @@ def analyze_permeation(
                     if not compartment:
                         for i in np.flatnonzero(to_side):
                             entered = int(s_state["entry_side"][i])
-                            if entered != 0 and entered == -int(state[i]):
-                                direction = "up" if entered == _STATE_BELOW else "down"
+                            if entered != 0 and layer[i] != s_state["entry_layer"][i]:
+                                direction = "up" if layer[i] > s_state["entry_layer"][i] else "down"
                                 events.append(
                                     {
                                         "channel": c,
@@ -1822,10 +1858,10 @@ def analyze_permeation(
                     # if it was in the lumen at least once on the way, otherwise listed as outside).
                     was_bulk = (prev == _STATE_BELOW) | (prev == _STATE_ABOVE)
                     now_bulk = (state == _STATE_BELOW) | (state == _STATE_ABOVE)
-                    origin = s_state["origin"]
-                    arrived = now_bulk & ~was_bulk & (origin != 0) & (state == -origin)
+                    origin_layer = s_state["origin_layer"]
+                    arrived = now_bulk & ~was_bulk & (s_state["origin"] != 0) & (layer != origin_layer)
                     for i in np.flatnonzero(arrived):
-                        direction = "up" if origin[i] == _STATE_BELOW else "down"
+                        direction = "up" if layer[i] > origin_layer[i] else "down"
                         status = "complete" if s_state["passed"][i] or is_in[i] else "outside_lumen"
                         events.append(
                             {
@@ -1846,7 +1882,8 @@ def analyze_permeation(
                 # Entering the lumen.
                 entering = is_in & ~s_state["inside"]
                 s_state["visit_start"][entering] = k
-                s_state["entry_side"][entering] = s_state["side"][entering]
+                s_state["entry_side"][entering] = seen_from_here(s_state["side"], s_state["side_layer"])[entering]
+                s_state["entry_layer"][entering] = s_state["side_layer"][entering]
             else:
                 s_state["visit_start"][is_in] = 0
                 s_state["entry_side"][is_in] = 0
@@ -1871,8 +1908,10 @@ def analyze_permeation(
             s_state["inside"] = is_in
             bulk = (state == _STATE_BELOW) | (state == _STATE_ABOVE)
             s_state["side"][bulk] = state[bulk]
+            s_state["side_layer"][bulk] = layer[bulk]
             s_state["side"][state == _STATE_OUT] = 0
             s_state["origin"][bulk] = state[bulk]
+            s_state["origin_layer"][bulk] = layer[bulk]
             s_state["prev_state"], s_state["prev_d"], s_state["prev_s"] = state, d_lab, s
             occupancy[c, :, k] = np.bincount(species_of[is_in], minlength=S)
             n_coord[c, :, k] = s_state["n"]

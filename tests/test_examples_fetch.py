@@ -66,6 +66,19 @@ def test_fetch_from_file_url_and_environment(fake_dataset, tmp_path, monkeypatch
     assert fetched["t.gro"].is_file()
 
 
+def test_dataset_release_url_is_the_default_after_the_argument_and_environment(fake_dataset, tmp_path, monkeypatch):
+    import dataclasses
+
+    source, plain, _ = fake_dataset
+    monkeypatch.setitem(examples.EXAMPLES, "fake",
+                        dataclasses.replace(examples.EXAMPLES["fake"], base_url=source.as_uri() + "/"))
+    fetched = examples.fetch_example("fake", cache_dir=tmp_path / "c1")
+    assert fetched["t.xtc"].read_bytes() == plain
+    monkeypatch.setenv(examples.BASE_URL_ENV, (tmp_path / "nowhere").as_uri() + "/")
+    with pytest.raises(RuntimeError):
+        examples.fetch_example("fake", cache_dir=tmp_path / "c2")
+
+
 def test_hash_mismatch_is_refused_and_removed(fake_dataset, tmp_path):
     source, _, _ = fake_dataset
     (source / "t.xtc").write_bytes(b"tampered")

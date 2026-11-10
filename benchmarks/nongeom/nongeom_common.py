@@ -274,6 +274,11 @@ def reference_axial_lateral(universe, atom_indices, centre, *, axis_index=2, str
     return np.asarray(s_list), np.asarray(img_list), np.asarray(lat_list), np.asarray(times)
 
 
+def reference_copies(s_unwrapped, s_image, period):
+    """Copy of the channel each image coordinate refers to: whole periods between unwrapped and image (axis z)."""
+    return np.round((np.asarray(s_unwrapped) - np.asarray(s_image)) / period).astype(int)
+
+
 def reference_states(s_img, lateral, zmin, zmax, radius):
     """Per-frame state below/inside/above/out from the image coordinate and lateral distance."""
     state = np.where(s_img < zmin, STATE_BELOW, np.where(s_img > zmax, STATE_ABOVE, STATE_OUT))
@@ -294,7 +299,7 @@ def _runs(seq):
     return out
 
 
-def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_image=None):
+def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_image=None, copies=None):
     """Permeation events from per-frame states, written from the definition.
 
     Conventions
@@ -311,6 +316,15 @@ def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_
         inside the lumen and listed as "outside_lumen" otherwise. This is the
         compartment rule of GROMACS computational electrophysiology.
 
+    Periodic layers. The bulk is a stack of water layers: layer ``m`` lies above
+    copy ``m`` of the channel and below copy ``m + 1``. ``copies`` (frames x n
+    integers) gives the copy each frame's image coordinate refers to (the
+    whole periods between the unwrapped and the image coordinate); a bulk frame
+    is in layer ``copy`` when above and ``copy - 1`` when below. An event is a
+    change of layer (up when it increases), so a molecule whose minimum image
+    changes side at the half-box point of its water layer stays in its layer.
+    Without ``copies`` every frame refers to copy 0.
+
     A whole-extent jump between two consecutive frames is an *unresolved*
     crossing (counted separately, never as an event): the previous image
     coordinate (``s_image``, default ``s_unwrapped``) plus the unwrapped step
@@ -325,18 +339,20 @@ def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_
         raise ValueError(convention)
     for i in range(n):
         seq = states[:, i].copy()
+        copy = np.zeros(frames, dtype=int) if copies is None else np.asarray(copies)[:, i].astype(int)
+        layer = np.where(seq == STATE_ABOVE, copy, copy - 1)   # meaningful in bulk frames only
         if convention == "compartment":
             bulk = (seq == STATE_BELOW) | (seq == STATE_ABOVE)
-            last_bulk = None          # (frame, side) of the latest bulk frame
+            last_bulk = None          # (frame, layer) of the latest bulk frame
             for f in range(frames):
                 if not bulk[f]:
                     continue
-                if last_bulk is not None and f > last_bulk[0] + 1 and seq[f] == -last_bulk[1]:
+                if last_bulk is not None and f > last_bulk[0] + 1 and layer[f] != last_bulk[1]:
                     passage = seq[last_bulk[0] + 1:f]
-                    events.append({"molecule": i, "direction": "up" if last_bulk[1] == STATE_BELOW else "down",
+                    events.append({"molecule": i, "direction": "up" if layer[f] > last_bulk[1] else "down",
                                    "entry_frame": last_bulk[0] + 1, "exit_frame": f,
                                    "status": "complete" if np.any(passage == STATE_INSIDE) else "outside_lumen"})
-                last_bulk = (f, int(seq[f]))
+                last_bulk = (f, int(layer[f]))
         else:
             runs = _runs(seq) if len(seq) else []
             for r in range(1, len(runs) - 1):
@@ -344,8 +360,9 @@ def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_
                 if value != STATE_INSIDE:
                     continue
                 before, after = runs[r - 1][0], runs[r + 1][0]
-                if before in (STATE_BELOW, STATE_ABOVE) and after == -before:
-                    events.append({"molecule": i, "direction": "up" if before == STATE_BELOW else "down",
+                if before in (STATE_BELOW, STATE_ABOVE) and after in (STATE_BELOW, STATE_ABOVE) \
+                        and layer[a - 1] != layer[b + 1]:
+                    events.append({"molecule": i, "direction": "up" if layer[b + 1] > layer[a - 1] else "down",
                                    "entry_frame": int(a), "exit_frame": int(runs[r + 1][1]), "status": "complete"})
         # Unresolved: below -> above (or reverse) between consecutive frames: the previous
         # image position plus the unwrapped step lands beyond the far end of the extent.

@@ -3,6 +3,24 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.5.2 (10 November 2026)
+
+**Example data for permeation, and a fix to crossing counts across the
+periodic boundary.**
+
+- **Permeation counts across the periodic boundary.** A molecule that moved
+  past the middle of the water layer between a membrane and its periodic
+  image within one saved interval could be counted as crossing when it only
+  dipped into the nearer pore mouth. Each remembered side now keeps the
+  periodic copy of the channel it refers to. Fast water with extents that
+  reach far into the bulk (such as `--membrane-planes`) was affected most; a
+  cylinder deep in the pore, and ion counts, were barely or not at all.
+- **Two example datasets** for `crevice fetch --example`: `aqp4-excerpt`
+  (water through aquaporin-4) and `ompf-excerpt` (ions through the OmpF porin
+  under an applied field), each with a worked example page:
+  [water through AQP4](../examples/aqp4-water-permeation.md) and
+  [ions through OmpF](../examples/ompf-ion-permeation.md).
+
 ## 0.5.1 (9 November 2026)
 
 **Small fixes.**

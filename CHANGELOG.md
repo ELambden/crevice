@@ -12,6 +12,40 @@ biological results.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-11-10
+
+### Fixed
+
+- **Permeation: no crossings from a side flipped at the half-box point.** The
+  water between a membrane and its periodic image lies above one copy of the
+  channel and below the next. A molecule that passed the middle of that layer
+  between two saved frames had its remembered side switched to the far copy,
+  so dipping into the nearer mouth and returning was counted as a complete
+  crossing (or listed as `outside_lumen`). Each remembered side now keeps the
+  periodic copy it refers to, counted along the box vector most aligned with
+  the axis, in both conventions. Fast water saved every 100 ps is affected
+  most, and extents that reach far into the bulk (such as
+  `--membrane-planes`): on 20 ns of an AQP4 monomer with the membrane-plane
+  extent, 15 of 29 complete crossings and 1,253 of 1,255 `outside_lumen`
+  transits were such artefacts. A cylinder deep in the pore was unaffected
+  (the 100 ns AQP4 counts are unchanged; only `outside_lumen` drops from 32
+  to 10), and so were the OmpF ion counts. The reference counter of the
+  benchmarks follows the same rule.
+
+### Added
+
+- Two example datasets for permeation, fetched with `crevice fetch --example`:
+  `aqp4-excerpt` (200 consecutive frames of an AQP4 monomer with the waters
+  near its pore, 10 MB) and `ompf-excerpt` (100 frames of the OmpF trimer in
+  1 M KCl under an applied field, with every ion and the run's `.mdp`, 7 MB).
+  For channels within the kept region, their permeation results equal those
+  of the full simulations over the same frames.
+- Example pages: water permeation through AQP4 (pd, pf, density and free
+  energy) and ion permeation through OmpF (current and conductance per pore,
+  membrane-referenced extent, field read from the `.mdp`).
+- `ExampleDataset.base_url`: each dataset downloads from the release that
+  introduced it.
+
 ## [0.5.1] - 2026-11-09
 
 ### Fixed

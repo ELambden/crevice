@@ -16,9 +16,14 @@ Fetch structures from RCSB by accession, or AlphaFold DB models by AF- identifie
 
 *CREVICE 0.3: `crevice fetch-example`.*
 
-Download a named example dataset, such as the GLUT1 trajectory excerpt used in the
-tutorials. Every file is checked against its SHA-256 hash and cached locally. For a
-walk-through, see [A membrane MD trajectory](../../examples/glut1-trajectory.md).
+Download a named example dataset. Every file is checked against its SHA-256 hash and
+cached locally. The datasets are excerpts of membrane simulations:
+
+| Name | Contents | Walk-through |
+| --- | --- | --- |
+| `glut1-excerpt` | GLUT1 transporter, 21 frames over 100 ns, with a prepared region | [A membrane MD trajectory](../../examples/glut1-trajectory.md) |
+| `aqp4-excerpt` | AQP4 water channel, 200 consecutive frames, waters near the pore | [Water through an aquaporin](../../examples/aqp4-water-permeation.md) |
+| `ompf-excerpt` | OmpF porin trimer in 1 M KCl under a field, 100 consecutive frames, every ion | [Ions through a porin](../../examples/ompf-ion-permeation.md) |
 
 ```{crevice-cli} fetch --example
 ```

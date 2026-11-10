@@ -3,41 +3,41 @@
   "quick": false,
   "seed": 20261025,
   "machine": {
-    "platform": "Linux-7.0.0-31-generic-x86_64-with-glibc2.39",
+    "platform": "Linux-7.0.0-42-generic-x86_64-with-glibc2.39",
     "machine": "x86_64",
     "python": "3.13.13",
     "cpu_count": 8,
     "load_average_1_5_15": [
-      2.83349609375,
-      2.24560546875,
-      1.60791015625
+      2.8408203125,
+      2.88037109375,
+      3.3603515625
     ],
     "cpu_model": "Intel(R) Core(TM) Ultra 7 268V"
   },
-  "wall_seconds": 279.5843201400712,
+  "wall_seconds": 454.7803502559982,
   "cases_all_match_expected": true,
   "cases_mismatching": [
     "n_entry_through_opposite_periodic_face"
   ],
   "cases_reference_all_match_expected": true,
   "ring_events_identical_to_reference": false,
-  "ring_runs_identical": "52/54",
+  "ring_runs_identical": "53/54",
   "ring_n_max_abs_difference": 29.50509300231956,
   "ring_q0_over_siegmund_by_sigma": {
     "0.1": 0.9130615317773878,
     "0.25": 0.9744288709003777,
     "0.5": 0.9859240474359701,
     "1.0": 0.9955664165102998,
-    "2.0": 1.0336002681129868,
-    "3.0": 1.1823134183871142
+    "2.0": 0.9994973319064762,
+    "3.0": 1.0000464573312637
   },
   "ring_q0_over_continuum_by_sigma": {
     "0.1": 0.9025451272563626,
     "0.25": 0.9468473423671184,
     "0.5": 0.9316465823291165,
     "1.0": 0.891669583479174,
-    "2.0": 0.8382544127206359,
-    "3.0": 0.8760743592735192
+    "2.0": 0.8105967798389919,
+    "3.0": 0.7410176064358773
   },
   "ring_D_n_over_true_mean": 1.1927696612186554,
   "ring_D_n_over_window_expected_by_sigma": {
@@ -74,10 +74,10 @@
     "2.0": 1.0006881170755284,
     "3.0": 1.0001210187460017
   },
-  "ring_differing_events_total": 2,
-  "ring_differing_events_at_half_period_ties": 2,
+  "ring_differing_events_total": 1,
+  "ring_differing_events_at_half_period_ties": 1,
   "ring_D_n_over_true_sd": 0.4049893101358811,
-  "lumen_seconds": 70.46753520239145,
+  "lumen_seconds": 135.99396532999526,
   "lumen": {
     "membrane_slab_pore_radius@1ps": {
       "compartment_over_physical": 1.0,
@@ -188,57 +188,57 @@
       "identical_to_reference": true
     },
     "membrane_slab_pore_radius@50ps": {
-      "compartment_over_physical": 0.7867036011080333,
+      "compartment_over_physical": 0.7853185595567868,
       "compartment_outside_lumen": 0,
-      "strict_over_physical": 0.7867036011080333,
+      "strict_over_physical": 0.7853185595567868,
       "identical_to_reference": true
     },
     "membrane_slab_no_radius@50ps": {
-      "compartment_over_physical": 0.7867036011080333,
+      "compartment_over_physical": 0.7853185595567868,
       "compartment_outside_lumen": 0,
-      "strict_over_physical": 0.7867036011080333,
+      "strict_over_physical": 0.7853185595567868,
       "identical_to_reference": true
     },
     "membrane_slab_radius_minus_1A@50ps": {
       "compartment_over_physical": 0.6689750692520776,
-      "compartment_outside_lumen": 85,
+      "compartment_outside_lumen": 84,
       "strict_over_physical": 0.22299168975069253,
       "identical_to_reference": true
     },
     "membrane_slab_radius_plus_1A@50ps": {
-      "compartment_over_physical": 0.7867036011080333,
+      "compartment_over_physical": 0.7853185595567868,
       "compartment_outside_lumen": 0,
-      "strict_over_physical": 0.7867036011080333,
+      "strict_over_physical": 0.7853185595567868,
       "identical_to_reference": true
     },
     "membrane_slab_radius_plus_2A@50ps": {
-      "compartment_over_physical": 0.7867036011080333,
+      "compartment_over_physical": 0.7853185595567868,
       "compartment_outside_lumen": 0,
-      "strict_over_physical": 0.7867036011080333,
+      "strict_over_physical": 0.7853185595567868,
       "identical_to_reference": true
     },
     "extent_plus_2A_pore_radius@50ps": {
-      "compartment_over_physical": 0.7659279778393352,
-      "compartment_outside_lumen": 63,
-      "strict_over_physical": 0.35041551246537395,
+      "compartment_over_physical": 0.7590027700831025,
+      "compartment_outside_lumen": 0,
+      "strict_over_physical": 0.3462603878116344,
       "identical_to_reference": true
     },
     "extent_plus_2A_radius_plus_2A@50ps": {
-      "compartment_over_physical": 0.775623268698061,
-      "compartment_outside_lumen": 56,
-      "strict_over_physical": 0.5083102493074793,
+      "compartment_over_physical": 0.7590027700831025,
+      "compartment_outside_lumen": 0,
+      "strict_over_physical": 0.49722991689750695,
       "identical_to_reference": true
     },
     "extent_plus_4A_pore_radius@50ps": {
-      "compartment_over_physical": 0.7742382271468145,
-      "compartment_outside_lumen": 292,
-      "strict_over_physical": 0.1440443213296399,
+      "compartment_over_physical": 0.7409972299168975,
+      "compartment_outside_lumen": 0,
+      "strict_over_physical": 0.13434903047091412,
       "identical_to_reference": true
     },
     "extent_plus_4A_radius_plus_4A@50ps": {
-      "compartment_over_physical": 0.871191135734072,
-      "compartment_outside_lumen": 222,
-      "strict_over_physical": 0.40581717451523547,
+      "compartment_over_physical": 0.7409972299168975,
+      "compartment_outside_lumen": 0,
+      "strict_over_physical": 0.3490304709141274,
       "identical_to_reference": true
     }
   }

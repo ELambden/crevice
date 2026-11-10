@@ -13,6 +13,10 @@ each frame, and derives:
 
 The Python interface is {mod}`crevice.permeation`.
 
+Worked examples: [water through AQP4](../examples/aqp4-water-permeation.md) and
+[ions through OmpF](../examples/ompf-ion-permeation.md), each on a small excerpt of
+a membrane simulation that `crevice fetch --example` downloads.
+
 ## Quick start
 
 With the channel taken from the profile that `crevice trajectory` measures in
@@ -150,6 +154,11 @@ channel" (Zhu, Tajkhorshid and Schulten, 2004a).
   are unwrapped. A molecule that reaches the other side through the periodic
   bulk is not counted (its side simply changes), and one that crosses the
   channel several times is counted each time.
+- The water between a membrane and its periodic image lies above one copy of
+  the channel and below the next. The side a molecule remembers is kept
+  together with the copy it refers to, so a molecule that passes the middle of
+  that layer between two saved frames, then dips into the nearer mouth and
+  returns, is not counted as a crossing.
 - A molecule that crosses the whole extent between two saved frames is an
   **unresolved crossing**: listed, not counted, and reported as a warning.
   Save frames more often if there are many.

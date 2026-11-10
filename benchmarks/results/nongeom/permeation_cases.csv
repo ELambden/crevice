@@ -16,6 +16,8 @@ whole_extent_jump,4,0;0;1,0;0;1,0;0;1,0;0;0,0;0;0,0;0;0,1,,True,True,crosses 16 
 exact_boundaries,5,1;0;0,1;0;0,1;0;0,1;0;0,1;0;0,1;0;0,0,30.0000,True,True,z = zmin and z = zmax count as inside,,,,,,,,
 down_then_lateral_exit,6,0;0;0,0;0;0,0;0;0,0;1;0,0;1;0,0;1;0,0,30.0000,True,True,"enters from above, leaves sideways inside the extent, reaches below",,,,,,,,
 passes_extent_beside_lumen,5,0;0;0,0;0;0,0;0;0,0;0;1,0;0;1,0;0;1,0,,True,True,crosses the axial extent 8 A from the axis (for example through another pore),,,,,,,,
+half_box_flip_returns_above,7,0;0;0,0;0;0,0;0;0,0;0;0,0;0;0,0;0;0,0,,True,True,"upper bulk past the half-box point (+21 A is the image -19 A, 'below'), 17 A back into the upper mouth, leaves upward: no crossing",,,,,,,,
+half_box_flip_returns_below,7,0;0;0,0;0;0,0;0;0,0;0;0,0;0;0,0;0;0,0,,True,True,the mirror case from the lower bulk,,,,,,,,
 channel_straddles_periodic_face,11,,,,,,,,,True,,coordinates wrapped by the box; channel centred on z = 0 (alignment off),1,0,0,1,0,0,,
 full_up_stride_1,7,,,,,,,,,True,,frame stride: an event needs one saved frame inside the lumen,1,0,0,1,0,0,,
 full_up_stride_3,3,,,,,,,,,True,,frame stride: an event needs one saved frame inside the lumen,1,0,0,1,0,0,,

@@ -200,9 +200,13 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
                          "zmin": p["zmin"] - de, "zmax": p["zmax"] + de, "radius": r})
     n_mol = len(keep)
     states = [np.zeros((len(frames), n_mol), dtype=np.int8) for _ in defs]
+    # Periodic copy of each channel that a frame's minimum image refers to: whole box heights (z, the membrane
+    # normal of these orthorhombic boxes) between the unwrapped and the minimum-image lab position.
+    copies = [np.zeros((len(frames), n_mol), dtype=np.int32) for _ in defs]
     unresolved = [[] for _ in defs]
     prev = [None] * len(defs)
     prev_x = None
+    x_unwrapped = None
     for k, f in enumerate(frames):
         ts = universe.trajectory[f]
         box = np.asarray(ts.dimensions[:3], float)
@@ -213,7 +217,10 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
             # (the minimum image of x - centre jumps by a box length when a molecule crosses the periodic face).
             dx = x - prev_x
             dx -= box * np.round(dx / box)
+            x_unwrapped = x_unwrapped + dx
             dx = dx @ rot
+        else:
+            x_unwrapped = x.copy()
         prev_x = x
         for j, d in enumerate(defs):
             axis = d["axis"]
@@ -221,6 +228,7 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
             centre_lab = (centre - yc) @ rot.T + xc
             v = x - centre_lab
             v -= box * np.round(v / box)          # orthorhombic minimum image (lab frame)
+            copies[j][k] = np.round(((x_unwrapped - centre_lab) - v)[:, 2] / box[2])
             v = v @ rot                           # into the reference frame
             s = centre @ axis + v @ axis
             lat = np.linalg.norm(v - np.outer(v @ axis, axis), axis=1)
@@ -239,21 +247,21 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
                     unresolved[j].append({"molecule": int(keep[i]), "direction": "up" if up[i] else "down",
                                           "entry_frame": k - 1, "exit_frame": k, "status": "unresolved_single_interval"})
             prev[j] = (st, s, v)
-    return defs, states, unresolved, keep, np.asarray(disp_charge), np.asarray(times), np.asarray(box_z)
+    return defs, states, copies, unresolved, keep, np.asarray(disp_charge), np.asarray(times), np.asarray(box_z)
 
 
-def reference_counts(defs, states, unresolved, keep):
+def reference_counts(defs, states, copies, unresolved, keep):
     out = []
-    for d, st, unres in zip(defs, states, unresolved):
+    for d, st, cp, unres in zip(defs, states, copies, unresolved):
         # Every molecule that entered the axial extent (inside the lumen or beside it): a transit outside the
         # lumen is listed under the compartment rule even for a molecule never in this lumen.
         local = np.flatnonzero(((st == STATE_INSIDE) | (st == STATE_OUT)).any(axis=0))
         ever = keep[local]
         st = st[:, local]
-        sub = st
+        sub, sub_copies = st, cp[:, local]
         # reference_events needs unwrapped s only for unresolved detection, done online above.
-        strict = reference_events(sub, np.zeros(sub.shape), 0.0, 0.0, convention="strict")
-        comp = reference_events(sub, np.zeros(sub.shape), 0.0, 0.0, convention="compartment")
+        strict = reference_events(sub, np.zeros(sub.shape), 0.0, 0.0, convention="strict", copies=sub_copies)
+        comp = reference_events(sub, np.zeros(sub.shape), 0.0, 0.0, convention="compartment", copies=sub_copies)
         strict = [dict(e, molecule=int(ever[e["molecule"]])) for e in strict if e["status"] == "complete"] + unres
         comp = [dict(e, molecule=int(ever[e["molecule"]])) for e in comp
                 if e["status"] in ("complete", "outside_lumen")] + unres
@@ -339,9 +347,9 @@ def main(argv=None):
     species_atoms = [s.atom_indices for s in found]
     charges = [s.charge for s in found]
     offsets = np.cumsum([0] + [len(a) for a in species_atoms])
-    defs, states, unresolved, keep, disp, times, box_z = reference_pass(u, system, pores, var_list, frames,
+    defs, states, copies, unresolved, keep, disp, times, box_z = reference_pass(u, system, pores, var_list, frames,
                                                                          species_atoms, charges)
-    ref = reference_counts(defs, states, unresolved, keep)
+    ref = reference_counts(defs, states, copies, unresolved, keep)
     reference_seconds = time.perf_counter() - t1
     duration_ps = float(times[-1] - times[0])
     rows = []

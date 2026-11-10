@@ -120,6 +120,47 @@ def test_bulk_return_through_boundary_then_entry_from_the_far_side_is_not_an_eve
     assert row["events_total"] == 0 and row["unresolved_crossings"] == 0
 
 
+@pytest.mark.parametrize("convention", ["compartment", "strict"])
+def test_a_side_flipped_at_the_half_box_point_does_not_make_a_crossing(convention):
+    # Box 40 Å, extent -5..+5 about the centre. Upper bulk water drifts up past the half-box point (+21 Å is the
+    # minimum image -19 Å, "below"), jumps 17 Å back down into the upper mouth and leaves upward: it never left
+    # the upper water layer, so this is no permeation (seen in AQP4 with fast TIP3P water saved every 100 ps).
+    up_side = [8, 12, 16, 21, 4, 8, 12, 12]
+    # The mirror case from the lower bulk, leaving downward.
+    down_side = [-8, -12, -16, -21, -4, -8, -12, -12]
+    u = build([("TIP3", WATER, path_from_z(up_side)), ("TIP3", WATER, path_from_z(down_side))], len(up_side))
+    result = run(u, convention=convention)
+    row = result.summary["channels"][0]["species"][0]
+    assert (row["events_total"], row["unresolved_crossings"], row["transits_outside_lumen"]) == (0, 0, 0)
+    assert [(v["entered_from"], v["exited_to"]) for v in sorted(result.visits, key=lambda v: v["resid"])] == [
+        ("above", "above"), ("below", "below")]
+
+
+@pytest.mark.parametrize("convention", ["compartment", "strict"])
+def test_crossing_and_passing_the_half_box_point_in_one_interval_is_one_crossing(convention):
+    # Box 40 Å, extent -5..+5: up through the lumen, then out of the top and past the half-box point (+21 Å is
+    # the image -19 Å, "below" the copy above) in one saved interval. The water layer changed once: one crossing
+    # up, not down. The mirror case goes down.
+    up = [-8, -4, 0, 4, 21, 22, 22]
+    down = [8, 4, 0, -4, -21, -22, -22]
+    u = build([("TIP3", WATER, path_from_z(up)), ("TIP3", WATER, path_from_z(down))], len(up))
+    result = run(u, convention=convention)
+    events = sorted((e["resid"], e["direction"], e["status"]) for e in result.events)
+    assert events == [(7, "up", "complete"), (8, "down", "complete")]
+
+
+def test_periodic_copies_are_counted_along_the_membrane_normal_box_vector():
+    from crevice.permeation import _axial_copy
+
+    # Axis tilted 30 degrees from z in a wide box: a lateral wrap (60 A along x) shifts the axial coordinate by
+    # 30 A, more than half the axial spacing of the copies (40 A x cos 30 = 34.6 A), yet stays in the same water
+    # layer; only wraps along the box vector most aligned with the axis (z here) change the copy.
+    axis = np.array([math.sin(math.radians(30)), 0.0, math.cos(math.radians(30))])
+    box = np.array([60.0, 30.0, 40.0, 90.0, 90.0, 90.0])
+    shifts = np.array([[60.0, 0, 0], [0, 30.0, 0], [0, 0, 40.0], [60.0, 0, -40.0], [-120.0, 30.0, 80.0]])
+    assert _axial_copy(shifts, box, np.eye(3), axis).tolist() == [0, 0, 1, -1, 2]
+
+
 def test_leaving_laterally_clears_the_side_only_in_the_strict_convention_and_jumps_are_unresolved():
     lateral = [(0, -10), (0, -7), (0, -3), (8, -2), (0, 2), (0, 7), (0, 10)]   # inside -> out -> inside -> above
     jump = [-8, -8, 8, 8, 8, 8, 8]                                             # crosses 16 Å in one frame

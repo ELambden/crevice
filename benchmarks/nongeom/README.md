@@ -100,13 +100,16 @@ Machine, versions and seeds are recorded in the summary JSON files.
   conventions. They differ only where a molecule leaves the lumen sideways
   inside the extent or enters the extent beside the lumen.
 * **Independent walkers on a periodic line** (100 walkers, 20 000 frames,
-  L = 10 Å, period 20 Å, 4 replicates per step size): 52 of 54 runs give
-  event lists identical to the reference counter; the 2 differing events are
-  both a molecule exactly half a period from the channel centre (a float32
-  tie that the two programs round to opposite images). The rate q0 matches
+  L = 10 Å, period 20 Å, 4 replicates per step size): 23 of 24 runs give
+  event lists identical to the reference counter; the one differing event is
+  a step of exactly half a period between two frames (a float32 tie that the
+  two programs unwrap to opposite images). The rate q0 matches
   N D / ((L + 2βσ) Λ) (Siegmund's discrete-monitoring correction) to
-  0.97–1.00 for σ/L = 0.025–0.1 and 0.91 at σ/L = 0.01; it is 0.84–0.95
-  of the continuum value as σ grows, so pd depends on the saving interval.
+  0.97–1.00 for σ/L = 0.025–0.3 and 0.91 at σ/L = 0.01; it is 0.74–0.95
+  of the continuum value, falling as σ grows, so pd depends on the saving
+  interval. At σ/L = 0.2 and 0.3 a walker can pass the middle of the 10 Å
+  bulk between periodic copies in one step; both counters follow each
+  walker's periodic layer, so such a step is not a crossing.
 * **D_n** recovers the exact value implied by its fit window: for this model
   the MSD of n(t) is known in closed form (`ring_n_msd`), and the fitted D_n
   divided by the window's expected value is 0.86–1.06 (single-run SD
@@ -116,9 +119,10 @@ Machine, versions and seeds are recorded in the summary JSON files.
 * **Single file** (16 point particles with hard-core reflection, same
   trajectories relabelled): D_n is identical to that of independent walkers
   in every run and saving interval, as theory requires, while q0 drops and
-  pf/pd is 4.4–6.6 (independent walkers 0.34–0.68). From the same trajectory
+  pf/pd is 4.4–6.8 (independent walkers 0.34–0.71). From the same trajectory
   saved every 1, 2, 5, 10 or 20 steps, D_n changes by < 2 % and q0 by up to
-  −30 %.
+  −32 %. All 30 single-file and independent runs give event lists identical
+  to the reference counter.
 * **3D pore in an impenetrable membrane** (600 Brownian particles, pore
   radius 4 Å, membrane 10 Å thick; every membrane transit passes through the
   pore, 722 transits at 1 ps resolution; `permeation_lumen_sensitivity.csv`).
@@ -131,11 +135,14 @@ Machine, versions and seeds are recorded in the summary JSON files.
   (`compartment_over_axial_only` = 1.00). The strict rule counts 0.02–0.54.
   Saved every 10 and 50 ps, the matching cylinder counts 0.90 and 0.79 of the
   1 ps transits under both rules (passages faster than the saving interval
-  are missed). At 50 ps a radius 1 Å inside the pore lists 85 transits as
-  `outside_lumen` (no saved frame in the narrow lumen), and an extent 4 Å into
-  the bulk lists 222–292. Every CREVICE event list, including the
-  `outside_lumen` passages, equals the reference's under the same convention
-  and definition.
+  are missed). At 50 ps a radius 1 Å inside the pore lists 84 transits as
+  `outside_lumen` (no saved frame in the narrow lumen). An extent reaching 2
+  or 4 Å into the bulk lists none: in this 40 Å box its water layer is only
+  22–26 Å thick, so a particle can pass the layer's half-box point within one
+  saved interval, and both counters follow each molecule's periodic layer so
+  that such a move is not counted as a transit. Every CREVICE event list,
+  including the `outside_lumen` passages, equals the reference's under the
+  same convention and definition.
 
 Counts therefore depend on the axial extent, which defines what a transit is;
 under the compartment rule the lateral radius only attributes transits to a

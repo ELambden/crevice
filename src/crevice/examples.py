@@ -7,9 +7,9 @@ its hash matches, and a ``.gz`` asset is decompressed after download and its
 decompressed hash is checked too.
 
 The download location is ``base_url + file name``. It defaults to the GitHub
-Release asset of the CREVICE release that introduced the data and can be
-changed with the ``base_url`` argument or the ``CREVICE_EXAMPLE_BASE_URL``
-environment variable. For offline use, ``source_dir`` (or
+Release assets of the CREVICE release that introduced the dataset
+(:attr:`ExampleDataset.base_url`) and can be changed with the ``base_url``
+argument or the ``CREVICE_EXAMPLE_BASE_URL`` environment variable. For offline use, ``source_dir`` (or
 ``CREVICE_EXAMPLE_SOURCE_DIR``) names a local directory holding the same
 files, which are then copied and verified instead of downloaded.
 """
@@ -32,6 +32,8 @@ DEFAULT_BASE_URL = "https://github.com/ELambden/crevice/releases/download/v0.1.1
 """Default location of the example assets (the v0.1.1 GitHub Release)."""
 
 BASE_URL_ENV = "CREVICE_EXAMPLE_BASE_URL"
+RELEASE_052 = "https://github.com/ELambden/crevice/releases/download/v0.5.2/"
+"""Release assets of the datasets added in 0.5.2 (AQP4 and OmpF excerpts)."""
 SOURCE_DIR_ENV = "CREVICE_EXAMPLE_SOURCE_DIR"
 CACHE_DIR_ENV = "CREVICE_EXAMPLE_CACHE_DIR"
 
@@ -78,12 +80,16 @@ class ExampleDataset:
         The files of the dataset.
     licence : str
         Licence of the data.
+    base_url : str or None
+        URL prefix of the dataset's release assets; ``None`` means
+        :data:`DEFAULT_BASE_URL` (the first datasets' release).
     """
 
     name: str
     description: str
     files: tuple[ExampleFile, ...]
     licence: str
+    base_url: str | None = None
 
 
 @dataclass
@@ -174,6 +180,88 @@ EXAMPLES: dict[str, ExampleDataset] = {
                 "data card: system, files and licence",
             ),
         ),
+    ),
+    "aqp4-excerpt": ExampleDataset(
+        name="aqp4-excerpt",
+        description=(
+            "200 consecutive frames (30-50 ns, every 100 ps) of an all-atom membrane MD simulation of the "
+            "human aquaporin-4 monomer: protein, lipid phosphorus atoms, ions and the 3,093 waters that come "
+            "near the pore, CHARMM naming; the water permeation example"
+        ),
+        licence="CC-BY-4.0",
+        files=(
+            ExampleFile(
+                "aqp4_excerpt.gro.gz",
+                "87ab2188f2c50ebb15f0a300239a800e6c1ea0d2b046aef689ed08ca71bb66a5",
+                167665,
+                "topology and first-frame coordinates (GRO, gzip)",
+                unpacked_name="aqp4_excerpt.gro",
+                unpacked_sha256="49f7d1aa77fe4d5df8b23717c9d83683a96d5054c4557c46bddbe8a9610f32b1",
+            ),
+            ExampleFile(
+                "aqp4_excerpt.xtc",
+                "fb4bf2780d3bd7f014c3a432abf726c3c955038ae7bc438b4f7d3a061fbadfd8",
+                9777740,
+                "200-frame trajectory, 30-50 ns every 100 ps (XTC)",
+            ),
+            ExampleFile(
+                "aqp4_excerpt_provenance.json",
+                "a9f2eedb84a9b9f44049af7d4c7b5b71990454a2d3d69a5fb25b7ef70c998066",
+                1431,
+                "source hashes, frame indices, times and selections",
+            ),
+            ExampleFile(
+                "aqp4_excerpt_README.md",
+                "40f45cb799136e822cecfefcb76c9ab42c3e94f11b5808073a2214cdf27b4abc",
+                3964,
+                "data card: system, what was kept, protocol and licence",
+            ),
+        ),
+        base_url=RELEASE_052,
+    ),
+    "ompf-excerpt": ExampleDataset(
+        name="ompf-excerpt",
+        description=(
+            "100 consecutive frames (50-60 ns, every 100 ps) of an all-atom membrane MD simulation of the "
+            "OmpF porin trimer in 1 M KCl under an applied field: protein, lipid phosphorus atoms and every "
+            "ion, CHARMM naming, with the run parameters; the ion permeation and conductance example"
+        ),
+        licence="CC-BY-4.0",
+        files=(
+            ExampleFile(
+                "ompf_excerpt.gro.gz",
+                "2c44ea59d9111efc8077a0c1cb6d631552bbe950e6764805aadffadc6c9d988a",
+                226958,
+                "topology and first-frame coordinates (GRO, gzip)",
+                unpacked_name="ompf_excerpt.gro",
+                unpacked_sha256="64a0836442998e9e1e664605f47a521be550c8851cb1dc085530da5b4dc11c87",
+            ),
+            ExampleFile(
+                "ompf_excerpt.xtc",
+                "af65496fa3b513dc805c34ff7a5fcf900f67be17b5bfcbeba59bc637ba0674c2",
+                7028820,
+                "100-frame trajectory, 50-60 ns every 100 ps (XTC)",
+            ),
+            ExampleFile(
+                "ompf_excerpt_production.mdp",
+                "1b48a5df4a66a1235a87d19ae972977b3b150e1163df390130c3ef6e35f48093",
+                1350,
+                "production run parameters, with the applied field (GROMACS .mdp)",
+            ),
+            ExampleFile(
+                "ompf_excerpt_provenance.json",
+                "896c06df24a3b577d8b3e2b638642109ac774bd9b45437edac400b6912691765",
+                1379,
+                "source hashes, frame indices, times and selections",
+            ),
+            ExampleFile(
+                "ompf_excerpt_README.md",
+                "751546a7611f6eeb3df0dd2b032cf0003b65727474d6f917a5ab2e404b8570e7",
+                3624,
+                "data card: system, what was kept, protocol and licence",
+            ),
+        ),
+        base_url=RELEASE_052,
     ),
 }
 """Registry of the example datasets, by name."""
@@ -306,7 +394,8 @@ def fetch_example(
         :func:`default_cache_dir`.
     base_url : str, optional
         URL prefix of the assets (a trailing ``/`` is added if missing);
-        ``file://`` URLs work. Defaults to ``$CREVICE_EXAMPLE_BASE_URL`` or
+        ``file://`` URLs work. Defaults to ``$CREVICE_EXAMPLE_BASE_URL``, then
+        the dataset's own release (:attr:`ExampleDataset.base_url`), then
         :data:`DEFAULT_BASE_URL`.
     source_dir : str or os.PathLike, optional
         Local directory holding the asset files, used instead of any URL
@@ -341,7 +430,7 @@ def fetch_example(
     directory = (directory / name).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     local = source_dir if source_dir is not None else os.environ.get(SOURCE_DIR_ENV)
-    prefix = base_url or os.environ.get(BASE_URL_ENV) or DEFAULT_BASE_URL
+    prefix = base_url or os.environ.get(BASE_URL_ENV) or dataset.base_url or DEFAULT_BASE_URL
     if not prefix.endswith("/"):
         prefix += "/"
     result = FetchedExample(name=name, directory=directory)

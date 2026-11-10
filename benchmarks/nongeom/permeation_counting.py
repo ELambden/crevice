@@ -51,7 +51,8 @@ import numpy as np
 from nongeom_common import (RESULTS, SIEGMUND_BETA, crevice_event_keys, dump, ensure_src_on_path, event_keys,
                             expected_window_fit,
                             machine_record, memory_universe, reference_axial_lateral, reference_collective_coordinate,
-                            reference_events, reference_states, ring_walkers, single_file_relabel, summarize_events,
+                            reference_copies, reference_events, reference_states, ring_walkers, single_file_relabel,
+                            summarize_events,
                             write_csv)
 
 ensure_src_on_path()
@@ -98,6 +99,11 @@ def scripted_cases():
          "enters from above, leaves sideways inside the extent, reaches below"),
         ("passes_extent_beside_lumen", z([-10, -4, 0, 4, 10], x=8.0), (0, 0, 0), (0, 0, 1),
          "crosses the axial extent 8 A from the axis (for example through another pore)"),
+        ("half_box_flip_returns_above", z([8, 12, 16, 21, 4, 8, 12]), (0, 0, 0), (0, 0, 0),
+         "upper bulk past the half-box point (+21 A is the image -19 A, 'below'), 17 A back into the upper mouth, "
+         "leaves upward: no crossing"),
+        ("half_box_flip_returns_below", z([-8, -12, -16, -21, -4, -8, -12]), (0, 0, 0), (0, 0, 0),
+         "the mirror case from the lower bulk"),
     ]
 
 
@@ -116,7 +122,8 @@ def run_cases():
            for conv in ("compartment", "strict")}
     s, img, lat, _ = reference_axial_lateral(u, np.arange(N_PROTEIN, N_PROTEIN + len(cases)), (15, 15, 20))
     states = reference_states(img, lat, 15.0, 25.0, 3.0)
-    ref = {conv: reference_events(states, s, 15.0, 25.0, convention=conv, s_image=img)
+    ref = {conv: reference_events(states, s, 15.0, 25.0, convention=conv, s_image=img,
+                                  copies=reference_copies(s, img, box[2]))
            for conv in ("compartment", "strict")}
     rows = []
     for j, (name, path, strict, comp, note) in enumerate(cases):
@@ -217,18 +224,23 @@ def analyse_ring(z_unwrapped, box_z, half_length, *, stride=1, msd_max_lag=None)
     n = z_unwrapped.shape[1]
     s, img, lat, _ = reference_axial_lateral(u, np.arange(N_PROTEIN, N_PROTEIN + n), (15, 15, c), stride=stride)
     states = reference_states(img, lat, zmin, zmax, 3.0)
-    ref = reference_events(states, s, zmin, zmax, convention="compartment", s_image=img)
+    ref = reference_events(states, s, zmin, zmax, convention="compartment", s_image=img,
+                           copies=reference_copies(s, img, box_z))
     n_ref = reference_collective_coordinate(s, zmin, zmax, box_z)
     n_cv = np.asarray(result.frames["series"]["pore/TIP3"]["n"])
     frame_numbers = list(range(0, z_unwrapped.shape[0], stride))
     mine, theirs = set(crevice_event_keys(result, N_PROTEIN, frame_numbers)), set(event_keys(ref))
     same = mine == theirs
-    # Differences caused by a molecule exactly half a period from the channel centre (float32 tie of the
-    # minimum image: the two programs may round it to opposite images) are flagged, not hidden.
+    # Differences caused by a float32 tie of the minimum image are flagged, not hidden: a molecule exactly half
+    # a period from the channel centre, or a step of exactly half a period between two frames (the two programs
+    # may round either to opposite images).
     ties = 0
     for i, _, entry, exit_, _ in mine ^ theirs:
         window = img[max(0, entry - 3):exit_ + 1, i]
-        ties += bool(np.any(np.isclose(np.abs(window - c), box_z / 2, rtol=0, atol=1e-4)))
+        steps = np.diff(window)
+        steps -= box_z * np.round(steps / box_z)
+        ties += bool(np.any(np.isclose(np.abs(window - c), box_z / 2, rtol=0, atol=1e-4))
+                     or np.any(np.isclose(np.abs(steps), box_z / 2, rtol=0, atol=1e-4)))
     return result, {"seconds": seconds, "events_identical_to_reference": same,
                     "differing_events": len(mine ^ theirs), "differing_events_at_half_period_ties": ties,
                     "n_max_abs_difference": float(np.max(np.abs(n_cv - n_ref))),
@@ -365,7 +377,8 @@ def run_lumen_sensitivity(quick, rng):
     # Ground truth from every 1 ps step: every membrane transit passes through the pore.
     s1, img1, lat1, _ = reference_axial_lateral(u, np.arange(N_PROTEIN, N_PROTEIN + n), tuple(c))
     physical = summarize_events(reference_events(reference_states(img1, lat1, c[2] - half_t, c[2] + half_t, None), s1,
-                                                 c[2] - half_t, c[2] + half_t, s_image=img1))
+                                                 c[2] - half_t, c[2] + half_t, s_image=img1,
+                                                 copies=reference_copies(s1, img1, box[2])))
     phys_total = physical["up"] + physical["down"]
     rows, seconds = [], 0.0
     for stride in ((1, 10) if quick else (1, 10, 50)):
@@ -381,7 +394,8 @@ def run_lumen_sensitivity(quick, rng):
         for k, (name, h, r) in enumerate(definitions):
             states = reference_states(img, lat, c[2] - h, c[2] + h, r)
             axial = summarize_events(reference_events(reference_states(img, lat, c[2] - h, c[2] + h, None), s,
-                                                      c[2] - h, c[2] + h, convention="compartment", s_image=img))
+                                                      c[2] - h, c[2] + h, convention="compartment", s_image=img,
+                                                      copies=reference_copies(s, img, box[2])))
             row = {"definition": name, "saved_interval_ps": stride, "sigma_per_saved_frame_A": math.sqrt(2 * D * stride),
                    "half_extent_A": h, "lateral_radius_A": r, "membrane_half_thickness_A": half_t, "pore_radius_A": pore,
                    "molecules": n, "frames": frames, "physical_transits_1ps": phys_total,
@@ -389,7 +403,8 @@ def run_lumen_sensitivity(quick, rng):
                    "axial_only_same_extent_and_interval": axial["up"] + axial["down"]}
             for conv in ("compartment", "strict"):
                 cr = crevice_counts(results[conv], channel_index=k)
-                ref = reference_events(states, s, c[2] - h, c[2] + h, convention=conv, s_image=img)
+                ref = reference_events(states, s, c[2] - h, c[2] + h, convention=conv, s_image=img,
+                                     copies=reference_copies(s, img, box[2]))
                 keys = sorted((int(e["atom_index"]) - N_PROTEIN, e["direction"], index[int(e["entry_frame"])],
                                index[int(e["exit_frame"])], e["status"])
                               for e in results[conv].events if e["channel"] == name)
