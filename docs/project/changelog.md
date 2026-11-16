@@ -3,6 +3,20 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.5.3 (16 November 2026)
+
+**Trajectory timing against HOLE, and a faster NumPy path.**
+
+- **Trajectory timing against HOLE.** On a 1001-frame OmpF porin simulation
+  (one pore, one core each), CREVICE took 986 s and HOLE 1187 s. CREVICE
+  resolved 933 frames; the other 68 have a capped end, which is refused by
+  default. See [Benchmarks](../methods/benchmarks.md).
+- **Channel profiles without numba** are about 10 % faster, with
+  byte-identical results. Installing `crevice[fast]` remains several times
+  faster.
+- **`scripts/check_chimerax.py`** no longer leaves a stale virtual-display
+  lock in `/tmp` when ChimeraX times out.
+
 ## 0.5.2 (10 November 2026)
 
 **Example data for permeation, and a fix to crossing counts across the

@@ -1,0 +1,6 @@
+# CREVICE row from the second run (10 Nov 2026, run with --max-frames 0, which lifts the frame limit of the profile command); HOLE row from the first run, minutes earlier, same machine and settings.
+# System: ompf-trimer-pore1. OmpF trimer membrane MD (1 M KCl, 0.05 V/nm), 1001 frames over 100 ns (100 ps per frame); pore 1, point at the widest point (2.84 A clearance) of the constriction plane in frame 0, 5.5 A from the Arg42/Arg82/Arg132 CZ centroid; private data, not distributed
+# Machine: Intel(R) Core(TM) Ultra 7 268V, 8 logical CPUs, Linux-7.0.0-42-generic-x86_64-with-glibc2.39, Python 3.13.13; load average at start [0.484375, 0.93994140625, 1.29150390625]. CPUs allowed per run: 1 (max MHz 5000); frames: all; repeats: 1. Timings depend on machine load (see the load columns).
+case,tool,status,repeats,failed_runs,frames,frames_written,frames_with_result,spacing_A,grid,cpus,cpu_max_mhz,workers,median_wall_s,median_cpu_s,cpu_per_wall,frames_per_s,s_per_frame,max_peak_rss_mb,max_peak_tree_rss_mb,load_1min_range
+crevice_profile,CREVICE trajectory (channel profile),ok,1,0,1001,1001,933,0.5000,section grid,1,5000,1,986.4823,986.3303,0.9998,1.0147,0.9855,658.3555,606.6562,0.5-1.1
+hole,"HOLE 2.3.1 (mdahole2, per frame)",ok,1,0,1001,1001,1001,0.2000,plane spacing,1,5000,1,1187.3369,1187.0410,0.9998,0.8431,1.1862,697.7617,696.8789,0.6-1.0

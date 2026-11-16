@@ -154,3 +154,16 @@ def test_machine_record_without_load_average(monkeypatch):
     monkeypatch.delattr(os, "getloadavg", raising=False)  # as on Windows
     record = common.machine_record()
     assert "load_average_1_5_15" not in record and record["cpu_count"] == os.cpu_count()
+
+
+def test_build_cases_lift_the_frame_limit_when_every_frame_is_wanted(tmp_path, monkeypatch):
+    monkeypatch.setattr(timing, "find_tool", lambda name: None)
+    monkeypatch.setattr(timing, "hole_python", lambda: None)
+    system = {"selection": "protein", "topology": Path("t.gro"), "trajectory": Path("x.xtc"),
+              "region": Path("r.json"), "region_data": _region(), "reference_dx": Path("r.dx"),
+              "obstacle_selection": "not resname TIP3", "profile": {"axis": [0, 0, 1], "origin": [1, 2, 3]}}
+    cases = timing.build_cases(system, tmp_path, frames=None, spacings=[0.5], workers=1,
+                               selected={"crevice_profile", "crevice_region_0.5"})
+    for case in cases:  # without it the CLI refuses more than 500 frames
+        cmd = case["cmd"]
+        assert "--stop" not in cmd and int(cmd[cmd.index("--max-frames") + 1]) == timing.ALL_FRAMES, case["case"]

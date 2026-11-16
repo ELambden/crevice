@@ -151,13 +151,18 @@ def hole_python() -> str | None:
 
 
 # ----------------------------------------------------------------------------- cases
+ALL_FRAMES = 10**9
+"""--max-frames when every frame is wanted (the CLI refuses more than 500 frames by default)."""
+
+
 def build_cases(system: dict, work: Path, *, frames: int | None, spacings, workers: int, selected) -> list[dict]:
     """The commands to time, as dicts (``case``, ``tool``, ``cmd``, ``cwd``, ``env``, ``spacing_A``, ``skip``)."""
     py = python_for_crevice()
     env = crevice_env()
     env.setdefault("CREVICE_PROGRESS", "0")
     # --max-frames: the CLI refuses more than 500 frames by default.
-    stop = ["--stop", str(frames), "--max-frames", str(frames)] if frames else []
+    # When every frame is wanted the limit is set beyond any trajectory (some commands refuse 0).
+    stop = ["--stop", str(frames), "--max-frames", str(frames)] if frames else ["--max-frames", str(ALL_FRAMES)]
     top, traj, sel = system.get("topology"), system.get("trajectory"), system["selection"]
     cases = []
 
@@ -503,6 +508,8 @@ def main(argv=None) -> int:
               str(args.system.resolve().parent): "<system-dir>", str(BENCH.parent): "<repo>",
               python_for_crevice(): "python", str(hole_python() or ""): "python-mdahole2",
               str(find_tool("hole") or ""): "hole", str(Path.home()): "~"}
+    if find_tool("hole"):
+        places[str(Path(find_tool("hole")).parent.parent)] = "<hole2>"  # its rad/ files are on the command line
     for key in ("topology", "trajectory", "region"):
         if system.get(key):
             places[str(Path(system[key]).parent)] = f"<{key}-dir>"

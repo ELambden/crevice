@@ -89,7 +89,13 @@ except Exception as error:
         try:
             stdout,stderr=process.communicate(timeout=args.timeout);code=process.returncode
         except subprocess.TimeoutExpired:
-            if group:os.killpg(process.pid,signal.SIGKILL)
+            if group:
+                # SIGTERM first so Xvfb removes its /tmp/.X<n>-lock and socket; SIGKILL whatever is left.
+                os.killpg(process.pid,signal.SIGTERM)
+                try:process.wait(timeout=10)
+                except subprocess.TimeoutExpired:pass
+                try:os.killpg(process.pid,signal.SIGKILL)
+                except ProcessLookupError:pass
             else:process.kill()
             stdout,stderr=process.communicate();code=-1
         log=(stdout or '')+(stderr or '')

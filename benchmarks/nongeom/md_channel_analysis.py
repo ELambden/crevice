@@ -202,7 +202,8 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
     states = [np.zeros((len(frames), n_mol), dtype=np.int8) for _ in defs]
     # Periodic copy of each channel that a frame's minimum image refers to: whole box heights (z, the membrane
     # normal of these orthorhombic boxes) between the unwrapped and the minimum-image lab position.
-    copies = [np.zeros((len(frames), n_mol), dtype=np.int32) for _ in defs]
+    # int16: a few periodic copies over microseconds (checked below); int32 was 3.9 GB for the AQP4 tetramer.
+    copies = [np.zeros((len(frames), n_mol), dtype=np.int16) for _ in defs]
     unresolved = [[] for _ in defs]
     prev = [None] * len(defs)
     prev_x = None
@@ -228,7 +229,10 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
             centre_lab = (centre - yc) @ rot.T + xc
             v = x - centre_lab
             v -= box * np.round(v / box)          # orthorhombic minimum image (lab frame)
-            copies[j][k] = np.round(((x_unwrapped - centre_lab) - v)[:, 2] / box[2])
+            copy = np.round(((x_unwrapped - centre_lab) - v)[:, 2] / box[2])
+            if np.abs(copy).max(initial=0) > np.iinfo(np.int16).max:
+                raise OverflowError("periodic copy number beyond int16")
+            copies[j][k] = copy
             v = v @ rot                           # into the reference frame
             s = centre @ axis + v @ axis
             lat = np.linalg.norm(v - np.outer(v @ axis, axis), axis=1)

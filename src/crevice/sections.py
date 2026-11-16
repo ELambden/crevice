@@ -387,21 +387,18 @@ class SectionGeometry:
         start = (ii + h) * n + (jj + h)
         live = free[start]
         owner, ii, jj, start = owner[live], ii[live], jj[live], start[live]
-        # All eight steps at once: one row per (pair, step).
-        steps = np.array(_STEPS, dtype=np.int64)
-        k = np.tile(np.arange(len(_STEPS)), len(ii))
-        owner, ii, jj, start = (np.repeat(a, len(_STEPS)) for a in (owner, ii, jj, start))
-        di, dj = steps[k, 0], steps[k, 1]
-        ti, tj = ii + di, jj + dj
-        ok = (np.abs(ti) <= h) & (np.abs(tj) <= h)
-        ok[ok] = free[(ti[ok] + h) * n + (tj[ok] + h)]
-        owner, ii, jj, start, k = owner[ok], ii[ok], jj[ok], start[ok], k[ok]
-        di, dj = di[ok].astype(float), dj[ok].astype(float)
-        x, y = xs[owner], ys[owner]
-        fi, fj = ii.astype(float), jj.astype(float)
-        fraction = np.maximum(0.0, np.minimum(1.0, ((x / ds - fi) * di + (y / ds - fj) * dj) / (di * di + dj * dj)))
-        touch = ((fi + fraction * di) * ds - x) ** 2 + ((fj + fraction * dj) * ds - y) ** 2 <= threshold[owner]
-        blocked[k[touch], start[touch]] = True
+        x_all, y_all, limit = xs[owner], ys[owner], threshold[owner]
+        u_all, v_all = x_all / ds - ii, y_all / ds - jj
+        # One step at a time (the same element-wise arithmetic as all eight at once; blocking only ever sets True).
+        for k, (di, dj) in enumerate(_STEPS):
+            ti, tj = ii + di, jj + dj
+            ok = (np.abs(ti) <= h) & (np.abs(tj) <= h)
+            ok[ok] = free[(ti[ok] + h) * n + (tj[ok] + h)]
+            x, y, fi, fj = x_all[ok], y_all[ok], ii[ok].astype(float), jj[ok].astype(float)
+            fdi, fdj = float(di), float(dj)
+            fraction = np.maximum(0.0, np.minimum(1.0, (u_all[ok] * fdi + v_all[ok] * fdj) / (fdi * fdi + fdj * fdj)))
+            touch = ((fi + fraction * fdi) * ds - x) ** 2 + ((fj + fraction * fdj) * ds - y) ** 2 <= limit[ok]
+            blocked[k, start[ok][touch]] = True
         return free.reshape(n, n), blocked.reshape(len(_STEPS), n, n)
 
     def sections(self, t):

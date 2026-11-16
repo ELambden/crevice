@@ -12,6 +12,29 @@ biological results.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-16
+
+### Documentation
+
+- Trajectory timing of the channel profile against HOLE on a 1001-frame OmpF
+  porin simulation (one pore, one core each): CREVICE 986 s with 933 frames
+  resolved (the other 68 have a capped end, refused by default), HOLE through
+  mdahole2 1187 s (`benchmarks/README.md`, "Trajectory timing").
+
+### Changed
+
+- Channel profiles without numba (the NumPy path) are about 10 % faster: the
+  blocked-edge test of each plane runs one step direction at a time. Profiles
+  and refusals are byte-identical to 0.5.2 on both paths.
+
+### Fixed
+
+- `benchmarks/timing_trajectory.py` without `--frames` now lifts the
+  trajectory commands' 500-frame guard instead of failing on longer
+  trajectories.
+- `scripts/check_chimerax.py` on a timeout stops the virtual display with
+  SIGTERM before SIGKILL, so no stale `/tmp/.X<n>-lock` is left behind.
+
 ## [0.5.2] - 2026-11-10
 
 ### Fixed

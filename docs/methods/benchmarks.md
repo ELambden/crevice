@@ -75,5 +75,8 @@ option is named, and no setting was tuned to match a comparator.
   peak memory grew with the frame count, to about 7.5 GB at 1000 frames,
   because every frame's contact networks were kept until the run ends; since
   0.4.0 they are released as each frame finishes, and the same 1000 frames
-  (0.7 Å grid) peak at 0.57 GB. Trajectory profile timings against HOLE
-  follow with a channel simulation (`benchmarks/README.md`, "Timing").
+  (0.7 Å grid) peak at 0.57 GB. On a 1001-frame simulation of the OmpF porin,
+  the channel profile of one pore took 986 s on one core (933 frames
+  resolved; the other 68 have a capped end, refused by default) and HOLE,
+  run frame by frame through mdahole2, 1187 s (`benchmarks/README.md`,
+  "Trajectory timing").

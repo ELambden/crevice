@@ -384,3 +384,27 @@ monomer trajectories are now available for them (`nongeom/md_systems/aqp4.md`).
 * Literature conductance for TWIK-1 and the nicotinic receptor: no source was
   read in full text; the receptor structures are closed and aquaporin-1 does
   not conduct ions, so no ratio is given for them.
+
+**Channel profile against HOLE (OmpF).** Measured on 10 Nov 2026 with the
+0.5.2 code on the same machine, one performance core each, the machine
+otherwise idle (1-minute load 0.5–1.1): the OmpF trimer simulation of
+`nongeom/md_systems/ompf.md` (1001 frames over 100 ns, 15,213 protein atoms),
+pore 1, axis z, channel point at the widest point of the constriction plane
+in the first frame (2.84 Å clearance). CREVICE ran with its default options
+(automatic per-slice probe); HOLE through mdahole2 with `simple.rad`, one run
+each (`results/timing_trajectory/ompf-trimer-pore1/`; the input data are
+private).
+
+| System (frames) | Case | Tool | frames with a profile | wall (s) | s/frame | peak RSS (MB) |
+| --- | --- | --- | --- | --- | --- | --- |
+| OmpF pore 1, 1001 | channel profile | CREVICE `trajectory --analysis profile` | 933 | 986 | 0.99 | 658 |
+| | | HOLE 2.3.1 (mdahole2, per frame) | 1001 | 1187 | 1.19 | 698 |
+
+The two take about the same time per frame here. Both times include reading
+and fitting the frames; HOLE runs the usual way for a trajectory, with one PDB
+file and one HOLE process per frame (how that splits between HOLE itself and
+the round trip was not measured). CREVICE refused 68 frames (7 %)
+in which the extracellular end of the pore is capped, as it does by default
+for a channel end without a straight exit (`--lateral-exits` follows such
+ends; not timed here); HOLE reports a profile for every frame. The profiles
+themselves are compared in `nongeom/md_systems/ompf.md`.
