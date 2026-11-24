@@ -149,7 +149,8 @@ def _kabsch(mobile, reference):
 
 
 def reference_pass(universe, system, pores, var_list, frames, species_atoms, charges):
-    """One pass over the trajectory: states per channel variant, unresolved flags, displacement current."""
+    """One pass over the trajectory: states per channel variant, unresolved crossings through each cylinder,
+    displacement current."""
     fit = universe.select_atoms(system.get("alignment_selection", "protein and name CA"))
     universe.trajectory[frames[0]]
     ref_fit = fit.positions.astype(float).copy()
@@ -247,7 +248,15 @@ def reference_pass(universe, system, pores, var_list, frames, species_atoms, cha
                 landed = p_s + step
                 up = (p_state == STATE_BELOW) & (landed > d["zmax"])
                 dn = (p_state == STATE_ABOVE) & (landed < d["zmin"])
-                for i in np.flatnonzero(up | dn):
+                # Listed only if the straight step passes the middle of the extent inside the cylinder; a jump
+                # elsewhere in the box (an ambiguous minimum image of bulk water) is not a crossing of this pore.
+                jump = np.flatnonzero(up | dn)
+                if len(jump) and d["radius"] is not None:
+                    frac = np.clip((0.5 * (d["zmin"] + d["zmax"]) - p_s[jump]) / step[jump], 0.0, 1.0)
+                    mid = p_v[jump] + frac[:, None] * dx[jump]
+                    off = np.linalg.norm(mid - np.outer(mid @ axis, axis), axis=1)
+                    jump = jump[off <= d["radius"]]
+                for i in jump:
                     unresolved[j].append({"molecule": int(keep[i]), "direction": "up" if up[i] else "down",
                                           "entry_frame": k - 1, "exit_frame": k, "status": "unresolved_single_interval"})
             prev[j] = (st, s, v)

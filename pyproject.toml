@@ -34,7 +34,9 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Bio-Informatics"
 ]
 # Required runtime libraries: NumPy, SciPy, MDAnalysis and Matplotlib.
-# scikit-image is also required: its
+# numba compiles the hot loops of the channel profile and lateral-exit search
+# (crevice._kernels); several times faster than the NumPy path, identical
+# results. scikit-image is also required: its
 # skimage.measure.marching_cubes is the only scikit-image call, and default
 # `crevice cavities --cast` and `crevice report` runs reach it unconditionally through the
 # viewer cast mesh (volume_export), the boundary-residue surface attribution
@@ -49,6 +51,7 @@ dependencies = [
   "MDAnalysis>=2.7",
   "matplotlib>=3.8",
   "scikit-image>=0.22",
+  "numba>=0.61",
 ]
 
 [project.optional-dependencies]
@@ -66,12 +69,11 @@ ml = ["scikit-learn>=1.3"]
 # HTML viewer (`crevice view`, CreviceView.save_html) needs no extra: it inlines
 # the vendored 3Dmol.js build in src/crevice/_viewer_assets.
 view = ["py3Dmol>=2.0"]
-# Compiled kernels for the channel profile (crevice._kernels); several times faster.
-# Without it the same results come from the NumPy code.
-fast = ["numba>=0.61"]
+# numba is required since 0.5.4; the empty `fast` extra keeps existing
+# `pip install "crevice[fast]"` commands working.
+fast = []
 # Every optional scientific library used somewhere in CREVICE.
 science = [
-  "numba>=0.61",
   "gemmi>=0.7,<0.8",
   "networkx>=3.2",
   "mdtraj>=1.10",

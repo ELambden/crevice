@@ -34,7 +34,7 @@ crevice report 1GRM --out-dir results/1GRM --prefix 1GRM
 ```
 
 ```text
-publish files=40 out_dir=results/1GRM profile=resolved
+report files=40 out_dir=results/1GRM profile=resolved
 ```
 
 `results/1GRM` now holds 40 files:

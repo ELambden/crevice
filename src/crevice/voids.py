@@ -86,7 +86,7 @@ def void_cast(
     mode: str = "auto",
     axis: str | Coord = "auto",
     spacing: float = 1.5,
-    min_radius: float = 0.4,
+    min_radius: float = 0.0,
     max_components: int = 4,
     padding: float = 0.0,
     shell_radius: float = 9.0,
@@ -136,9 +136,11 @@ def void_cast(
     spacing : float, default 1.5
         Requested grid spacing in Å. Enlarged automatically if the grid would
         exceed ``max_grid_points`` (see ``metadata["spacing_adjusted"]``).
-    min_radius : float, default 0.4
+    min_radius : float, default 0.0
         Required atom-surface clearance in Å for every point and edge (the
-        probe radius of the cast).
+        probe radius of the cast). The default 0 keeps all space outside the
+        atoms, the cast that ``report`` and ``static-suite`` measure; a
+        positive value leaves out space narrower than that probe.
     max_components : int, default 4
         Maximum number of final components returned (largest volume first).
     padding : float, default 0.0
@@ -248,7 +250,7 @@ def void_cast(
     >>> shell = StructureFrame(tuple(shell_atom(i) for i in range(250)))
     >>> cast = void_cast(shell, mode="cavity", spacing=1.0)
     >>> [(c.kind, c.volume) for c in cast.components]
-    [('buried_cavity', 496.0)]
+    [('buried_cavity', 670.0)]
     >>> validate_void_cast(shell, cast)["is_physical"]
     True
     """

@@ -10,7 +10,7 @@ excerpt; this page is not executed when the documentation is built.
 
 ## Download the excerpt
 
-The full simulation is 100 ns of the OmpF trimer in a lipid bilayer, in 1 M
+The full simulation is 200 ns of the OmpF trimer in a lipid bilayer, in 1 M
 KCl, with a static field of 0.05 V/nm along z, saved every 100 ps. The
 example keeps 100 consecutive frames (50 to 60 ns) with the protein, the
 lipid phosphorus atoms and every ion, plus the run's `.mdp` file (about 7 MB

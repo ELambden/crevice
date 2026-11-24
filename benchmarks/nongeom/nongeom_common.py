@@ -235,7 +235,8 @@ def ar1_true_se(n, phi, sigma=1.0):
 # Independent reference permeation counter (no crevice imports)
 # ---------------------------------------------------------------------------
 
-def reference_axial_lateral(universe, atom_indices, centre, *, axis_index=2, stride=1, start=0, stop=None):
+def reference_axial_lateral(universe, atom_indices, centre, *, axis_index=2, stride=1, start=0, stop=None,
+                            lateral_xy=False):
     """Unwrapped axial coordinate and lateral distance of molecules over a trajectory.
 
     Orthorhombic minimum image about ``centre`` for the first frame, then the
@@ -248,11 +249,12 @@ def reference_axial_lateral(universe, atom_indices, centre, *, axis_index=2, str
     s_img : array (frames, n) axial coordinate of the image nearest ``centre``
     lateral : array (frames, n) lateral distance from the axis line through ``centre``
     times : array (frames,)
+    xy : array (frames, n, 2), only with ``lateral_xy=True``: the lateral offsets (minimum image) from that line
     """
     centre = np.asarray(centre, dtype=float)
     lat_axes = [k for k in range(3) if k != axis_index]
     atoms = universe.atoms[np.asarray(atom_indices)]
-    s_list, img_list, lat_list, times = [], [], [], []
+    s_list, img_list, lat_list, times, xy_list = [], [], [], [], []
     prev_img = None
     for ts in universe.trajectory[start:stop:stride]:
         box = np.asarray(ts.dimensions[:3], dtype=float)
@@ -270,8 +272,10 @@ def reference_axial_lateral(universe, atom_indices, centre, *, axis_index=2, str
         s_list.append(s)
         img_list.append(img)
         lat_list.append(np.hypot(d[:, lat_axes[0]], d[:, lat_axes[1]]))
+        xy_list.append(d[:, lat_axes].copy())
         times.append(float(ts.time))
-    return np.asarray(s_list), np.asarray(img_list), np.asarray(lat_list), np.asarray(times)
+    out = (np.asarray(s_list), np.asarray(img_list), np.asarray(lat_list), np.asarray(times))
+    return out + (np.asarray(xy_list),) if lateral_xy else out
 
 
 def reference_copies(s_unwrapped, s_image, period):
@@ -299,7 +303,8 @@ def _runs(seq):
     return out
 
 
-def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_image=None, copies=None):
+def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_image=None, copies=None,
+                     lateral_xy=None, radius=None, lateral_box=None):
     """Permeation events from per-frame states, written from the definition.
 
     Conventions
@@ -328,8 +333,11 @@ def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_
     A whole-extent jump between two consecutive frames is an *unresolved*
     crossing (counted separately, never as an event): the previous image
     coordinate (``s_image``, default ``s_unwrapped``) plus the unwrapped step
-    lies beyond the far end of the extent. Returns a list of dicts with molecule, direction, entry and
-    exit frame, status.
+    lies beyond the far end of the extent. With ``lateral_xy`` (frames x n x 2 lateral offsets from the
+    axis line, minimum image in a box of lateral lengths ``lateral_box``) and a ``radius``, only a jump whose
+    straight step passes the middle of the extent within ``radius`` of the axis is listed; a jump elsewhere
+    (an ambiguous minimum image of bulk water) is not a crossing of this channel. Returns a list of dicts
+    with molecule, direction, entry and exit frame, status.
     """
     frames, n = states.shape
     events = []
@@ -372,7 +380,17 @@ def reference_events(states, s_unwrapped, zmin, zmax, *, convention="strict", s_
         prev_state = states[:-1, i]
         up = (prev_state == STATE_BELOW) & (landed > zmax)
         down = (prev_state == STATE_ABOVE) & (landed < zmin)
-        for k in np.flatnonzero(up | down):
+        jumps = np.flatnonzero(up | down)
+        if len(jumps) and radius is not None and lateral_xy is not None:
+            xy = np.asarray(lateral_xy)[:, i]
+            step_xy = xy[jumps + 1] - xy[jumps]
+            if lateral_box is not None:
+                period = np.asarray(lateral_box, dtype=float)
+                step_xy -= period * np.round(step_xy / period)
+            frac = np.clip((0.5 * (zmin + zmax) - start[jumps]) / np.diff(s)[jumps], 0.0, 1.0)
+            mid = xy[jumps] + frac[:, None] * step_xy
+            jumps = jumps[np.hypot(mid[:, 0], mid[:, 1]) <= radius]
+        for k in jumps:
             events.append({"molecule": i, "direction": "up" if up[k] else "down", "entry_frame": int(k),
                            "exit_frame": int(k + 1), "status": "unresolved_single_interval"})
     return events

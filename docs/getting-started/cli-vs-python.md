@@ -109,11 +109,12 @@ want results that match the command line, pass these values explicitly:
   {func}`crevice.rolling_probe_cast` defaults to `selection_mode="all"` with no
   count limit. Pass `selection_mode="dominant", max_components=1,
   enclosure_fraction=0.9` to reproduce the CLI.
-- Channel casts: {func}`crevice.void_cast` uses a 1.5 Å grid and a 0.4 Å
-  minimum clearance by default; `report` casts the channel on a 0.5 Å grid
-  with no minimum clearance (`--cast-spacing 0.5`, `--cast-min-radius 0`).
-  Pass `spacing=0.5, min_radius=0.0` for a comparable cast; on the 1.5 Å grid
-  a narrow channel may not be resolved in every section.
+- Channel casts: {func}`crevice.void_cast`, `report` and `static-suite` all
+  keep every point outside the atoms (no minimum clearance: `min_radius=0.0`,
+  `--cast-min-radius 0`). `void_cast` uses a 1.5 Å grid by default and
+  `report` a 0.5 Å grid (`--cast-spacing 0.5`). Pass `spacing=0.5` for a
+  comparable cast; on the 1.5 Å grid a narrow channel may not be resolved in
+  every section.
 - Heteroatoms: `profile`, `residues`, `residues --network`, `report --analyze` and `report` keep
   HETATM records unless you pass `--exclude-hetero`. The standalone `cavities`
   command drops them unless you pass `--include-hetero`, but

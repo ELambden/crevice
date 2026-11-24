@@ -511,7 +511,7 @@
     "v2_note": "Changed from aqp4_tetramer_efield: (1) the first 20 ns (frames 0-199) are discarded: the tetramer starts 24.9 deg tilted and reorients in the membrane within ~20 ns; (2) the axis is the four-fold axis at frame 200 (normal of the plane of the four NPA centroids, 5.5 deg from z), not z (in frame 0 z is 24 deg from the pore axes, so the pre-registered slab cut the membrane obliquely); (3) each cylinder is shifted onto that pore's median pore-water position (3.2-3.6 A from the NPA centroid, frames 200-1838 fitted to frame 200). Extent, radius, species unchanged; the box-wide no_radius variant is switched off (memory in a 180 000-atom box)."
   },
   "ompf_trimer_efield": {
-    "description": "OmpF (2OMF) trimer, 1 M KCl, static 0.05 V/nm along z (+z extracellular), 100 ns, frames every 100 ps",
+    "description": "OmpF (2OMF) trimer, 1 M KCl, static 0.05 V/nm along z (+z extracellular), 200 ns in two continuous 100 ns parts, frames every 100 ps",
     "system": {
       "build": "CHARMM-GUI (PDB 2OMF, biological trimer, chains PROA/P2PROA/P3PROA, residues 1-340, NTER/CTER) repaired locally: protein moved +7.18 A along z onto the OPM membrane depth (CHARMM-GUI had translated it 7.2 A too deep; tilt 0.01 deg), overlapping lipids/waters/ions removed whole, 793 TIP3 waters placed in the three dry barrels, neutrality restored, minimised locally (5126 steepest-descent steps)",
       "histidine": "HSD (one His per chain)",
@@ -521,17 +521,17 @@
       "water": "47 179 TIP3 (CHARMM TIP3P)",
       "atoms": 219592,
       "force_field": "CHARMM36m protein with CHARMM36 lipids, ions and TIP3P water, built with CHARMM-GUI (topology from its FF-Converter); release stated by the system's author",
-      "engine": "GROMACS 2021.5 (production log)",
+      "engine": "GROMACS 2021.5 for 0-100 ns (step7_1.log); 2026.1 for 100-200 ns (step7_2.log), started from step7_1.gro with continuation = yes and gen-vel = no (velocities at .gro precision, thermostat and barostat integrals restarted)",
       "temperature": "310 K, v-rescale, tau_t 1 ps, groups SOLU MEMB SOLV",
       "pressure": "C-rescale, semi-isotropic, 1 bar, tau_p 5 ps, compressibility 4.5e-5 1/bar",
-      "field": "electric-field-z = 0.050 0 0 0: E0 0.05 V/nm, omega 0, t0 0, sigma 0 (static), production only; V = E0 x mean Lz = 561 mV (Lz 112.15 +- 0.90 A)",
+      "field": "electric-field-z = 0.050 0 0 0: E0 0.05 V/nm, omega 0, t0 0, sigma 0 (static), production only; V = E0 x mean Lz = 561 mV (Lz 112.29 +- 0.92 A over 200 ns)",
       "integration": "dt 2 fs, LINCS h-bonds, PME (rcoulomb 1.2 nm, Fourier spacing 0.12 nm), Lennard-Jones cut-off 1.2 nm with force switch from 1.0 nm",
       "com_removal": "comm-mode linear, nstcomm 100, comm-grps SOLU_MEMB SOLV (the solvent's centre-of-mass velocity is removed separately from the protein and membrane, which damps net solvent flow through the pores)",
-      "length": "50 000 000 steps x 2 fs = 100 ns; 1001 frames, t = 0-100 ns every 100 ps, all atoms, xtc precision 0.001 nm",
-      "files": "step7_1.tpr, step7_1.xtc, step7_1.gro",
-      "verified": "1 Nov 2026 against step7_1.tpr (gmx dump), step7_1.processed.mdp, topol.top, step7_1.log, the trajectory and the build README"
+      "length": "2 x 50 000 000 steps x 2 fs = 200 ns; step7_1 (0-100 ns) and step7_2 (100-200 ns, its times restart at 0) joined with gmx trjcat -settime into 2001 frames, t = 0-200 ns every 100 ps (the duplicate frame at 100 ns kept once), all atoms, xtc precision 0.001 nm",
+      "files": "step7_1.tpr (topology for both parts: step7_2.tpr is tpx 138, which MDAnalysis cannot read; same topology), step7_1.xtc + step7_2.xtc joined as prod_0-200ns.xtc, step7_1.gro, step7_2.gro",
+      "verified": "1 Nov 2026 against step7_1.tpr (gmx dump), step7_1.processed.mdp, topol.top, step7_1.log, the trajectory and the build README; 24 Nov 2026 for step7_2: its mdout.mdp equals step7_1.processed.mdp apart from GROMACS 2026 defaults, its first frame equals step7_1's last within 0.01 A, and joined frames 0, 999, 1000, 1001 and 2000 are identical to their sources"
     },
-    "definition_status": "Pre-registered definition held: resindex 41/81/131 (+340 per chain) are Arg42/82/132 CZ of each chain; 643 of 645 K+ and 400 of 400 Cl- transmembrane transits are attributed to a pore. No deviation needed. Analysis and results: benchmarks/nongeom/md_systems/ompf.md",
+    "definition_status": "Pre-registered definition held: resindex 41/81/131 (+340 per chain) are Arg42/82/132 CZ of each chain; over 200 ns the pores account for 1058 of the 1067 K+ and 801 Cl- against the 800 Cl- transmembrane transits of each pore's slab without a lateral radius (the three slabs lie up to 0.7 A apart, so a transit can complete one slab and not another). No deviation needed. Analysis and results: benchmarks/nongeom/md_systems/ompf.md",
     "species": [
       "POT",
       "CLA"

@@ -293,24 +293,27 @@ def test_collective_diffusion_recovers_a_known_random_walk():
     assert low < d * 1e12 < high
 
 
-def test_a_jump_over_the_extent_beside_the_lumen_is_listed_but_not_added_to_n():
-    """n(t) sums displacements inside the channel: a whole-extent jump counts only through the lumen.
+def test_a_jump_over_the_extent_beside_the_lumen_is_neither_listed_nor_added_to_n():
+    """A whole-extent jump between two frames is an unresolved crossing only through the lumen.
 
-    Both molecules cross the 10 Å extent in one frame (both unresolved crossings); only the one on the
-    axis passes the lumen (radius 3 Å), so n rises by exactly 1, not 2. Before the fix the molecule 10 Å
-    beside the axis also added 1 (in real trajectories: bulk water displaced by about half a box between
-    frames, an ambiguous minimum image, far from the pore).
+    Both molecules cross the 10 Å extent in one frame; only the one on the axis passes the lumen
+    (radius 3 Å). It is the one unresolved crossing (listed, not counted) and n rises by exactly 1. The
+    molecule 10 Å beside the axis (in real trajectories: bulk water displaced by about half a box
+    between frames, an ambiguous minimum image, far from the pore) is neither listed nor added to n.
     """
     jump = [-8, -8, 8, 8, 8]
     u = build([("TIP3", WATER, path_from_z(jump)), ("TIP3", WATER, path_from_z(jump, x=10.0))], 5)
-    result = run(u)
-    row = result.summary["channels"][0]["species"][0]
-    assert row["unresolved_crossings"] == 2 and row["events_total"] == 0
-    n = result.frames["series"]["channel/TIP3"]["n"]
-    assert n == pytest.approx([0.0, 0.0, 1.0, 1.0, 1.0])
-    # Without a lateral radius every molecule in the extent is in the channel: both jumps count.
-    n_all = run(u, channels=[channel(radius=None)]).frames["series"]["channel/TIP3"]["n"]
-    assert n_all == pytest.approx([0.0, 0.0, 2.0, 2.0, 2.0])
+    for convention in ("compartment", "strict"):
+        result = run(u, convention=convention)
+        row = result.summary["channels"][0]["species"][0]
+        assert row["unresolved_crossings"] == 1 and row["events_total"] == 0
+        assert [e["status"] for e in result.events] == ["unresolved_single_interval"]
+        n = result.frames["series"]["channel/TIP3"]["n"]
+        assert n == pytest.approx([0.0, 0.0, 1.0, 1.0, 1.0])
+    # Without a lateral radius every molecule in the extent is in the channel: both jumps are listed and count in n.
+    result = run(u, channels=[channel(radius=None)])
+    assert result.summary["channels"][0]["species"][0]["unresolved_crossings"] == 2
+    assert result.frames["series"]["channel/TIP3"]["n"] == pytest.approx([0.0, 0.0, 2.0, 2.0, 2.0])
 
 
 def test_collective_coordinate_of_a_rigid_single_file_column():

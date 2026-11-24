@@ -230,8 +230,6 @@ big difference when you run many structures or long trajectories:
   `trajectory --region` start up to four worker processes by default (fewer with
   few CPUs, few frames or little free memory). Set `--workers N` to choose;
   the results are the same for any worker count.
-- **Install the compiled kernels.** `pip install "crevice[fast]"` adds numba,
-  which makes channel profiles several times faster with identical results.
 - **Fewer samples for a first look.** `--samples` sets the minimum number of
   points along a profile (81 by default); a smaller number is quicker while you
   explore. The section and cast spacings have a larger effect on run time, so
@@ -241,7 +239,7 @@ big difference when you run many structures or long trajectories:
   figure you don't need.
 
 As an example on one 8-core desktop (single-threaded maths libraries, the
-optional numba kernels, a fixed axis and 0.25 Å sections), a 1GRM profile
+numba kernels, a fixed axis and 0.25 Å sections), a 1GRM profile
 took about 0.6 s and a 3UKM profile with `--lateral-exits` about 2.7 s, each
 including about 0.3 s of start-up; a five-frame GLUT1
 `trajectory --region --water-membership` took about 24 s with the default

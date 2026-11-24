@@ -103,7 +103,7 @@ def test_report_summary_counts_every_written_file(tmp_path, channel_pdb, capsys)
     out = tmp_path / 'bundle'
     assert main(['report', str(channel_pdb), *PROFILE_ARGS, '--cast-spacing', '.5', '--out-dir', str(out),
                  '--prefix', 'c', '--outputs', 'default,viewer-html']) == 0
-    line = [row for row in capsys.readouterr().out.splitlines() if row.startswith('publish files=')][-1]
+    line = [row for row in capsys.readouterr().out.splitlines() if row.startswith('report files=')][-1]
     assert (out / 'c_view.html').is_file()
     assert int(line.split()[1].removeprefix('files=')) == sum(1 for p in out.rglob('*') if p.is_file())
 

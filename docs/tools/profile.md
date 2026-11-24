@@ -60,11 +60,17 @@ plot_profile_radius(profile, "1GRM_profile_radius.png")
    within 0.025 Å. An end counts as open when the straight line along the axis
    from its mouth leaves the protein without touching an atom; otherwise it is
    capped (see [Capped channels and side exits](#capped-channels-and-side-exits)).
-6. **Measure.** The points are spread evenly between the mouths. The radius at
-   each point is the distance from the centre to the nearest atom surface,
-   minus `--probe-radius` (0 by default). The segments between points are
-   checked exactly, so `continuous_bottleneck_radius_A` can be smaller than
-   every sampled radius.
+6. **Choose the widest route.** The points are spread evenly between the
+   mouths. A pore can split around a wall feature into a narrow lobe and a
+   wider branch that rejoin a little further along the axis, so each slice
+   keeps its candidate centres (see [Slice centres](#slice-centres)), and each
+   point's centre is the candidate on the widest route through all the slices:
+   the route whose narrowest step is as wide as possible, and, on each side of
+   that step, again as wide as possible.
+7. **Measure.** The radius at each point is the distance from the centre to
+   the nearest atom surface, minus `--probe-radius` (0 by default). The
+   segments between points are checked exactly, so
+   `continuous_bottleneck_radius_A` can be smaller than every sampled radius.
 
 The same input always gives the same profile. If no channel qualifies, or two
 are equally good, the command stops and explains why.
@@ -85,13 +91,22 @@ geometry, which can follow a ridge at any angle, takes the best move that
 increases the clearance, and halves the step when none does, down to
 0.0001 Å. It then solves for the peak exactly: the highest vertex within
 0.35 Å that is higher still. Every move increases the clearance, so the climb
-cannot cross a wall. A wide lumen can hold more than one hill, so CREVICE also
-climbs from the slice's grid point of largest clearance and keeps the higher
-of the two tops, provided both lie in the same enclosed space and the
+cannot cross a wall.
+
+A wide lumen can hold more than one hill, so CREVICE also climbs from the
+slice's grid point of largest clearance. To find the mouths, it follows the
+higher of the two tops only when both lie in the same enclosed space and the
 straight line between them never comes closer to an atom than 90 % of the
-lower top's clearance, so the two tops belong to one lumen. A neighbouring
-passage joined to the lumen only through a narrower neck is never taken.
-`metadata.section_refinement` records the method and its settings, and
+lower top's clearance, so a neighbouring passage joined to the lumen only
+through a narrower neck never extends the channel. For the reported points,
+a top that was not taken because the line to it narrows is kept as a second
+candidate (a separate lobe or branch of the slice), and the slices beyond
+continue from both. A candidate continues the route only through segments
+that clear the smaller probe of the two slices, and the widest route decides
+which candidate each point uses (step 6).
+A narrow side lobe is therefore not reported where a wider branch passes the
+same slices, and a neighbouring passage is used only when it is part of a
+wider route. `metadata.section_refinement` records the method and its settings, and
 `--refinement-steps 0` keeps the grid points instead (`refinement_steps=0`
 in Python).
 

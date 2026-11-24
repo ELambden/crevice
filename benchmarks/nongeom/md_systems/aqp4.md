@@ -229,8 +229,9 @@ statistics lean towards the open state.
 
 **Saving interval: cannot be judged from these data.**
 
-- Thinning the 100 ps frames to 200-1000 ps adds ambiguous jumps of bulk water across the periodic box. Unresolved
-  crossings go from 9 to 35 472, and spurious events are added.
+- Thinning the 100 ps frames to 200-1000 ps adds ambiguous jumps of bulk water across the periodic box (whole-extent
+  jumps between saved frames go from 9 to 35 472; CREVICE neither counts nor lists those outside the lumen), and
+  spurious events are added.
 - How many short passages the 100 ps frames miss needs a segment saved more often.
 
 **Projection**

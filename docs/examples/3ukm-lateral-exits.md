@@ -142,7 +142,7 @@ crevice report 3UKM --assembly 1 --exclude-hetero --lateral-exits \
 ```
 
 ```text
-publish files=41 out_dir=3UKM_bundle profile=resolved
+report files=41 out_dir=3UKM_bundle profile=resolved
 ```
 
 The bundle uses the default per-slice probe, so its profile is the first one

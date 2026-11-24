@@ -30,20 +30,33 @@ Planes are normal to the channel axis. In each plane:
    over the ladder. This probe is the size of the widest lateral opening of
    the lumen at that plane, and it is reported for every sample
    (``metadata["enclosure_probes_A"]``).
-3. **Widest hill.** A wide lumen can hold several clearance maxima. The
-   climb is repeated from the enclosed component's highest grid node, and the
-   higher of the two maxima is the plane's centre when it lies in the same
-   component and the straight segment between them keeps at least
-   ``HILL_RIDGE_FRACTION`` (90 %) of the lower maximum's clearance, so both
-   lie in one lumen. A neighbouring passage reached only through a narrower
-   neck is never taken, even when the enclosed component at a small probe
-   contains it.
-4. **Join.** A plane continues the channel when the straight segment from the
-   previous centre clears the smaller of the two planes' probes.
+3. **Extent.** The extent trace follows one centre outwards from the seed: the
+   climbed centre, or the higher hill of its enclosed component (climbed from
+   the component's highest grid node) when the straight in-plane segment
+   between the two tops keeps at least ``HILL_RIDGE_FRACTION`` (90 %) of the
+   lower top's clearance. A plane continues the channel when the straight
+   segment from the previous centre clears the smaller of the two planes'
+   probes (it **joins**).
+4. **Widest route.** Between the mouths, a pore can split around a wall
+   feature into a narrow side lobe and a wider branch that rejoin a little
+   further along the axis, which no in-plane test can see. So the reported
+   samples keep candidate centres in every plane: the extent trace's centre
+   continued from each candidate of the previous plane and, where the higher
+   hill of its enclosed component was not taken because the in-plane segment
+   to it narrows (a separate lobe or branch of the plane), that hill too (at
+   most ``MAX_PLANE_CANDIDATES``, those with the widest routes from the seed).
+   Each sample's centre is the candidate on the widest route through all the
+   planes (``_widest_route``): the route whose narrowest step is as wide as
+   possible and, recursively, as wide as possible on each side of that step.
+   A step is as wide as the clearance of the straight segment between its two
+   centres. A narrower
+   branch is never reported where a wider route passes the same planes, and
+   a neighbouring passage is reached only through joined steps, so only when
+   it is part of a wider route.
 
 The channel ends (its **mouth**) at the first plane, going outwards from the
-seed, whose lumen is not enclosed at any probe below its clearance or cannot
-be joined, or at the van der Waals envelope of the atoms along the axis
+seed, in which the extent trace's lumen is not enclosed at any probe below its
+clearance or cannot be joined, or at the van der Waals envelope of the atoms along the axis
 (planes beyond it cut no atom); the mouth is bracketed by bisection to 0.025 Å. An end is an
 axial exit when the straight continuation along the axis beyond the atom
 envelope clears that end's probe, open (``bulk``) when its sample already lies
@@ -102,11 +115,14 @@ ADAPTIVE_ENCLOSURE_LADDER = (
     3.00,
 )
 ADAPTIVE_ENCLOSURE_RULE = (
-    "per-plane enclosure probe: in each plane the lumen centre is the in-plane clearance maximum climbed from the "
-    "previous centre; the plane's probe is the smallest ladder probe below that clearance at which the free component "
-    "holding the centre is laterally enclosed (search square, or a square twice as wide); adjacent centres join when "
-    "the straight segment clears the smaller of their probes; the channel ends at the first plane, outwards from the "
-    "seed, that is not enclosed or cannot be joined"
+    "per-plane enclosure probe: in each plane a lumen centre is an in-plane clearance maximum climbed from the "
+    "previous plane's centre; its probe is the smallest ladder probe below its clearance at which the free component "
+    "holding it is laterally enclosed (search square, or a square twice as wide); centres in adjacent planes join "
+    "when the straight segment clears the smaller of their probes; the channel ends at the first plane, outwards "
+    "from the seed, whose lumen is not enclosed or cannot be joined; between the mouths each plane keeps candidate "
+    "centres (continued from the previous plane's candidates, and the higher hill of an enclosed component that the "
+    "in-plane segment test did not take) and its centre is the candidate on the widest route between the mouths "
+    "(largest narrowest step, recursively on each side of it)"
 )
 #: Axial step (Å) of the outward discovery trace and the largest output step.
 DISCOVERY_STEP_A = 0.75
@@ -116,9 +132,11 @@ MOUTH_TOLERANCE_A = 0.025
 WINDOW_LEVELS = (1, 2, 4)
 #: A plane uses the smallest level whose half-width is at least this many times the lumen clearance.
 WINDOW_PER_CLEARANCE = 2.0
-#: A higher clearance hill replaces the climbed centre only when the straight segment between the two tops
-#: keeps at least this fraction of the lower top's clearance (both tops lie in the same lumen).
+#: The extent trace takes the higher clearance hill of a plane only when the straight segment between the two
+#: tops keeps at least this fraction of the lower top's clearance (both tops lie in the same lumen).
 HILL_RIDGE_FRACTION = 0.9
+#: Most candidate centres a plane keeps for the widest-route choice (those with the widest routes from the seed).
+MAX_PLANE_CANDIDATES = 6
 #: Coarse lattice stride (nodes) of the exact best-node search of a section (``_Tracer._best_node``).
 BEST_NODE_STRIDE = 4
 #: Largest local grid refinement (spacing divided by this) for planes narrower than the grid resolves.
@@ -490,13 +508,13 @@ class _Tracer:
             return None
         return replace(section, window_bridged=False), section.window_bridged
 
-    def lumen(self, t, start, hint=None):
-        """The :class:`Lumen` of the plane at ``t`` climbed from ``start``, or ``(None, centre, clearance)``.
+    def climbed(self, t, start, hint=None):
+        """The :class:`Lumen` at the centre climbed from ``start`` in the plane at ``t``, or ``(None, centre, clearance)``.
 
         ``hint`` (the previous plane's probe) only orders the search; the result is the smallest enclosing
         ladder probe either way, because enclosure is monotone in the probe.
         """
-        key = (t, start)
+        key = ("climbed", t, start)
         if key in self._memo:
             return self._memo[key]
         center, clearance = self.climb(start, t)
@@ -513,24 +531,64 @@ class _Tracer:
         found = _smallest_true(usable, lambda p: self.enclosed_at(t, center, p, level, refine), hint)
         if found:
             probe, (section, bridged) = found
-            # The plane's widest point in this enclosed component: also climb from the component's best grid
-            # node (a wide lumen can hold several clearance hills) and keep the higher hill.
-            geometry = self.geometry(probe, level, refine)
-            other, other_clearance = self.climb(section.center, t)
-            # Only a hill of the same lumen: the straight segment between the two tops stays above
-            # HILL_RIDGE_FRACTION of the lower top's clearance (a neighbouring passage joined only through a
-            # narrower neck is not taken).
-            if (
-                other_clearance > clearance + 1e-9
-                and geometry._component_cells(section)([other])[0]
-                and self.state.segment_clearance(center, other) > HILL_RIDGE_FRACTION * clearance
-            ):
-                center, clearance = other, other_clearance
             result = Lumen(t, center, clearance, probe, section, bridged, self.extent * level, self.spacing / refine)
         else:
             result = (None, center, clearance)
         self._memo[key] = result
         return result
+
+    def _higher_hill(self, lumen):
+        """``(centre, clearance)`` of the higher hill of ``lumen``'s enclosed component, or None.
+
+        The climb from the component's best grid node (a wide lumen can hold several clearance hills), kept
+        when it is higher than ``lumen``'s centre and lies in the same component.
+        """
+        key = ("higher", lumen.t, lumen.center)
+        if key not in self._memo:
+            other, other_clearance = self.climb(lumen.section.center, lumen.t)
+            refine = max(1, round(self.spacing / lumen.section_spacing))
+            geometry = self.geometry(lumen.probe, self.level(lumen.clearance), refine)
+            higher = other_clearance > lumen.clearance + 1e-9 and geometry._component_cells(lumen.section)([other])[0]
+            self._memo[key] = (other, other_clearance) if higher else None
+        return self._memo[key]
+
+    def lumen(self, t, start, hint=None):
+        """The lumen followed by the extent trace: the climbed centre, or the higher hill of the same lumen.
+
+        The higher hill of the enclosed component replaces the climbed centre when the straight in-plane
+        segment between the two tops keeps ``HILL_RIDGE_FRACTION`` of the lower top's clearance (a neighbouring
+        passage joined only through a narrower neck is not followed). Returns a :class:`Lumen` (the climbed
+        centre's probe and section) or ``(None, centre, clearance)``.
+        """
+        found = self.climbed(t, start, hint)
+        if not isinstance(found, Lumen):
+            return found
+        higher = self._higher_hill(found)
+        if higher is not None and self.state.segment_clearance(found.center, higher[0]) > (
+            HILL_RIDGE_FRACTION * found.clearance
+        ):
+            return replace(found, center=higher[0], clearance=higher[1])
+        return found
+
+    def hills(self, t, start, hint=None):
+        """Candidate centres of the plane at ``t`` reached from ``start``: ``(lumens, failure)``.
+
+        ``lumens`` holds the extent trace's centre (:meth:`lumen`: the climbed centre, or the higher hill of the
+        same lumen) and, when the higher hill of the enclosed component was not taken because the in-plane
+        segment to it narrows (a separate lobe or branch of the plane), that hill too, enclosed at its own probe.
+        Which of them the channel passes is decided across planes (:func:`_widest_route`). ``failure`` is the
+        :meth:`climbed` result when the climbed centre is not enclosed (``lumens`` is then empty).
+        """
+        found = self.lumen(t, start, hint)
+        if not isinstance(found, Lumen):
+            return [], found
+        lumens = [found]
+        higher = self._higher_hill(found)
+        if higher is not None and found.center != higher[0] and distance(higher[0], found.center) > self.spacing:
+            alternative = self.climbed(t, higher[0], found.probe)
+            if isinstance(alternative, Lumen) and distance(alternative.center, found.center) > self.spacing:
+                lumens.append(alternative)
+        return lumens, None
 
     def joins(self, a, b):
         """Whether centres ``a`` and ``b`` join (the segment clears the smaller probe)."""
@@ -581,9 +639,10 @@ class _Tracer:
         }
 
     def discover(self, seed_point):
-        """Discovery trace at ``DISCOVERY_STEP_A`` from the seed plane; ``None`` if the seed plane is open.
+        """Extent trace at ``DISCOVERY_STEP_A`` from the seed plane; ``None`` if the seed plane is open.
 
-        Returns ``(lower, lower_mouth, upper, upper_mouth, seed_lumen)``.
+        Follows :meth:`lumen` outwards plane by plane and brackets each mouth. Returns
+        ``(lower, lower_mouth, upper, upper_mouth, seed_lumen)``.
         """
         seed = self.lumen(0.0, seed_point)
         if not isinstance(seed, Lumen):
@@ -653,25 +712,123 @@ def _resample(tracer, seed_point, lower, upper, samples):
     ts = [low + (high - low) * i / (count - 1) for i in range(count)]
     k0 = min(range(count), key=lambda k: (abs(ts[k]), k))
 
-    def sample(t, start, previous):
-        found = tracer.lumen(t, start, previous.probe if previous is not None else None)
-        if not isinstance(found, Lumen):
-            _, center, clearance = found
-            probe = previous.probe if previous is not None else tracer.ladder[0]
-            found = Lumen(t, center, clearance, probe, None, False, 0.0, 0.0, enclosed=False)
-        if previous is not None and not tracer.joins(previous, found):
-            found = replace(found, joined=False)
-        return found
+    def candidates(t, start, previous):
+        found, failed = tracer.hills(t, start, previous.probe if previous is not None else None)
+        if found:
+            return found
+        _, center, clearance = failed
+        probe = previous.probe if previous is not None else tracer.ladder[0]
+        return [Lumen(t, center, clearance, probe, None, False, 0.0, 0.0, enclosed=False)]
 
-    seed = sample(ts[k0], seed_point, None)
-    path = [seed]
+    def layer(t, previous, values):
+        # Every hill reached from a previous candidate; those joined to one are kept (all of them when none is,
+        # so a thin unjoined slab never ends the channel), at most MAX_PLANE_CANDIDATES by route width.
+        lumens = []
+        for p in previous:
+            for lumen in candidates(t, p.center, p):
+                if all(distance(lumen.center, c.center) > tracer.spacing for c in lumens):
+                    lumens.append(lumen)
+        # A step is as wide as the clearance of the straight segment between its centres.
+        weights = [[tracer.state.segment_clearance(p.center, c.center) for c in lumens] for p in previous]
+        joined = [
+            any(w[j] > min(p.probe, lumens[j].probe) for p, w in zip(previous, weights)) for j in range(len(lumens))
+        ]
+        keep = [j for j in range(len(lumens)) if joined[j]] or list(range(len(lumens)))
+        reach = [max(min(values[i], weights[i][j]) for i in range(len(previous))) for j in range(len(lumens))]
+        if len(keep) > MAX_PLANE_CANDIDATES:
+            keep = sorted(sorted(keep, key=lambda j: (-reach[j], -lumens[j].clearance, j))[:MAX_PLANE_CANDIDATES])
+        return [lumens[j] for j in keep], [[row[j] for j in keep] for row in weights], [reach[j] for j in keep]
+
+    seeds = candidates(ts[k0], seed_point, None)
+    sides = []
     for direction in (1, -1):
-        previous, side = seed, []
+        previous, values, side = seeds, [math.inf] * len(seeds), []
         for t in ts[k0 + 1 :] if direction > 0 else ts[:k0][::-1]:
-            previous = sample(t, previous.center, previous)
-            side.append(previous)
-        path = path + side if direction > 0 else side[::-1] + path
+            found = layer(t, previous, values)
+            side.append(found)
+            previous, values = found[0], found[2]
+        sides.append(side)
+    layers, weights = [seeds], []
+    for lumens, w, _ in sides[0]:
+        layers.append(lumens)
+        weights.append(w)
+    for lumens, w, _ in sides[1]:
+        layers.insert(0, lumens)
+        weights.insert(0, [list(row) for row in zip(*w)])
+    path = _widest_route(layers, weights)
+    for k in range(1, len(path)):
+        if not tracer.joins(path[k - 1], path[k]):
+            path[k] = replace(path[k], joined=False)
     return path
+
+
+def _widest_route(layers, weights):
+    """The widest route through layered candidate centres: one centre per plane.
+
+    ``layers[k]`` are the candidate lumens of plane ``k`` (in axial order) and ``weights[k][i][j]`` the width of
+    the step from ``layers[k][i]`` to ``layers[k + 1][j]`` (``-inf`` where there is no step). The route is the lexicographic widest one: its narrowest step is
+    as wide as possible (the bottleneck), and so, recursively, on each side of that step with its ends fixed.
+    A plane with a single candidate is on every route, so the problem splits there.
+
+    Returns the chosen lumen of every plane.
+    """
+    count = len(layers)
+    choice = [0 if len(layer) == 1 else None for layer in layers]
+    if count == 1:
+        choice[0] = max(range(len(layers[0])), key=lambda i: (layers[0][i].clearance, -i))
+    stack = []
+    singles = [k for k in range(count) if len(layers[k]) == 1]
+    bounds = sorted({0, count - 1, *singles})
+    for a, z in zip(bounds, bounds[1:]):
+        stack.append((a, z, 0 if len(layers[a]) == 1 else None, 0 if len(layers[z]) == 1 else None))
+    while stack:
+        a, z, start, end = stack.pop()
+        if a == z:
+            if choice[a] is None:
+                fixed = start if start is not None else end
+                choice[a] = (
+                    fixed
+                    if fixed is not None
+                    else max(range(len(layers[a])), key=lambda i: (layers[a][i].clearance, -i))
+                )
+            continue
+        if all(len(layers[k]) == 1 for k in range(a, z + 1)):
+            continue
+        forward = [None] * (z - a + 1)
+        forward[0] = [math.inf if start is None or i == start else -math.inf for i in range(len(layers[a]))]
+        for k in range(a, z):
+            w, f = weights[k], forward[k - a]
+            forward[k - a + 1] = [max(min(f[i], w[i][j]) for i in range(len(f))) for j in range(len(layers[k + 1]))]
+        backward = [None] * (z - a + 1)
+        backward[-1] = [math.inf if end is None or j == end else -math.inf for j in range(len(layers[z]))]
+        for k in range(z - 1, a - 1, -1):
+            w, g = weights[k], backward[k - a + 1]
+            backward[k - a] = [max(min(w[i][j], g[j]) for j in range(len(g))) for i in range(len(layers[k]))]
+        width = max(min(f, g) for f, g in zip(forward[0], backward[0]))
+        best = None
+        if width > -math.inf:
+            for k in range(a, z):
+                w, f, g = weights[k], forward[k - a], backward[k - a + 1]
+                for i in range(len(f)):
+                    for j in range(len(g)):
+                        if w[i][j] == width and f[i] >= width and g[j] >= width:
+                            best = (k, i, j)
+                            break
+                    if best:
+                        break
+                if best:
+                    break
+        if best is None:
+            # No route (cannot happen for traced layers, whose every candidate is joined towards the seed):
+            # keep the first candidate of each open plane.
+            for k in range(a, z + 1):
+                if choice[k] is None:
+                    choice[k] = start if k == a and start is not None else (end if k == z and end is not None else 0)
+            continue
+        k, i, j = best
+        stack.append((a, k, start, i))
+        stack.append((k + 1, z, j, end))
+    return [layer[i] for layer, i in zip(layers, choice)]
 
 
 def _trace_direction(
@@ -1464,7 +1621,10 @@ def _build_profile(
                 **({"lateral_branch_rule": LATERAL_BRANCH_RULE} if trace.get("branches") else {}),
             },
             "mouth_adjustments": trace["adjustments"],
-            "selection": "lumen centres climbed plane to plane, each enclosed at its own probe",
+            "selection": (
+                "lumen centres on the widest route through candidate hills climbed plane to plane, each enclosed "
+                "at its own probe"
+            ),
             "limitations": "finite grid; principal-direction proposals; monotone unbranched path; not a unique biological assignment",
             **(
                 {

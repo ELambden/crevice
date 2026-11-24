@@ -1621,7 +1621,7 @@ def build_parser() -> argparse.ArgumentParser:
     static_suite.add_argument("--cavity-spacing", type=float, default=3.0, help="Cavity grid spacing in Å")
     static_suite.add_argument("--cast-spacing", type=float, default=1.5, help="Void-cast grid spacing in Å")
     static_suite.add_argument(
-        "--cast-min-radius", type=float, default=0.4, help="Minimum atom-surface clearance in Å for void-cast points"
+        "--cast-min-radius", type=float, default=0.0, help="Minimum atom-surface clearance in Å for void-cast points"
     )
     static_suite.add_argument(
         "--cast-max-components",
@@ -3588,7 +3588,7 @@ def _cmd_publish(args: argparse.Namespace) -> None:
 def _print_publish_summary(out_dir, profile_status: str, manifest: dict) -> None:
     """Print ``report``'s summary line: every file under ``out_dir`` (subfolders included) and the profile status."""
     written = sum(1 for p in Path(out_dir).rglob("*") if p.is_file())
-    print(f"publish files={written} out_dir={out_dir} profile={profile_status}")
+    print(f"report files={written} out_dir={out_dir} profile={profile_status}")
     if profile_status == "unresolved":
         print(
             f"crevice: note: the files describe the space without a channel profile ({Path(manifest['profile_status_json']).name} "

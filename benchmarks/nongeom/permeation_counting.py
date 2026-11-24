@@ -382,7 +382,8 @@ def run_lumen_sensitivity(quick, rng):
     phys_total = physical["up"] + physical["down"]
     rows, seconds = [], 0.0
     for stride in ((1, 10) if quick else (1, 10, 50)):
-        s, img, lat, _ = reference_axial_lateral(u, np.arange(N_PROTEIN, N_PROTEIN + n), tuple(c), stride=stride)
+        s, img, lat, _, xy = reference_axial_lateral(u, np.arange(N_PROTEIN, N_PROTEIN + n), tuple(c), stride=stride,
+                                                     lateral_xy=True)
         frame_numbers = list(range(0, frames, stride))
         index = {f: j for j, f in enumerate(frame_numbers)}
         results = {}
@@ -404,7 +405,8 @@ def run_lumen_sensitivity(quick, rng):
             for conv in ("compartment", "strict"):
                 cr = crevice_counts(results[conv], channel_index=k)
                 ref = reference_events(states, s, c[2] - h, c[2] + h, convention=conv, s_image=img,
-                                     copies=reference_copies(s, img, box[2]))
+                                     copies=reference_copies(s, img, box[2]), lateral_xy=xy, radius=r,
+                                     lateral_box=box[:2])
                 keys = sorted((int(e["atom_index"]) - N_PROTEIN, e["direction"], index[int(e["entry_frame"])],
                                index[int(e["exit_frame"])], e["status"])
                               for e in results[conv].events if e["channel"] == name)

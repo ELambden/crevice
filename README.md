@@ -41,12 +41,11 @@ CREVICE needs Python 3.10 or newer.
 python -m pip install crevice
 ```
 
-NumPy, SciPy, MDAnalysis, Matplotlib and scikit-image are installed
-automatically. Optional extras add libraries used by specific features:
+NumPy, SciPy, MDAnalysis, Matplotlib, scikit-image and numba (compiled
+kernels for channel profiles) are installed automatically. Optional extras add libraries used by specific features:
 
 | Extra | Adds | Used for | Without it |
 | --- | --- | --- | --- |
-| `fast` | numba | compiled kernels for channel profiles (several times faster, identical results) | the same results from NumPy code |
 | `structures` | Gemmi | entity-aware mmCIF reading | built-in mmCIF parser |
 | `hydration` | MDTraj | DSSP secondary structure in hydration reports | DSSP reported as unavailable |
 | `networks` | NetworkX | weighted residue paths (`crevice.connectivity`) | those functions raise an error naming the extra |

@@ -12,13 +12,65 @@ biological results.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-24
+
+### Documentation
+
+- Corrected the OmpF trajectory timing note of 0.5.3: of the 68 refused frames,
+  53 had too little clearance at the fixed `--origin` and 15 a capped end (it
+  said all 68 had a capped end).
+- The OmpF benchmark notes now cover the whole 200 ns production (two
+  continuous 100 ns parts); the ion-permeation example's excerpt (50-60 ns)
+  is unchanged.
+
+### Changed
+
+- Profiles (automatic enclosure probe): the reported centres follow the
+  widest route through the channel. Where a pore splits around a wall feature
+  into a narrow side lobe and a wider branch that rejoin a little further
+  along the axis, the old in-plane test (the straight line between the two
+  clearance maxima must keep 90 % of the lower one's clearance) could keep the
+  centre in the narrow lobe, and the profile then reported a constriction
+  that the channel does not have. Such a maximum is now kept as a second
+  candidate, and each sample uses the candidate on the widest route between
+  the mouths (the route whose narrowest step is widest, recursively on each
+  side of it). The mouths, the lateral-branch rule and maxima that lie in one
+  lumen are unchanged. On the HOLE benchmark only MthK (1LNQ, `simple.rad`)
+  changes: it is now resolved with `--lateral-exits`, the route leaving the
+  occluded axis sideways. On OmpF simulation frames, two profiles that had
+  followed a narrower branch now follow the widest route found on an exact
+  0.2 Å clearance grid (minimum radius 1.35 → 2.41 Å and 0.76 → 2.01 Å).
+- Permeation: an unresolved crossing (the whole extent crossed between two
+  saved frames, listed but never counted) is now listed only if the step's
+  straight path passes the middle of the extent inside the lumen. Jumps over
+  the extent elsewhere in the box, mostly bulk water displaced by about half
+  a box whose nearest image is ambiguous, were listed against every pore;
+  they are now neither counted nor listed. Event counts, currents, n(t), pf
+  and pd are unchanged. `unresolved_crossings`, the events CSV and the
+  warning can be smaller. The independent reference counter in `benchmarks/`
+  applies the same rule.
+- Casts: the Python `crevice.void_cast` and `static-suite`
+  (`--cast-min-radius`, `cast_min_radius`) now default to a minimum clearance
+  of 0 Å, like `report`: every point outside the atoms belongs to the cast.
+  The previous 0.4 Å default left out space narrower than a 0.4 Å probe (the
+  1GRM lumen on a 0.5 Å grid: 195.5 Å³ at 0.4 Å, 347.1 Å³ at 0 Å). Pass
+  `min_radius=0.4` (`--cast-min-radius 0.4`) for the earlier casts.
+- `report` prints its summary line as `report files=N out_dir=... profile=...`
+  (it was `publish files=...`, the 0.3 command name).
+- numba is now a required dependency, so every install gets the compiled
+  channel-profile kernels (several times faster than the NumPy path, identical
+  results). The `fast` extra is kept, empty, so `pip install "crevice[fast]"`
+  still works. `CREVICE_DISABLE_NUMBA=1`, or a numba that cannot be imported,
+  still falls back to the NumPy code; CI runs the full suite on that path too.
+
 ## [0.5.3] - 2026-11-16
 
 ### Documentation
 
 - Trajectory timing of the channel profile against HOLE on a 1001-frame OmpF
   porin simulation (one pore, one core each): CREVICE 986 s with 933 frames
-  resolved (the other 68 have a capped end, refused by default), HOLE through
+  resolved (the other 68 were refused by default: 53 with too little clearance
+  at the fixed origin, 15 with a capped end), HOLE through
   mdahole2 1187 s (`benchmarks/README.md`, "Trajectory timing").
 
 ### Changed

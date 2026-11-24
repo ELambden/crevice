@@ -159,9 +159,13 @@ channel" (Zhu, Tajkhorshid and Schulten, 2004a).
   together with the copy it refers to, so a molecule that passes the middle of
   that layer between two saved frames, then dips into the nearer mouth and
   returns, is not counted as a crossing.
-- A molecule that crosses the whole extent between two saved frames is an
-  **unresolved crossing**: listed, not counted, and reported as a warning.
-  Save frames more often if there are many.
+- A molecule that crosses the whole extent between two saved frames, by a
+  step whose straight path passes the middle of the extent inside the lumen,
+  is an **unresolved crossing**: listed, not counted, and reported as a
+  warning. Save frames more often if there are many. A jump over the extent
+  elsewhere in the box (bulk water displaced by about half a box between
+  frames, whose nearest image is ambiguous) says nothing about the channel
+  and is neither counted nor listed.
 
 `--permeation-convention strict` keeps the stricter rule of earlier
 versions: the molecule must stay inside the lumen without interruption from

@@ -115,7 +115,7 @@ crevice report 1GRM --out-dir 1GRM_bundle --prefix 1GRM --dpi 150 \
 ```
 
 ```text
-publish files=46 out_dir=1GRM_bundle profile=resolved
+report files=46 out_dir=1GRM_bundle profile=resolved
 ```
 
 `--outputs default,figures,network` adds every figure and the

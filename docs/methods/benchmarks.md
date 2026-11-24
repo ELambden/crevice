@@ -39,17 +39,18 @@ option is named, and no setting was tuned to match a comparator.
 
 ## Results in brief
 
-* **Profiles.** CREVICE resolves 10 of 11 channels with `simple.rad` (5 with
+* **Profiles.** CREVICE resolves all 11 channels with `simple.rad` (5 with
   default options; capped channels need `--lateral-exits`), covering 32–100 %
   of each protein's axial extent, including the KcsA (0.62 Å) and TWIK-1
   (0.51 Å) selectivity filters. Where both programs follow the same lumen the
   radii agree to 0.002–0.005 Å RMSD and the minimum radii to within 0.004 Å.
   HOLE's minimum within the protein lies inside CREVICE's range for 7 of the
-  10; the other three are in domains outside the transmembrane pore (the nAChR
-  extracellular domain and the MscS cytoplasmic cage, beyond a capped end).
-  Planes with two clearance maxima explain the larger differences (OmpF
-  vestibules, one aquaporin-1 plane). The MthK pore domain is occluded in the
-  curated structure and is not resolved.
+  11; three of the others are in domains outside the transmembrane pore (the
+  nAChR extracellular domain and the MscS cytoplasmic cage, beyond a capped
+  end). Planes with two clearance maxima explain the larger differences (OmpF
+  vestibules, one aquaporin-1 plane). The MthK pore domain is occluded on the
+  axis in the curated structure: CREVICE's widest route leaves it sideways just
+  above the occlusion, while HOLE stays on the axis and reaches 0 Å.
 * **Conductance.** The geometric estimate is 1.06 to 12.7 times the measured
   conductance on the four comparable open channels (HOLE's own estimate: 0.22
   to 12.1 times), close to HOLE's where CREVICE covers the pore, and it fails
@@ -64,11 +65,11 @@ option is named, and no setting was tuned to match a comparator.
   19–24 % (CREVICE smaller) for larger, partly open pockets; tools that count probe centres or
   distance-cutoff points report several times smaller volumes by definition.
 * **Run time.** On single structures (one process per run, one core, with the
-  optional numba kernels, on an idle machine) a profile took 0.6 s for
+  numba kernels, on an idle machine) a profile took 0.6 s for
   gramicidin, 1.3 s for the nicotinic receptor pore domain 1OED and 2.7 s for TWIK-1 with its
   lateral-exit and lateral-branch search, against 0.06–0.13 s for HOLE; about 0.3 s of each
   CREVICE run is start-up (`benchmarks/README.md`, "Timing"). Larger channels
-  (KcsA, OmpF, GLIC) take 1–3 s. Without numba the same profiles take 1–31 s.
+  (KcsA, OmpF, GLIC) take 1–3 s. With the NumPy path forced (`CREVICE_DISABLE_NUMBA=1`) the same profiles take 1–31 s.
   On a 1000-frame GLUT1 membrane simulation, the region volume took
   1665 s on one core at the definition's 0.2 Å grid and 370 s at 0.7 Å;
   MDpocket took 9326 s for the same frames. In those 0.4.0 runs CREVICE's
@@ -77,6 +78,7 @@ option is named, and no setting was tuned to match a comparator.
   0.4.0 they are released as each frame finishes, and the same 1000 frames
   (0.7 Å grid) peak at 0.57 GB. On a 1001-frame simulation of the OmpF porin,
   the channel profile of one pore took 986 s on one core (933 frames
-  resolved; the other 68 have a capped end, refused by default) and HOLE,
+  resolved; 53 others had too little clearance at the fixed start point and
+  15 a capped end, both refused by default) and HOLE,
   run frame by frame through mdahole2, 1187 s (`benchmarks/README.md`,
   "Trajectory timing").

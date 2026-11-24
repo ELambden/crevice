@@ -55,7 +55,7 @@ def run_static_benchmark_suite(
     residue_label_every: int = 5,
     cavity_spacing: float = 3.0,
     cast_spacing: float = 1.5,
-    cast_min_radius: float = 0.4,
+    cast_min_radius: float = 0.0,
     cast_max_components: int = 4,
     cast_max_grid_points: int = 120_000,
     max_grid_points: int = 60_000,
@@ -105,8 +105,9 @@ def run_static_benchmark_suite(
         Landmark spacing in the residue-landmark profile figure.
     cavity_spacing, cast_spacing : float
         Grid spacings (Å): 3.0 and 1.5 by default.
-    cast_min_radius : float, default 0.4
-        Minimum clearance of cast samples (Å).
+    cast_min_radius : float, default 0.0
+        Minimum clearance of cast samples (Å); 0 keeps all space outside the
+        atoms, as ``report`` does.
     cast_max_components : int, default 4
         Maximum cast components.
     cast_max_grid_points, max_grid_points : int

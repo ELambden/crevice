@@ -1,16 +1,16 @@
-"""Compiled kernels for the hot loops of the channel profile (optional numba).
+"""Compiled kernels for the hot loops of the channel profile (numba).
 
-With numba installed (``pip install crevice[fast]``) the in-plane grid of a
-channel section, the flood fill from the lumen centre and the lateral-exit
-search of a capped end (:func:`exit_search`, :func:`distinct_exits`) run as
-compiled loops; without it, the same results come from the NumPy code in
+numba is a required dependency. The in-plane grid of a channel section, the
+flood fill from the lumen centre and the lateral-exit search of a capped end
+(:func:`exit_search`, :func:`distinct_exits`) run as compiled loops; when
+numba cannot be imported, the same results come from the NumPy code in
 :mod:`crevice.sections`, :mod:`crevice.adaptive_channel` and
 :mod:`crevice.channel_exits`. Both paths use the same arithmetic, operation
 by operation, so they give the same free nodes, blocked edges, components and
 exit legs (``tests/test_kernels.py`` checks this).
 
 Set the environment variable ``CREVICE_DISABLE_NUMBA=1`` to force the NumPy
-path. Compiled functions are cached on disk after their first use.
+path (several times slower). Compiled functions are cached on disk after their first use.
 """
 
 from __future__ import annotations

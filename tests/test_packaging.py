@@ -2,7 +2,8 @@
 
 These are software/metadata checks only. They pin the policy that NumPy, SciPy,
 MDAnalysis and Matplotlib plus scikit-image (needed by
-the default cast/publish viewer bundles) are required runtime dependencies,
+the default cast/publish viewer bundles) and numba (the compiled profile
+kernels) are required runtime dependencies,
 that optional extras do not repeat them, and that the package version has a
 single source. They make no scientific claim.
 """
@@ -27,7 +28,7 @@ except ModuleNotFoundError:  # Python 3.10: the test extra installs tomli
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = {"numpy": "numpy", "scipy": "scipy", "mdanalysis": "MDAnalysis",
-            "matplotlib": "matplotlib", "scikit-image": "skimage"}
+            "matplotlib": "matplotlib", "scikit-image": "skimage", "numba": "numba"}
 DISTRIBUTION = {"scikit-image": "scikit-image"}
 needs_toml = pytest.mark.skipif(tomllib is None, reason="needs tomllib (Python >= 3.11) or tomli")
 

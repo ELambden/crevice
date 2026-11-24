@@ -3,14 +3,35 @@
 What changed in each release. The complete list, including known limitations,
 is in [CHANGELOG.md](../../CHANGELOG.md) in the repository.
 
+## 0.6.0 (24 November 2026)
+
+**Profiles follow the widest route; stricter crossing lists; numba required.**
+
+- **Profiles follow the widest route.** Where a pore splits around a wall
+  feature into a narrow side lobe and a wider branch that rejoin a little
+  further along the axis, a profile could report the lobe's constriction.
+  Each slice now keeps both candidates, and each point uses the one on the
+  widest route through all the slices (see [Profile](../tools/profile.md)).
+  The channel's extent and mouths are unchanged, and so is every entry of the
+  HOLE benchmark except MthK (1LNQ) with `simple.rad`, which now resolves with
+  `--lateral-exits`.
+- **Unresolved crossings** are listed only when the jump between two saved
+  frames passes through the lumen. Event counts and currents are unchanged.
+- **Casts** from `void_cast` and `static-suite` now default to a minimum
+  clearance of 0 Å, like `report` (`--cast-min-radius 0.4` restores the
+  earlier casts).
+- **`report`** prints its summary line as `report files=...`.
+- **numba is required**, so every install gets the compiled profile kernels;
+  `crevice[fast]` still installs.
+
 ## 0.5.3 (16 November 2026)
 
 **Trajectory timing against HOLE, and a faster NumPy path.**
 
 - **Trajectory timing against HOLE.** On a 1001-frame OmpF porin simulation
   (one pore, one core each), CREVICE took 986 s and HOLE 1187 s. CREVICE
-  resolved 933 frames; the other 68 have a capped end, which is refused by
-  default. See [Benchmarks](../methods/benchmarks.md).
+  resolved 933 frames and refused the other 68 by default (53 with too little
+  clearance at the fixed start point, 15 with a capped end). See [Benchmarks](../methods/benchmarks.md).
 - **Channel profiles without numba** are about 10 % faster, with
   byte-identical results. Installing `crevice[fast]` remains several times
   faster.

@@ -112,7 +112,7 @@ lies inside CREVICE's range.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1GRM gramicidin A | resolved | – | −14.6…14.6 | 1.00 | 0.004 | 0.014 | 1.200 / 1.199 | 1.20 @ −9.6 | yes |
 | 1K4C KcsA (closed gate) | resolved | – | −37.1…23.2 | 0.95 | 0.004 | 0.034 | 0.618 / 0.617 | 0.62 @ 5.0 | yes |
-| 1LNQ MthK pore | unresolved | unresolved | – | – | – | – | – / – | −0.01 @ −5.6 (global) | – |
+| 1LNQ MthK pore | unresolved | lateral exits | −4.9…11.9 | 0.44 | 0.428 | 1.244 | 1.834 / 0.370 | −0.01 @ −5.6 | no |
 | 1J4N aquaporin-1 | unresolved | lateral exits | −19.1…21.5 | 0.63 | 0.073 | 0.561 | 0.983 / 0.982 | 0.98 @ 7.0 | yes |
 | 2OMF OmpF | resolved | – | −21.9…22.5 | 0.76 | 0.270 | 1.258 | 3.563 / 3.559 | 3.56 @ −0.2 | yes |
 | 4HFI GLIC | resolved | – | −70.6…27.7 | 0.86 | 0.003 | 0.026 | 2.593 / 2.593 | 2.59 @ 11.8 | yes |
@@ -129,26 +129,31 @@ Reading the table:
   radii agree to 0.002–0.005 Å RMSD and the minimum radii to ≤ 0.004 Å
   (Bondi: ≤ 0.005 Å except MthK).
 * With default options CREVICE resolves 5 of 11 entries; with the documented
-  options (`--lateral-exits` for capped ends) 10 (Bondi: 11). Every plane uses
+  options (`--lateral-exits` for capped ends) all 11. Every plane uses
   its own enclosure probe, so narrow filters and leaky wide regions resolve in
   the same channel: KcsA's 0.62 Å filter and TWIK-1's 0.51 Å filter are
   followed. The smallest traceable clearance is about 0.32 Å with 0.25 Å
   sections.
 * HOLE's minimum within the protein lies inside CREVICE's range for 7 of the
-  10 resolved entries. The other three are outside the transmembrane pore:
-  the extracellular domain of the full nAChR (2BG9, s = −56 Å) and the
+  11 entries. Three of the others are outside the transmembrane pore: the
+  extracellular domain of the full nAChR (2BG9, s = −56 Å) and the
   cytoplasmic cage of MscS (2VV5, 2OAU), beyond the capped end where CREVICE
-  leaves through lateral exits.
+  leaves through lateral exits. The fourth is the MthK occlusion (below).
 * Larger differences come from planes with more than one clearance maximum.
   In the OmpF vestibules (r > 5.8 Å) CREVICE's centres are exact maxima of the
   enclosed lumen that are up to 1.26 Å wider than the point HOLE's search
   settles on; in aquaporin-1 one plane at s = −12 Å holds two maxima, and
-  CREVICE keeps the one continuous with its path. A higher maximum is taken
-  only when it lies in the same lumen (the straight line between the two
-  keeps 90 % of the lower clearance).
-* MthK (1LNQ): the curated pore domain is occluded (HOLE gives 0.0 Å at
-  s = −5.6 Å); with Bondi radii CREVICE resolves only the part above the
-  occlusion.
+  CREVICE keeps the one continuous with its path. Where the straight line
+  between two maxima keeps 90 % of the lower clearance, both lie in one lumen
+  and the higher is taken; otherwise both are candidates and the widest route
+  through all the planes decides (`crevice profile`, step 6).
+* MthK (1LNQ): the curated pore domain (residues 19–99) is occluded on the
+  axis (HOLE gives 0.0 Å at s = −5.6 Å). With `simple.rad`, CREVICE's widest
+  route turns off the axis just above the occlusion, into the wider lobe
+  between the inner helices (7–8 Å from the axis), and the capped end leaves
+  through a lateral exit of 1.68 Å; HOLE stays on the axis, so the two
+  profiles differ by up to 1.24 Å below s = 2 Å. With Bondi radii CREVICE
+  resolves only the part above the occlusion.
 * TWIK-1 (3UKM): the capped end stops where the two side portals leave the
   chamber under the cap (portal legs about 2.0 Å, against 1.0 Å for the route
   through the cap; the lateral-branch rule of `crevice profile`), so the
@@ -167,7 +172,7 @@ same ρ. Ratios are estimate / measured, per pore (OmpF: trimer / 3).
 | Entry | measured (pS) | conditions | CREVICE G_macro (pS) | ratio | lumen (Å) | HOLE G_macro (pS) | ratio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | gramicidin (1GRM) | 10 | 150 mM NaCl | 33.4 | 3.3 | 29.3 | 31.9 | 3.2 |
-| MthK (1LNQ) | 242 | 200 mM K⁺, −200 mV | unresolved | – | – | ~0 | ~0 |
+| MthK (1LNQ) ‡ | 242 | 200 mM K⁺, −200 mV | 527 | 2.18 | 16.8 (capped) | ~0 | ~0 |
 | OmpF (2OMF, per pore) | 1367 | 1 M KCl | 2211 | 1.6 | 44.4 | 1897 | 1.4 |
 | GLIC (4HFI) | 9.3 | 160 mM NaCl / 145 mM CsCl | 118.6 | 12.7 | 98.3 | 112.6 | 12.1 |
 | MscS open (2VV5) | 1200 | 200 mM KCl + 90 mM MgCl₂ | 1266 | 1.06 | 71.3 (capped) | 263 | 0.22 |
@@ -175,6 +180,7 @@ same ρ. Ratios are estimate / measured, per pore (OmpF: trimer / 3).
 | MscS closed (2OAU) † | 1200 | as 2VV5 | 506 | 0.42 | 77.8 (capped) | 178 | 0.15 |
 
 † closed structure vs open-channel measurement: not a like-for-like comparison.
+‡ the part of an occluded, curated pore domain above the occlusion (44 % of its axial extent): not a like-for-like comparison.
 
 The estimate is not a predictor of single-channel conductance: over the four
 comparable open channels the ratio spans 1.06–12.7 (HOLE: 0.22–12.1). Where
@@ -186,11 +192,12 @@ water molecule). Sources and conditions are in
 `inputs/conductance_literature.csv`; every value was read in the cited
 article.
 
-On a 100 ns OmpF trimer simulation at 561 mV (`nongeom/md_systems/ompf.md`), the same
-estimate on every frame's profile, at the experimental 1 M KCl resistivity, is 1.5–2.0
+On a 200 ns OmpF trimer simulation at 561 mV (`nongeom/md_systems/ompf.md`), the same
+estimate on every frame's profile, at the experimental 1 M KCl resistivity, is 1.6–2.0
 times the simulated per-pore conductance. Over 5 ns windows it follows the simulated
-current only weakly (Spearman ρ = 0.32), and it did not change when one pore's K+ current
-fell threefold.
+current with Spearman ρ = 0.56. One pore narrowed before its current fell, and the
+estimate followed it (ρ = 0.88 within that pore); another pore's threefold fall in K+
+current earlier in the run left its profile unchanged.
 
 ### Enzyme tunnels vs CAVER 3.0.3
 
@@ -251,7 +258,7 @@ statement.
 ### Timing
 
 `results/timing/`: one process per run, median of 3, one core for CREVICE
-(`--workers 1`, single-threaded BLAS, with the optional numba kernels);
+(`--workers 1`, single-threaded BLAS, with the numba kernels);
 CAVER is a Java program and uses more than one thread (its CPU time is given).
 Intel Core Ultra 7 268V, 8 logical CPUs, Linux, Python 3.13; measured on
 3 Nov 2026 on an otherwise idle machine (1-minute load 0.7–2.1; 0.7 for the profiles). Times
@@ -403,8 +410,11 @@ private).
 The two take about the same time per frame here. Both times include reading
 and fitting the frames; HOLE runs the usual way for a trajectory, with one PDB
 file and one HOLE process per frame (how that splits between HOLE itself and
-the round trip was not measured). CREVICE refused 68 frames (7 %)
-in which the extracellular end of the pore is capped, as it does by default
+the round trip was not measured). CREVICE refused 68 frames (7 %): in 53,
+all after 90 ns, the fixed `--origin` (chosen in frame 0) has too little
+clearance for the enclosure probe (under 0.3 Å);
+in 15 the extracellular end of the pore is capped, which is refused by default
 for a channel end without a straight exit (`--lateral-exits` follows such
-ends; not timed here); HOLE reports a profile for every frame. The profiles
+ends; not timed here). Each refused frame is recorded with its reason
+(`profile_reason`); HOLE reports a profile for every frame. The profiles
 themselves are compared in `nongeom/md_systems/ompf.md`.

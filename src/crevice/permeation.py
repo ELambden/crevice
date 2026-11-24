@@ -26,8 +26,11 @@ there a lateral exit (``out``) forgets the side. Periodic boundaries are
 handled per molecule: positions are taken as the minimum image about the
 channel centre, and the frame to frame displacement is unwrapped, so a
 molecule that reaches the other side through the periodic bulk is not a
-permeation, and one that crosses the whole extent between two saved frames is
-reported as an unresolved crossing (not counted as an event).
+permeation, and one that crosses the whole extent through the lumen between
+two saved frames is reported as an unresolved crossing (not counted as an
+event). A jump over the extent elsewhere in the box (for example bulk water
+displaced by about half a box, an ambiguous minimum image) is neither counted
+nor listed.
 
 Channel definitions (all in the coordinates of the reference frame, the first
 analysed frame after least-squares fitting of the protein alignment atoms):
@@ -1793,7 +1796,7 @@ def analyze_permeation(
                 # A step over the whole extent adds to n(t) only if its straight path crosses the middle
                 # of the extent inside the lumen; a molecule elsewhere in the box (for example bulk water
                 # displaced by about half a box between frames, an ambiguous minimum image) is not inside
-                # the channel. It is still listed as an unresolved crossing below.
+                # the channel, and is neither counted nor listed against it.
                 through_lumen = through.copy()
                 jumped = np.flatnonzero(through)
                 if len(jumped):
@@ -1816,8 +1819,10 @@ def analyze_permeation(
                 if moving.any():
                     contrib = np.clip(s_new[moving], lo, hi) - np.clip(s_prev[moving], lo, hi)
                     s_state["n"] += np.bincount(species_of[moving], weights=contrib, minlength=S) / (hi - lo)
-                # Unresolved crossings: the whole extent crossed between two saved frames.
-                for i in np.flatnonzero(through & ~(prev == _STATE_INSIDE)):
+                # Unresolved crossings: the whole extent crossed between two saved frames by a straight step
+                # that passes the middle of the extent inside the lumen (a possible permeation that the saved
+                # frames cannot resolve). Jumps elsewhere in the box are ambiguous and are not listed.
+                for i in np.flatnonzero(through_lumen & ~(prev == _STATE_INSIDE)):
                     events.append(
                         {
                             "channel": c,
@@ -2465,7 +2470,9 @@ def _assemble(
             "outside_lumen": "compartment convention only: a passage from one side to the other through the axial "
             "extent without any saved frame in the lumen (listed, not counted; for example a "
             "transit through another pore or a too narrow lumen)",
-            "unresolved_crossing": "the whole extent crossed between two consecutive analysed frames (not counted)",
+            "unresolved_crossing": "the whole extent crossed between two consecutive analysed frames by a step "
+            "whose straight path passes the middle of the extent inside the lumen (listed, not counted); jumps "
+            "elsewhere in the box (ambiguous minimum images) are neither counted nor listed",
             "periodic_boundaries": "minimum image about the channel centre; frame-to-frame displacement unwrapped per molecule",
             "entry_frame": (
                 "first frame of the passage within the axial extent (compartment) or inside the lumen (strict)"
